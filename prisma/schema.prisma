@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Tabela de Usuários (Admin, Professor, Responsável)
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  cargo     String   // Pode ser: "ADMIN", "PROFESSOR" ou "RESPONSAVEL"
+  criadoEm  DateTime @default(now())
+
+  turmas    Turma[]  // Um professor pode ter turmas
+  alunos    Aluno[]  // Um responsável pode ter alunos
+}
+
+// 2. Tabela de Turmas
+model Turma {
+  id          String   @id @default(uuid())
+  nome        String
+  
+  professorId String?
+  professor   Usuario? @relation(fields: [professorId], references: [id])
+  
+  alunos      Aluno[]
+}
+
+// 3. Tabela de Alunos
+model Aluno {
+  id             String   @id @default(uuid())
+  nome           String
+  whatsapp       String
+  valorBase      Float    // Valor da mensalidade sem desconto
+  desconto       Float    @default(0) // Desconto em reais
+  diaVencimento  Int      // Ex: dia 5 ou dia 10
+
+  turmaId        String
+  turma          Turma    @relation(fields: [turmaId], references: [id])
+
+  responsavelId  String
+  responsavel    Usuario  @relation(fields: [responsavelId], references: [id])
+
+  mensalidades   Mensalidade[]
+}
+
+// 4. Tabela de Mensalidades (Financeiro)
+model Mensalidade {
+  id             String   @id @default(uuid())
+  valorCobrado   Float
+  mesReferencia  String   // Ex: "Abril/2026"
+  status         String   // Ex: "PAGO" ou "PENDENTE"
+  dataVencimento DateTime
+  pagoEm         DateTime? // Fica vazio até a pessoa pagar
+
+  alunoId        String
+  aluno          Aluno    @relation(fields: [alunoId], references: [id])
+}
