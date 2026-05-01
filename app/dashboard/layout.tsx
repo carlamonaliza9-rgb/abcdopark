@@ -1,5 +1,12 @@
 import Link from "next/link";
 
+// Configuração para forçar o zoom inicial em 50% no celular
+export const viewport = {
+  width: 'device-width',
+  initialScale: 0.5,
+  maximumScale: 1,
+};
+
 export default function DashboardLayout({
   children,
 }: {
@@ -7,11 +14,10 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Menu Lateral (Sidebar) */}
+      {/* Menu Lateral (Sidebar) - Escondido ou ajustado para mobile no futuro */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         {/* Cabeçalho com Logo - Centralizado */}
         <div className="p-6 border-b border-gray-100 flex flex-col items-center text-center">
-          {/* Tag da Logo */}
           <img 
             src="https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.jpg.jpg" 
             alt="Logo ABC DO PARK" 
