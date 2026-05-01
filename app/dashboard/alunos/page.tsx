@@ -25,11 +25,10 @@ export default function Alunos() {
   const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // Estados para Histórico de Pagamentos
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
 
-  // CONFIGURAÇÃO: E-mail que não pode editar nada
+  // CONFIGURAÇÃO: E-mail de leitura da ABC DO PARK
   const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
   const ehVisitante = userEmail === EMAIL_VISITANTE;
 
@@ -147,23 +146,38 @@ export default function Alunos() {
   const alunoAtual = alunos.find(a => a.id === idEdicao);
 
   return (
-    <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+    <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      {/* CABEÇALHO RESPONSIVO */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '30px',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#111827' }}>Alunos</h1>
+          <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 'bold', color: '#111827', margin: 0 }}>Alunos</h1>
           <p style={{ fontSize: '14px', color: '#6b7280' }}>Gestão ABC DO PARK</p>
         </div>
         
-        {/* BOTÃO NOVO ALUNO: Escondido para visitantes */}
         {!ehVisitante && (
-          <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+          <button 
+            onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
+            style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
             + NOVO ALUNO
           </button>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      {/* GRADE DE CARDS RESPONSIVA */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', 
+        gap: '20px' 
+      }}>
         {alunos.map((aluno) => (
           <div key={aluno.id} onClick={() => abrirFicha(aluno)}
             style={{ backgroundColor: 'white', borderRadius: '20px', padding: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', position: 'relative', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -182,7 +196,7 @@ export default function Alunos() {
               {aluno.foto_url ? <img src={aluno.foto_url} style={{ height: '90px', width: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #f8fafc', boxShadow: '0 0 0 1px #e2e8f0' }} /> : <div style={{ height: '90px', width: '90px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#94a3b8' }}>{aluno.nome.charAt(0)}</div>}
             </div>
 
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 4px' }}>{aluno.nome}</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 4px', textAlign: 'center' }}>{aluno.nome}</h3>
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '4px 12px', borderRadius: '20px', marginBottom: '15px' }}>{aluno.turma || "SEM TURMA"}</span>
 
             <div style={{ width: '100%', paddingTop: '15px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
@@ -193,9 +207,10 @@ export default function Alunos() {
         ))}
       </div>
 
+      {/* MODAL RESPONSIVO */}
       {modalAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
+          <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
             
             {!modoEdicao ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -204,7 +219,7 @@ export default function Alunos() {
                   {eAutista && <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px' }}>🧩</span>}
                 </div>
 
-                <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0' }}>{nome}</h2>
+                <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{nome}</h2>
                 <p style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '14px', marginTop: '5px', backgroundColor: '#eff6ff', padding: '4px 15px', borderRadius: '20px' }}>{turma}</p>
 
                 {!verHistorico ? (
@@ -236,33 +251,18 @@ export default function Alunos() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
                       <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
                         <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 4px' }}>MÉDIA ANUAL</p>
-                        <p style={{ margin: '0', fontWeight: '800', color: '#1e293b', fontSize: '16px' }}>
-                          {alunoAtual?.media_anual || '---'}
-                        </p>
+                        <p style={{ margin: '0', fontWeight: '800', color: '#1e293b', fontSize: '16px' }}>{alunoAtual?.media_anual || '---'}</p>
                       </div>
-                      <div style={{ 
-                        backgroundColor: alunoAtual?.situacao_academica === 'Aprovado' ? '#dcfce7' : '#f8fafc', 
-                        padding: '12px', 
-                        borderRadius: '15px', 
-                        border: '1px solid #e2e8f0' 
-                      }}>
+                      <div style={{ backgroundColor: alunoAtual?.situacao_academica === 'Aprovado' ? '#dcfce7' : '#f8fafc', padding: '12px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
                         <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 4px' }}>SITUAÇÃO</p>
-                        <p style={{ 
-                          margin: '0', 
-                          fontWeight: '800', 
-                          color: alunoAtual?.situacao_academica === 'Aprovado' ? '#166534' : '#1e293b' 
-                        }}>
-                          {alunoAtual?.situacao_academica?.toUpperCase() || 'EM CURSO'}
-                        </p>
+                        <p style={{ margin: '0', fontWeight: '800', color: alunoAtual?.situacao_academica === 'Aprovado' ? '#166534' : '#1e293b' }}>{alunoAtual?.situacao_academica?.toUpperCase() || 'EM CURSO'}</p>
                       </div>
                     </div>
 
                     <button 
                       onClick={() => idEdicao && buscarHistoricoPagamento(idEdicao)}
-                      style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}
-                    >
-                      📊 VER HISTÓRICO DE PAGAMENTOS
-                    </button>
+                      style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px', fontSize: '12px' }}
+                    >📊 VER HISTÓRICO DE PAGAMENTOS</button>
                   </div>
                 ) : (
                   <div style={{ width: '100%', marginTop: '20px' }}>
@@ -284,14 +284,12 @@ export default function Alunos() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '30px' }}>
-                  <button onClick={() => setModalAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 'bold', cursor: 'pointer', backgroundColor: 'white' }}>FECHAR</button>
-                  
-                  {/* BOTÕES DE EDIÇÃO E EXCLUSÃO: Escondidos para visitantes */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', width: '100%', marginTop: '30px' }}>
+                  <button onClick={() => setModalAberto(false)} style={{ flex: '1 1 100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 'bold', cursor: 'pointer', backgroundColor: 'white' }}>FECHAR</button>
                   {!ehVisitante && (
                     <>
-                      <button onClick={() => setModoEdicao(true)} style={{ flex: 1, padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer', border: 'none' }}>EDITAR FICHA</button>
-                      <button onClick={excluirAluno} style={{ padding: '14px', borderRadius: '12px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                      <button onClick={() => setModoEdicao(true)} style={{ flex: '1 1 70%', padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer', border: 'none' }}>EDITAR FICHA</button>
+                      <button onClick={excluirAluno} style={{ flex: '1 1 20%', padding: '14px', borderRadius: '12px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer' }}>🗑️</button>
                     </>
                   )}
                 </div>
