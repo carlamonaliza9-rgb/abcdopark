@@ -3,7 +3,7 @@ import Link from "next/link";
 // Configuração para forçar o zoom inicial em 50% no celular
 export const viewport = {
   width: 'device-width',
-  initialScale: 0.5,
+  initialScale: 1.0,
   maximumScale: 1,
 };
 
