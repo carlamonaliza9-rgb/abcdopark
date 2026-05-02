@@ -42,7 +42,6 @@ export default function DashboardPage() {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
         
-        // Filtra eventos futuros para o novo card
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
 
@@ -71,7 +70,6 @@ export default function DashboardPage() {
   // --- Funções do Calendário ---
   async function salvarEvento() {
     if (!novoEventoNome || !novoEventoData) return alert("Preencha o nome e a data.");
-    
     try {
       if (idEditando) {
         const { error } = await supabase
@@ -86,7 +84,6 @@ export default function DashboardPage() {
           .insert([{ titulo: novoEventoNome, data: novoEventoData }]);
         if (error) throw error;
       }
-
       setNovoEventoNome(""); 
       setNovoEventoData("");
       await carregarDados();
@@ -178,7 +175,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* NOVO CARD: PRÓXIMAS PROGRAMAÇÕES */}
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px' }}>
             🚀 Próximas Programações
@@ -221,15 +217,23 @@ export default function DashboardPage() {
             )) : <p style={{ color: '#9ca3af', fontSize: '14px' }}>Nenhum aniversário este mês.</p>}
           </div>
         </div>
+
+        {/* --- CARD ATUALIZADO: Alertas de Saúde / Alergias --- */}
         <div style={{ backgroundColor: '#fff5f5', padding: '25px', borderRadius: '20px', border: '1px solid #fed7d7', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#c53030' }}>⚠️ Alertas de Saúde / Alergias</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             {dados.alertasSaude.length > 0 ? dados.alertasSaude.map(aluno => (
-              <div key={aluno.id} style={{ backgroundColor: 'white', padding: '8px 12px', borderRadius: '10px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div key={aluno.id} style={{ backgroundColor: 'white', padding: '8px 12px', borderRadius: '10px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#feb2b2', overflow: 'hidden' }}>
                   {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>{aluno.nome.charAt(0)}</div>}
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{aluno.nome}</span>
+                {/* Nome e descrição da alergia juntos */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</span>
+                  <span style={{ fontSize: '11px', color: '#c53030', fontWeight: '600' }}>
+                    {aluno.alergia_descricao || "Alergia"}
+                  </span>
+                </div>
               </div>
             )) : <p style={{ color: '#4a5568', fontSize: '14px' }}>Nenhum alerta registrado.</p>}
           </div>

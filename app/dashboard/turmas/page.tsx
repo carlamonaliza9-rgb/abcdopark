@@ -36,7 +36,6 @@ export default function TurmasPage() {
 
   async function salvarProfessor() {
     try {
-      // Usamos .ilike para evitar erros de maiúsculas/minúsculas entre o botão e o banco
       const { error } = await supabase
         .from('Turma')
         .update({ professor_nome: novoNomeProfessor })
@@ -46,7 +45,6 @@ export default function TurmasPage() {
 
       alert("Professor(a) atualizado(a) com sucesso!");
       
-      // Atualiza o estado local para o nome aparecer na hora
       setConfiguracoes(prev => prev.map(c => 
         c.nome_turma === turmaAtiva ? { ...c, professor_nome: novoNomeProfessor } : c
       ));
@@ -138,18 +136,52 @@ export default function TurmasPage() {
         </div>
       </div>
 
-      {/* Listagem de Alunos */}
+      {/* Listagem de Alunos com Alertas de Saúde */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
         {alunosFiltrados.map(aluno => (
           <div key={aluno.id} style={{ backgroundColor: 'white', padding: '12px', borderRadius: '15px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9' }}>
             <div style={{ width: '55px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto 8px', overflow: 'hidden', border: '2px solid #fff', boxShadow: '0 0 0 1px #e2e8f0' }}>
               {aluno.foto_url ? (
-                <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={aluno.nome} />
               ) : (
                 <span style={{ lineHeight: '60px', color: '#94a3b8', fontWeight: 'bold', fontSize: '18px' }}>{aluno.nome.charAt(0)}</span>
               )}
             </div>
-            <h4 style={{ fontSize: '12px', margin: 0, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{aluno.nome}</h4>
+            
+            <h4 style={{ fontSize: '12px', margin: 0, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {aluno.nome}
+            </h4>
+
+            {/* Informação de Alergia destacada */}
+            {aluno.tem_alergia && (
+              <div style={{ 
+                fontSize: '9px', 
+                color: '#dc2626', 
+                fontWeight: 'bold', 
+                marginTop: '5px', 
+                backgroundColor: '#fee2e2', 
+                borderRadius: '6px', 
+                padding: '3px 5px',
+                border: '1px solid #fecaca'
+              }}>
+                ⚠️ {aluno.alergia_descricao || "Alergia"}
+              </div>
+            )}
+
+            {/* Identificação de TEA */}
+            {aluno.e_autista && (
+              <div style={{ 
+                fontSize: '9px', 
+                color: '#2563eb', 
+                fontWeight: 'bold', 
+                marginTop: '3px', 
+                backgroundColor: '#dbeafe', 
+                borderRadius: '6px', 
+                padding: '3px 5px'
+              }}>
+                🧩 TEA
+              </div>
+            )}
           </div>
         ))}
       </div>
