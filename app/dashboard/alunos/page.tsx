@@ -28,7 +28,6 @@ export default function Alunos() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
 
-  // CONFIGURAÇÃO: E-mail de leitura da ABC DO PARK
   const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
   const ehVisitante = userEmail === EMAIL_VISITANTE;
 
@@ -68,50 +67,84 @@ export default function Alunos() {
 
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
-    if (ehVisitante) return;
+    
+    if (ehVisitante) {
+      alert("Acesso de visitante não permite salvar alterações.");
+      return;
+    }
+
+    // Validação básica
+    if (!nome || !turma) {
+      alert("Por favor, preencha pelo menos o Nome e a Turma.");
+      return;
+    }
+
     setCarregando(true);
-    let urlFinal = previewUrl;
+    
+    try {
+      let urlFinal = previewUrl;
 
-    if (arquivoFoto) {
-      const nomeArquivo = `${Date.now()}_${arquivoFoto.name}`;
-      const { data } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
-      if (data) {
-        const { data: urlData } = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo);
-        urlFinal = urlData.publicUrl;
+      if (arquivoFoto) {
+        const nomeArquivo = `${Date.now()}_${arquivoFoto.name}`;
+        const { data, error: uploadError } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
+        
+        if (uploadError) throw uploadError;
+
+        if (data) {
+          const { data: urlData } = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo);
+          urlFinal = urlData.publicUrl;
+        }
       }
+
+      const dadosAluno = { 
+        nome, 
+        turma, 
+        responsavel, 
+        whatsapp,
+        responsavel_2_nome: responsavel2,
+        responsavel_2_contato: whatsapp2,
+        valor: valor ? parseFloat(valor) : null, 
+        vencimento, 
+        data_nascimento: dataNascimento,
+        tem_alergia: temAlergia,
+        alergia_descricao: temAlergia ? alergiaDescricao : "",
+        e_autista: eAutista, // CORRIGIDO: Sincronizado com seu banco de dados
+        foto_url: urlFinal
+      };
+
+      if (idEdicao) {
+        const { error: updateError } = await supabase.from('alunos').update(dadosAluno).eq('id', idEdicao);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from('alunos').insert([{ ...dadosAluno, status: 'pendente' }]);
+        if (insertError) throw insertError;
+      }
+
+      setModalAberto(false);
+      setModoEdicao(false);
+      buscarAlunos();
+      limparFormulario();
+      alert("Salvo com sucesso!");
+
+    } catch (error: any) {
+      console.error("Erro detalhado:", error);
+      alert("Erro ao salvar: " + (error.message || "Verifique a conexão com o banco"));
+    } finally {
+      setCarregando(false);
     }
-
-    const dadosAluno = { 
-      nome, turma, responsavel, whatsapp,
-      responsavel_2_nome: responsavel2,
-      responsavel_2_contato: whatsapp2,
-      valor: valor ? parseFloat(valor) : null, 
-      vencimento, data_nascimento: dataNascimento,
-      tem_alergia: temAlergia,
-      alergia_descricao: temAlergia ? alergiaDescricao : "",
-      e_artista: eAutista,
-      foto_url: urlFinal
-    };
-
-    if (idEdicao) {
-      await supabase.from('alunos').update(dadosAluno).eq('id', idEdicao);
-    } else {
-      await supabase.from('alunos').insert([{ ...dadosAluno, status: 'pendente' }]);
-    }
-
-    setModalAberto(false);
-    setModoEdicao(false);
-    buscarAlunos();
-    limparFormulario();
-    setCarregando(false);
   }
 
   async function excluirAluno() {
     if (ehVisitante) return;
     if (idEdicao && confirm("Deseja excluir este aluno permanentemente?")) {
-      await supabase.from('alunos').delete().eq('id', idEdicao);
-      setModalAberto(false);
-      buscarAlunos();
+      try {
+        const { error } = await supabase.from('alunos').delete().eq('id', idEdicao);
+        if (error) throw error;
+        setModalAberto(false);
+        buscarAlunos();
+      } catch (error: any) {
+        alert("Erro ao excluir: " + error.message);
+      }
     }
   }
 
@@ -136,7 +169,7 @@ export default function Alunos() {
     setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false);
     setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_artista || false);
+    setEAutista(aluno.e_autista || false); // Sincronizado
     setPreviewUrl(aluno.foto_url);
     setModoEdicao(false); 
     setVerHistorico(false);
@@ -148,15 +181,7 @@ export default function Alunos() {
   return (
     <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
-      {/* CABEÇALHO RESPONSIVO */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '30px',
-        flexWrap: 'wrap',
-        gap: '15px'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 'bold', color: '#111827', margin: 0 }}>Alunos</h1>
           <p style={{ fontSize: '14px', color: '#6b7280' }}>Gestão ABC DO PARK</p>
@@ -172,12 +197,7 @@ export default function Alunos() {
         )}
       </div>
 
-      {/* GRADE DE CARDS RESPONSIVA */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', 
-        gap: '20px' 
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
         {alunos.map((aluno) => (
           <div key={aluno.id} onClick={() => abrirFicha(aluno)}
             style={{ backgroundColor: 'white', borderRadius: '20px', padding: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', position: 'relative', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -185,7 +205,7 @@ export default function Alunos() {
             <div style={{ position: 'absolute', top: '18px', left: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '14px' }}>🟢</span>
               {aluno.tem_alergia && <div style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid white' }} />}
-              {aluno.e_artista && <span style={{ fontSize: '16px' }} title="TEA">🧩</span>}
+              {aluno.e_autista && <span style={{ fontSize: '16px' }} title="TEA">🧩</span>}
             </div>
 
             <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>
@@ -207,7 +227,6 @@ export default function Alunos() {
         ))}
       </div>
 
-      {/* MODAL RESPONSIVO */}
       {modalAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
           <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
