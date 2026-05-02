@@ -17,11 +17,16 @@ export default function TurmasPage() {
 
   async function carregarDados() {
     try {
+      // Busca os alunos
       const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
-      const { data: listaConfigs } = await supabase.from('turmas_config').select('*');
+      
+      // ALTERAÇÃO: Nome da tabela ajustado para 'Turma' (conforme seu Supabase)
+      const { data: listaConfigs } = await supabase.from('Turma').select('*');
       
       if (listaAlunos) setAlunos(listaAlunos);
       if (listaConfigs) setConfiguracoes(listaConfigs);
+    } catch (error: any) {
+      console.error("Erro ao carregar dados:", error.message);
     } finally {
       setCarregando(false);
     }
@@ -30,21 +35,30 @@ export default function TurmasPage() {
   useEffect(() => { carregarDados(); }, []);
 
   const alunosFiltrados = alunos.filter(a => a.turma === turmaAtiva);
+  
+  // ALTERAÇÃO: Ajustado para buscar pelo nome da turma na tabela 'Turma'
   const configTurmaAtual = configuracoes.find(c => c.nome_turma === turmaAtiva);
 
   async function salvarProfessor() {
-    const { error } = await supabase
-      .from('turmas_config')
-      .update({ professor_nome: novoNomeProfessor })
-      .eq('nome_turma', turmaAtiva);
-    
-    if (!error) {
+    try {
+      // ALTERAÇÃO: Nome da tabela 'Turma' e coluna 'professor_nome'
+      const { error } = await supabase
+        .from('Turma')
+        .update({ professor_nome: novoNomeProfessor })
+        .eq('nome_turma', turmaAtiva);
+      
+      if (error) throw error;
+
+      alert("Professor(a) atualizado(a) com sucesso!");
       setEditandoProfessor(false);
-      carregarDados();
+      carregarDados(); // Recarrega para mostrar o nome novo na tela
+    } catch (error: any) {
+      alert("Erro ao salvar professor: " + error.message);
     }
   }
 
   const totalAlunos = alunosFiltrados.length;
+  // ALTERAÇÃO: Garantindo que usa 'e_autista' que corrigimos nos alunos
   const totalTEA = alunosFiltrados.filter(a => a.e_autista).length;
   const totalAlergias = alunosFiltrados.filter(a => a.tem_alergia).length;
 
@@ -58,7 +72,7 @@ export default function TurmasPage() {
         <p style={{ color: '#6b7280', fontSize: '14px' }}>Organização de professores e alunos da ABC DO PARK.</p>
       </header>
 
-      {/* Seleção de Turmas - Mais compacta */}
+      {/* Seleção de Turmas */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '8px' }}>
         {turmasDisponiveis.map(t => (
           <button
@@ -82,7 +96,6 @@ export default function TurmasPage() {
         ))}
       </div>
 
-      {/* Grid de Resumo - Altura Reduzida */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         
         {/* Card do Professor */}
@@ -125,7 +138,7 @@ export default function TurmasPage() {
         </div>
       </div>
 
-      {/* Listagem de Alunos - Cards menores e padronizados */}
+      {/* Listagem de Alunos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
         {alunosFiltrados.map(aluno => (
           <div key={aluno.id} style={{ backgroundColor: 'white', padding: '12px', borderRadius: '15px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9' }}>
