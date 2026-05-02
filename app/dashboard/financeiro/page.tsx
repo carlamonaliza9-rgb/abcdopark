@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
-  // Estado para controlar o mês visível (Padrão: Mês Atual)
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -23,13 +22,15 @@ export default function FinanceiroPage() {
   const [valorGasto, setValorGasto] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentos, setPagamentos] = useState({ pix: "", dinheiro: "", credito: "", debito: "" });
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "" });
 
   const SENHA_MESTRA = "1234";
 
   async function carregarDados() {
     setCarregando(true);
     try {
+      const hoje = new Date();
+      const diaHoje = hoje.getDate();
       const [ano, mes] = mesFiltro.split('-');
       const dataInicio = `${ano}-${mes}-01`;
       const dataFim = `${ano}-${mes}-31`;
@@ -40,11 +41,11 @@ export default function FinanceiroPage() {
       
       let vPago = 0;
       let vGastos = 0;
+      let metodosResumo = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
 
-      // Processa Recebimentos do Mês selecionado
-      if (pgtosMes) {
-        vPago = pgtosMes.reduce((acc, curr) => acc + curr.valor_total, 0);
-        const metodos = pgtosMes.reduce((acc, curr) => {
+      if (pgtosMes && pgtosMes.length > 0) {
+        vPago = pgtosMes.reduce((acc, curr) => acc + (curr.valor_total || 0), 0);
+        metodosResumo = pgtosMes.reduce((acc, curr) => {
           const det = curr.detalhes_metodos || {};
           acc.pix += parseFloat(det.pix || 0);
           acc.dinheiro += parseFloat(det.dinheiro || 0);
@@ -52,16 +53,32 @@ export default function FinanceiroPage() {
           acc.debito += parseFloat(det.debito || 0);
           return acc;
         }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
-        setResumoMetodos(metodos);
       }
+      setResumoMetodos(metodosResumo);
 
-      // Processa Gastos do Mês selecionado
-      if (gastosMes) {
-        vGastos = gastosMes.reduce((acc, curr) => acc + parseFloat(curr.valor), 0);
+      if (gastosMes && gastosMes.length > 0) {
+        vGastos = gastosMes.reduce((acc, curr) => acc + parseFloat(curr.valor || 0), 0);
       }
 
       if (listaAlunos) {
-        const ordenados = [...listaAlunos].sort((a, b) => (a.status !== 'pago' ? -1 : 1));
+        // Lógica de Status Inteligente: Pendente vs Atrasado
+        const listaProcessada = listaAlunos.map(aluno => {
+          if (aluno.status === 'pago') return aluno;
+          
+          const diaVencimento = parseInt(aluno.vencimento) || 1;
+          // Se hoje passou do dia de vencimento, marca como atrasado
+          if (diaHoje > diaVencimento) {
+            return { ...aluno, status: 'atrasado' };
+          }
+          return { ...aluno, status: 'pendente' };
+        });
+
+        const ordenados = [...listaProcessada].sort((a, b) => {
+          if (a.status === 'atrasado') return -1;
+          if (b.status === 'atrasado') return 1;
+          return a.status !== 'pago' ? -1 : 1;
+        });
+
         setAlunos(ordenados);
         const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
         const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (curr.valor || 0)), 0);
@@ -69,7 +86,7 @@ export default function FinanceiroPage() {
         setMetricas({ 
           total: totalPrevisto, 
           pago: vPago, 
-          pendente: totalPrevisto - vPago, 
+          pendente: Math.max(0, totalPrevisto - vPago), 
           descontos: totalDescontos, 
           gastos: vGastos, 
           lucro: vPago - vGastos 
@@ -87,7 +104,7 @@ export default function FinanceiroPage() {
   async function zerarMes() {
     const senha = prompt("Senha:");
     if (senha !== SENHA_MESTRA) return alert("Senha incorreta!");
-    if (confirm("Resetar status dos alunos para PENDENTE? (Dados de meses anteriores continuam salvos no histórico)")) {
+    if (confirm("Resetar status dos alunos para PENDENTE?")) {
       await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
       carregarDados();
     }
@@ -102,7 +119,6 @@ export default function FinanceiroPage() {
 
   async function adicionarGasto() {
     if (!descGasto || !valorGasto) return alert("Preencha tudo.");
-    // Salva o gasto com a data baseada no mês que está sendo visualizado
     await supabase.from('gastos').insert([{ 
       descricao: descGasto, 
       valor: parseFloat(valorGasto), 
@@ -112,18 +128,19 @@ export default function FinanceiroPage() {
   }
 
   async function confirmarPagamento() {
-    const somaPaga = Object.values(pagamentos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
+    const dataRef = `${mesFiltro}-${String(new Date().getDate()).padStart(2, '0')}`;
     await supabase.from('historico_pagamentos').insert([{ 
         aluno_id: alunoSelecionado.id, 
         tipo: tipoPagamento, 
         descricao: tipoPagamento === 'mensalidade' ? 'Mensalidade' : descricaoOutro, 
         valor_total: somaPaga, 
-        data_pagamento: new Date().toISOString().split('T')[0], 
-        detalhes_metodos: pagamentos 
+        data_pagamento: dataRef, 
+        detalhes_metodos: pagamentosMetodos 
     }]);
     if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
-    setModalPgtoAberto(false); carregarDados();
+    setModalPgtoAberto(false); setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "" }); carregarDados();
   }
 
   const estiloBtnReduzido = { padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' as 'bold', border: 'none', cursor: 'pointer', display: 'inline-block' };
@@ -133,7 +150,7 @@ export default function FinanceiroPage() {
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      {/* Cabeçalho e Filtro de Mês */}
+      {/* Cabeçalho */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <header>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937' }}>Financeiro ABC DO PARK</h1>
@@ -181,7 +198,7 @@ export default function FinanceiroPage() {
 
       {/* Tabela de Alunos */}
       <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>Status de Pagamento (Atual)</h2>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>Status de Pagamento (Mês Selecionado)</h2>
         <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
@@ -201,7 +218,13 @@ export default function FinanceiroPage() {
                   <td style={{ padding: '12px', textAlign: 'center' }}>{aluno.vencimento}</td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                      <span style={{ ...estiloBtnReduzido, backgroundColor: aluno.status === 'pago' ? '#dcfce7' : '#fee2e2', color: aluno.status === 'pago' ? '#166534' : '#991b1b' }}>{aluno.status?.toUpperCase() || 'PENDENTE'}</span>
+                      <span style={{ 
+                        ...estiloBtnReduzido, 
+                        backgroundColor: aluno.status === 'pago' ? '#dcfce7' : (aluno.status === 'atrasado' ? '#ef4444' : '#fee2e2'), 
+                        color: aluno.status === 'pago' ? '#166534' : (aluno.status === 'atrasado' ? 'white' : '#991b1b') 
+                      }}>
+                        {aluno.status?.toUpperCase() || 'PENDENTE'}
+                      </span>
                       {aluno.status === 'pago' && <button onClick={() => desfazerStatus(aluno.id)} title="Desfazer Baixa" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>↩️</button>}
                     </div>
                   </td>
@@ -215,7 +238,7 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* Rodapé: Categorias e Gráfico */}
+      {/* Recebido por Categoria e Gráfico */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Categoria ({mesFiltro})</h2>
@@ -232,9 +255,9 @@ export default function FinanceiroPage() {
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', textAlign: 'center' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '20px' }}>📊 Balanço Geral ({mesFiltro})</h2>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '20px', height: '120px', justifyContent: 'center' }}>
-            <div style={{ width: '40px', height: `${(metricas.pago / (Math.max(metricas.pago, metricas.gastos) || 1)) * 100}px`, backgroundColor: '#10b981', borderRadius: '5px' }} />
-            <div style={{ width: '40px', height: `${(metricas.gastos / (Math.max(metricas.pago, metricas.gastos) || 1)) * 100}px`, backgroundColor: '#ef4444', borderRadius: '5px' }} />
-            <div style={{ width: '40px', height: `${(Math.max(0, metricas.lucro) / (Math.max(metricas.pago, metricas.gastos) || 1)) * 100}px`, backgroundColor: '#2563eb', borderRadius: '5px' }} />
+            <div style={{ width: '40px', height: `${(metricas.pago / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#10b981', borderRadius: '5px' }} />
+            <div style={{ width: '40px', height: `${(metricas.gastos / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#ef4444', borderRadius: '5px' }} />
+            <div style={{ width: '40px', height: `${(Math.max(0, metricas.lucro) / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#2563eb', borderRadius: '5px' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '10px', fontSize: '10px', fontWeight: 'bold' }}>
             <span>RECEITA</span><span>GASTOS</span><span>LUCRO</span>
@@ -266,8 +289,8 @@ export default function FinanceiroPage() {
               <option value="outro">Outro</option>
             </select>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-              <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentos.pix} onChange={(e)=>setPagamentos({...pagamentos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
-              <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentos.dinheiro} onChange={(e)=>setPagamentos({...pagamentos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+              <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+              <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
@@ -282,18 +305,17 @@ export default function FinanceiroPage() {
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '500px' }}>
             <h2 style={{ marginBottom: '20px' }}>Histórico: {alunoSelecionado?.nome}</h2>
             <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-              {historico.map((h, i) => (
+              {historico.length > 0 ? historico.map((h, i) => (
                 <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
                   <strong>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</strong> - {h.descricao} <br/>
-                  <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total.toLocaleString('pt-BR')}</span>
+                  <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
                 </div>
-              ))}
+              )) : <p>Nenhum pagamento registrado.</p>}
             </div>
             <button onClick={() => setModalHistoricoAberto(false)} style={{ marginTop: '20px', width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>FECHAR</button>
           </div>
         </div>
       )}
-
     </div>
   );
 }
