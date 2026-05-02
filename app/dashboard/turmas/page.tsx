@@ -17,10 +17,7 @@ export default function TurmasPage() {
 
   async function carregarDados() {
     try {
-      // Busca os alunos
       const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
-      
-      // ALTERAÇÃO: Nome da tabela ajustado para 'Turma' (conforme seu Supabase)
       const { data: listaConfigs } = await supabase.from('Turma').select('*');
       
       if (listaAlunos) setAlunos(listaAlunos);
@@ -35,30 +32,33 @@ export default function TurmasPage() {
   useEffect(() => { carregarDados(); }, []);
 
   const alunosFiltrados = alunos.filter(a => a.turma === turmaAtiva);
-  
-  // ALTERAÇÃO: Ajustado para buscar pelo nome da turma na tabela 'Turma'
   const configTurmaAtual = configuracoes.find(c => c.nome_turma === turmaAtiva);
 
   async function salvarProfessor() {
     try {
-      // ALTERAÇÃO: Nome da tabela 'Turma' e coluna 'professor_nome'
+      // Usamos .ilike para evitar erros de maiúsculas/minúsculas entre o botão e o banco
       const { error } = await supabase
         .from('Turma')
         .update({ professor_nome: novoNomeProfessor })
-        .eq('nome_turma', turmaAtiva);
+        .ilike('nome_turma', turmaAtiva);
       
       if (error) throw error;
 
       alert("Professor(a) atualizado(a) com sucesso!");
+      
+      // Atualiza o estado local para o nome aparecer na hora
+      setConfiguracoes(prev => prev.map(c => 
+        c.nome_turma === turmaAtiva ? { ...c, professor_nome: novoNomeProfessor } : c
+      ));
+      
       setEditandoProfessor(false);
-      carregarDados(); // Recarrega para mostrar o nome novo na tela
+      carregarDados(); 
     } catch (error: any) {
       alert("Erro ao salvar professor: " + error.message);
     }
   }
 
   const totalAlunos = alunosFiltrados.length;
-  // ALTERAÇÃO: Garantindo que usa 'e_autista' que corrigimos nos alunos
   const totalTEA = alunosFiltrados.filter(a => a.e_autista).length;
   const totalAlergias = alunosFiltrados.filter(a => a.tem_alergia).length;
 
