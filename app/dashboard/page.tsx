@@ -52,6 +52,7 @@ export default function DashboardPage() {
             acc[t] = (acc[t] || 0) + 1;
             return acc;
           }, {}),
+          // Filtro de aniversariantes para o mês atual
           aniversariantes: alunos.filter(a => a.data_nascimento && new Date(a.data_nascimento).getUTCMonth() === mesAtual),
           alertasSaude: alunos.filter(a => a.tem_alergia === true),
           proximosEventos: futuros
@@ -204,21 +205,39 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
+        {/* --- CARD ATUALIZADO: Aniversariantes do Mês --- */}
         <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>🎂 Aniversariantes do Mês</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>
+            🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}
+          </h2>
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(aluno => (
-              <div key={aluno.id} style={{ textAlign: 'center', minWidth: '80px' }}>
-                <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: '2px solid #2563eb' }}>
-                  {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#2563eb' }}>{aluno.nome.charAt(0)}</div>}
+            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(aluno => {
+              const dataNasc = new Date(aluno.data_nascimento);
+              const dia = dataNasc.getUTCDate();
+              return (
+                <div key={aluno.id} style={{ textAlign: 'center', minWidth: '90px' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: '2px solid #2563eb' }}>
+                    {aluno.foto_url ? (
+                      <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#2563eb' }}>
+                        {aluno.nome.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>
+                    {aluno.nome.split(' ')[0]}
+                  </p>
+                  <p style={{ fontSize: '11px', color: '#2563eb', fontWeight: '600' }}>
+                    Dia {dia < 10 ? `0${dia}` : dia}
+                  </p>
                 </div>
-                <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '5px' }}>{aluno.nome.split(' ')[0]}</p>
-              </div>
-            )) : <p style={{ color: '#9ca3af', fontSize: '14px' }}>Nenhum aniversário este mês.</p>}
+              );
+            }) : <p style={{ color: '#9ca3af', fontSize: '14px' }}>Nenhum aniversário este mês.</p>}
           </div>
         </div>
 
-        {/* --- CARD ATUALIZADO: Alertas de Saúde / Alergias --- */}
+        {/* --- Card de Alertas de Saúde / Alergias --- */}
         <div style={{ backgroundColor: '#fff5f5', padding: '25px', borderRadius: '20px', border: '1px solid #fed7d7', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#c53030' }}>⚠️ Alertas de Saúde / Alergias</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -227,7 +246,6 @@ export default function DashboardPage() {
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#feb2b2', overflow: 'hidden' }}>
                   {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>{aluno.nome.charAt(0)}</div>}
                 </div>
-                {/* Nome e descrição da alergia juntos */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</span>
                   <span style={{ fontSize: '11px', color: '#c53030', fontWeight: '600' }}>
