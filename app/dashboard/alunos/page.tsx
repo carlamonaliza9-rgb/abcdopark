@@ -28,21 +28,24 @@ export default function Alunos() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
 
+  // ESTADOS DO BOLETIM
+  const [verBoletim, setVerBoletim] = useState(false);
+  const [notas, setNotas] = useState<any[]>([]);
+
   const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
   const ehVisitante = userEmail === EMAIL_VISITANTE;
 
-  // FUNÇÃO PARA DEFINIR A COR DO CARD BASEADO NA TURMA
   const obterCorTurma = (turmaNome: string) => {
     switch (turmaNome) {
-      case "Maternal": return "#e0f2fe"; // Azul claro
-      case "Jardim I": return "#f0fdf4"; // Verde água
-      case "Jardim II": return "#fdf2f8"; // Rosa suave
-      case "1º Ano": return "#faf5ff"; // Lilás
-      case "2º Ano": return "#fff7ed"; // Pêssego
-      case "3º Ano": return "#f5f3ff"; // Violeta claro
-      case "4º Ano": return "#ecfeff"; // Ciano suave
-      case "5º Ano": return "#fefce8"; // Amarelo pastel
-      default: return "#ffffff"; // Branco se não houver turma
+      case "Maternal": return "#e0f2fe";
+      case "Jardim I": return "#f0fdf4";
+      case "Jardim II": return "#fdf2f8";
+      case "1º Ano": return "#faf5ff";
+      case "2º Ano": return "#fff7ed";
+      case "3º Ano": return "#f5f3ff";
+      case "4º Ano": return "#ecfeff";
+      case "5º Ano": return "#fefce8";
+      default: return "#ffffff";
     }
   };
 
@@ -60,43 +63,60 @@ export default function Alunos() {
     buscarAlunos(); 
   }, []);
 
+  // FUNÇÕES DO BOLETIM (AJUSTADO PARA BIGINT)
+  async function buscarBoletim(alunoId: string) {
+    const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
+    if (data) setNotas(data);
+    setVerBoletim(true);
+    setVerHistorico(false);
+  }
+
+  async function adicionarDisciplina() {
+    const disc = prompt("Nome da Disciplina:");
+    if (!disc || !idEdicao) return;
+    const { data, error } = await supabase.from('boletins').insert([{ 
+      aluno_id: parseInt(idEdicao), 
+      disciplina: disc, 
+      ano: "2026" 
+    }]).select();
+    if (!error && data) setNotas([...notas, data[0]]);
+  }
+
+  async function salvarNota(id: string, campo: string, valorNota: string) {
+    const v = valorNota === "" ? null : parseFloat(valorNota.replace(',', '.'));
+    await supabase.from('boletins').update({ [campo]: v }).eq('id', id);
+    setNotas(notas.map(n => n.id === id ? { ...n, [campo]: v } : n));
+  }
+
+  async function excluirDisciplina(id: string) {
+    if (confirm("Remover esta disciplina?")) {
+      await supabase.from('boletins').delete().eq('id', id);
+      setNotas(notas.filter(n => n.id !== id));
+    }
+  }
+
   async function buscarHistoricoPagamento(alunoId: string) {
-    const { data } = await supabase
-      .from('historico_pagamentos')
-      .select('*')
-      .eq('aluno_id', alunoId)
-      .order('data_pagamento', { ascending: false });
-    
+    const { data } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoId).order('data_pagamento', { ascending: false });
     if (data) setHistorico(data);
     setVerHistorico(true);
+    setVerBoletim(false);
   }
 
   async function editarPagamento(pagamento: any) {
     if (ehVisitante) return;
     const novoValor = prompt("Novo valor (R$):", pagamento.valor_total);
     const novaDesc = prompt("Nova descrição:", pagamento.descricao);
-    
     if (novoValor !== null && novaDesc !== null) {
-      const { error } = await supabase
-        .from('historico_pagamentos')
-        .update({ valor_total: parseFloat(novoValor), descricao: novaDesc })
-        .eq('id', pagamento.id);
-      
-      if (!error) buscarHistoricoPagamento(pagamento.aluno_id);
-      else alert("Erro ao atualizar pagamento.");
+      await supabase.from('historico_pagamentos').update({ valor_total: parseFloat(novoValor), descricao: novaDesc }).eq('id', pagamento.id);
+      buscarHistoricoPagamento(pagamento.aluno_id);
     }
   }
 
   async function excluirPagamento(pagamento: any) {
     if (ehVisitante) return;
-    if (confirm("Excluir este registro de pagamento permanentemente?")) {
-      const { error } = await supabase
-        .from('historico_pagamentos')
-        .delete()
-        .eq('id', pagamento.id);
-      
-      if (!error) buscarHistoricoPagamento(pagamento.aluno_id);
-      else alert("Erro ao excluir pagamento.");
+    if (confirm("Excluir registro?")) {
+      await supabase.from('historico_pagamentos').delete().eq('id', pagamento.id);
+      buscarHistoricoPagamento(pagamento.aluno_id);
     }
   }
 
@@ -111,8 +131,8 @@ export default function Alunos() {
 
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
-    if (ehVisitante) { alert("Acesso de visitante negado."); return; }
-    if (!nome || !turma) { alert("Preencha Nome e Turma."); return; }
+    if (ehVisitante) return;
+    if (!nome || !turma) return alert("Preencha Nome e Turma.");
 
     setCarregando(true);
     try {
@@ -139,7 +159,7 @@ export default function Alunos() {
 
   async function excluirAluno() {
     if (ehVisitante) return;
-    if (idEdicao && confirm("Deseja excluir este aluno permanentemente?")) {
+    if (idEdicao && confirm("Deseja excluir este aluno?")) {
       await supabase.from('alunos').delete().eq('id', idEdicao);
       setModalAberto(false); buscarAlunos();
     }
@@ -150,7 +170,7 @@ export default function Alunos() {
     setResponsavel2(""); setWhatsapp2(""); setValor(""); setVencimento(""); 
     setDataNascimento(""); setArquivoFoto(null); setPreviewUrl(null);
     setTemAlergia(false); setAlergiaDescricao(""); setEAutista(false);
-    setHistorico([]); setVerHistorico(false);
+    setHistorico([]); setVerHistorico(false); setVerBoletim(false);
   }
 
   function abrirFicha(aluno: any) {
@@ -159,7 +179,7 @@ export default function Alunos() {
     setValor(aluno.valor ? aluno.valor.toString() : ""); setVencimento(aluno.vencimento || "");
     setDataNascimento(aluno.data_nascimento || ""); setTemAlergia(aluno.tem_alergia || false);
     setAlergiaDescricao(aluno.alergia_descricao || ""); setEAutista(aluno.e_autista || false);
-    setPreviewUrl(aluno.foto_url); setModoEdicao(false); setVerHistorico(false); setModalAberto(true);
+    setPreviewUrl(aluno.foto_url); setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
   return (
@@ -182,17 +202,9 @@ export default function Alunos() {
         {alunos.map((aluno) => (
           <div key={aluno.id} onClick={() => abrirFicha(aluno)}
             style={{ 
-              backgroundColor: obterCorTurma(aluno.turma), // APLICAÇÃO DA COR SUAVE
-              borderRadius: '20px', 
-              padding: '24px', 
-              border: '1px solid rgba(0,0,0,0.05)', 
-              boxShadow: '0 4px 12px rgba(0,0,0,0.03)', 
-              position: 'relative', 
-              cursor: 'pointer', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center',
-              transition: 'transform 0.2s ease'
+              backgroundColor: obterCorTurma(aluno.turma), 
+              borderRadius: '20px', padding: '24px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', 
+              position: 'relative', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'transform 0.2s ease'
             }}>
             <div style={{ position: 'absolute', top: '18px', left: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '14px' }}>🟢</span>
@@ -228,7 +240,7 @@ export default function Alunos() {
                 <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{nome}</h2>
                 <p style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '14px', marginTop: '5px', backgroundColor: '#eff6ff', padding: '4px 15px', borderRadius: '20px' }}>{turma}</p>
 
-                {!verHistorico ? (
+                {!verHistorico && !verBoletim ? (
                   <div style={{ width: '100%', marginTop: '25px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px' }}>
@@ -255,8 +267,54 @@ export default function Alunos() {
                         <p style={{ margin: '0', fontWeight: '600', color: '#c53030' }}>{alergiaDescricao}</p>
                       </div>
                     )}
-                    <button onClick={() => idEdicao && buscarHistoricoPagamento(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px', fontSize: '12px' }}>📊 VER HISTÓRICO DE PAGAMENTOS</button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <button onClick={() => idEdicao && buscarBoletim(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>📄 BOLETIM ESCOLAR</button>
+                        <button onClick={() => idEdicao && buscarHistoricoPagamento(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>💰 PAGAMENTOS</button>
+                    </div>
                   </div>
+                ) : verBoletim ? (
+                    <div style={{ width: '100%', marginTop: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Boletim Escolar 2026</h3>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                {!ehVisitante && <button onClick={adicionarDisciplina} style={{ color: '#2563eb', border: '1px solid #2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', background: 'none', cursor: 'pointer' }}>+ MATÉRIA</button>}
+                                <button onClick={() => setVerBoletim(false)} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
+                            </div>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
+                                        <th style={{ padding: '8px' }}>1º B</th>
+                                        <th style={{ padding: '8px' }}>2º B</th>
+                                        <th style={{ padding: '8px' }}>3º B</th>
+                                        <th style={{ padding: '8px' }}>4º B</th>
+                                        {!ehVisitante && <th style={{ padding: '8px' }}></th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {notas.map((n) => (
+                                        <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
+                                            <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
+                                            {['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].map((b) => (
+                                                <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        defaultValue={n[b] || ""} 
+                                                        onBlur={(e) => salvarNota(n.id, b, e.target.value)}
+                                                        disabled={ehVisitante}
+                                                        style={{ width: '35px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px' }}
+                                                    />
+                                                </td>
+                                            ))}
+                                            {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => excluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 ) : (
                   <div style={{ width: '100%', marginTop: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
