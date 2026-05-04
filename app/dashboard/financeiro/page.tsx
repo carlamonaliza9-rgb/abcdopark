@@ -23,7 +23,7 @@ export default function FinanceiroPage() {
   const [valorGasto, setValorGasto] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "" });
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
 
   const SENHA_MESTRA = "1234";
 
@@ -65,9 +65,7 @@ export default function FinanceiroPage() {
         const listaProcessada = listaAlunos.map(aluno => {
           if (aluno.status === 'pago') return aluno;
           const diaVencimento = parseInt(aluno.vencimento) || 1;
-          if (diaHoje > diaVencimento) {
-            return { ...aluno, status: 'atrasado' };
-          }
+          if (diaHoje > diaVencimento) return { ...aluno, status: 'atrasado' };
           return { ...aluno, status: 'pendente' };
         });
 
@@ -97,16 +95,12 @@ export default function FinanceiroPage() {
 
   useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
 
-  // FUNÇÃO DE COBRANÇA WHATSAPP
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.telefone_responsavel || "";
     const primeiroNome = aluno.nome.split(' ')[0];
     const valor = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dataVencimento = `${aluno.vencimento}/${mesFiltro.split('-')[1]}`;
-
     const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${primeiroNome}*, com vencimento em ${dataVencimento} no valor de ${valor}. Caso o pagamento já tenha sido realizado, por favor, nos envie o comprovante. Atenciosamente, Administração ABC DO PARK.`;
-
-    // Redireciona diretamente para a conversa no número cadastrado
     window.open(`https://wa.me/${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   }
 
@@ -116,31 +110,21 @@ export default function FinanceiroPage() {
     const senha = prompt("Senha:");
     if (senha !== SENHA_MESTRA) return alert("Senha incorreta!");
     
-    if (confirm("ATENÇÃO: Isso apagará TODOS os pagamentos e gastos DESTE MÊS e resetará os alunos. Confirmar?")) {
+    if (confirm("Resetar status dos alunos e APAGAR todos os pagamentos e gastos DESTE MÊS?")) {
       setCarregando(true);
-      try {
-        const [ano, mes] = mesFiltro.split('-');
-        const dataInicio = `${ano}-${mes}-01`;
-        const dataFim = `${ano}-${mes}-31`;
+      const [ano, mes] = mesFiltro.split('-');
+      const dataInicio = `${ano}-${mes}-01`;
+      const dataFim = `${ano}-${mes}-31`;
 
-        // 1. Reseta o status de todos os alunos para pendente
-        await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
+      // 1. Reseta os alunos
+      await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
 
-        // 2. Apaga o histórico de pagamentos apenas do mês selecionado
-        await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      // 2. Apaga histórico financeiro do mês selecionado para limpar os cards e gráficos
+      await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      await supabase.from('gastos').delete().gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
 
-        // 3. Apaga os gastos apenas do mês selecionado
-        await supabase.from('gastos').delete().gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
-
-        // 4. Recarrega os dados da tela (os cards e gráficos vão para zero pois o banco agora está limpo para este mês)
-        await carregarDados();
-        alert("Mês zerado com sucesso!");
-      } catch (error) {
-        console.error(error);
-        alert("Erro ao zerar o mês. Verifique sua conexão e tente novamente.");
-      } finally {
-        setCarregando(false);
-      }
+      alert("Mês zerado com sucesso!");
+      await carregarDados();
     }
   }
 
@@ -164,17 +148,24 @@ export default function FinanceiroPage() {
   async function confirmarPagamento() {
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
+    
     const dataRef = `${mesFiltro}-${String(new Date().getDate()).padStart(2, '0')}`;
+    
     await supabase.from('historico_pagamentos').insert([{
         aluno_id: alunoSelecionado.id,
         tipo: tipoPagamento,
-        descricao: tipoPagamento === 'mensalidade' ? 'Mensalidade' : descricaoOutro,
+        descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? 'Mensalidade' : 'Outros'),
         valor_total: somaPaga,
         data_pagamento: dataRef,
         detalhes_metodos: pagamentosMetodos
     }]);
+    
     if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
-    setModalPgtoAberto(false); setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "" }); carregarDados();
+    
+    setModalPgtoAberto(false); 
+    setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" }); 
+    setDescricaoOutro("");
+    carregarDados();
   }
 
   const estiloBtnReduzido = { padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' as 'bold', border: 'none', cursor: 'pointer', display: 'inline-block' };
@@ -300,6 +291,33 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {modalPgtoAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '500px' }}>
+            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Recebimento: {alunoSelecionado?.nome}</h2>
+            <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+              <option value="mensalidade">Mensalidade</option>
+              <option value="outro">Outro</option>
+            </select>
+            <input type="text" placeholder="Descreva o pagamento..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #ddd' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+              <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+              <div><label style={{ fontSize: '10px' }}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, credito: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+              <div><label style={{ fontSize: '10px' }}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, debito: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
+            </div>
+            <div style={{ backgroundColor: '#fff7ed', padding: '10px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #fed7aa' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: '#9a3412' }}>+ Multa/Juros:</label>
+              <input type="number" value={pagamentosMetodos.multa} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, multa: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #fdba74', borderRadius: '8px' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
+              <button onClick={confirmarPagamento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>CONFIRMAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalGastoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
@@ -309,26 +327,6 @@ export default function FinanceiroPage() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={()=>setModalGastoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
               <button onClick={adicionarGasto} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold' }}>SALVAR</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalPgtoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '450px' }}>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Recebimento: {alunoSelecionado?.nome}</h2>
-            <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-              <option value="mensalidade">Mensalidade</option>
-              <option value="outro">Outro</option>
-            </select>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-              <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
-              <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
-              <button onClick={confirmarPagamento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>CONFIRMAR</button>
             </div>
           </div>
         </div>
