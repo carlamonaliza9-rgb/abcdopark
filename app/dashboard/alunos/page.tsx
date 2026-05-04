@@ -63,7 +63,7 @@ export default function Alunos() {
     buscarAlunos(); 
   }, []);
 
-  // FUNÇÕES DO BOLETIM (AJUSTADO PARA BIGINT)
+  // FUNÇÕES DO BOLETIM (CORRIGIDO PARA SALVAMENTO)
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
@@ -72,14 +72,21 @@ export default function Alunos() {
   }
 
   async function adicionarDisciplina() {
-    const disc = prompt("Nome da Disciplina:");
+    const disc = prompt("Nome da Disciplina (ex: Português):");
     if (!disc || !idEdicao) return;
+    
+    // Convertendo explicitamente para Number para evitar erro de bigint no Supabase
     const { data, error } = await supabase.from('boletins').insert([{ 
-      aluno_id: parseInt(idEdicao), 
+      aluno_id: Number(idEdicao), 
       disciplina: disc, 
       ano: "2026" 
     }]).select();
-    if (!error && data) setNotas([...notas, data[0]]);
+    
+    if (error) {
+        alert("Erro ao salvar: " + error.message);
+    } else if (data) {
+        setNotas([...notas, data[0]]);
+    }
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
@@ -95,6 +102,7 @@ export default function Alunos() {
     }
   }
 
+  // FUNÇÕES DO HISTÓRICO
   async function buscarHistoricoPagamento(alunoId: string) {
     const { data } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoId).order('data_pagamento', { ascending: false });
     if (data) setHistorico(data);
@@ -229,7 +237,7 @@ export default function Alunos() {
 
       {modalAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
-          <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
             
             {!modoEdicao ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
