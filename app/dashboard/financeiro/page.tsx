@@ -21,6 +21,9 @@ export default function FinanceiroPage() {
 
   const [descGasto, setDescGasto] = useState("");
   const [valorGasto, setValorGasto] = useState("");
+  const [dataGasto, setDataGasto] = useState(new Date().toISOString().split('T')[0]); // Nova data gasto
+  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); // Nova data pgto
+
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
   const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
@@ -69,13 +72,9 @@ export default function FinanceiroPage() {
           return { ...aluno, status: 'pendente' };
         });
 
-        const ordenados = [...listaProcessada].sort((a, b) => {
-          if (a.status === 'atrasado') return -1;
-          if (b.status === 'atrasado') return 1;
-          return a.status !== 'pago' ? -1 : 1;
-        });
-
+        const ordenados = [...listaProcessada].sort((a, b) => (a.status !== 'pago' ? -1 : 1));
         setAlunos(ordenados);
+        
         const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
         const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (curr.valor || 0)), 0);
         
@@ -116,10 +115,7 @@ export default function FinanceiroPage() {
       const dataInicio = `${ano}-${mes}-01`;
       const dataFim = `${ano}-${mes}-31`;
 
-      // 1. Reseta os alunos
       await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
-
-      // 2. Apaga histórico financeiro do mês selecionado para limpar os cards e gráficos
       await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       await supabase.from('gastos').delete().gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
 
@@ -140,7 +136,7 @@ export default function FinanceiroPage() {
     await supabase.from('gastos').insert([{
       descricao: descGasto,
       valor: parseFloat(valorGasto),
-      data_gasto: `${mesFiltro}-01`
+      data_gasto: dataGasto // Usa a data selecionada
     }]);
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
   }
@@ -149,14 +145,12 @@ export default function FinanceiroPage() {
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
     
-    const dataRef = `${mesFiltro}-${String(new Date().getDate()).padStart(2, '0')}`;
-    
     await supabase.from('historico_pagamentos').insert([{
         aluno_id: alunoSelecionado.id,
         tipo: tipoPagamento,
         descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? 'Mensalidade' : 'Outros'),
         valor_total: somaPaga,
-        data_pagamento: dataRef,
+        data_pagamento: dataPagamento, // Usa a data selecionada
         detalhes_metodos: pagamentosMetodos
     }]);
     
@@ -295,11 +289,19 @@ export default function FinanceiroPage() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '500px' }}>
             <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Recebimento: {alunoSelecionado?.nome}</h2>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO PAGAMENTO:</label>
+              <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+            </div>
+
             <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
               <option value="mensalidade">Mensalidade</option>
               <option value="outro">Outro</option>
             </select>
+
             <input type="text" placeholder="Descreva o pagamento..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #ddd' }} />
+            
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
               <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
               <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
@@ -322,6 +324,12 @@ export default function FinanceiroPage() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
             <h2 style={{ marginBottom: '20px' }}>Registrar Gasto</h2>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO GASTO:</label>
+              <input type="date" value={dataGasto} onChange={(e) => setDataGasto(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+            </div>
+
             <input type="text" placeholder="Descrição" value={descGasto} onChange={(e)=>setDescGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <input type="number" placeholder="Valor R$" value={valorGasto} onChange={(e)=>setValorGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
