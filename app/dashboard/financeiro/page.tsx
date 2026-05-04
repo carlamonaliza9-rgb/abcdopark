@@ -14,15 +14,13 @@ export default function FinanceiroPage() {
   const [carregando, setCarregando] = useState(true);
 
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
-  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false);
   const [modalGastoAberto, setModalGastoAberto] = useState(false);
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
-  const [historico, setHistorico] = useState<any[]>([]);
 
   const [descGasto, setDescGasto] = useState("");
   const [valorGasto, setValorGasto] = useState("");
-  const [dataGasto, setDataGasto] = useState(new Date().toISOString().split('T')[0]); // Nova data gasto
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); // Nova data pgto
+  const [dataGasto, setDataGasto] = useState(new Date().toISOString().split('T')[0]); 
+  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
 
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
@@ -136,7 +134,7 @@ export default function FinanceiroPage() {
     await supabase.from('gastos').insert([{
       descricao: descGasto,
       valor: parseFloat(valorGasto),
-      data_gasto: dataGasto // Usa a data selecionada
+      data_gasto: dataGasto 
     }]);
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
   }
@@ -150,7 +148,7 @@ export default function FinanceiroPage() {
         tipo: tipoPagamento,
         descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? 'Mensalidade' : 'Outros'),
         valor_total: somaPaga,
-        data_pagamento: dataPagamento, // Usa a data selecionada
+        data_pagamento: dataPagamento, 
         detalhes_metodos: pagamentosMetodos
     }]);
     
@@ -229,7 +227,7 @@ export default function FinanceiroPage() {
             <tbody>
               {alunos.map((aluno) => (
                 <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td onClick={async () => { setAlunoSelecionado(aluno); const {data} = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', aluno.id).order('data_pagamento', {ascending: false}); setHistorico(data || []); setModalHistoricoAberto(true); }} style={{ padding: '12px', fontWeight: 'bold', color: '#2563eb', cursor: 'pointer' }}>{aluno.nome} 🔍</td>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</td>
                   <td style={{ padding: '12px' }}>R$ {aluno.valor?.toLocaleString('pt-BR')}</td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>{aluno.vencimento}</td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -336,23 +334,6 @@ export default function FinanceiroPage() {
               <button onClick={()=>setModalGastoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
               <button onClick={adicionarGasto} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold' }}>SALVAR</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {modalHistoricoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '500px' }}>
-            <h2 style={{ marginBottom: '20px' }}>Histórico: {alunoSelecionado?.nome}</h2>
-            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-              {historico.length > 0 ? historico.map((h, i) => (
-                <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
-                  <strong>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</strong> - {h.descricao} <br/>
-                  <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
-                </div>
-              )) : <p>Nenhum pagamento registrado.</p>}
-            </div>
-            <button onClick={() => setModalHistoricoAberto(false)} style={{ marginTop: '20px', width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>FECHAR</button>
           </div>
         </div>
       )}
