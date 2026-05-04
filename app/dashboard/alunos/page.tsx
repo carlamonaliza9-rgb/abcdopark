@@ -63,7 +63,7 @@ export default function Alunos() {
     buscarAlunos(); 
   }, []);
 
-  // FUNÇÕES DO BOLETIM (CORRIGIDO PARA SALVAMENTO)
+  // FUNÇÕES DO BOLETIM
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
@@ -72,21 +72,15 @@ export default function Alunos() {
   }
 
   async function adicionarDisciplina() {
-    const disc = prompt("Nome da Disciplina (ex: Português):");
+    const disc = prompt("Nome da Disciplina:");
     if (!disc || !idEdicao) return;
-    
-    // Convertendo explicitamente para Number para evitar erro de bigint no Supabase
     const { data, error } = await supabase.from('boletins').insert([{ 
       aluno_id: Number(idEdicao), 
       disciplina: disc, 
       ano: "2026" 
     }]).select();
-    
-    if (error) {
-        alert("Erro ao salvar: " + error.message);
-    } else if (data) {
-        setNotas([...notas, data[0]]);
-    }
+    if (error) alert("Erro ao salvar: " + error.message);
+    else if (data) setNotas([...notas, data[0]]);
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
@@ -330,23 +324,41 @@ export default function Alunos() {
                       <button onClick={() => setVerHistorico(false)} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
                     </div>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
-                      {historico.length > 0 ? historico.map((h, i) => (
-                        <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginRight: '10px' }}>
-                              <span style={{ fontWeight: 'bold' }}>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                              <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
+                      {historico.length > 0 ? historico.map((h, i) => {
+                        // Lógica para extrair métodos de pagamento dos detalhes
+                        const metodos = [];
+                        if (h.detalhes_metodos) {
+                          if (parseFloat(h.detalhes_metodos.pix) > 0) metodos.push("Pix");
+                          if (parseFloat(h.detalhes_metodos.dinheiro) > 0) metodos.push("Dinheiro");
+                          if (parseFloat(h.detalhes_metodos.credito) > 0) metodos.push("Crédito");
+                          if (parseFloat(h.detalhes_metodos.debito) > 0) metodos.push("Débito");
+                        }
+
+                        return (
+                          <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginRight: '10px' }}>
+                                <span style={{ fontWeight: 'bold' }}>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                                <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px' }}>
+                                <p style={{ margin: 0, color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
+                                {metodos.length > 0 && (
+                                  <span style={{ fontSize: '9px', backgroundColor: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                    {metodos.join(" + ")}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
+                            {!ehVisitante && (
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => editarPagamento(h)} title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
+                                <button onClick={() => excluirPagamento(h)} title="Excluir" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                              </div>
+                            )}
                           </div>
-                          {!ehVisitante && (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => editarPagamento(h)} title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
-                              <button onClick={() => excluirPagamento(h)} title="Excluir" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
-                            </div>
-                          )}
-                        </div>
-                      )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado.</p>}
+                        );
+                      }) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado.</p>}
                     </div>
                   </div>
                 )}
