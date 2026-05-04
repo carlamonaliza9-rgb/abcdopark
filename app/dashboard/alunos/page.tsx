@@ -31,6 +31,21 @@ export default function Alunos() {
   const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
   const ehVisitante = userEmail === EMAIL_VISITANTE;
 
+  // FUNÇÃO PARA DEFINIR A COR DO CARD BASEADO NA TURMA
+  const obterCorTurma = (turmaNome: string) => {
+    switch (turmaNome) {
+      case "Maternal": return "#e0f2fe"; // Azul claro
+      case "Jardim I": return "#f0fdf4"; // Verde água
+      case "Jardim II": return "#fdf2f8"; // Rosa suave
+      case "1º Ano": return "#faf5ff"; // Lilás
+      case "2º Ano": return "#fff7ed"; // Pêssego
+      case "3º Ano": return "#f5f3ff"; // Violeta claro
+      case "4º Ano": return "#ecfeff"; // Ciano suave
+      case "5º Ano": return "#fefce8"; // Amarelo pastel
+      default: return "#ffffff"; // Branco se não houver turma
+    }
+  };
+
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -56,7 +71,6 @@ export default function Alunos() {
     setVerHistorico(true);
   }
 
-  // FUNÇÕES PARA EDITAR HISTÓRICO
   async function editarPagamento(pagamento: any) {
     if (ehVisitante) return;
     const novoValor = prompt("Novo valor (R$):", pagamento.valor_total);
@@ -167,21 +181,33 @@ export default function Alunos() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
         {alunos.map((aluno) => (
           <div key={aluno.id} onClick={() => abrirFicha(aluno)}
-            style={{ backgroundColor: 'white', borderRadius: '20px', padding: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', position: 'relative', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            style={{ 
+              backgroundColor: obterCorTurma(aluno.turma), // APLICAÇÃO DA COR SUAVE
+              borderRadius: '20px', 
+              padding: '24px', 
+              border: '1px solid rgba(0,0,0,0.05)', 
+              boxShadow: '0 4px 12px rgba(0,0,0,0.03)', 
+              position: 'relative', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center',
+              transition: 'transform 0.2s ease'
+            }}>
             <div style={{ position: 'absolute', top: '18px', left: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '14px' }}>🟢</span>
               {aluno.tem_alergia && <div style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid white' }} />}
               {aluno.e_autista && <span style={{ fontSize: '16px' }}>🧩</span>}
             </div>
-            <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>
+            <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>
               VENC: {aluno.vencimento || '--'}
             </div>
             <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-              {aluno.foto_url ? <img src={aluno.foto_url} style={{ height: '90px', width: '90px', borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ height: '90px', width: '90px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#94a3b8' }}>{aluno.nome.charAt(0)}</div>}
+              {aluno.foto_url ? <img src={aluno.foto_url} style={{ height: '90px', width: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid white' }} /> : <div style={{ height: '90px', width: '90px', borderRadius: '50%', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#94a3b8', border: '1px solid #eee' }}>{aluno.nome.charAt(0)}</div>}
             </div>
             <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 4px', textAlign: 'center' }}>{aluno.nome}</h3>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: '#eff6ff', padding: '4px 12px', borderRadius: '20px', marginBottom: '15px' }}>{aluno.turma || "SEM TURMA"}</span>
-            <div style={{ width: '100%', paddingTop: '15px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: '20px', marginBottom: '15px' }}>{aluno.turma || "SEM TURMA"}</span>
+            <div style={{ width: '100%', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.05)', textAlign: 'center' }}>
               <p style={{ margin: '0', fontSize: '13px', fontWeight: '700', color: '#475569' }}>{aluno.responsavel}</p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>{aluno.whatsapp}</p>
             </div>
@@ -196,7 +222,7 @@ export default function Alunos() {
             {!modoEdicao ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{ position: 'relative', marginBottom: '20px' }}>
-                  {previewUrl ? <img src={previewUrl} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ height: '120px', width: '120px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '40px' }}>{nome.charAt(0)}</div>}
+                  {previewUrl ? <img src={previewUrl} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f8fafc' }} /> : <div style={{ height: '120px', width: '120px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '40px' }}>{nome.charAt(0)}</div>}
                   {eAutista && <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px' }}>🧩</span>}
                 </div>
                 <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{nome}</h2>
