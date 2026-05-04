@@ -93,12 +93,16 @@ export default function FinanceiroPage() {
   useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
 
   function cobrarWhatsApp(aluno: any) {
-    const telefone = aluno.telefone_responsavel || "";
+    const telefone = aluno.whatsapp || "";
+    if (!telefone) return alert("Este aluno não possui número de WhatsApp cadastrado.");
+
     const primeiroNome = aluno.nome.split(' ')[0];
-    const valor = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dataVencimento = `${aluno.vencimento}/${mesFiltro.split('-')[1]}`;
-    const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${primeiroNome}*, com vencimento em ${dataVencimento} no valor de ${valor}. Caso o pagamento já tenha sido realizado, por favor, nos envie o comprovante. Atenciosamente, Administração ABC DO PARK.`;
-    window.open(`https://wa.me/${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
+
+    const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${primeiroNome}*, com vencimento em ${dataVencimento} no valor de ${valorMsg}. Caso o pagamento já tenha sido realizado, por favor, nos envie o comprovante. Atenciosamente, Administração ABC DO PARK.`;
+
+    window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   }
 
   const gerarRelatorioPDF = () => { window.print(); };
@@ -212,7 +216,7 @@ export default function FinanceiroPage() {
       </div>
 
       <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>Status de Pagamento (Mês Selecionado)</h2>
+        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>Status de Pagamento</h2>
         <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
@@ -246,7 +250,7 @@ export default function FinanceiroPage() {
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
                       <button onClick={() => { setAlunoSelecionado(aluno); setModalPgtoAberto(true); }} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
                       {aluno.status !== 'pago' && (
-                        <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">📲</button>
+                        <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
                       )}
                     </div>
                   </td>
