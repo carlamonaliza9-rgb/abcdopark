@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 export default function FechamentoLetivo() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [ultimoBackup, setUltimoBackup] = useState<any[] | null>(null);
 
   const turmasOrdem = [
     "Maternal", "Jardim I", "Jardim II", 
@@ -51,10 +52,7 @@ export default function FechamentoLetivo() {
   useEffect(() => { carregarDados(); }, []);
 
   async function atualizarAluno(id: any, campo: string, valor: any) {
-    // Atualização otimista (local)
     setAlunos(prev => prev.map(a => a.id === id ? { ...a, [campo]: valor } : a));
-
-    // Salva no banco (garantindo que o ID seja tratado como número se necessário)
     const { error } = await supabase
       .from('alunos')
       .update({ [campo]: valor })
@@ -62,7 +60,7 @@ export default function FechamentoLetivo() {
     
     if (error) {
       alert("Erro ao salvar no banco: " + error.message);
-      carregarDados(); // Reverte em caso de falha
+      carregarDados();
     }
   }
 
@@ -70,24 +68,44 @@ export default function FechamentoLetivo() {
     const senha = prompt("Digite a senha mestre para confirmar a promoção de turmas:");
     if (senha !== "1234") return alert("Senha incorreta!");
 
-    if (!confirm("Isso moverá todos os alunos 'APROVADOS' para a próxima série. Deseja continuar?")) return;
+    if (!confirm("Isso moverá os alunos 'APROVADOS' para a próxima série. Os boletins atuais SERÃO MANTIDOS no histórico do aluno. Continuar?")) return;
+
+    setUltimoBackup([...alunos]);
 
     for (const aluno of alunos) {
       if (aluno.situacao_academica === 'Aprovado') {
         const indexAtual = turmasOrdem.indexOf(aluno.turma);
         if (indexAtual !== -1 && indexAtual < turmasOrdem.length - 1) {
           const proximaTurma = turmasOrdem[indexAtual + 1];
+          
+          // APENAS ATUALIZA O ALUNO. OS BOLETINS NÃO SÃO MAIS DELETADOS.
           await supabase.from('alunos').update({ 
             turma: proximaTurma, 
             situacao_academica: 'Em curso',
             status: 'pendente'
           }).eq('id', aluno.id);
-          
-          await supabase.from('boletins').delete().eq('aluno_id', aluno.id);
         }
       }
     }
-    alert("Alunos promovidos com sucesso!");
+    alert("Alunos promovidos com sucesso! O histórico de boletins foi preservado.");
+    carregarDados();
+  }
+
+  async function desfazerPromocao() {
+    if (!ultimoBackup) return;
+    if (!confirm("Deseja reverter os alunos para as turmas e situações anteriores?")) return;
+
+    for (const alunoOriginal of ultimoBackup) {
+        if (alunoOriginal.situacao_academica === 'Aprovado') {
+            await supabase.from('alunos').update({
+                turma: alunoOriginal.turma,
+                situacao_academica: 'Aprovado',
+                status: alunoOriginal.status
+            }).eq('id', alunoOriginal.id);
+        }
+    }
+    setUltimoBackup(null);
+    alert("Promoção revertida!");
     carregarDados();
   }
 
@@ -98,14 +116,24 @@ export default function FechamentoLetivo() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1f2937' }}>🎓 Fechamento Letivo</h1>
-          <p style={{ color: '#6b7280' }}>Média anual automática baseada nos boletins lançados.</p>
+          <p style={{ color: '#6b7280' }}>Média anual automática. Os boletins são mantidos no histórico por ano.</p>
         </div>
-        <button 
-          onClick={promoverAprovados} 
-          style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
-        >
-          🚀 PROMOVER APROVADOS
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+            {ultimoBackup && (
+                <button 
+                onClick={desfazerPromocao} 
+                style={{ backgroundColor: '#6b7280', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                >
+                ↩️ DESFAZER
+                </button>
+            )}
+            <button 
+            onClick={promoverAprovados} 
+            style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
+            >
+            🚀 PROMOVER APROVADOS
+            </button>
+        </div>
       </header>
 
       {turmasOrdem.map(turmaNome => {
