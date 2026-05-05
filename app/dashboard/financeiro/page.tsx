@@ -181,22 +181,16 @@ export default function FinanceiroPage() {
     carregarDados();
   }
 
-  // FUNÇÃO ATUALIZADA: Cobrança com Primeiro e Último Nome
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.whatsapp || "";
     if (!telefone) return alert("Este aluno não possui WhatsApp cadastrado.");
-    
-    // Lógica para extrair o primeiro e o último nome
     const nomes = aluno.nome.trim().split(' ');
     const primeiroNome = nomes[0];
     const ultimoNome = nomes.length > 1 ? nomes[nomes.length - 1] : "";
     const nomeFormatado = ultimoNome ? `${primeiroNome} ${ultimoNome}` : primeiroNome;
-
     const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dataVencimento = `${aluno.vencimento}/${mesFiltro.split('-')[1]}`;
-    
     const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${nomeFormatado}*, com vencimento em ${dataVencimento} no valor de ${valorMsg}. Caso o pagamento já tenha sido realizado, por favor desconsidere esta mensagem. Atenciosamente, Administração ABC DO PARK.`;
-    
     window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   }
 
@@ -323,7 +317,7 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* --- SEÇÃO DE EVENTOS AO FIM DA PÁGINA --- */}
+      {/* SEÇÃO DE EVENTOS AO FIM */}
       <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '30px', paddingBottom: '50px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#1f2937' }}>Gestão de Eventos</h2>
         
@@ -379,64 +373,6 @@ export default function FinanceiroPage() {
         )}
       </div>
 
-      {/* MODAL NOVO/EDITAR EVENTO */}
-      {modalEventoAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
-            <h2 style={{textAlign:'center', marginBottom:'20px'}}>{idEventoEdicao ? "✏️ Editar Evento" : "🎟️ Novo Evento"}</h2>
-            <input type="text" placeholder="Nome" value={nomeEvento} onChange={(e)=>setNomeEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
-            <input type="number" placeholder="Valor por aluno" value={valorEvento} onChange={(e)=>setValorEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
-            {!idEventoEdicao && (
-              <div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '20px', border: '1px solid #eee', padding: '10px', borderRadius: '12px' }}>
-                <p style={{fontSize: 10, fontWeight: 'bold', color: '#666', marginBottom: 5}}>SELECIONE PARTICIPANTES:</p>
-                {alunos.map(aluno => (
-                  <label key={aluno.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={alunosSelecionados.includes(aluno.id)} onChange={() => toggleAlunoSelecao(aluno.id)} />
-                    <span style={{fontSize: 13}}>{aluno.nome}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={()=>setModalEventoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
-              <button onClick={salvarEvento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>SALVAR</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PGTO */}
-      {modalPgtoAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
-            <h2 style={{textAlign:'center', marginBottom:15}}>{alunoSelecionado?.nome}</h2>
-            <div style={{marginBottom:15}}>
-              <label style={{fontSize:10, fontWeight:'bold'}}>DATA DO PAGAMENTO:</label>
-              <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{width:'100%', padding:10, borderRadius:8, border:'1px solid #ddd'}} />
-            </div>
-            <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{width:'100%', padding:10, marginBottom:10, borderRadius:8, border:'1px solid #ddd'}}>
-              <option value="mensalidade">Mensalidade</option>
-              <option value="evento">Evento</option>
-              <option value="outro">Outro</option>
-            </select>
-            <input type="text" placeholder="Descrição opcional..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{width:'100%', padding:10, marginBottom:15, borderRadius:8, border:'1px solid #ddd'}} />
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-              <div><label style={{fontSize:10}}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
-              <div><label style={{fontSize:10}}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
-              <div><label style={{fontSize:10}}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, credito: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
-              <div><label style={{fontSize:10}}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, debito: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
-              <div style={{gridColumn:'span 2'}}><label style={{fontSize:10, color:'red', fontWeight:'bold'}}>Multa / Taxa extra:</label><input type="number" value={pagamentosMetodos.multa} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, multa: e.target.value})} style={{width:'100%', padding:8, border:'1px solid red', borderRadius:8}} /></div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #ddd' }}>CANCELAR</button>
-              <button onClick={confirmarPagamento} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>{idPagamentoEdicao ? "ATUALIZAR" : "CONFIRMAR"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
@@ -471,15 +407,79 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR GASTO */}
+      {/* MODAL REGISTRAR GASTO (CAMPO DATA ADICIONADO) */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '400px' }}>
-            <h2>Registrar Gasto</h2>
-            <input type="text" placeholder="Descrição" value={descGasto} onChange={(e)=>setDescGasto(e.target.value)} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <input type="number" placeholder="Valor" value={valorGasto} onChange={(e)=>setValorGasto(e.target.value)} style={{width:'100%', padding:'10px', marginBottom:'20px'}} />
-            <button onClick={adicionarGasto} style={{width:'100%', padding:'10px', backgroundColor:'#ef4444', color:'white', borderRadius:'8px', border:'none'}}>SALVAR GASTO</button>
-            <button onClick={()=>setModalGastoAberto(false)} style={{width:'100%', marginTop:'10px', background:'none', border:'none'}}>VOLTAR</button>
+            <h2 style={{ marginBottom: '20px' }}>Registrar Gasto</h2>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO GASTO:</label>
+              <input type="date" value={dataGasto} onChange={(e) => setDataGasto(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+            </div>
+
+            <input type="text" placeholder="Descrição" value={descGasto} onChange={(e)=>setDescGasto(e.target.value)} style={{width:'100%', padding:'10px', marginBottom:'10px', borderRadius: '8px', border: '1px solid #ddd'}} />
+            <input type="number" placeholder="Valor" value={valorGasto} onChange={(e)=>setValorGasto(e.target.value)} style={{width:'100%', padding:'10px', marginBottom:'20px', borderRadius: '8px', border: '1px solid #ddd'}} />
+            
+            <button onClick={adicionarGasto} style={{width:'100%', padding:'10px', backgroundColor:'#ef4444', color:'white', borderRadius:'8px', border:'none', fontWeight: 'bold'}}>SALVAR GASTO</button>
+            <button onClick={()=>setModalGastoAberto(false)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', cursor: 'pointer'}}>VOLTAR</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAIS RESTANTES */}
+      {modalEventoAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
+            <h2 style={{textAlign:'center', marginBottom:'20px'}}>{idEventoEdicao ? "✏️ Editar Evento" : "🎟️ Novo Evento"}</h2>
+            <input type="text" placeholder="Nome" value={nomeEvento} onChange={(e)=>setNomeEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            <input type="number" placeholder="Valor por aluno" value={valorEvento} onChange={(e)=>setValorEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            {!idEventoEdicao && (
+              <div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '20px', border: '1px solid #eee', padding: '10px', borderRadius: '12px' }}>
+                <p style={{fontSize: 10, fontWeight: 'bold', color: '#666', marginBottom: 5}}>SELECIONE PARTICIPANTES:</p>
+                {alunos.map(aluno => (
+                  <label key={aluno.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={alunosSelecionados.includes(aluno.id)} onChange={() => toggleAlunoSelecao(aluno.id)} />
+                    <span style={{fontSize: 13}}>{aluno.nome}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={()=>setModalEventoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
+              <button onClick={salvarEvento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>SALVAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalPgtoAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
+            <h2 style={{textAlign:'center', marginBottom:15}}>{alunoSelecionado?.nome}</h2>
+            <div style={{marginBottom:15}}>
+              <label style={{fontSize:10, fontWeight:'bold'}}>DATA DO PAGAMENTO:</label>
+              <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{width:'100%', padding:10, borderRadius:8, border:'1px solid #ddd'}} />
+            </div>
+            <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{width:'100%', padding:10, marginBottom:10, borderRadius:8, border:'1px solid #ddd'}}>
+              <option value="mensalidade">Mensalidade</option>
+              <option value="evento">Evento</option>
+              <option value="outro">Outro</option>
+            </select>
+            <input type="text" placeholder="Descrição opcional..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{width:'100%', padding:10, marginBottom:15, borderRadius:8, border:'1px solid #ddd'}} />
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+              <div><label style={{fontSize:10}}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
+              <div><label style={{fontSize:10}}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
+              <div><label style={{fontSize:10}}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, credito: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
+              <div><label style={{fontSize:10}}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, debito: e.target.value})} style={{width:'100%', padding:8, border:'1px solid #ddd', borderRadius:8}} /></div>
+              <div style={{gridColumn:'span 2'}}><label style={{fontSize:10, color:'red', fontWeight:'bold'}}>Multa / Taxa extra:</label><input type="number" value={pagamentosMetodos.multa} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, multa: e.target.value})} style={{width:'100%', padding:8, border:'1px solid red', borderRadius:8}} /></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #ddd' }}>CANCELAR</button>
+              <button onClick={confirmarPagamento} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>{idPagamentoEdicao ? "ATUALIZAR" : "CONFIRMAR"}</button>
+            </div>
           </div>
         </div>
       )}
