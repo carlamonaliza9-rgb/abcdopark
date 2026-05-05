@@ -13,6 +13,10 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [buscaSaude, setBuscaSaude] = useState("");
   
+  // Estados para a notificação de aniversário
+  const [modalBdayAberto, setModalBdayAberto] = useState(false);
+  const [aniversariantesHoje, setAniversariantesHoje] = useState<any[]>([]);
+
   const [modalAvisoAberto, setModalAvisoAberto] = useState(false);
   const [mensagemAviso, setMensagemAviso] = useState("");
   const [arquivoImagem, setArquivoImagem] = useState<File | null>(null);
@@ -33,28 +37,33 @@ export default function DashboardPage() {
   async function carregarDados() {
     try {
       const { data: alunos } = await supabase.from('alunos').select('*');
-      const { data: funcionarios } = await supabase.from('funcionarios').select('*'); // Busca funcionários
+      const { data: funcionarios } = await supabase.from('funcionarios').select('*');
       const { data: listaEventos } = await supabase.from('eventos_calendario').select('*').order('data', { ascending: true });
       
       if (alunos) {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
+        const diaAtual = hoje.getDate();
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
 
-        // Filtra aniversariantes ALUNOS
         const bdayAlunos = alunos
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .map(a => ({ ...a, tipo: 'aluno' }));
 
-        // Filtra aniversariantes FUNCIONÁRIOS
         const bdayFuncs = (funcionarios || [])
           .filter(f => f.data_nascimento && new Date(f.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .map(f => ({ ...f, tipo: 'funcionario' }));
 
-        // Une e ordena as duas listas por dia
         const listaAniversariantes = [...bdayAlunos, ...bdayFuncs]
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
+
+        // Lógica para detectar aniversariantes de HOJE
+        const quemFezHoje = listaAniversariantes.filter(p => extrairDiaUTC(p.data_nascimento) === diaAtual);
+        if (quemFezHoje.length > 0) {
+          setAniversariantesHoje(quemFezHoje);
+          setModalBdayAberto(true);
+        }
 
         const listaSaude = alunos
           .filter(a => a.tem_alergia === true)
@@ -160,6 +169,11 @@ export default function DashboardPage() {
     setPreviewImagem(null);
   };
 
+  const parabensWhatsApp = (pessoa: any) => {
+    const msg = `Parabéns, ${pessoa.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! 🎂🎈`;
+    window.open(`https://wa.me/55${pessoa.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
   const getEventoStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
@@ -190,6 +204,40 @@ export default function DashboardPage() {
   return (
     <div style={{ width: '100%', padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
+      {/* NOTIFICAÇÃO DE ANIVERSÁRIO DO DIA */}
+      {modalBdayAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '450px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', textAlign: 'center' }}>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%)', padding: '40px 20px', color: 'white' }}>
+              <span style={{ fontSize: '50px' }}>🎉</span>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', marginTop: '10px' }}>Aniversariante(s) do Dia!</h2>
+              <p style={{ opacity: 0.9, fontSize: '14px' }}>Hoje o dia é de festa na ABC DO PARK!</p>
+            </div>
+            
+            <div style={{ padding: '30px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {aniversariantesHoje.map(pessoa => (
+                  <div key={pessoa.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '20px', border: `2px solid ${pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb'}` }}>
+                    <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', border: '2px solid #eee', overflow: 'hidden', flexShrink: 0 }}>
+                      {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>{pessoa.nome}</h4>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb' }}>
+                        {pessoa.tipo === 'funcionario' ? '⭐ Funcionário' : `📚 Aluno - ${pessoa.turma}`}
+                      </span>
+                    </div>
+                    <button onClick={() => parabensWhatsApp(pessoa)} style={{ background: '#22c55e', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }} title="Dar parabéns">📱</button>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '30px', width: '100%', padding: '15px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: '800', cursor: 'pointer', transition: '0.2s' }}>FECHAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, Administrador! 👋</h1>
@@ -260,7 +308,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
             {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(pessoa => {
               const dia = extrairDiaUTC(pessoa.data_nascimento);
-              const isFunc = pessoa.tipo === 'funcionario'; // Lógica para cor roxa
+              const isFunc = pessoa.tipo === 'funcionario';
               const corDestaque = isFunc ? '#8b5cf6' : '#2563eb';
 
               return (
@@ -315,7 +363,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL CALENDÁRIO */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
