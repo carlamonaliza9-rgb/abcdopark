@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 export default function Turmas() {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [todosAlunos, setTodosAlunos] = useState<any[]>([]);
+  const [listaProfessores, setListaProfessores] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   
   const [turmaSelecionada, setTurmaSelecionada] = useState<any>(null);
@@ -30,7 +31,11 @@ export default function Turmas() {
     setCarregando(true);
     const { data: alunos } = await supabase.from('alunos').select('*');
     const { data: infos } = await supabase.from('turmas_info').select('*');
+    // Busca os funcionários que são professores
+    const { data: funcs } = await supabase.from('funcionarios').select('nome').eq('cargo', 'Professor').order('nome');
     
+    if (funcs) setListaProfessores(funcs);
+
     if (alunos) {
       setTodosAlunos(alunos);
       const contagem = alunos.reduce((acc: any, curr: any) => {
@@ -54,18 +59,30 @@ export default function Turmas() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  async function editarProfessor(e: React.MouseEvent, nomeTurma: string, atual: string) {
+  async function editarProfessor(e: React.MouseEvent, nomeTurma: string) {
     e.stopPropagation();
-    const novoNome = prompt(`Nome do professor(a) para ${nomeTurma}:`, atual === "Clique para definir" ? "" : atual);
     
-    if (novoNome !== null) {
-      // O uso do upsert com a restrição correta resolve o erro de "duplicate key"
-      const { error } = await supabase
-        .from('turmas_info')
-        .upsert({ nome_turma: nomeTurma, professor_nome: novoNome }, { onConflict: 'nome_turma' });
+    if (listaProfessores.length === 0) {
+        return alert("Nenhum funcionário com cargo 'Professor' encontrado. Cadastre um professor primeiro.");
+    }
 
-      if (!error) carregarDados();
-      else alert("Erro ao salvar: " + error.message);
+    // Cria uma mensagem com a lista de professores para o prompt
+    const nomesProfs = listaProfessores.map((p, i) => `${i + 1} - ${p.nome}`).join('\n');
+    const escolha = prompt(`Vincular professor para ${nomeTurma}:\n\n${nomesProfs}\n\nDigite o NÚMERO do professor:`);
+    
+    if (escolha) {
+      const index = parseInt(escolha) - 1;
+      if (listaProfessores[index]) {
+        const novoNome = listaProfessores[index].nome;
+        const { error } = await supabase
+          .from('turmas_info')
+          .upsert({ nome_turma: nomeTurma, professor_nome: novoNome }, { onConflict: 'nome_turma' });
+
+        if (!error) carregarDados();
+        else alert("Erro ao salvar: " + error.message);
+      } else {
+        alert("Número inválido.");
+      }
     }
   }
 
@@ -97,7 +114,7 @@ export default function Turmas() {
           <div key={turma.nome} onClick={() => abrirTurma(turma)} style={{ backgroundColor: turma.cor, border: `2px solid ${turma.borda}`, borderRadius: '24px', padding: '25px', textAlign: 'center', cursor: 'pointer', transition: '0.2s' }}>
             <div style={{ fontSize: '45px', marginBottom: '10px' }}>{turma.icone}</div>
             <h3 style={{ fontSize: '22px', fontWeight: '800', color: turma.texto }}>{turma.nome}</h3>
-            <button onClick={(e) => editarProfessor(e, turma.nome, turma.professor)} style={{ fontSize: '13px', color: turma.texto, background: 'rgba(255,255,255,0.4)', border: 'none', padding: '4px 10px', borderRadius: '8px', margin: '8px 0 15px', fontWeight: '600', cursor: 'pointer' }}>👤 {turma.professor} ✏️</button>
+            <button onClick={(e) => editarProfessor(e, turma.nome)} style={{ fontSize: '13px', color: turma.texto, background: 'rgba(255,255,255,0.4)', border: 'none', padding: '4px 10px', borderRadius: '8px', margin: '8px 0 15px', fontWeight: '600', cursor: 'pointer' }}>👤 {turma.professor} ✏️</button>
             <div style={{ backgroundColor: 'white', padding: '6px 15px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold' }}>👥 {turma.totalAlunos} Alunos</div>
           </div>
         ))}
@@ -115,7 +132,7 @@ export default function Turmas() {
               {turmaSelecionada.alunos.map((aluno: any) => (
                 <div key={aluno.id} onClick={() => abrirFichaAluno(aluno)} style={{ padding: '12px', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{aluno.nome}</span>
-                  <div>{aluno.e_autista && "🧩"} {aluno.tem_alergia && "⚠️"}</div>
+                  <div>{aluno.e_autismo && "🧩"} {aluno.tem_alergia && "⚠️"}</div>
                 </div>
               ))}
             </div>
@@ -138,7 +155,7 @@ export default function Turmas() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
               <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px' }}>
                 <small style={{ color: '#94a3b8', fontWeight: 'bold' }}>NASCIMENTO</small>
-                <p style={{ margin: 0, fontWeight: 'bold' }}>{new Date(alunoSelecionado.data_nascimento).toLocaleDateString('pt-BR')}</p>
+                <p style={{ margin: 0, fontWeight: 'bold' }}>{alunoSelecionado.data_nascimento ? new Date(alunoSelecionado.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</p>
               </div>
               <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px' }}>
                 <small style={{ color: '#94a3b8', fontWeight: 'bold' }}>RESPONSÁVEL</small>
@@ -156,8 +173,8 @@ export default function Turmas() {
             <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
               {historico.length > 0 ? historico.map((h, i) => (
                 <div key={i} style={{ padding: '10px', borderBottom: '1px solid #eee', fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{new Date(h.data_pagamento).toLocaleDateString('pt-BR')}</span>
-                  <span style={{ fontWeight: 'bold', color: '#10b981' }}>R$ {h.valor_total}</span>
+                  <span>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                  <span style={{ fontWeight: 'bold', color: '#10b981' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
                 </div>
               )) : <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>Sem pagamentos registrados.</p>}
             </div>
