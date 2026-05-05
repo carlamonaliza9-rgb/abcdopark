@@ -7,9 +7,10 @@ export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
-  const [filtroNome, setFiltroNome] = useState(""); // Novo estado para busca
+  const [filtroNome, setFiltroNome] = useState(""); 
   
   const [alunos, setAlunos] = useState<any[]>([]);
+  const [eventosAtivos, setEventosAtivos] = useState<any[]>([]);
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
   const [carregando, setCarregando] = useState(true);
@@ -17,6 +18,7 @@ export default function FinanceiroPage() {
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [modalGastoAberto, setModalGastoAberto] = useState(false);
   const [modalListaGastosAberto, setModalListaGastosAberto] = useState(false); 
+  const [modalEventoAberto, setModalEventoAberto] = useState(false);
   const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
 
@@ -28,6 +30,15 @@ export default function FinanceiroPage() {
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
   const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+
+  // Estados para Eventos e Pagamentos
+  const [idEventoEdicao, setIdEventoEdicao] = useState<string | null>(null);
+  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null); // NOVO
+  const [nomeEvento, setNomeEvento] = useState("");
+  const [valorEvento, setValorEvento] = useState("");
+  const [alunosSelecionados, setAlunosSelecionados] = useState<string[]>([]);
+  const [eventoParaGerenciar, setEventoParaGerenciar] = useState<any>(null);
+  const [historicoPagamentosEventos, setHistoricoPagamentosEventos] = useState<any[]>([]);
 
   const SENHA_MESTRA = "1234";
 
@@ -44,6 +55,12 @@ export default function FinanceiroPage() {
       const { data: pgtosMes } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
       
+      const { data: todosPgtosEventos } = await supabase.from('historico_pagamentos').select('*').eq('tipo', 'evento');
+      if (todosPgtosEventos) setHistoricoPagamentosEventos(todosPgtosEventos);
+
+      const { data: listaEventos } = await supabase.from('eventos_controle').select('*').eq('arquivado', false);
+      if (listaEventos) setEventosAtivos(listaEventos);
+
       setListaGastosDetalhada(gastosMes || []);
 
       let vPago = 0;
@@ -75,11 +92,7 @@ export default function FinanceiroPage() {
           return { ...aluno, status: 'pendente' };
         });
 
-        // ORDENAÇÃO POR DIA DE VENCIMENTO (Crescente)
-        const ordenados = [...listaProcessada].sort((a, b) => {
-          return (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0);
-        });
-        
+        const ordenados = [...listaProcessada].sort((a, b) => (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0));
         setAlunos(ordenados);
         
         const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
@@ -101,11 +114,149 @@ export default function FinanceiroPage() {
 
   useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
 
-  // FILTRO DE PESQUISA
   const alunosFiltrados = alunos.filter(aluno => 
     aluno.nome.toLowerCase().includes(filtroNome.toLowerCase())
   );
 
+  // FUNÇÕES DE PAGAMENTO (ADICIONAR/EDITAR/EXCLUIR)
+  function abrirPagamentoEvento(aluno: any, evento: any, pgtoExistente: any = null) {
+    setAlunoSelecionado(aluno);
+    setTipoPagamento("evento");
+    setEventoParaGerenciar(evento);
+    
+    if (pgtoExistente) {
+      setIdPagamentoEdicao(pgtoExistente.id);
+      setDataPagamento(pgtoExistente.data_pagamento);
+      setDescricaoOutro(pgtoExistente.descricao);
+      setPagamentosMetodos(pgtoExistente.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    } else {
+      setIdPagamentoEdicao(null);
+      setDataPagamento(new Date().toISOString().split('T')[0]);
+      setDescricaoOutro(`Evento: ${evento.nome}`);
+      setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    }
+    setModalPgtoAberto(true);
+  }
+
+  async function excluirPagamentoEvento(id: string) {
+    if (confirm("Deseja realmente EXCLUIR este registro de pagamento?")) {
+      const { error } = await supabase.from('historico_pagamentos').delete().eq('id', id);
+      if (!error) carregarDados();
+      else alert("Erro ao excluir: " + error.message);
+    }
+  }
+
+  async function confirmarPagamento() {
+    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    if (somaPaga <= 0) return alert("Insira um valor.");
+
+    const dados = {
+      aluno_id: alunoSelecionado.id,
+      tipo: tipoPagamento,
+      descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? 'Mensalidade' : (tipoPagamento === 'evento' ? `Evento: ${eventoParaGerenciar?.nome}` : 'Outros')),
+      valor_total: somaPaga,
+      data_pagamento: dataPagamento,
+      detalhes_metodos: pagamentosMetodos
+    };
+
+    let error;
+    if (idPagamentoEdicao) {
+      const res = await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
+      error = res.error;
+    } else {
+      const res = await supabase.from('historico_pagamentos').insert([dados]);
+      error = res.error;
+    }
+
+    if (!error) {
+      if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
+      setModalPgtoAberto(false);
+      setIdPagamentoEdicao(null);
+      setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+      setDescricaoOutro("");
+      carregarDados();
+    } else {
+      alert("Erro ao salvar pagamento: " + error.message);
+    }
+  }
+
+  // FUNÇÕES DE EVENTO
+  async function salvarEvento() {
+    if (!nomeEvento || !valorEvento || (!idEventoEdicao && alunosSelecionados.length === 0)) return alert("Preencha todos os campos.");
+    const dados = {
+        nome: nomeEvento,
+        valor_unitario: parseFloat(valorEvento),
+        total_alunos: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.total_alunos : alunosSelecionados.length,
+        participantes: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.participantes : alunosSelecionados,
+        arquivado: false
+    };
+    let error;
+    if (idEventoEdicao) {
+        const res = await supabase.from('eventos_controle').update(dados).eq('id', idEventoEdicao);
+        error = res.error;
+    } else {
+        const res = await supabase.from('eventos_controle').insert([dados]);
+        error = res.error;
+    }
+    if (!error) {
+        setModalEventoAberto(false);
+        limparFormEvento();
+        carregarDados();
+    } else {
+        alert("Erro no Banco: " + error.message);
+    }
+  }
+
+  function limparFormEvento() {
+    setIdEventoEdicao(null);
+    setNomeEvento("");
+    setValorEvento("");
+    setAlunosSelecionados([]);
+  }
+
+  function abrirEdicaoEvento(ev: any) {
+    setIdEventoEdicao(ev.id);
+    setNomeEvento(ev.nome);
+    setValorEvento(ev.valor_unitario.toString());
+    setModalEventoAberto(true);
+  }
+
+  async function excluirEvento(id: any) {
+    if (confirm("Deseja realmente EXCLUIR permanentemente este evento?")) {
+        await supabase.from('eventos_controle').delete().eq('id', id);
+        carregarDados();
+    }
+  }
+
+  const toggleAlunoSelecao = (id: string) => {
+    setAlunosSelecionados(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
+
+  async function arquivarEvento(id: any) {
+    if (confirm("Deseja arquivar este evento?")) {
+        await supabase.from('eventos_controle').update({ arquivado: true }).eq('id', id);
+        carregarDados();
+    }
+  }
+
+  async function atualizarParticipanteEvento(alunoId: string, estaParticipando: boolean) {
+    if (!eventoParaGerenciar) return;
+    let novosParticipantes = estaParticipando 
+      ? [...(eventoParaGerenciar.participantes || []), alunoId]
+      : (eventoParaGerenciar.participantes || []).filter((id: string) => id !== alunoId);
+
+    const { error } = await supabase.from('eventos_controle').update({ 
+      participantes: novosParticipantes, 
+      total_alunos: novosParticipantes.length 
+    }).eq('id', eventoParaGerenciar.id);
+
+    if (!error) {
+      setEventoParaGerenciar({ ...eventoParaGerenciar, participantes: novosParticipantes, total_alunos: novosParticipantes.length });
+      carregarDados();
+    }
+  }
+
+  // OUTRAS FUNÇÕES
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.whatsapp || "";
     if (!telefone) return alert("Este aluno não possui número de WhatsApp cadastrado.");
@@ -158,24 +309,6 @@ export default function FinanceiroPage() {
     }
   }
 
-  async function confirmarPagamento() {
-    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
-    if (somaPaga <= 0) return alert("Insira um valor.");
-    await supabase.from('historico_pagamentos').insert([{
-        aluno_id: alunoSelecionado.id,
-        tipo: tipoPagamento,
-        descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? 'Mensalidade' : 'Outros'),
-        valor_total: somaPaga,
-        data_pagamento: dataPagamento, 
-        detalhes_metodos: pagamentosMetodos
-    }]);
-    if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
-    setModalPgtoAberto(false); 
-    setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" }); 
-    setDescricaoOutro("");
-    carregarDados();
-  }
-
   const estiloBtnReduzido = { padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' as 'bold', border: 'none', cursor: 'pointer', display: 'inline-block' };
 
   if (carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando dados financeiros...</div>;
@@ -193,6 +326,7 @@ export default function FinanceiroPage() {
         </header>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => { limparFormEvento(); setModalEventoAberto(true); }} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>🎟️ NOVO EVENTO</button>
           <button onClick={gerarRelatorioPDF} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#2563eb', color: 'white' }}>📄 PDF</button>
           <button onClick={() => setModalGastoAberto(true)} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#ef4444', color: 'white' }}>- GASTO</button>
           <button onClick={zerarMes} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#374151', color: 'white' }}>🔄 ZERAR MÊS</button>
@@ -204,22 +338,97 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* CARDS DE EVENTOS */}
+      {eventosAtivos.length > 0 && (
+          <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', marginBottom: '30px', paddingBottom: '10px' }}>
+              {eventosAtivos.map(ev => (
+                  <div key={ev.id} onClick={() => setEventoParaGerenciar(ev)} style={{ minWidth: '220px', backgroundColor: 'white', padding: '15px', borderRadius: '15px', border: eventoParaGerenciar?.id === ev.id ? '2px solid #7c3aed' : '2px solid #ddd6fe', position: 'relative', cursor: 'pointer' }}>
+                      <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: '5px' }}>
+                        <button onClick={(e) => { e.stopPropagation(); abrirEdicaoEvento(ev); }} title="Editar Evento">✏️</button>
+                        <button onClick={(e) => { e.stopPropagation(); arquivarEvento(ev.id); }} title="Arquivar Evento">📁</button>
+                        <button onClick={(e) => { e.stopPropagation(); excluirEvento(ev.id); }} title="Excluir Evento">🗑️</button>
+                      </div>
+                      <h3 style={{ margin: '0 0 5px', fontSize: '15px', color: '#7c3aed', fontWeight: '800' }}>{ev.nome}</h3>
+                      <p style={{ margin: 0, fontSize: '12px' }}>R$ {ev.valor_unitario} <span style={{ color: '#6b7280' }}>/aluno</span></p>
+                      <p style={{ margin: '8px 0 0', fontSize: '10px', color: '#94a3b8' }}>👥 {ev.total_alunos} Alunos (Gerenciar 👁️)</p>
+                  </div>
+              ))}
+          </div>
+      )}
+
+      {/* GESTÃO DE PAGAMENTOS DO EVENTO SELECIONADO */}
+      {eventoParaGerenciar && (
+        <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', border: '2px solid #7c3aed' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c3aed' }}>Gestão de Pagamento: {eventoParaGerenciar.nome}</h2>
+            <button onClick={() => setEventoParaGerenciar(null)} style={{ fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none' }}>Fechar ✕</button>
+          </div>
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ fontSize: '12px', color: '#6b7280', borderBottom: '2px solid #f3f4f6' }}>
+                  <th style={{ padding: '10px' }}>ALUNO</th>
+                  <th style={{ textAlign: 'center' }}>PARTICIPAÇÃO</th>
+                  <th style={{ textAlign: 'center' }}>VALOR</th>
+                  <th style={{ textAlign: 'center' }}>STATUS</th>
+                  <th style={{ textAlign: 'center' }}>DATA PGTO</th>
+                  <th style={{ textAlign: 'center' }}>AÇÕES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alunos.map(aluno => {
+                  const estaParticipando = eventoParaGerenciar.participantes?.includes(aluno.id);
+                  const pgtoRealizado = historicoPagamentosEventos.find(p => p.aluno_id === aluno.id && p.descricao.includes(eventoParaGerenciar.nome));
+                  
+                  return (
+                    <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6', opacity: estaParticipando ? 1 : 0.5 }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{aluno.nome}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button onClick={() => atualizarParticipanteEvento(aluno.id, !estaParticipando)} style={{ ...estiloBtnReduzido, backgroundColor: estaParticipando ? '#ddd6fe' : '#f3f4f6', color: estaParticipando ? '#7c3aed' : '#9ca3af', width: '80px' }}>
+                          {estaParticipando ? "SIM ✅" : "NÃO"}
+                        </button>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{estaParticipando ? `R$ ${eventoParaGerenciar.valor_unitario}` : '-'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {estaParticipando ? (
+                          <span style={{ ...estiloBtnReduzido, backgroundColor: pgtoRealizado ? '#dcfce7' : '#fee2e2', color: pgtoRealizado ? '#166534' : '#991b1b' }}>
+                            {pgtoRealizado ? 'PAGO' : 'PENDENTE'}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{pgtoRealizado ? new Date(pgtoRealizado.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                          {estaParticipando && !pgtoRealizado && (
+                             <button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
+                          )}
+                          {pgtoRealizado && (
+                            <>
+                              <button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar, pgtoRealizado)} title="Editar Pagamento" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
+                              <button onClick={() => excluirPagamentoEvento(pgtoRealizado.id)} title="Excluir Pagamento" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CARDS DE MÉTRICAS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #10b981' }}>
           <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>RECEITA NO MÊS</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#064e3b' }}>R$ {metricas.pago.toLocaleString('pt-BR')}</h2>
         </div>
-
-        <div 
-          onClick={() => setModalListaGastosAberto(true)}
-          style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #ef4444', cursor: 'pointer', transition: 'transform 0.2s' }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        >
+        <div onClick={() => setModalListaGastosAberto(true)} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #ef4444', cursor: 'pointer' }}>
           <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>GASTOS NO MÊS 👁️</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#991b1b' }}>R$ {metricas.gastos.toLocaleString('pt-BR')}</h2>
         </div>
-
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #2563eb' }}>
           <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>LUCRO REAL</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1e3a8a' }}>R$ {metricas.lucro.toLocaleString('pt-BR')}</h2>
@@ -234,9 +443,10 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* TABELA GERAL DE ALUNOS */}
       <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Status de Pagamento</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Status de Pagamento (Mensalidades)</h2>
           <input 
             type="text" 
             placeholder="🔍 Pesquisar aluno..." 
@@ -276,7 +486,7 @@ export default function FinanceiroPage() {
                   </td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      <button onClick={() => { setAlunoSelecionado(aluno); setModalPgtoAberto(true); }} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
+                      <button onClick={() => { setAlunoSelecionado(aluno); setIdPagamentoEdicao(null); setTipoPagamento("mensalidade"); setModalPgtoAberto(true); }} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
                       {aluno.status !== 'pago' && (
                         <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
                       )}
@@ -289,9 +499,10 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* BALANÇO E CATEGORIAS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Categoria ({mesFiltro})</h2>
+          <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Método ({mesFiltro})</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {Object.entries(resumoMetodos).map(([key, val]) => (
               <div key={key} style={{ padding: '10px', backgroundColor: '#f9fafb', borderRadius: '10px' }}>
@@ -315,17 +526,46 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* Modal de Recebimento */}
+      {/* MODAL NOVO/EDITAR EVENTO */}
+      {modalEventoAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
+            <h2 style={{ textAlign: 'center', marginBottom: '20px', fontWeight: 'bold' }}>{idEventoEdicao ? "✏️ Editar Evento" : "🎟️ Novo Evento / Taxa"}</h2>
+            <input type="text" placeholder="Nome do Evento" value={nomeEvento} onChange={(e)=>setNomeEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            <input type="number" placeholder="Valor por aluno R$" value={valorEvento} onChange={(e)=>setValorEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            {!idEventoEdicao && (
+              <>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>SELECIONE OS ALUNOS PARTICIPANTES:</label>
+                <div style={{ border: '1px solid #eee', borderRadius: '12px', padding: '10px', maxHeight: '180px', overflowY: 'auto', margin: '10px 0' }}>
+                  {alunos.map(aluno => (
+                    <label key={aluno.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', cursor: 'pointer', borderBottom: '1px solid #f9fafb' }}>
+                      <input type="checkbox" checked={alunosSelecionados.includes(aluno.id)} onChange={() => toggleAlunoSelecao(aluno.id)} />
+                      <span style={{ fontSize: '13px' }}>{aluno.nome}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button onClick={()=>setModalEventoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
+              <button onClick={salvarEvento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>{idEventoEdicao ? "SALVAR ALTERAÇÃO" : "GERAR EVENTO"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE RECEBIMENTO (MENSALIDADE/EVENTO) */}
       {modalPgtoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '500px' }}>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Recebimento: {alunoSelecionado?.nome}</h2>
+            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>{idPagamentoEdicao ? "Editar Recebimento" : "Recebimento"}: {alunoSelecionado?.nome}</h2>
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO PAGAMENTO:</label>
               <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
             </div>
             <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
               <option value="mensalidade">Mensalidade</option>
+              <option value="evento">Evento</option>
               <option value="outro">Outro</option>
             </select>
             <input type="text" placeholder="Descreva o pagamento..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #ddd' }} />
@@ -335,26 +575,20 @@ export default function FinanceiroPage() {
               <div><label style={{ fontSize: '10px' }}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, credito: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
               <div><label style={{ fontSize: '10px' }}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, debito: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
             </div>
-            <div style={{ backgroundColor: '#fff7ed', padding: '10px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #fed7aa' }}>
-              <label style={{ fontSize: '10px', fontWeight: 'bold', color: '#9a3412' }}>+ Multa/Juros:</label>
-              <input type="number" value={pagamentosMetodos.multa} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, multa: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #fdba74', borderRadius: '8px' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button onClick={()=>setModalPgtoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
-              <button onClick={confirmarPagamento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>CONFIRMAR</button>
+              <button onClick={confirmarPagamento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>{idPagamentoEdicao ? "ATUALIZAR" : "CONFIRMAR"}</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL DE REGISTRO DE GASTO */}
       {modalGastoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
             <h2 style={{ marginBottom: '20px' }}>Registrar Gasto</h2>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO GASTO:</label>
-              <input type="date" value={dataGasto} onChange={(e) => setDataGasto(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
-            </div>
+            <input type="date" value={dataGasto} onChange={(e) => setDataGasto(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '10px' }} />
             <input type="text" placeholder="Descrição" value={descGasto} onChange={(e)=>setDescGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <input type="number" placeholder="Valor R$" value={valorGasto} onChange={(e)=>setValorGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -365,8 +599,9 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>Gastos de {mesFiltro}</h2>
@@ -376,33 +611,24 @@ export default function FinanceiroPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
                   <tr style={{ color: '#6b7280', borderBottom: '2px solid #f3f4f6' }}>
-                    <th style={{ padding: '12px' }}>DESCRIÇÃO</th>
-                    <th style={{ padding: '12px' }}>DATA</th>
-                    <th style={{ padding: '12px' }}>VALOR</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>AÇÃO</th>
+                    <th>DESCRIÇÃO</th><th>DATA</th><th>VALOR</th><th style={{ textAlign: 'center' }}>AÇÃO</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {listaGastosDetalhada.length > 0 ? listaGastosDetalhada.map((gasto) => (
-                    <tr key={gasto.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '12px', fontWeight: '600' }}>{gasto.descricao}</td>
-                      <td style={{ padding: '12px' }}>{new Date(gasto.data_gasto).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
-                      <td style={{ padding: '12px', color: '#b91c1c', fontWeight: 'bold' }}>R$ {parseFloat(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button onClick={() => excluirGasto(gasto.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
-                      </td>
+                  {listaGastosDetalhada.map(g => (
+                    <tr key={g.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '12px' }}>{g.descricao}</td>
+                      <td>{new Date(g.data_gasto).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
+                      <td style={{ color: '#b91c1c', fontWeight: 'bold' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR')}</td>
+                      <td style={{ textAlign: 'center' }}><button onClick={() => excluirGasto(g.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>
                     </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>Nenhum gasto registrado para este mês.</td>
-                    </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-            <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#374151' }}>TOTAL EM GASTOS:</span>
-              <span style={{ fontSize: '18px', fontWeight: '800', color: '#b91c1c' }}>R$ {metricas.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 'bold' }}>TOTAL:</span>
+              <span style={{ fontSize: '18px', fontWeight: '800', color: '#b91c1c' }}>R$ {metricas.gastos.toLocaleString('pt-BR')}</span>
             </div>
           </div>
         </div>
