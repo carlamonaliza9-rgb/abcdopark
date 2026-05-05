@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
+  const [nomeUsuario, setNomeUsuario] = useState("Administrador"); // Estado para o nome do usuário
   const [dados, setDados] = useState({
     totalAlunos: 0,
     porTurma: {} as { [key: string]: number },
@@ -35,6 +36,25 @@ export default function DashboardPage() {
 
   async function carregarDados() {
     try {
+      // 1. Busca o usuário autenticado
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        const metadata = authData.user.user_metadata;
+        let nome = metadata?.nome || metadata?.name || metadata?.full_name;
+        
+        // Se não tiver nome nos metadados, usa o email antes do @
+        if (!nome && authData.user.email) {
+          const emailPart = authData.user.email.split('@')[0];
+          nome = emailPart.charAt(0).toUpperCase() + emailPart.slice(1);
+        }
+        
+        if (nome) {
+          // Pega apenas o primeiro nome para a saudação ficar amigável
+          setNomeUsuario(nome.split(' ')[0]);
+        }
+      }
+
+      // 2. Busca os dados do Dashboard
       const { data: alunos } = await supabase.from('alunos').select('*');
       const { data: funcionarios } = await supabase.from('funcionarios').select('*');
       const { data: listaEventos } = await supabase.from('eventos_calendario').select('*').order('data', { ascending: true });
@@ -57,7 +77,6 @@ export default function DashboardPage() {
         const listaAniversariantes = [...bdayAlunos, ...bdayFuncs]
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
 
-        // Lógica para detectar aniversariantes de HOJE e limitar a exibição a 2 vezes por dia
         const quemFezHoje = listaAniversariantes.filter(p => extrairDiaUTC(p.data_nascimento) === diaAtual);
         if (quemFezHoje.length > 0) {
           setAniversariantesHoje(quemFezHoje);
@@ -246,9 +265,10 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* HEADER ATUALIZADO COM O NOME DO USUÁRIO */}
       <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, Administrador! 👋</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, {nomeUsuario}! 👋</h1>
           <p style={{ color: '#6b7280' }}>Resumo atualizado da ABC DO PARK.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
