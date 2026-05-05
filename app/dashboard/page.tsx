@@ -11,6 +11,7 @@ export default function DashboardPage() {
     proximosEventos: [] as any[]
   });
   const [carregando, setCarregando] = useState(true);
+  const [buscaSaude, setBuscaSaude] = useState(""); // Estado para a pesquisa de saúde
   
   const [modalAvisoAberto, setModalAvisoAberto] = useState(false);
   const [mensagemAviso, setMensagemAviso] = useState("");
@@ -37,10 +38,18 @@ export default function DashboardPage() {
       if (alunos) {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
-        
-        // Ajuste para pegar a data atual sem erro de fuso
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
+
+        // Filtra e ORDENA aniversariantes por dia
+        const listaAniversariantes = alunos
+          .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
+          .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
+
+        // Filtra e ORDENA alertas de saúde alfabeticamente
+        const listaSaude = alunos
+          .filter(a => a.tem_alergia === true)
+          .sort((a, b) => a.nome.localeCompare(b.nome));
 
         setDados({
           totalAlunos: alunos.length,
@@ -49,8 +58,8 @@ export default function DashboardPage() {
             acc[t] = (acc[t] || 0) + 1;
             return acc;
           }, {}),
-          aniversariantes: alunos.filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual),
-          alertasSaude: alunos.filter(a => a.tem_alergia === true),
+          aniversariantes: listaAniversariantes,
+          alertasSaude: listaSaude,
           proximosEventos: futuros
         });
       }
@@ -64,29 +73,28 @@ export default function DashboardPage() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  // --- Funções do Calendário ---
+  // Lógica de filtro para a pesquisa de Alertas de Saúde
+  const alertasFiltrados = buscaSaude === "" 
+    ? dados.alertasSaude 
+    : dados.alertasSaude.filter(aluno => 
+        aluno.nome.toLowerCase().includes(buscaSaude.toLowerCase())
+      );
+
   async function salvarEvento() {
     if (!novoEventoNome || !novoEventoData) return alert("Preencha o nome e a data.");
     try {
       if (idEditando) {
-        const { error } = await supabase
-          .from('eventos_calendario')
-          .update({ titulo: novoEventoNome, data: novoEventoData })
-          .eq('id', idEditando);
+        const { error } = await supabase.from('eventos_calendario').update({ titulo: novoEventoNome, data: novoEventoData }).eq('id', idEditando);
         if (error) throw error;
         setIdEditando(null);
       } else {
-        const { error } = await supabase
-          .from('eventos_calendario')
-          .insert([{ titulo: novoEventoNome, data: novoEventoData }]);
+        const { error } = await supabase.from('eventos_calendario').insert([{ titulo: novoEventoNome, data: novoEventoData }]);
         if (error) throw error;
       }
       setNovoEventoNome(""); 
       setNovoEventoData("");
       await carregarDados();
-    } catch (err: any) {
-      alert(`Erro: ${err.message}`);
-    }
+    } catch (err: any) { alert(`Erro: ${err.message}`); }
   }
 
   async function excluirEvento(id: number) {
@@ -95,9 +103,7 @@ export default function DashboardPage() {
       const { error } = await supabase.from('eventos_calendario').delete().eq('id', id);
       if (error) throw error;
       await carregarDados();
-    } catch (err: any) {
-      alert(`Erro ao excluir: ${err.message}`);
-    }
+    } catch (err: any) { alert(`Erro ao excluir: ${err.message}`); }
   }
 
   const prepararEdicao = (ev: any) => {
@@ -112,9 +118,7 @@ export default function DashboardPage() {
     setNovoEventoData("");
   };
 
-  // --- Funções de Formatação (CORREÇÃO DO DIA) ---
   const formatarDataLocal = (dataString: string) => {
-    // Forçamos o JS a tratar como UTC adicionando o T12:00:00
     const d = new Date(dataString + "T12:00:00");
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
   };
@@ -124,7 +128,6 @@ export default function DashboardPage() {
     return d.getUTCDate();
   };
 
-  // --- Funções do Aviso Geral ---
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
     setArrastando(e.type === "dragenter" || e.type === "dragover");
@@ -213,6 +216,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
+        {/* Bloco Aniversariantes com Ordenação por Dia */}
         <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>
             🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}
@@ -243,10 +247,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Bloco Alertas de Saúde com Pesquisa e Ordenação */}
         <div style={{ backgroundColor: '#fff5f5', padding: '25px', borderRadius: '20px', border: '1px solid #fed7d7', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#c53030' }}>⚠️ Alertas de Saúde / Alergias</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            {dados.alertasSaude.length > 0 ? dados.alertasSaude.map(aluno => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#c53030' }}>⚠️ Alertas de Saúde</h2>
+            <input 
+              type="text" 
+              placeholder="Pesquisar..." 
+              value={buscaSaude}
+              onChange={(e) => setBuscaSaude(e.target.value)}
+              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fed7d7', fontSize: '12px', width: '150px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+            {alertasFiltrados.length > 0 ? alertasFiltrados.map(aluno => (
               <div key={aluno.id} style={{ backgroundColor: 'white', padding: '8px 12px', borderRadius: '10px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#feb2b2', overflow: 'hidden' }}>
                   {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>{aluno.nome.charAt(0)}</div>}
@@ -258,12 +272,12 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-            )) : <p style={{ color: '#4a5568', fontSize: '14px' }}>Nenhum alerta registrado.</p>}
+            )) : <p style={{ color: '#4a5568', fontSize: '14px' }}>Nenhum alerta encontrado.</p>}
           </div>
         </div>
       </div>
 
-      {/* --- MODAL CALENDÁRIO --- */}
+      {/* Modal Calendário e Aviso Geral mantidos sem alteração visual */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -271,45 +285,30 @@ export default function DashboardPage() {
               <h2 style={{ fontSize: '22px', fontWeight: 'bold' }}>📅 Calendário Escolar</h2>
               <button onClick={() => setModalCalendarioAberto(false)} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>✖</button>
             </div>
-
             <div style={{ backgroundColor: idEditando ? '#fffbeb' : 'white', padding: '20px', borderRadius: '15px', marginBottom: '25px', display: 'flex', gap: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: idEditando ? '1px solid #fbbf24' : 'none' }}>
               <input type="text" placeholder="Nome do evento" value={novoEventoNome} onChange={(e) => setNovoEventoNome(e.target.value)} style={{ flex: 2, padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
               <input type="date" value={novoEventoData} onChange={(e) => setNovoEventoData(e.target.value)} style={{ flex: 1, padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
               <button onClick={salvarEvento} style={{ backgroundColor: idEditando ? '#f59e0b' : '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
                 {idEditando ? 'ATUALIZAR' : 'ADICIONAR'}
               </button>
-              {idEditando && (
-                <button onClick={cancelarEdicao} style={{ backgroundColor: '#ef4444', color: 'white', padding: '12px 15px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>X</button>
-              )}
+              {idEditando && <button onClick={cancelarEdicao} style={{ backgroundColor: '#ef4444', color: 'white', padding: '12px 15px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>X</button>}
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
               {meses.map((mesNome, index) => (
                 <div key={index} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                   <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb', borderBottom: '2px solid #f3f4f6', paddingBottom: '8px', marginBottom: '12px' }}>{mesNome}</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {eventos.filter(ev => {
-                        const d = new Date(ev.data + "T12:00:00");
-                        return d.getUTCMonth() === index;
-                    }).length > 0 ? (
-                      eventos.filter(ev => {
-                        const d = new Date(ev.data + "T12:00:00");
-                        return d.getUTCMonth() === index;
-                      }).map((ev, i) => (
+                    {eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).length > 0 ? (
+                      eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).map((ev, i) => (
                         <div key={i} style={{ fontSize: '13px', padding: '10px', backgroundColor: '#f9fafb', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <span style={{ fontWeight: 'bold', display: 'block' }}>Dia {extrairDiaUTC(ev.data)}:</span>
-                            <span>{ev.titulo}</span>
-                          </div>
+                          <div><span style={{ fontWeight: 'bold', display: 'block' }}>Dia {extrairDiaUTC(ev.data)}:</span><span>{ev.titulo}</span></div>
                           <div style={{ display: 'flex', gap: '5px' }}>
-                            <button onClick={() => prepararEdicao(ev)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }} title="Editar">✏️</button>
-                            <button onClick={() => excluirEvento(ev.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }} title="Excluir">🗑️</button>
+                            <button onClick={() => prepararEdicao(ev)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>✏️</button>
+                            <button onClick={() => excluirEvento(ev.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>🗑️</button>
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Sem eventos</p>
-                    )}
+                    ) : <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Sem eventos</p>}
                   </div>
                 </div>
               ))}
@@ -318,7 +317,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Modal Aviso Geral */}
       {modalAvisoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px' }}>
