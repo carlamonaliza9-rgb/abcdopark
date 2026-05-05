@@ -11,7 +11,7 @@ export default function DashboardPage() {
     proximosEventos: [] as any[]
   });
   const [carregando, setCarregando] = useState(true);
-  const [buscaSaude, setBuscaSaude] = useState(""); // Estado para a pesquisa de saúde
+  const [buscaSaude, setBuscaSaude] = useState("");
   
   const [modalAvisoAberto, setModalAvisoAberto] = useState(false);
   const [mensagemAviso, setMensagemAviso] = useState("");
@@ -41,12 +41,10 @@ export default function DashboardPage() {
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
 
-        // Filtra e ORDENA aniversariantes por dia
         const listaAniversariantes = alunos
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
 
-        // Filtra e ORDENA alertas de saúde alfabeticamente
         const listaSaude = alunos
           .filter(a => a.tem_alergia === true)
           .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -73,7 +71,6 @@ export default function DashboardPage() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  // Lógica de filtro para a pesquisa de Alertas de Saúde
   const alertasFiltrados = buscaSaude === "" 
     ? dados.alertasSaude 
     : dados.alertasSaude.filter(aluno => 
@@ -152,14 +149,50 @@ export default function DashboardPage() {
     setPreviewImagem(null);
   };
 
+  // Lógica de Cor atualizada para Lilás/Roxo
+  const getEventoStyle = (titulo: string) => {
+    const t = titulo.toLowerCase();
+    const isEspecial = t.includes("feriado") || t.includes("facultado");
+    return {
+      bg: isEspecial ? "#f5f3ff" : "#f9fafb", // Fundo lilás claro ou cinza padrão
+      border: isEspecial ? "4px solid #8b5cf6" : "4px solid #2563eb", // Borda roxa ou azul
+      color: isEspecial ? "#6d28d9" : "#2563eb" // Texto roxo escuro ou azul
+    };
+  };
+
+  const estiloBotaoAcao = {
+    padding: '12px 20px',
+    borderRadius: '12px',
+    border: 'none',
+    backgroundColor: '#2563eb',
+    color: 'white',
+    fontWeight: 'bold' as 'bold',
+    cursor: 'pointer',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 6px rgba(37, 99, 235, 0.1)'
+  };
+
   if (carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando visão geral...</div>;
 
   return (
     <div style={{ width: '100%', padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      <header style={{ marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, Administrador! 👋</h1>
-        <p style={{ color: '#6b7280' }}>Resumo atualizado da ABC DO PARK.</p>
+      <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+        <div>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, Administrador! 👋</h1>
+          <p style={{ color: '#6b7280' }}>Resumo atualizado da ABC DO PARK.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={() => setModalCalendarioAberto(true)} style={estiloBotaoAcao}>
+            <span>📅</span> Calendário
+          </button>
+          <button onClick={() => setModalAvisoAberto(true)} style={estiloBotaoAcao}>
+            <span>📢</span> Enviar Aviso
+          </button>
+        </div>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '25px' }}>
@@ -192,31 +225,24 @@ export default function DashboardPage() {
             🚀 Próximas Programações
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => (
-              <div key={i} style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '12px', borderLeft: '4px solid #2563eb' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>
-                  {formatarDataLocal(ev.data)}
-                </span>
-                <p style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>{ev.titulo}</p>
-              </div>
-            )) : (
+            {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => {
+              const estilo = getEventoStyle(ev.titulo);
+              return (
+                <div key={i} style={{ padding: '12px', backgroundColor: estilo.bg, borderRadius: '12px', borderLeft: estilo.border }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: estilo.color, textTransform: 'uppercase' }}>
+                    {formatarDataLocal(ev.data)}
+                  </span>
+                  <p style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>{ev.titulo}</p>
+                </div>
+              );
+            }) : (
               <p style={{ color: '#9ca3af', fontSize: '14px', fontStyle: 'italic' }}>Nenhuma programação agendada.</p>
             )}
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: '#2563eb', padding: '30px', borderRadius: '20px', color: 'white', boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.2)' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Ações de Gestão</h2>
-          <p style={{ fontSize: '14px', opacity: 0.9, marginBottom: '25px' }}>Gerencie sua escola de forma rápida e eficiente.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button onClick={() => setModalCalendarioAberto(true)} style={{ padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 'bold', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}>📅 Consultar calendário</button>
-            <button onClick={() => setModalAvisoAberto(true)} style={{ padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 'bold', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}>📢 Enviar aviso geral (WhatsApp)</button>
           </div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
-        {/* Bloco Aniversariantes com Ordenação por Dia */}
         <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>
             🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}
@@ -247,7 +273,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Bloco Alertas de Saúde com Pesquisa e Ordenação */}
         <div style={{ backgroundColor: '#fff5f5', padding: '25px', borderRadius: '20px', border: '1px solid #fed7d7', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#c53030' }}>⚠️ Alertas de Saúde</h2>
@@ -277,7 +302,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Modal Calendário e Aviso Geral mantidos sem alteração visual */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -299,15 +323,18 @@ export default function DashboardPage() {
                   <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb', borderBottom: '2px solid #f3f4f6', paddingBottom: '8px', marginBottom: '12px' }}>{mesNome}</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).length > 0 ? (
-                      eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).map((ev, i) => (
-                        <div key={i} style={{ fontSize: '13px', padding: '10px', backgroundColor: '#f9fafb', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div><span style={{ fontWeight: 'bold', display: 'block' }}>Dia {extrairDiaUTC(ev.data)}:</span><span>{ev.titulo}</span></div>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <button onClick={() => prepararEdicao(ev)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>✏️</button>
-                            <button onClick={() => excluirEvento(ev.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>🗑️</button>
+                      eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).map((ev, i) => {
+                        const estilo = getEventoStyle(ev.titulo);
+                        return (
+                          <div key={i} style={{ fontSize: '13px', padding: '10px', backgroundColor: estilo.bg, borderRadius: '8px', borderLeft: estilo.border, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div><span style={{ fontWeight: 'bold', display: 'block', color: estilo.color }}>Dia {extrairDiaUTC(ev.data)}:</span><span>{ev.titulo}</span></div>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={() => prepararEdicao(ev)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>✏️</button>
+                              <button onClick={() => excluirEvento(ev.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>🗑️</button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Sem eventos</p>}
                   </div>
                 </div>
