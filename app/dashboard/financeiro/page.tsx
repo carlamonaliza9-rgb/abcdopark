@@ -111,7 +111,6 @@ export default function FinanceiroPage() {
 
   useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
 
-  // LINHA RESTAURADA PARA CORRIGIR O ERRO:
   const alunosFiltrados = alunos.filter(aluno => aluno.nome.toLowerCase().includes(filtroNome.toLowerCase()));
 
   function gerarPDFEvento() {
@@ -132,6 +131,7 @@ export default function FinanceiroPage() {
     printWindow.print();
   }
 
+  // FUNÇÃO ATUALIZADA: Preenche o valor do evento automaticamente
   function abrirPagamentoEvento(aluno: any, evento: any, pgtoExistente: any = null) {
     setAlunoSelecionado(aluno); setTipoPagamento("evento"); setEventoParaGerenciar(evento);
     if (pgtoExistente) {
@@ -139,8 +139,20 @@ export default function FinanceiroPage() {
       setPagamentosMetodos(pgtoExistente.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
     } else {
       setIdPagamentoEdicao(null); setDataPagamento(new Date().toISOString().split('T')[0]); setDescricaoOutro(`Evento: ${evento.nome}`);
-      setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+      // Preenche o valor unitário do evento no campo Pix
+      setPagamentosMetodos({ pix: evento.valor_unitario.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
     }
+    setModalPgtoAberto(true);
+  }
+
+  // NOVA FUNÇÃO: Preenche o valor da mensalidade automaticamente
+  function abrirPagamentoMensalidade(aluno: any) {
+    setAlunoSelecionado(aluno);
+    setIdPagamentoEdicao(null);
+    setTipoPagamento("mensalidade");
+    // Preenche o valor do aluno (ou padrão) no campo Pix
+    const valorSugerido = aluno.valor || valorPadrao;
+    setPagamentosMetodos({ pix: valorSugerido.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
     setModalPgtoAberto(true);
   }
 
@@ -186,7 +198,7 @@ export default function FinanceiroPage() {
     const nomes = aluno.nome.trim().split(' ');
     const formatado = nomes.length > 1 ? `${nomes[0]} ${nomes[nomes.length - 1]}` : nomes[0];
     const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const msg = `Olá! Passando para lembrar que a mensalidade de *${formatado}*, vencimento ${aluno.vencimento}/${mesFiltro.split('-')[1]} no valor de ${valorMsg}. Caso já tenha sido pago, por favor envie o comprovante de pagamento ou desconsidere.`;
+    const msg = `Olá! Passando para lembrar da mensalidade de *${formatado}*, vencimento ${aluno.vencimento}/${mesFiltro.split('-')[1]} no valor de ${valorMsg}. Caso já tenha pago, desconsidere.`;
     window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   }
 
@@ -282,7 +294,8 @@ export default function FinanceiroPage() {
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      <button onClick={() => { setAlunoSelecionado(aluno); setIdPagamentoEdicao(null); setTipoPagamento("mensalidade"); setModalPgtoAberto(true); }} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
+                      {/* BOTÃO ATUALIZADO: Chama a função que preenche o valor */}
+                      <button onClick={() => abrirPagamentoMensalidade(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
                       {aluno.status !== 'pago' && (
                         <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
                       )}
@@ -324,7 +337,7 @@ export default function FinanceiroPage() {
         <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#1f2937' }}>Gestão de Eventos</h2>
         <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', marginBottom: '20px' }}>
           {eventosAtivos.map(ev => (
-            <div key={ev.id} onClick={() => setEventoParaGerenciar(ev)} style={{ minWidth: '220px', backgroundColor: 'white', padding: '15px', borderRadius: '15px', border: eventoParaGerenciar?.id === ev.id ? '2px solid #7c3aed' : '2px solid #ddd6fe', cursor: 'pointer', position:'relative' }}>
+            <div key={ev.id} onClick={() => setEventoParaGerenciar(ev)} style={{ minWidth: '220px', backgroundColor: 'white', padding: '15px', borderRadius: '15px', border: eventoParaGerenciar?.id === ev.id ? '2px solid #7c3aed' : '2px solid #ddd6fe', position: 'relative', cursor: 'pointer' }}>
               <div style={{position:'absolute', top:8, right:8}}><button onClick={(e) => {e.stopPropagation(); abrirEdicaoEvento(ev);}}>✏️</button><button onClick={(e) => {e.stopPropagation(); excluirEvento(ev.id);}}>🗑️</button></div>
               <h3 style={{ margin: 0, fontSize: '15px', color: '#7c3aed' }}>{ev.nome}</h3>
               <p style={{ margin: 0, fontSize: '12px' }}>R$ {ev.valor_unitario}</p>
@@ -350,6 +363,7 @@ export default function FinanceiroPage() {
                       <td style={{ textAlign: 'center' }}>{part ? (pgto ? "PAGO" : "PENDENTE") : "-"}</td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{display:'flex', gap:5, justifyContent:'center'}}>
+                          {/* BOTÃO ATUALIZADO: abrirPagamentoEvento já preenche o valor do evento */}
                           {part && !pgto && <button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar)}>+ PGTO</button>}
                           {pgto && <><button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar, pgto)}>✏️</button><button onClick={() => excluirPagamentoEvento(pgto.id)}>🗑️</button></>}
                         </div>
@@ -363,7 +377,7 @@ export default function FinanceiroPage() {
         )}
       </div>
 
-      {/* MODAIS */}
+      {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -391,6 +405,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL REGISTRAR GASTO */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '400px' }}>
@@ -404,6 +419,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL PGTO (COM VALOR AUTOMÁTICO) */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
