@@ -7,6 +7,7 @@ export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+  const [filtroNome, setFiltroNome] = useState(""); // Novo estado para busca
   
   const [alunos, setAlunos] = useState<any[]>([]);
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
@@ -74,7 +75,11 @@ export default function FinanceiroPage() {
           return { ...aluno, status: 'pendente' };
         });
 
-        const ordenados = [...listaProcessada].sort((a, b) => (a.status !== 'pago' ? -1 : 1));
+        // ORDENAÇÃO POR DIA DE VENCIMENTO (Crescente)
+        const ordenados = [...listaProcessada].sort((a, b) => {
+          return (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0);
+        });
+        
         setAlunos(ordenados);
         
         const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
@@ -96,6 +101,11 @@ export default function FinanceiroPage() {
 
   useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
 
+  // FILTRO DE PESQUISA
+  const alunosFiltrados = alunos.filter(aluno => 
+    aluno.nome.toLowerCase().includes(filtroNome.toLowerCase())
+  );
+
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.whatsapp || "";
     if (!telefone) return alert("Este aluno não possui número de WhatsApp cadastrado.");
@@ -111,20 +121,14 @@ export default function FinanceiroPage() {
   async function zerarMes() {
     const senha = prompt("Digite a senha para zerar o mês:");
     if (senha !== SENHA_MESTRA) return alert("Senha incorreta!");
-    
     if (confirm("Resetar status dos alunos e APAGAR todos os pagamentos e gastos DESTE MÊS? (O histórico na ficha do aluno será preservado)")) {
       setCarregando(true);
       const [ano, mes] = mesFiltro.split('-');
       const dataInicio = `${ano}-${mes}-01`;
       const dataFim = `${ano}-${mes}-31`;
-
-      // 1. Volta todos os alunos para status pendente (o carregarDados cuidará de marcar 'atrasado' se necessário)
       await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
-      
-      // 2. Apaga histórico de pagamentos e gastos APENAS do mês filtrado
       await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       await supabase.from('gastos').delete().gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
-      
       alert("Mês zerado com sucesso!");
       await carregarDados();
     }
@@ -157,7 +161,6 @@ export default function FinanceiroPage() {
   async function confirmarPagamento() {
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
-    
     await supabase.from('historico_pagamentos').insert([{
         aluno_id: alunoSelecionado.id,
         tipo: tipoPagamento,
@@ -166,9 +169,7 @@ export default function FinanceiroPage() {
         data_pagamento: dataPagamento, 
         detalhes_metodos: pagamentosMetodos
     }]);
-    
     if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
-    
     setModalPgtoAberto(false); 
     setPagamentosMetodos({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" }); 
     setDescricaoOutro("");
@@ -234,7 +235,16 @@ export default function FinanceiroPage() {
       </div>
 
       <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>Status de Pagamento</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Status de Pagamento</h2>
+          <input 
+            type="text" 
+            placeholder="🔍 Pesquisar aluno..." 
+            value={filtroNome}
+            onChange={(e) => setFiltroNome(e.target.value)}
+            style={{ padding: '8px 15px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '13px', width: '250px' }}
+          />
+        </div>
         <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
@@ -247,7 +257,7 @@ export default function FinanceiroPage() {
               </tr>
             </thead>
             <tbody>
-              {alunos.map((aluno) => (
+              {alunosFiltrados.map((aluno) => (
                 <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</td>
                   <td style={{ padding: '12px' }}>R$ {aluno.valor?.toLocaleString('pt-BR')}</td>
@@ -337,7 +347,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* Modal para Adicionar Gasto */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
@@ -356,7 +365,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* Modal de Relação de Gastos por Mês */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -364,7 +372,6 @@ export default function FinanceiroPage() {
               <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>Gastos de {mesFiltro}</h2>
               <button onClick={() => setModalListaGastosAberto(false)} style={{ fontSize: '24px', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
             </div>
-            
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
@@ -393,7 +400,6 @@ export default function FinanceiroPage() {
                 </tbody>
               </table>
             </div>
-
             <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 'bold', color: '#374151' }}>TOTAL EM GASTOS:</span>
               <span style={{ fontSize: '18px', fontWeight: '800', color: '#b91c1c' }}>R$ {metricas.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
