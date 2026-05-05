@@ -33,6 +33,7 @@ export default function DashboardPage() {
   async function carregarDados() {
     try {
       const { data: alunos } = await supabase.from('alunos').select('*');
+      const { data: funcionarios } = await supabase.from('funcionarios').select('*'); // Busca funcionários
       const { data: listaEventos } = await supabase.from('eventos_calendario').select('*').order('data', { ascending: true });
       
       if (alunos) {
@@ -41,8 +42,18 @@ export default function DashboardPage() {
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
 
-        const listaAniversariantes = alunos
+        // Filtra aniversariantes ALUNOS
+        const bdayAlunos = alunos
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
+          .map(a => ({ ...a, tipo: 'aluno' }));
+
+        // Filtra aniversariantes FUNCIONÁRIOS
+        const bdayFuncs = (funcionarios || [])
+          .filter(f => f.data_nascimento && new Date(f.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
+          .map(f => ({ ...f, tipo: 'funcionario' }));
+
+        // Une e ordena as duas listas por dia
+        const listaAniversariantes = [...bdayAlunos, ...bdayFuncs]
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
 
         const listaSaude = alunos
@@ -149,14 +160,13 @@ export default function DashboardPage() {
     setPreviewImagem(null);
   };
 
-  // Lógica de Cor atualizada para Lilás/Roxo
   const getEventoStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
     return {
-      bg: isEspecial ? "#f5f3ff" : "#f9fafb", // Fundo lilás claro ou cinza padrão
-      border: isEspecial ? "4px solid #8b5cf6" : "4px solid #2563eb", // Borda roxa ou azul
-      color: isEspecial ? "#6d28d9" : "#2563eb" // Texto roxo escuro ou azul
+      bg: isEspecial ? "#f5f3ff" : "#f9fafb",
+      border: isEspecial ? "4px solid #8b5cf6" : "4px solid #2563eb",
+      color: isEspecial ? "#6d28d9" : "#2563eb"
     };
   };
 
@@ -248,24 +258,27 @@ export default function DashboardPage() {
             🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}
           </h2>
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(aluno => {
-              const dia = extrairDiaUTC(aluno.data_nascimento);
+            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(pessoa => {
+              const dia = extrairDiaUTC(pessoa.data_nascimento);
+              const isFunc = pessoa.tipo === 'funcionario'; // Lógica para cor roxa
+              const corDestaque = isFunc ? '#8b5cf6' : '#2563eb';
+
               return (
-                <div key={aluno.id} style={{ textAlign: 'center', minWidth: '90px' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: '2px solid #2563eb' }}>
-                    {aluno.foto_url ? (
-                      <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ textAlign: 'center', minWidth: '90px' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: `2px solid ${corDestaque}` }}>
+                    {pessoa.foto_url ? (
+                      <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#2563eb' }}>
-                        {aluno.nome.charAt(0)}
+                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: corDestaque }}>
+                        {pessoa.nome.charAt(0)}
                       </div>
                     )}
                   </div>
                   <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>
-                    {aluno.nome.split(' ')[0]}
+                    {pessoa.nome.split(' ')[0]}
                   </p>
-                  <p style={{ fontSize: '11px', color: '#2563eb', fontWeight: '600' }}>
-                    Dia {dia < 10 ? `0${dia}` : dia}
+                  <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>
+                    Dia {dia < 10 ? `0${dia}` : dia} {isFunc && "⭐"}
                   </p>
                 </div>
               );
@@ -302,6 +315,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* MODAL CALENDÁRIO */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
