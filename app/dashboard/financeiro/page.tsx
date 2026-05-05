@@ -181,11 +181,23 @@ export default function FinanceiroPage() {
     carregarDados();
   }
 
+  // FUNÇÃO ATUALIZADA: Cobrança com Primeiro e Último Nome
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.whatsapp || "";
-    if (!telefone) return alert("Sem WhatsApp.");
-    const msg = `Olá! Mensalidade de ${aluno.nome} vencendo.`;
-    window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    if (!telefone) return alert("Este aluno não possui WhatsApp cadastrado.");
+    
+    // Lógica para extrair o primeiro e o último nome
+    const nomes = aluno.nome.trim().split(' ');
+    const primeiroNome = nomes[0];
+    const ultimoNome = nomes.length > 1 ? nomes[nomes.length - 1] : "";
+    const nomeFormatado = ultimoNome ? `${primeiroNome} ${ultimoNome}` : primeiroNome;
+
+    const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const dataVencimento = `${aluno.vencimento}/${mesFiltro.split('-')[1]}`;
+    
+    const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${nomeFormatado}*, com vencimento em ${dataVencimento} no valor de ${valorMsg}. Caso o pagamento já tenha sido realizado, por favor desconsidere esta mensagem. Atenciosamente, Administração ABC DO PARK.`;
+    
+    window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   }
 
   async function zerarMes() {
@@ -425,7 +437,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL LISTA DE GASTOS (RESTAURADO) */}
+      {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
