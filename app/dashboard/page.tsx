@@ -12,20 +12,16 @@ export default function DashboardPage() {
   });
   const [carregando, setCarregando] = useState(true);
   
-  // Estados para o Modal de Aviso (WhatsApp)
   const [modalAvisoAberto, setModalAvisoAberto] = useState(false);
   const [mensagemAviso, setMensagemAviso] = useState("");
   const [arquivoImagem, setArquivoImagem] = useState<File | null>(null);
   const [previewImagem, setPreviewImagem] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
 
-  // Estados para Calendário em Cards
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false);
   const [eventos, setEventos] = useState<any[]>([]);
   const [novoEventoNome, setNovoEventoNome] = useState("");
   const [novoEventoData, setNovoEventoData] = useState("");
-  
-  // Estados para Edição
   const [idEditando, setIdEditando] = useState<number | null>(null);
 
   const meses = [
@@ -42,6 +38,7 @@ export default function DashboardPage() {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
         
+        // Ajuste para pegar a data atual sem erro de fuso
         const hojeString = hoje.toISOString().split('T')[0];
         const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
 
@@ -52,8 +49,7 @@ export default function DashboardPage() {
             acc[t] = (acc[t] || 0) + 1;
             return acc;
           }, {}),
-          // Filtro de aniversariantes para o mês atual
-          aniversariantes: alunos.filter(a => a.data_nascimento && new Date(a.data_nascimento).getUTCMonth() === mesAtual),
+          aniversariantes: alunos.filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual),
           alertasSaude: alunos.filter(a => a.tem_alergia === true),
           proximosEventos: futuros
         });
@@ -114,6 +110,18 @@ export default function DashboardPage() {
     setIdEditando(null);
     setNovoEventoNome("");
     setNovoEventoData("");
+  };
+
+  // --- Funções de Formatação (CORREÇÃO DO DIA) ---
+  const formatarDataLocal = (dataString: string) => {
+    // Forçamos o JS a tratar como UTC adicionando o T12:00:00
+    const d = new Date(dataString + "T12:00:00");
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+  };
+
+  const extrairDiaUTC = (dataString: string) => {
+    const d = new Date(dataString + "T12:00:00");
+    return d.getUTCDate();
   };
 
   // --- Funções do Aviso Geral ---
@@ -184,7 +192,7 @@ export default function DashboardPage() {
             {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => (
               <div key={i} style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '12px', borderLeft: '4px solid #2563eb' }}>
                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', textTransform: 'uppercase' }}>
-                  {new Date(ev.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                  {formatarDataLocal(ev.data)}
                 </span>
                 <p style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>{ev.titulo}</p>
               </div>
@@ -205,15 +213,13 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
-        {/* --- CARD ATUALIZADO: Aniversariantes do Mês --- */}
         <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>
             🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}
           </h2>
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
             {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(aluno => {
-              const dataNasc = new Date(aluno.data_nascimento);
-              const dia = dataNasc.getUTCDate();
+              const dia = extrairDiaUTC(aluno.data_nascimento);
               return (
                 <div key={aluno.id} style={{ textAlign: 'center', minWidth: '90px' }}>
                   <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: '2px solid #2563eb' }}>
@@ -237,7 +243,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- Card de Alertas de Saúde / Alergias --- */}
         <div style={{ backgroundColor: '#fff5f5', padding: '25px', borderRadius: '20px', border: '1px solid #fed7d7', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#c53030' }}>⚠️ Alertas de Saúde / Alergias</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -283,11 +288,17 @@ export default function DashboardPage() {
                 <div key={index} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                   <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb', borderBottom: '2px solid #f3f4f6', paddingBottom: '8px', marginBottom: '12px' }}>{mesNome}</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {eventos.filter(ev => new Date(ev.data).getUTCMonth() === index).length > 0 ? (
-                      eventos.filter(ev => new Date(ev.data).getUTCMonth() === index).map((ev, i) => (
+                    {eventos.filter(ev => {
+                        const d = new Date(ev.data + "T12:00:00");
+                        return d.getUTCMonth() === index;
+                    }).length > 0 ? (
+                      eventos.filter(ev => {
+                        const d = new Date(ev.data + "T12:00:00");
+                        return d.getUTCMonth() === index;
+                      }).map((ev, i) => (
                         <div key={i} style={{ fontSize: '13px', padding: '10px', backgroundColor: '#f9fafb', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <span style={{ fontWeight: 'bold', display: 'block' }}>Dia {new Date(ev.data).getUTCDate()}:</span>
+                            <span style={{ fontWeight: 'bold', display: 'block' }}>Dia {extrairDiaUTC(ev.data)}:</span>
                             <span>{ev.titulo}</span>
                           </div>
                           <div style={{ display: 'flex', gap: '5px' }}>
