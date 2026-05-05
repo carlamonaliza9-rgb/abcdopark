@@ -8,6 +8,7 @@ export default function Alunos() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [busca, setBusca] = useState(""); // Novo estado para pesquisa
   
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
@@ -83,6 +84,11 @@ export default function Alunos() {
     checarUsuario();
     buscarAlunos(); 
   }, []);
+
+  // FILTRO DE PESQUISA
+  const alunosFiltrados = alunos.filter(aluno => 
+    aluno.nome.toLowerCase().includes(busca.toLowerCase())
+  );
 
   // FUNÇÕES DO BOLETIM
   async function buscarBoletim(alunoId: string) {
@@ -218,16 +224,25 @@ export default function Alunos() {
           <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 'bold', color: '#111827', margin: 0 }}>Alunos</h1>
           <p style={{ fontSize: '14px', color: '#6b7280' }}>Gestão ABC DO PARK</p>
         </div>
-        {!ehVisitante && (
-          <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
-            style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-            + NOVO ALUNO
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <input 
+            type="text" 
+            placeholder="🔍 Pesquisar aluno..." 
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            style={{ padding: '10px 15px', borderRadius: '10px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '14px', width: 'clamp(150px, 20vw, 250px)' }}
+          />
+          {!ehVisitante && (
+            <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
+              style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+              + NOVO ALUNO
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
-        {alunos.map((aluno) => (
+        {alunosFiltrados.map((aluno) => (
           <div key={aluno.id} onClick={() => abrirFicha(aluno)}
             style={{ 
               backgroundColor: obterCorTurma(aluno.turma), 
@@ -283,7 +298,6 @@ export default function Alunos() {
                         <p style={{ margin: '0', fontWeight: '600', color: '#475569', fontSize: '14px' }}>{mCPF(cpfAluno) || '--'}</p>
                       </div>
                     </div>
-                    {/* CAMPOS DE MENSALIDADE RESTAURADOS */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '15px', border: '1px solid #dcfce7' }}>
                         <p style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', margin: '0 0 4px' }}>VALOR MENSALIDADE</p>
@@ -318,13 +332,56 @@ export default function Alunos() {
                         <button onClick={() => idEdicao && buscarHistoricoPagamento(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>💰 PAGAMENTOS</button>
                     </div>
                   </div>
-                ) : verHistorico ? (
+                ) : verBoletim ? (
+                    <div style={{ width: '100%', marginTop: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Boletim Escolar 2026</h3>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                {!ehVisitante && <button onClick={adicionarDisciplina} style={{ color: '#2563eb', border: '1px solid #2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', background: 'none', cursor: 'pointer' }}>+ MATÉRIA</button>}
+                                <button onClick={() => setVerBoletim(false)} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
+                            </div>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#f1f5f9' }}>
+                                        <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
+                                        <th style={{ padding: '8px' }}>1º B</th>
+                                        <th style={{ padding: '8px' }}>2º B</th>
+                                        <th style={{ padding: '8px' }}>3º B</th>
+                                        <th style={{ padding: '8px' }}>4º B</th>
+                                        {!ehVisitante && <th style={{ padding: '8px' }}></th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {notas.map((n) => (
+                                        <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
+                                            <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
+                                            {['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].map((b) => (
+                                                <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        defaultValue={n[b] || ""} 
+                                                        onBlur={(e) => salvarNota(n.id, b, e.target.value)}
+                                                        disabled={ehVisitante}
+                                                        style={{ width: '35px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px' }}
+                                                    />
+                                                </td>
+                                            ))}
+                                            {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => excluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : (
                   <div style={{ width: '100%', marginTop: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                       <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Histórico de Pagamentos</h3>
                       <button onClick={() => setVerHistorico(false)} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
                     </div>
-                    <div style={{ maxHeight: '250px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
                       {historico.length > 0 ? historico.map((h, i) => (
                           <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ flex: 1 }}>
@@ -336,56 +393,13 @@ export default function Alunos() {
                             </div>
                             {!ehVisitante && (
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => editarPagamento(h)} title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
-                                <button onClick={() => excluirPagamento(h)} title="Excluir" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                                <button onClick={() => editarPagamento(h)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
+                                <button onClick={() => excluirPagamento(h)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
                               </div>
                             )}
                           </div>
                       )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado.</p>}
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ width: '100%', marginTop: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                          <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Boletim Escolar 2026</h3>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                              {!ehVisitante && <button onClick={adicionarDisciplina} style={{ color: '#2563eb', border: '1px solid #2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', background: 'none', cursor: 'pointer' }}>+ MATÉRIA</button>}
-                              <button onClick={() => setVerBoletim(false)} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
-                          </div>
-                      </div>
-                      <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                              <thead>
-                                  <tr style={{ backgroundColor: '#f1f5f9' }}>
-                                      <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
-                                      <th style={{ padding: '8px' }}>1º B</th>
-                                      <th style={{ padding: '8px' }}>2º B</th>
-                                      <th style={{ padding: '8px' }}>3º B</th>
-                                      <th style={{ padding: '8px' }}>4º B</th>
-                                      {!ehVisitante && <th style={{ padding: '8px' }}></th>}
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {notas.map((n) => (
-                                      <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
-                                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
-                                          {['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].map((b) => (
-                                              <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
-                                                  <input 
-                                                      type="text" 
-                                                      defaultValue={n[b] || ""} 
-                                                      onBlur={(e) => salvarNota(n.id, b, e.target.value)}
-                                                      disabled={ehVisitante}
-                                                      style={{ width: '35px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px' }}
-                                                  />
-                                              </td>
-                                          ))}
-                                          {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => excluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
-                                      </tr>
-                                  ))}
-                              </tbody>
-                          </table>
-                      </div>
                   </div>
                 )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', width: '100%', marginTop: '30px' }}>
@@ -403,19 +417,19 @@ export default function Alunos() {
                 <h2 style={{ textAlign: 'center', fontWeight: '800', color: '#1e293b' }}>{idEdicao ? "Editando Ficha" : "Novo Aluno"}</h2>
                 <label htmlFor="upload-foto" style={{ cursor: 'pointer', margin: '0 auto 10px' }}>
                   <div style={{ height: '100px', width: '100px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>FOTO</span>}
+                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', fontWeight: 'bold' }}>FOTO</span>}
                   </div>
                 </label>
                 <input id="upload-foto" type="file" accept="image/*" onChange={handleTrocarFoto} style={{ display: 'none' }} />
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
-                  <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <input type="text" placeholder="CPF do Aluno" value={cpfAluno} onChange={(e)=>setCpfAluno(mCPF(e.target.value))} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
+                  <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <input type="text" placeholder="CPF do Aluno" value={cpfAluno} onChange={(e)=>setCpfAluno(mCPF(e.target.value))} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <select value={turma} onChange={(e) => setTurma(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }}>
+                  <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <select value={turma} onChange={(e) => setTurma(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     <option value="">Turma...</option>
                     <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
                     <option value="1º Ano">1º Ano</option><option value="2º Ano">2º Ano</option><option value="3º Ano">3º Ano</option>
@@ -423,10 +437,10 @@ export default function Alunos() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="number" placeholder="Mensalidade (R$)" value={valor} onChange={(e)=>setValor(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <input type="number" placeholder="Dia Vencimento" value={vencimento} onChange={(e)=>setVencimento(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
+                  <input type="number" placeholder="Mensalidade (R$)" value={valor} onChange={(e)=>setValor(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <input type="number" placeholder="Dia Vencimento" value={vencimento} onChange={(e)=>setVencimento(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
                 </div>
-                
+
                 <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
                   <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0' }}>RESPONSÁVEIS</p>
                   <div style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
