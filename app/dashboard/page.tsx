@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
-  const [nomeUsuario, setNomeUsuario] = useState("Administrador"); // Estado para o nome do usuário
+  const [nomeUsuario, setNomeUsuario] = useState("Administrador");
+  const [nomeCompleto, setNomeCompleto] = useState(""); // Armazena o nome completo para edição
   const [dados, setDados] = useState({
     totalAlunos: 0,
     porTurma: {} as { [key: string]: number },
@@ -14,6 +15,10 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [buscaSaude, setBuscaSaude] = useState("");
   
+  // Estados para Configurações de Perfil
+  const [modalConfigAberto, setModalConfigAberto] = useState(false);
+  const [novoNomeInput, setNovoNomeInput] = useState("");
+
   const [modalBdayAberto, setModalBdayAberto] = useState(false);
   const [aniversariantesHoje, setAniversariantesHoje] = useState<any[]>([]);
 
@@ -36,25 +41,23 @@ export default function DashboardPage() {
 
   async function carregarDados() {
     try {
-      // 1. Busca o usuário autenticado
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         const metadata = authData.user.user_metadata;
         let nome = metadata?.nome || metadata?.name || metadata?.full_name;
         
-        // Se não tiver nome nos metadados, usa o email antes do @
         if (!nome && authData.user.email) {
           const emailPart = authData.user.email.split('@')[0];
           nome = emailPart.charAt(0).toUpperCase() + emailPart.slice(1);
         }
         
         if (nome) {
-          // Pega apenas o primeiro nome para a saudação ficar amigável
+          setNomeCompleto(nome);
           setNomeUsuario(nome.split(' ')[0]);
+          setNovoNomeInput(nome);
         }
       }
 
-      // 2. Busca os dados do Dashboard
       const { data: alunos } = await supabase.from('alunos').select('*');
       const { data: funcionarios } = await supabase.from('funcionarios').select('*');
       const { data: listaEventos } = await supabase.from('eventos_calendario').select('*').order('data', { ascending: true });
@@ -80,11 +83,9 @@ export default function DashboardPage() {
         const quemFezHoje = listaAniversariantes.filter(p => extrairDiaUTC(p.data_nascimento) === diaAtual);
         if (quemFezHoje.length > 0) {
           setAniversariantesHoje(quemFezHoje);
-          
           if (typeof window !== 'undefined') {
             const notifKey = `bday_notif_${hojeString}`;
             const exibições = parseInt(localStorage.getItem(notifKey) || '0');
-            
             if (exibições < 2) {
               setModalBdayAberto(true);
               localStorage.setItem(notifKey, (exibições + 1).toString());
@@ -117,6 +118,24 @@ export default function DashboardPage() {
   }
 
   useEffect(() => { carregarDados(); }, []);
+
+  // FUNÇÃO PARA ATUALIZAR O PERFIL
+  async function atualizarPerfil() {
+    if (!novoNomeInput.trim()) return alert("O nome não pode estar vazio.");
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { nome: novoNomeInput }
+      });
+      if (error) throw error;
+      
+      alert("Perfil atualizado com sucesso!");
+      setNomeUsuario(novoNomeInput.split(' ')[0]);
+      setNomeCompleto(novoNomeInput);
+      setModalConfigAberto(false);
+    } catch (err: any) {
+      alert(`Erro ao atualizar: ${err.message}`);
+    }
+  }
 
   const alertasFiltrados = buscaSaude === "" 
     ? dados.alertasSaude 
@@ -231,6 +250,30 @@ export default function DashboardPage() {
   return (
     <div style={{ width: '100%', padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
+      {/* MODAL CONFIGURAÇÕES DE PERFIL */}
+      {modalConfigAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#111827' }}>Configurações de Perfil</h2>
+            
+            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280', display: 'block', marginBottom: '8px' }}>NOME COMPLETO</label>
+              <input 
+                type="text" 
+                value={novoNomeInput} 
+                onChange={(e) => setNovoNomeInput(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: '16px', outline: 'none' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setModalConfigAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer' }}>CANCELAR</button>
+              <button onClick={atualizarPerfil} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>SALVAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NOTIFICAÇÃO DE ANIVERSÁRIO DO DIA */}
       {modalBdayAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
@@ -258,18 +301,28 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-
               <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '30px', width: '100%', padding: '15px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: '800', cursor: 'pointer', transition: '0.2s' }}>FECHAR</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* HEADER ATUALIZADO COM O NOME DO USUÁRIO */}
+      {/* HEADER ATUALIZADO COM BOTÃO DE CONFIGURAÇÕES */}
       <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, {nomeUsuario}! 👋</h1>
-          <p style={{ color: '#6b7280' }}>Resumo atualizado da ABC DO PARK.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, {nomeUsuario}! 👋</h1>
+              <button 
+                onClick={() => setModalConfigAberto(true)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', opacity: 0.6 }}
+                title="Configurações de Perfil"
+              >
+                ⚙️
+              </button>
+            </div>
+            <p style={{ color: '#6b7280' }}>Resumo atualizado da ABC DO PARK.</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button onClick={() => setModalCalendarioAberto(true)} style={estiloBotaoAcao}>
@@ -281,6 +334,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* RESTANTE DO DASHBOARD MANTIDO... */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '25px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -391,6 +445,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* MODAIS DE CALENDÁRIO E AVISO MANTIDOS... */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>

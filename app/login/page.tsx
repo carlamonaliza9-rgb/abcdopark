@@ -4,27 +4,52 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 export default function Login() {
+  const [nome, setNome] = useState(""); // Novo estado para o nome
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [ehCadastro, setEhCadastro] = useState(false); // Alternar entre Login e Cadastro
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(false);
   const router = useRouter();
 
-  async function lidarLogin(e: React.FormEvent) {
+  async function lidarFormulario(e: React.FormEvent) {
     e.preventDefault();
     setCarregando(true);
     setMensagem("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
+    if (ehCadastro) {
+      // LÓGICA DE CADASTRO (SIGN UP)
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: senha,
+        options: {
+          data: {
+            nome: nome, // Salva o nome nos metadados para a saudação do Dashboard
+          },
+        },
+      });
 
-    if (error) {
-      setMensagem("Erro: Usuário ou senha inválidos.");
-      setCarregando(false);
+      if (error) {
+        setMensagem(`Erro no cadastro: ${error.message}`);
+        setCarregando(false);
+      } else {
+        setMensagem("Conta criada com sucesso! Verifique seu e-mail ou faça login.");
+        setEhCadastro(false); // Volta para tela de login
+        setCarregando(false);
+      }
     } else {
-      router.push("/dashboard"); // Vai para o sistema após o login
+      // LÓGICA DE LOGIN (SIGN IN)
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: senha,
+      });
+
+      if (error) {
+        setMensagem("Erro: Usuário ou senha inválidos.");
+        setCarregando(false);
+      } else {
+        router.push("/dashboard");
+      }
     }
   }
 
@@ -47,7 +72,6 @@ export default function Login() {
         textAlign: 'center'
       }}>
         
-        {/* CABEÇALHO COM LOGO */}
         <div style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <img 
             src="https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.jpg.jpg" 
@@ -55,11 +79,30 @@ export default function Login() {
             style={{ height: '80px', width: 'auto', marginBottom: '15px', objectFit: 'contain' }} 
           />
           <h2 style={{ color: '#2563eb', fontWeight: '800', margin: '0', fontSize: '24px' }}>ABC DO PARK</h2>
-          <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '5px' }}>Portal de Gestão Escolar</p>
+          <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '5px' }}>
+            {ehCadastro ? "Crie sua conta administrativa" : "Portal de Gestão Escolar"}
+          </p>
         </div>
 
-        <form onSubmit={lidarLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <form onSubmit={lidarFormulario} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           
+          {/* CAMPO NOME - APARECE APENAS NO CADASTRO */}
+          {ehCadastro && (
+            <div style={{ textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block', marginLeft: '5px' }}>
+                NOME COMPLETO
+              </label>
+              <input 
+                type="text" 
+                placeholder="Seu nome" 
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required={ehCadastro}
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '16px' }}
+              />
+            </div>
+          )}
+
           <div style={{ textAlign: 'left' }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '5px', display: 'block', marginLeft: '5px' }}>
               E-MAIL
@@ -89,7 +132,7 @@ export default function Login() {
           </div>
           
           {mensagem && (
-            <div style={{ backgroundColor: '#fee2e2', color: '#ef4444', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>
+            <div style={{ backgroundColor: ehCadastro && !mensagem.includes("Erro") ? '#dcfce7' : '#fee2e2', color: ehCadastro && !mensagem.includes("Erro") ? '#166534' : '#ef4444', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>
               {mensagem}
             </div>
           )}
@@ -107,12 +150,23 @@ export default function Login() {
               cursor: carregando ? 'not-allowed' : 'pointer',
               transition: '0.3s',
               fontSize: '16px',
-              boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)'
+              boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)',
+              marginTop: '10px'
             }}
           >
-            {carregando ? "ENTRANDO..." : "ENTRAR NO SISTEMA"}
+            {carregando ? "PROCESSANDO..." : ehCadastro ? "CRIAR CONTA" : "ENTRAR NO SISTEMA"}
           </button>
         </form>
+
+        <p style={{ marginTop: '20px', fontSize: '14px', color: '#6b7280' }}>
+          {ehCadastro ? "Já tem uma conta?" : "Ainda não tem acesso?"} {" "}
+          <button 
+            onClick={() => { setEhCadastro(!ehCadastro); setMensagem(""); }}
+            style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {ehCadastro ? "Faça login" : "Cadastre-se"}
+          </button>
+        </p>
       </div>
     </div>
   );
