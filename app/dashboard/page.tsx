@@ -13,7 +13,6 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [buscaSaude, setBuscaSaude] = useState("");
   
-  // Estados para a notificação de aniversário
   const [modalBdayAberto, setModalBdayAberto] = useState(false);
   const [aniversariantesHoje, setAniversariantesHoje] = useState<any[]>([]);
 
@@ -58,11 +57,20 @@ export default function DashboardPage() {
         const listaAniversariantes = [...bdayAlunos, ...bdayFuncs]
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
 
-        // Lógica para detectar aniversariantes de HOJE
+        // Lógica para detectar aniversariantes de HOJE e limitar a exibição a 2 vezes por dia
         const quemFezHoje = listaAniversariantes.filter(p => extrairDiaUTC(p.data_nascimento) === diaAtual);
         if (quemFezHoje.length > 0) {
           setAniversariantesHoje(quemFezHoje);
-          setModalBdayAberto(true);
+          
+          if (typeof window !== 'undefined') {
+            const notifKey = `bday_notif_${hojeString}`;
+            const exibições = parseInt(localStorage.getItem(notifKey) || '0');
+            
+            if (exibições < 2) {
+              setModalBdayAberto(true);
+              localStorage.setItem(notifKey, (exibições + 1).toString());
+            }
+          }
         }
 
         const listaSaude = alunos
