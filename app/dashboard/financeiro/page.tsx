@@ -15,6 +15,8 @@ export default function FinanceiroPage() {
 
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [modalGastoAberto, setModalGastoAberto] = useState(false);
+  const [modalListaGastosAberto, setModalListaGastosAberto] = useState(false); 
+  const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
 
   const [descGasto, setDescGasto] = useState("");
@@ -41,6 +43,8 @@ export default function FinanceiroPage() {
       const { data: pgtosMes } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
       
+      setListaGastosDetalhada(gastosMes || []);
+
       let vPago = 0;
       let vGastos = 0;
       let metodosResumo = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
@@ -95,32 +99,32 @@ export default function FinanceiroPage() {
   function cobrarWhatsApp(aluno: any) {
     const telefone = aluno.whatsapp || "";
     if (!telefone) return alert("Este aluno não possui número de WhatsApp cadastrado.");
-
     const primeiroNome = aluno.nome.split(' ')[0];
     const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const dataVencimento = `${aluno.vencimento}/${mesFiltro.split('-')[1]}`;
-
     const mensagem = `Olá! Tudo bem? Passando para lembrar da mensalidade da *ABC DO PARK* do(a) aluno(a) *${primeiroNome}*, com vencimento em ${dataVencimento} no valor de ${valorMsg}. Caso o pagamento já tenha sido realizado, por favor, nos envie o comprovante. Atenciosamente, Administração ABC DO PARK.`;
-
     window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   }
 
   const gerarRelatorioPDF = () => { window.print(); };
 
   async function zerarMes() {
-    const senha = prompt("Senha:");
+    const senha = prompt("Digite a senha para zerar o mês:");
     if (senha !== SENHA_MESTRA) return alert("Senha incorreta!");
     
-    if (confirm("Resetar status dos alunos e APAGAR todos os pagamentos e gastos DESTE MÊS?")) {
+    if (confirm("Resetar status dos alunos e APAGAR todos os pagamentos e gastos DESTE MÊS? (O histórico na ficha do aluno será preservado)")) {
       setCarregando(true);
       const [ano, mes] = mesFiltro.split('-');
       const dataInicio = `${ano}-${mes}-01`;
       const dataFim = `${ano}-${mes}-31`;
 
+      // 1. Volta todos os alunos para status pendente (o carregarDados cuidará de marcar 'atrasado' se necessário)
       await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
+      
+      // 2. Apaga histórico de pagamentos e gastos APENAS do mês filtrado
       await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       await supabase.from('gastos').delete().gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
-
+      
       alert("Mês zerado com sucesso!");
       await carregarDados();
     }
@@ -141,6 +145,13 @@ export default function FinanceiroPage() {
       data_gasto: dataGasto 
     }]);
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
+  }
+
+  async function excluirGasto(id: any) {
+    if (confirm("Deseja realmente excluir este registro de gasto?")) {
+      await supabase.from('gastos').delete().eq('id', id);
+      carregarDados();
+    }
   }
 
   async function confirmarPagamento() {
@@ -197,10 +208,17 @@ export default function FinanceiroPage() {
           <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>RECEITA NO MÊS</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#064e3b' }}>R$ {metricas.pago.toLocaleString('pt-BR')}</h2>
         </div>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #ef4444' }}>
-          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>GASTOS NO MÊS</span>
+
+        <div 
+          onClick={() => setModalListaGastosAberto(true)}
+          style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #ef4444', cursor: 'pointer', transition: 'transform 0.2s' }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>GASTOS NO MÊS 👁️</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#991b1b' }}>R$ {metricas.gastos.toLocaleString('pt-BR')}</h2>
         </div>
+
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #2563eb' }}>
           <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>LUCRO REAL</span>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1e3a8a' }}>R$ {metricas.lucro.toLocaleString('pt-BR')}</h2>
@@ -287,23 +305,20 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* Modal de Recebimento */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '500px' }}>
             <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Recebimento: {alunoSelecionado?.nome}</h2>
-            
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO PAGAMENTO:</label>
               <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
             </div>
-
             <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
               <option value="mensalidade">Mensalidade</option>
               <option value="outro">Outro</option>
             </select>
-
             <input type="text" placeholder="Descreva o pagamento..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #ddd' }} />
-            
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
               <div><label style={{ fontSize: '10px' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, pix: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
               <div><label style={{ fontSize: '10px' }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e)=>setPagamentosMetodos({...pagamentosMetodos, dinheiro: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
@@ -322,21 +337,66 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* Modal para Adicionar Gasto */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
             <h2 style={{ marginBottom: '20px' }}>Registrar Gasto</h2>
-            
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold' }}>DATA DO GASTO:</label>
               <input type="date" value={dataGasto} onChange={(e) => setDataGasto(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
             </div>
-
             <input type="text" placeholder="Descrição" value={descGasto} onChange={(e)=>setDescGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <input type="number" placeholder="Valor R$" value={valorGasto} onChange={(e)=>setValorGasto(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={()=>setModalGastoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button>
               <button onClick={adicionarGasto} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold' }}>SALVAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Relação de Gastos por Mês */}
+      {modalListaGastosAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>Gastos de {mesFiltro}</h2>
+              <button onClick={() => setModalListaGastosAberto(false)} style={{ fontSize: '24px', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
+                  <tr style={{ color: '#6b7280', borderBottom: '2px solid #f3f4f6' }}>
+                    <th style={{ padding: '12px' }}>DESCRIÇÃO</th>
+                    <th style={{ padding: '12px' }}>DATA</th>
+                    <th style={{ padding: '12px' }}>VALOR</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>AÇÃO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaGastosDetalhada.length > 0 ? listaGastosDetalhada.map((gasto) => (
+                    <tr key={gasto.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '12px', fontWeight: '600' }}>{gasto.descricao}</td>
+                      <td style={{ padding: '12px' }}>{new Date(gasto.data_gasto).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
+                      <td style={{ padding: '12px', color: '#b91c1c', fontWeight: 'bold' }}>R$ {parseFloat(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <button onClick={() => excluirGasto(gasto.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>Nenhum gasto registrado para este mês.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 'bold', color: '#374151' }}>TOTAL EM GASTOS:</span>
+              <span style={{ fontSize: '18px', fontWeight: '800', color: '#b91c1c' }}>R$ {metricas.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
