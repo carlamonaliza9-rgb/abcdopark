@@ -33,7 +33,7 @@ export default function FinanceiroPage() {
 
   // Estados para Eventos e Pagamentos
   const [idEventoEdicao, setIdEventoEdicao] = useState<string | null>(null);
-  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null); // NOVO
+  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
   const [nomeEvento, setNomeEvento] = useState("");
   const [valorEvento, setValorEvento] = useState("");
   const [alunosSelecionados, setAlunosSelecionados] = useState<string[]>([]);
@@ -117,6 +117,67 @@ export default function FinanceiroPage() {
   const alunosFiltrados = alunos.filter(aluno => 
     aluno.nome.toLowerCase().includes(filtroNome.toLowerCase())
   );
+
+  // NOVA FUNÇÃO: GERAR PDF DO EVENTO SELECIONADO
+  function gerarPDFEvento() {
+    if (!eventoParaGerenciar) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Por favor, permita pop-ups para gerar o PDF.");
+
+    const conteudoTabela = alunos
+      .filter(aluno => eventoParaGerenciar.participantes?.includes(aluno.id))
+      .map(aluno => {
+        const pgto = historicoPagamentosEventos.find(p => p.aluno_id === aluno.id && p.descricao.includes(eventoParaGerenciar.nome));
+        const data = pgto ? new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'PENDENTE';
+        const metodo = pgto && pgto.detalhes_metodos ? Object.keys(pgto.detalhes_metodos).find(k => parseFloat(pgto.detalhes_metodos[k]) > 0) || 'Não inf.' : '-';
+        const valor = pgto ? `R$ ${pgto.valor_total.toLocaleString('pt-BR')}` : '-';
+
+        return `
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; font-size: 12px;">${aluno.nome}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center; font-size: 12px;">${data}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center; font-size: 12px; text-transform: uppercase;">${metodo}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; font-size: 12px;">${valor}</td>
+          </tr>
+        `;
+      }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Lista de Evento - ${eventoParaGerenciar.nome}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #333; }
+            h1 { font-size: 22px; margin-bottom: 5px; }
+            p { font-size: 12px; color: #666; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; }
+            th { background-color: #f8fafc; padding: 12px 10px; text-align: left; font-size: 11px; color: #64748b; border-bottom: 2px solid #e2e8f0; text-transform: uppercase; }
+          </style>
+        </head>
+        <body>
+          <h1>Lista de Pagamento: ${eventoParaGerenciar.nome}</h1>
+          <p>Relatório gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th style="text-align: center;">Data Pgto</th>
+                <th style="text-align: center;">Forma</th>
+                <th style="text-align: right;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${conteudoTabela}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.print();
+  }
 
   // FUNÇÕES DE PAGAMENTO (ADICIONAR/EDITAR/EXCLUIR)
   function abrirPagamentoEvento(aluno: any, evento: any, pgtoExistente: any = null) {
@@ -361,7 +422,10 @@ export default function FinanceiroPage() {
         <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', border: '2px solid #7c3aed' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c3aed' }}>Gestão de Pagamento: {eventoParaGerenciar.nome}</h2>
-            <button onClick={() => setEventoParaGerenciar(null)} style={{ fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none' }}>Fechar ✕</button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button onClick={gerarPDFEvento} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>📄 PDF LISTA</button>
+              <button onClick={() => setEventoParaGerenciar(null)} style={{ fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none' }}>Fechar ✕</button>
+            </div>
           </div>
           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
@@ -554,7 +618,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL DE RECEBIMENTO (MENSALIDADE/EVENTO) */}
+      {/* MODAL DE RECEBIMENTO */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '100%', maxWidth: '500px' }}>
@@ -583,7 +647,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL DE REGISTRO DE GASTO */}
+      {/* MODAL DE GASTO */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '90%', maxWidth: '400px' }}>
