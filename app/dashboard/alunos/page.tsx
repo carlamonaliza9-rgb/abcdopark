@@ -30,13 +30,15 @@ export default function Alunos() {
 
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
+
+  // ESTADOS DO BOLETIM
   const [verBoletim, setVerBoletim] = useState(false);
   const [notas, setNotas] = useState<any[]>([]);
 
   const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
   const ehVisitante = userEmail === EMAIL_VISITANTE;
 
-  // --- FUNÇÕES DE MÁSCARA ---
+  // --- MÁSCARAS ---
   const mWhatsApp = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length <= 11) {
@@ -82,6 +84,7 @@ export default function Alunos() {
     buscarAlunos(); 
   }, []);
 
+  // FUNÇÕES DO BOLETIM
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
@@ -92,7 +95,11 @@ export default function Alunos() {
   async function adicionarDisciplina() {
     const disc = prompt("Nome da Disciplina:");
     if (!disc || !idEdicao) return;
-    const { data, error } = await supabase.from('boletins').insert([{ aluno_id: Number(idEdicao), disciplina: disc, ano: "2026" }]).select();
+    const { data, error } = await supabase.from('boletins').insert([{ 
+      aluno_id: Number(idEdicao), 
+      disciplina: disc, 
+      ano: "2026" 
+    }]).select();
     if (error) alert("Erro ao salvar: " + error.message);
     else if (data) setNotas([...notas, data[0]]);
   }
@@ -110,6 +117,7 @@ export default function Alunos() {
     }
   }
 
+  // FUNÇÕES DO HISTÓRICO
   async function buscarHistoricoPagamento(alunoId: string) {
     const { data } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoId).order('data_pagamento', { ascending: false });
     if (data) setHistorico(data);
@@ -162,7 +170,9 @@ export default function Alunos() {
         nome, cpf_aluno: cpfAluno, turma, responsavel, cpf_responsavel: cpfResponsavel, 
         whatsapp, responsavel_2_nome: responsavel2, cpf_responsavel_2: cpfResponsavel2, responsavel_2_contato: whatsapp2,
         valor: valor ? parseFloat(valor) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_artista: eAutista, foto_url: urlFinal
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", 
+        e_autista: eAutista, 
+        foto_url: urlFinal
       };
 
       if (idEdicao) await supabase.from('alunos').update(dadosAluno).eq('id', idEdicao);
@@ -192,11 +202,11 @@ export default function Alunos() {
   function abrirFicha(aluno: any) {
     setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); 
     setResponsavel(aluno.responsavel); setCpfResponsavel(aluno.cpf_responsavel || "");
-    setWhatsapp(aluno.whatsapp || ""); setResponsavel2(aluno.responsavel_2_nome || ""); 
+    setWhatsapp(aluno.whatsapp); setResponsavel2(aluno.responsavel_2_nome || ""); 
     setCpfResponsavel2(aluno.cpf_responsavel_2 || ""); setWhatsapp2(aluno.responsavel_2_contato || "");
     setValor(aluno.valor ? aluno.valor.toString() : ""); setVencimento(aluno.vencimento || "");
     setDataNascimento(aluno.data_nascimento || ""); setTemAlergia(aluno.tem_alergia || false);
-    setAlergiaDescricao(aluno.alergia_descricao || ""); setEAutista(aluno.e_artista || false);
+    setAlergiaDescricao(aluno.alergia_descricao || ""); setEAutista(aluno.e_autista || false);
     setPreviewUrl(aluno.foto_url); setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
@@ -256,7 +266,10 @@ export default function Alunos() {
                   {eAutista && <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px' }}>🧩</span>}
                 </div>
                 <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{nome}</h2>
-                <p style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '14px', marginTop: '5px', backgroundColor: '#eff6ff', padding: '4px 15px', borderRadius: '20px' }}>{turma}</p>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '5px' }}>
+                  <p style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '14px', backgroundColor: '#eff6ff', padding: '4px 15px', borderRadius: '20px', margin: 0 }}>{turma}</p>
+                  {eAutista && <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '4px 15px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>TEA 🧩</span>}
+                </div>
 
                 {!verHistorico && !verBoletim ? (
                   <div style={{ width: '100%', marginTop: '25px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -272,7 +285,7 @@ export default function Alunos() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '15px', border: '1px solid #dcfce7' }}>
-                        <p style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', margin: '0 0 4px' }}>MENSALIDADE</p>
+                        <p style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', margin: '0 0 4px' }}>VALOR MENSALIDADE</p>
                         <p style={{ margin: '0', fontWeight: '800', color: '#15803d', fontSize: '15px' }}>{valor ? parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
                       </div>
                       <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px' }}>
@@ -282,12 +295,12 @@ export default function Alunos() {
                     </div>
                     <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px' }}>
                       <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 8px' }}>RESPONSÁVEIS</p>
-                      <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                      <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '8px' }}>
                         <p style={{ margin: '0', fontWeight: '700', color: '#475569', fontSize: '13px' }}>1. {responsavel} ({mWhatsApp(whatsapp)})</p>
                         <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '11px' }}>CPF: {mCPF(cpfResponsavel) || '--'}</p>
                       </div>
                       {responsavel2 && (
-                        <div style={{ paddingTop: '8px' }}>
+                        <div>
                           <p style={{ margin: '0', fontWeight: '700', color: '#475569', fontSize: '13px' }}>2. {responsavel2} ({mWhatsApp(whatsapp2)})</p>
                           <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '11px' }}>CPF: {mCPF(cpfResponsavel2) || '--'}</p>
                         </div>
@@ -383,19 +396,19 @@ export default function Alunos() {
                 <h2 style={{ textAlign: 'center', fontWeight: '800', color: '#1e293b' }}>{idEdicao ? "Editando Ficha" : "Novo Aluno"}</h2>
                 <label htmlFor="upload-foto" style={{ cursor: 'pointer', margin: '0 auto 10px' }}>
                   <div style={{ height: '100px', width: '100px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>FOTO</span>}
+                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', fontWeight: 'bold' }}>FOTO</span>}
                   </div>
                 </label>
                 <input id="upload-foto" type="file" accept="image/*" onChange={handleTrocarFoto} style={{ display: 'none' }} />
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
-                  <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <input type="text" placeholder="CPF do Aluno" value={cpfAluno} onChange={(e)=>setCpfAluno(mCPF(e.target.value))} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
+                  <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <input type="text" placeholder="CPF do Aluno" value={cpfAluno} onChange={(e)=>setCpfAluno(mCPF(e.target.value))} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <select value={turma} onChange={(e) => setTurma(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }}>
+                  <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <select value={turma} onChange={(e) => setTurma(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     <option value="">Turma...</option>
                     <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
                     <option value="1º Ano">1º Ano</option><option value="2º Ano">2º Ano</option><option value="3º Ano">3º Ano</option>
@@ -403,14 +416,12 @@ export default function Alunos() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="number" placeholder="Mensalidade (R$)" value={valor} onChange={(e)=>setValor(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
-                  <input type="number" placeholder="Dia Vencimento" value={vencimento} onChange={(e)=>setVencimento(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none' }} />
+                  <input type="number" placeholder="Mensalidade (R$)" value={valor} onChange={(e)=>setValor(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <input type="number" placeholder="Dia Vencimento" value={vencimento} onChange={(e)=>setVencimento(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
                 </div>
-                
+
                 <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
                   <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0' }}>RESPONSÁVEIS</p>
-                  
-                  {/* Responsável 1 */}
                   <div style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
                       <input type="text" placeholder="Nome Resp. 1" value={responsavel} onChange={(e)=>setResponsavel(e.target.value)} required style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
@@ -418,8 +429,6 @@ export default function Alunos() {
                     </div>
                     <input type="text" placeholder="WhatsApp 1" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                   </div>
-
-                  {/* Responsável 2 */}
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
                       <input type="text" placeholder="Nome Resp. 2" value={responsavel2} onChange={(e)=>setResponsavel2(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
@@ -432,7 +441,7 @@ export default function Alunos() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ flex: 1, backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#0369a1' }}>
-                            <input type="checkbox" checked={eAutista} onChange={(e) => setEAutista(e.target.checked)} /> TEA? 🧩
+                            <input type="checkbox" checked={eAutista} onChange={(e) => setEAutista(e.target.checked)} /> AUTISTA? 🧩
                         </label>
                     </div>
                     <div style={{ flex: 1, backgroundColor: '#fff5f5', padding: '10px', borderRadius: '12px', border: '1px solid #fed7d7' }}>
