@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { MetricasCard } from "./_components/MetricasCard";
 
 export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
@@ -180,7 +181,6 @@ export default function FinanceiroPage() {
   async function excluirEvento(id: any) { if (confirm("Excluir evento?")) { await supabase.from('eventos_controle').delete().eq('id', id); carregarDados(); } }
   const toggleAlunoSelecao = (id: string) => { setAlunosSelecionados(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]); };
 
-  // FUNÇÃO SELECIONAR TODOS
   const toggleSelecionarTodos = () => {
     if (alunosSelecionados.length === alunos.length) {
       setAlunosSelecionados([]);
@@ -240,7 +240,6 @@ export default function FinanceiroPage() {
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <header>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937' }}>Financeiro ABC DO PARK</h1>
@@ -261,16 +260,11 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* MÉTRICAS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #10b981' }}><span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>RECEITA NO MÊS</span><h2 style={{ fontSize: '20px', fontWeight: '800', color: '#064e3b' }}>R$ {metricas.pago.toLocaleString('pt-BR')}</h2></div>
-        <div onClick={() => setModalListaGastosAberto(true)} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #ef4444', cursor: 'pointer' }}><span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>GASTOS NO MÊS 👁️</span><h2 style={{ fontSize: '20px', fontWeight: '800', color: '#991b1b' }}>R$ {metricas.gastos.toLocaleString('pt-BR')}</h2></div>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #2563eb' }}><span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>LUCRO REAL</span><h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1e3a8a' }}>R$ {metricas.lucro.toLocaleString('pt-BR')}</h2></div>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #f59e0b' }}><span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>DESCONTOS</span><h2 style={{ fontSize: '20px', fontWeight: '800', color: '#92400e' }}>R$ {metricas.descontos.toLocaleString('pt-BR')}</h2></div>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #6b7280' }}><span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>PENDENTE GERAL</span><h2 style={{ fontSize: '20px', fontWeight: '800', color: '#374151' }}>R$ {metricas.pendente.toLocaleString('pt-BR')}</h2></div>
-      </div>
+      <MetricasCard 
+        metricas={metricas} 
+        onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
+      />
 
-      {/* TABELA GERAL */}
       <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Status de Pagamento (Mensalidades)</h2>
@@ -312,7 +306,6 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* BALANÇO E CATEGORIAS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Método ({mesFiltro})</h2>
@@ -336,7 +329,6 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* EVENTOS AO FIM */}
       <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '30px', paddingBottom: '50px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#1f2937' }}>Gestão de Eventos</h2>
         <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', marginBottom: '20px' }}>
@@ -380,7 +372,6 @@ export default function FinanceiroPage() {
         )}
       </div>
 
-      {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -408,7 +399,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR GASTO */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '400px' }}>
@@ -422,7 +412,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL PGTO */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
@@ -443,7 +432,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL NOVO EVENTO */}
       {modalEventoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
