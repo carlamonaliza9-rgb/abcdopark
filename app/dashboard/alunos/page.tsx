@@ -2,14 +2,22 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
+// Importação dos Componentes que você criou
+import { AlunosHeader } from "./_components/AlunosHeader";
+import { AlunoCard } from "./_components/AlunoCard";
+import { FichaAlunoModal } from "./_components/FichaAlunoModal";
+import { FormAlunoModal } from "./_components/FormAlunoModal";
+
 export default function Alunos() {
+  // --- ESTADOS DE CONTROLE ---
   const [modalAberto, setModalAberto] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
   const [alunos, setAlunos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [busca, setBusca] = useState(""); // Novo estado para pesquisa
+  const [busca, setBusca] = useState("");
   
+  // --- ESTADOS DE DADOS (Exatamente como o seu original) ---
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [cpfAluno, setCpfAluno] = useState("");
@@ -31,16 +39,14 @@ export default function Alunos() {
 
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
-
-  // ESTADOS DO BOLETIM
   const [verBoletim, setVerBoletim] = useState(false);
   const [notas, setNotas] = useState<any[]>([]);
 
-  const EMAIL_VISITANTE = "escolaabcdopark@gmail.com";
-  const ehVisitante = userEmail === EMAIL_VISITANTE;
+  const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
-  // --- MÁSCARAS ---
+  // --- MÁSCARAS BLINDADAS (Para evitar o erro de 'undefined') ---
   const mWhatsApp = (v: string) => {
+    if (!v) return ""; // Proteção contra valores vazios
     v = v.replace(/\D/g, "");
     if (v.length <= 11) {
       v = v.replace(/^(\d{2})(\d)/g, "($1) $2");
@@ -50,6 +56,7 @@ export default function Alunos() {
   };
 
   const mCPF = (v: string) => {
+    if (!v) return ""; // Proteção contra valores vazios
     v = v.replace(/\D/g, "");
     v = v.replace(/(\d{3})(\d)/, "$1.$2");
     v = v.replace(/(\d{3})(\d)/, "$1.$2");
@@ -58,19 +65,11 @@ export default function Alunos() {
   };
 
   const obterCorTurma = (turmaNome: string) => {
-    switch (turmaNome) {
-      case "Maternal": return "#e0f2fe";
-      case "Jardim I": return "#f0fdf4";
-      case "Jardim II": return "#fdf2f8";
-      case "1º Ano": return "#faf5ff";
-      case "2º Ano": return "#fff7ed";
-      case "3º Ano": return "#f5f3ff";
-      case "4º Ano": return "#ecfeff";
-      case "5º Ano": return "#fefce8";
-      default: return "#ffffff";
-    }
+    const cores: any = { "Maternal": "#e0f2fe", "Jardim I": "#f0fdf4", "Jardim II": "#fdf2f8", "1º Ano": "#faf5ff", "2º Ano": "#fff7ed", "3º Ano": "#f5f3ff", "4º Ano": "#ecfeff", "5º Ano": "#fefce8" };
+    return cores[turmaNome] || "#ffffff";
   };
 
+  // --- BUSCA DE DADOS ---
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -85,29 +84,22 @@ export default function Alunos() {
     buscarAlunos(); 
   }, []);
 
-  // FILTRO DE PESQUISA
   const alunosFiltrados = alunos.filter(aluno => 
-    aluno.nome.toLowerCase().includes(busca.toLowerCase())
+    aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // FUNÇÕES DO BOLETIM
+  // --- FUNÇÕES DE BOLETIM E HISTÓRICO ---
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
-    setVerBoletim(true);
-    setVerHistorico(false);
+    setVerBoletim(true); setVerHistorico(false);
   }
 
   async function adicionarDisciplina() {
     const disc = prompt("Nome da Disciplina:");
     if (!disc || !idEdicao) return;
-    const { data, error } = await supabase.from('boletins').insert([{ 
-      aluno_id: Number(idEdicao), 
-      disciplina: disc, 
-      ano: "2026" 
-    }]).select();
-    if (error) alert("Erro ao salvar: " + error.message);
-    else if (data) setNotas([...notas, data[0]]);
+    const { data } = await supabase.from('boletins').insert([{ aluno_id: idEdicao, disciplina: disc, ano: "2026" }]).select();
+    if (data) setNotas([...notas, data[0]]);
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
@@ -123,46 +115,16 @@ export default function Alunos() {
     }
   }
 
-  // FUNÇÕES DO HISTÓRICO
   async function buscarHistoricoPagamento(alunoId: string) {
     const { data } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoId).order('data_pagamento', { ascending: false });
     if (data) setHistorico(data);
-    setVerHistorico(true);
-    setVerBoletim(false);
+    setVerHistorico(true); setVerBoletim(false);
   }
 
-  async function editarPagamento(pagamento: any) {
-    if (ehVisitante) return;
-    const novoValor = prompt("Novo valor (R$):", pagamento.valor_total);
-    const novaDesc = prompt("Nova descrição:", pagamento.descricao);
-    if (novoValor !== null && novaDesc !== null) {
-      await supabase.from('historico_pagamentos').update({ valor_total: parseFloat(novoValor), descricao: novaDesc }).eq('id', pagamento.id);
-      buscarHistoricoPagamento(pagamento.aluno_id);
-    }
-  }
-
-  async function excluirPagamento(pagamento: any) {
-    if (ehVisitante) return;
-    if (confirm("Excluir registro?")) {
-      await supabase.from('historico_pagamentos').delete().eq('id', pagamento.id);
-      buscarHistoricoPagamento(pagamento.aluno_id);
-    }
-  }
-
-  const handleTrocarFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (ehVisitante) return;
-    const file = e.target.files?.[0];
-    if (file) {
-      setArquivoFoto(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
+  // --- SALVAMENTO ---
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
-    if (!nome || !turma) return alert("Preencha Nome e Turma.");
-
     setCarregando(true);
     try {
       let urlFinal = previewUrl;
@@ -171,316 +133,68 @@ export default function Alunos() {
         const { data } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
         if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
-
-      const dadosAluno = { 
-        nome, cpf_aluno: cpfAluno, turma, responsavel, cpf_responsavel: cpfResponsavel, 
-        whatsapp, responsavel_2_nome: responsavel2, cpf_responsavel_2: cpfResponsavel2, responsavel_2_contato: whatsapp2,
+      const dados = { 
+        nome, cpf_aluno: cpfAluno, turma, responsavel, cpf_responsavel: cpfResponsavel, whatsapp, 
+        responsavel_2_nome: responsavel2, cpf_responsavel_2: cpfResponsavel2, responsavel_2_contato: whatsapp2,
         valor: valor ? parseFloat(valor) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", 
-        e_autista: eAutista, 
-        foto_url: urlFinal
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_autista: eAutista, foto_url: urlFinal
       };
-
-      if (idEdicao) await supabase.from('alunos').update(dadosAluno).eq('id', idEdicao);
-      else await supabase.from('alunos').insert([{ ...dadosAluno, status: 'pendente' }]);
-
-      setModalAberto(false); setModoEdicao(false); buscarAlunos(); limparFormulario();
-      alert("Salvo com sucesso!");
-    } catch (error: any) { alert("Erro ao salvar."); } finally { setCarregando(false); }
+      if (idEdicao) await supabase.from('alunos').update(dados).eq('id', idEdicao);
+      else await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]);
+      setModalAberto(false); setModoEdicao(false); buscarAlunos();
+      alert("Sucesso!");
+    } finally { setCarregando(false); }
   }
 
-  async function excluirAluno() {
-    if (ehVisitante) return;
-    if (idEdicao && confirm("Deseja excluir este aluno?")) {
-      await supabase.from('alunos').delete().eq('id', idEdicao);
-      setModalAberto(false); buscarAlunos();
-    }
-  }
-
-  function limparFormulario() {
-    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setResponsavel(""); setCpfResponsavel(""); setWhatsapp("");
-    setResponsavel2(""); setCpfResponsavel2(""); setWhatsapp2(""); setValor(""); setVencimento(""); 
-    setDataNascimento(""); setArquivoFoto(null); setPreviewUrl(null);
-    setTemAlergia(false); setAlergiaDescricao(""); setEAutista(false);
-    setHistorico([]); setVerHistorico(false); setVerBoletim(false);
+  // --- INTERFACE ---
+  function limparEContinuar() {
+    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setResponsavel(""); setCpfResponsavel("");
+    setWhatsapp(""); setResponsavel2(""); setCpfResponsavel2(""); setWhatsapp2(""); setValor("");
+    setVencimento(""); setDataNascimento(""); setTemAlergia(false); setAlergiaDescricao("");
+    setEAutista(false); setArquivoFoto(null); setPreviewUrl(null);
+    setModoEdicao(true); setModalAberto(true);
   }
 
   function abrirFicha(aluno: any) {
-    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); 
-    setResponsavel(aluno.responsavel); setCpfResponsavel(aluno.cpf_responsavel || "");
-    setWhatsapp(aluno.whatsapp); setResponsavel2(aluno.responsavel_2_nome || ""); 
-    setCpfResponsavel2(aluno.cpf_responsavel_2 || ""); setWhatsapp2(aluno.responsavel_2_contato || "");
-    setValor(aluno.valor ? aluno.valor.toString() : ""); setVencimento(aluno.vencimento || "");
-    setDataNascimento(aluno.data_nascimento || ""); setTemAlergia(aluno.tem_alergia || false);
-    setAlergiaDescricao(aluno.alergia_descricao || ""); setEAutista(aluno.e_autista || false);
-    setPreviewUrl(aluno.foto_url); setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
+    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma);
+    setResponsavel(aluno.responsavel); setCpfResponsavel(aluno.cpf_responsavel || ""); setWhatsapp(aluno.whatsapp);
+    setResponsavel2(aluno.responsavel_2_nome || ""); setCpfResponsavel2(aluno.cpf_responsavel_2 || "");
+    setWhatsapp2(aluno.responsavel_2_contato || ""); setValor(aluno.valor?.toString() || "");
+    setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
+    setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
+    setEAutista(aluno.e_autista || false); setPreviewUrl(aluno.foto_url);
+    setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
   return (
     <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 'bold', color: '#111827', margin: 0 }}>Alunos</h1>
-          <p style={{ fontSize: '14px', color: '#6b7280' }}>Gestão ABC DO PARK</p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <input 
-            type="text" 
-            placeholder="🔍 Pesquisar aluno..." 
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            style={{ padding: '10px 15px', borderRadius: '10px', border: '1px solid #e5e7eb', outline: 'none', fontSize: '14px', width: 'clamp(150px, 20vw, 250px)' }}
-          />
-          {!ehVisitante && (
-            <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
-              style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-              + NOVO ALUNO
-            </button>
-          )}
-        </div>
-      </div>
+      <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
         {alunosFiltrados.map((aluno) => (
-          <div key={aluno.id} onClick={() => abrirFicha(aluno)}
-            style={{ 
-              backgroundColor: obterCorTurma(aluno.turma), 
-              borderRadius: '20px', padding: '24px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', 
-              position: 'relative', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'transform 0.2s ease'
-            }}>
-            <div style={{ position: 'absolute', top: '18px', left: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px' }}>🟢</span>
-              {aluno.tem_alergia && <div style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid white' }} />}
-              {aluno.e_autista && <span style={{ fontSize: '16px' }}>🧩</span>}
-            </div>
-            <div style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>
-              VENC: {aluno.vencimento || '--'}
-            </div>
-            <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-              {aluno.foto_url ? <img src={aluno.foto_url} style={{ height: '90px', width: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid white' }} /> : <div style={{ height: '90px', width: '90px', borderRadius: '50%', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#94a3b8', border: '1px solid #eee' }}>{aluno.nome.charAt(0)}</div>}
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 4px', textAlign: 'center' }}>{aluno.nome}</h3>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', backgroundColor: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: '20px', marginBottom: '15px' }}>{aluno.turma || "SEM TURMA"}</span>
-            <div style={{ width: '100%', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.05)', textAlign: 'center' }}>
-              <p style={{ margin: '0', fontSize: '13px', fontWeight: '700', color: '#475569' }}>{aluno.responsavel}</p>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>{mWhatsApp(aluno.whatsapp || "")}</p>
-            </div>
-          </div>
+          <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} />
         ))}
       </div>
 
-      {modalAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
-          <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            
-            {!modoEdicao ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ position: 'relative', marginBottom: '20px' }}>
-                  {previewUrl ? <img src={previewUrl} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f8fafc' }} /> : <div style={{ height: '120px', width: '120px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '40px' }}>{nome.charAt(0)}</div>}
-                  {eAutista && <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px' }}>🧩</span>}
-                </div>
-                <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{nome}</h2>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '5px' }}>
-                  <p style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '14px', backgroundColor: '#eff6ff', padding: '4px 15px', borderRadius: '20px', margin: 0 }}>{turma}</p>
-                  {eAutista && <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '4px 15px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>TEA 🧩</span>}
-                </div>
+      {modalAberto && !modoEdicao && (
+        <FichaAlunoModal 
+          aluno={{id: idEdicao, nome, cpf_aluno: cpfAluno, turma, responsavel, cpf_responsavel: cpfResponsavel, whatsapp, responsavel2, cpf_responsavel2: cpfResponsavel2, whatsapp2, valor, vencimento, data_nascimento: dataNascimento, tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, e_autista: eAutista, foto_url: previewUrl}}
+          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
+          onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
+          onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
+          onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
+          onExcluir={async () => { if(confirm("Excluir?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
+        />
+      )}
 
-                {!verHistorico && !verBoletim ? (
-                  <div style={{ width: '100%', marginTop: '25px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px' }}>
-                        <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 4px' }}>NASCIMENTO</p>
-                        <p style={{ margin: '0', fontWeight: '600', color: '#475569', fontSize: '14px' }}>{dataNascimento ? new Date(dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</p>
-                      </div>
-                      <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px' }}>
-                        <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 4px' }}>CPF ALUNO</p>
-                        <p style={{ margin: '0', fontWeight: '600', color: '#475569', fontSize: '14px' }}>{mCPF(cpfAluno) || '--'}</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '15px', border: '1px solid #dcfce7' }}>
-                        <p style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', margin: '0 0 4px' }}>VALOR MENSALIDADE</p>
-                        <p style={{ margin: '0', fontWeight: '800', color: '#15803d', fontSize: '15px' }}>{valor ? parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
-                      </div>
-                      <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '15px' }}>
-                        <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 4px' }}>VENCIMENTO</p>
-                        <p style={{ margin: '0', fontWeight: '600', color: '#475569', fontSize: '14px' }}>Dia {vencimento || '--'}</p>
-                      </div>
-                    </div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px' }}>
-                      <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 8px' }}>RESPONSÁVEIS</p>
-                      <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '8px' }}>
-                        <p style={{ margin: '0', fontWeight: '700', color: '#475569', fontSize: '13px' }}>1. {responsavel} ({mWhatsApp(whatsapp)})</p>
-                        <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '11px' }}>CPF: {mCPF(cpfResponsavel) || '--'}</p>
-                      </div>
-                      {responsavel2 && (
-                        <div>
-                          <p style={{ margin: '0', fontWeight: '700', color: '#475569', fontSize: '13px' }}>2. {responsavel2} ({mWhatsApp(whatsapp2)})</p>
-                          <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '11px' }}>CPF: {mCPF(cpfResponsavel2) || '--'}</p>
-                        </div>
-                      )}
-                    </div>
-                    {temAlergia && (
-                      <div style={{ backgroundColor: '#fff5f5', padding: '15px', borderRadius: '15px', border: '1px solid #fed7d7' }}>
-                        <p style={{ fontSize: '10px', color: '#c53030', fontWeight: 'bold', margin: '0 0 5px' }}>⚠️ ALERGIA</p>
-                        <p style={{ margin: '0', fontWeight: '600', color: '#c53030' }}>{alergiaDescricao}</p>
-                      </div>
-                    )}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        <button onClick={() => idEdicao && buscarBoletim(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>📄 BOLETIM ESCOLAR</button>
-                        <button onClick={() => idEdicao && buscarHistoricoPagamento(idEdicao)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}>💰 PAGAMENTOS</button>
-                    </div>
-                  </div>
-                ) : verBoletim ? (
-                    <div style={{ width: '100%', marginTop: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Boletim Escolar 2026</h3>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                {!ehVisitante && <button onClick={adicionarDisciplina} style={{ color: '#2563eb', border: '1px solid #2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', background: 'none', cursor: 'pointer' }}>+ MATÉRIA</button>}
-                                <button onClick={() => setVerBoletim(false)} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
-                            </div>
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                                <thead>
-                                    <tr style={{ backgroundColor: '#f1f5f9' }}>
-                                        <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
-                                        <th style={{ padding: '8px' }}>1º B</th>
-                                        <th style={{ padding: '8px' }}>2º B</th>
-                                        <th style={{ padding: '8px' }}>3º B</th>
-                                        <th style={{ padding: '8px' }}>4º B</th>
-                                        {!ehVisitante && <th style={{ padding: '8px' }}></th>}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {notas.map((n) => (
-                                        <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
-                                            {['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].map((b) => (
-                                                <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
-                                                    <input 
-                                                        type="text" 
-                                                        defaultValue={n[b] || ""} 
-                                                        onBlur={(e) => salvarNota(n.id, b, e.target.value)}
-                                                        disabled={ehVisitante}
-                                                        style={{ width: '35px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px' }}
-                                                    />
-                                                </td>
-                                            ))}
-                                            {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => excluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ) : (
-                  <div style={{ width: '100%', marginTop: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                      <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Histórico de Pagamentos</h3>
-                      <button onClick={() => setVerHistorico(false)} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
-                    </div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
-                      {historico.length > 0 ? historico.map((h, i) => (
-                          <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginRight: '10px' }}>
-                                <span style={{ fontWeight: 'bold' }}>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                                <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
-                              </div>
-                              <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
-                            </div>
-                            {!ehVisitante && (
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => editarPagamento(h)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✏️</button>
-                                <button onClick={() => excluirPagamento(h)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
-                              </div>
-                            )}
-                          </div>
-                      )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado.</p>}
-                    </div>
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', width: '100%', marginTop: '30px' }}>
-                  <button onClick={() => setModalAberto(false)} style={{ flex: '1 1 100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 'bold', cursor: 'pointer', backgroundColor: 'white' }}>FECHAR</button>
-                  {!ehVisitante && (
-                    <>
-                      <button onClick={() => setModoEdicao(true)} style={{ flex: '1 1 70%', padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>EDITAR FICHA</button>
-                      <button onClick={excluirAluno} style={{ flex: '1 1 20%', padding: '14px', borderRadius: '12px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer' }}>🗑️</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={salvarAluno} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <h2 style={{ textAlign: 'center', fontWeight: '800', color: '#1e293b' }}>{idEdicao ? "Editando Ficha" : "Novo Aluno"}</h2>
-                <label htmlFor="upload-foto" style={{ cursor: 'pointer', margin: '0 auto 10px' }}>
-                  <div style={{ height: '100px', width: '100px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', fontWeight: 'bold' }}>FOTO</span>}
-                  </div>
-                </label>
-                <input id="upload-foto" type="file" accept="image/*" onChange={handleTrocarFoto} style={{ display: 'none' }} />
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
-                  <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                  <input type="text" placeholder="CPF do Aluno" value={cpfAluno} onChange={(e)=>setCpfAluno(mCPF(e.target.value))} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                  <select value={turma} onChange={(e) => setTurma(e.target.value)} required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <option value="">Turma...</option>
-                    <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
-                    <option value="1º Ano">1º Ano</option><option value="2º Ano">2º Ano</option><option value="3º Ano">3º Ano</option>
-                    <option value="4º Ano">4º Ano</option><option value="5º Ano">5º Ano</option>
-                  </select>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input type="number" placeholder="Mensalidade (R$)" value={valor} onChange={(e)=>setValor(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                  <input type="number" placeholder="Dia Vencimento" value={vencimento} onChange={(e)=>setVencimento(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                </div>
-
-                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
-                  <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0' }}>RESPONSÁVEIS</p>
-                  <div style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                      <input type="text" placeholder="Nome Resp. 1" value={responsavel} onChange={(e)=>setResponsavel(e.target.value)} required style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                      <input type="text" placeholder="CPF Resp. 1" value={cpfResponsavel} onChange={(e)=>setCpfResponsavel(mCPF(e.target.value))} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    </div>
-                    <input type="text" placeholder="WhatsApp 1" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  </div>
-                  <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                      <input type="text" placeholder="Nome Resp. 2" value={responsavel2} onChange={(e)=>setResponsavel2(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                      <input type="text" placeholder="CPF Resp. 2" value={cpfResponsavel2} onChange={(e)=>setCpfResponsavel2(mCPF(e.target.value))} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    </div>
-                    <input type="text" placeholder="WhatsApp 2" value={whatsapp2} onChange={(e)=>setWhatsapp2(mWhatsApp(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <div style={{ flex: 1, backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#0369a1' }}>
-                            <input type="checkbox" checked={eAutista} onChange={(e) => setEAutista(e.target.checked)} /> AUTISTA? 🧩
-                        </label>
-                    </div>
-                    <div style={{ flex: 1, backgroundColor: '#fff5f5', padding: '10px', borderRadius: '12px', border: '1px solid #fed7d7' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#c53030' }}>
-                            <input type="checkbox" checked={temAlergia} onChange={(e) => setTemAlergia(e.target.checked)} /> ALERGIA?
-                        </label>
-                    </div>
-                </div>
-                {temAlergia && ( <input type="text" placeholder="Qual alergia?" value={alergiaDescricao} onChange={(e) => setAlergiaDescricao(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #fed7d7', outline: 'none' }} /> )}
-
-                <div style={{ display: 'flex', gap: '12px', marginTop: '5px' }}>
-                  <button type="button" onClick={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 'bold', backgroundColor: 'white' }}>CANCELAR</button>
-                  <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>{carregando ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}</button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+      {modalAberto && modoEdicao && (
+        <FormAlunoModal 
+          idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
+          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, cpfResponsavel, whatsapp, responsavel2, cpfResponsavel2, whatsapp2, eAutista, temAlergia, alergiaDescricao}}
+          setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setCpfResponsavel(d.cpfResponsavel); setWhatsapp(d.whatsapp); setResponsavel2(d.responsavel2); setCpfResponsavel2(d.cpfResponsavel2); setWhatsapp2(d.whatsapp2); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); }}
+          onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
+          onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
+        />
       )}
     </div>
   );
