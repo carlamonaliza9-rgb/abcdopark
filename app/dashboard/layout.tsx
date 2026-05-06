@@ -32,7 +32,6 @@ export default function DashboardLayout({
             🏫 Turmas
           </Link>
           
-          {/* NOVO LINK ADICIONADO AQUI */}
           <Link href="/dashboard/funcionarios" className="block p-3 rounded-lg hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium transition-colors">
             👥 Funcionários
           </Link>
@@ -40,6 +39,12 @@ export default function DashboardLayout({
           <Link href="/dashboard/financeiro" className="block p-3 rounded-lg hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium transition-colors">
             💰 Financeiro
           </Link>
+
+          {/* LINK DE CONTAS A PAGAR */}
+          <Link href="/dashboard/financeiro/contas-a-pagar" className="block p-3 rounded-lg hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium transition-colors">
+            💸 Contas a Pagar
+          </Link>
+
           <Link href="/dashboard/fechamento" className="block p-3 rounded-lg hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium transition-colors">
             🎓 Fechamento Letivo
           </Link>
