@@ -214,7 +214,8 @@ export default function Turmas() {
   if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando dados da escola...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+    /* AJUSTE AQUI: Mudei o padding superior de 30px para 0px */
+    <div style={{ width: '100%', padding: '0px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
       {ehAdmin && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
@@ -236,10 +237,10 @@ export default function Turmas() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h4 style={{ margin: 0, fontSize: '15px', color: '#111827', fontWeight: '800' }}>Personalizar Cores (Preview Ativo)</h4>
             <div style={{ display: 'flex', gap: '10px' }}>
-               <button onClick={cancelarEdicao} style={{ padding: '8px 15px', backgroundColor: '#f3f4f6', color: '#4b5563', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Descartar</button>
-               <button onClick={confirmarNovasCores} disabled={salvandoCores} style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {salvandoCores ? "Gravando..." : "OK - Salvar Cores e Contornos"}
-               </button>
+                <button onClick={cancelarEdicao} style={{ padding: '8px 15px', backgroundColor: '#f3f4f6', color: '#4b5563', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Descartar</button>
+                <button onClick={confirmarNovasCores} disabled={salvandoCores} style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                 {salvandoCores ? "Gravando..." : "OK - Salvar Cores e Contornos"}
+                </button>
             </div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
