@@ -131,7 +131,6 @@ export default function FinanceiroPage() {
     printWindow.print();
   }
 
-  // FUNÇÃO ATUALIZADA: Preenche o valor do evento automaticamente
   function abrirPagamentoEvento(aluno: any, evento: any, pgtoExistente: any = null) {
     setAlunoSelecionado(aluno); setTipoPagamento("evento"); setEventoParaGerenciar(evento);
     if (pgtoExistente) {
@@ -139,18 +138,15 @@ export default function FinanceiroPage() {
       setPagamentosMetodos(pgtoExistente.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
     } else {
       setIdPagamentoEdicao(null); setDataPagamento(new Date().toISOString().split('T')[0]); setDescricaoOutro(`Evento: ${evento.nome}`);
-      // Preenche o valor unitário do evento no campo Pix
       setPagamentosMetodos({ pix: evento.valor_unitario.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
     }
     setModalPgtoAberto(true);
   }
 
-  // NOVA FUNÇÃO: Preenche o valor da mensalidade automaticamente
   function abrirPagamentoMensalidade(aluno: any) {
     setAlunoSelecionado(aluno);
     setIdPagamentoEdicao(null);
     setTipoPagamento("mensalidade");
-    // Preenche o valor do aluno (ou padrão) no campo Pix
     const valorSugerido = aluno.valor || valorPadrao;
     setPagamentosMetodos({ pix: valorSugerido.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
     setModalPgtoAberto(true);
@@ -183,6 +179,15 @@ export default function FinanceiroPage() {
   function abrirEdicaoEvento(ev: any) { setIdEventoEdicao(ev.id); setNomeEvento(ev.nome); setValorEvento(ev.valor_unitario.toString()); setModalEventoAberto(true); }
   async function excluirEvento(id: any) { if (confirm("Excluir evento?")) { await supabase.from('eventos_controle').delete().eq('id', id); carregarDados(); } }
   const toggleAlunoSelecao = (id: string) => { setAlunosSelecionados(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]); };
+
+  // FUNÇÃO SELECIONAR TODOS
+  const toggleSelecionarTodos = () => {
+    if (alunosSelecionados.length === alunos.length) {
+      setAlunosSelecionados([]);
+    } else {
+      setAlunosSelecionados(alunos.map(aluno => aluno.id));
+    }
+  };
   
   async function atualizarParticipanteEvento(alunoId: string, estaParticipando: boolean) {
     if (!eventoParaGerenciar) return;
@@ -198,7 +203,7 @@ export default function FinanceiroPage() {
     const nomes = aluno.nome.trim().split(' ');
     const formatado = nomes.length > 1 ? `${nomes[0]} ${nomes[nomes.length - 1]}` : nomes[0];
     const valorMsg = aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const msg = `Olá! Passando para lembrar da mensalidade de *${formatado}*, vencimento ${aluno.vencimento}/${mesFiltro.split('-')[1]} no valor de ${valorMsg}. Caso já tenha pago, desconsidere.`;
+    const msg = `Olá! Bom dia. Passando para lembrar da mensalidade de *${formatado}*, com vencimento ${aluno.vencimento}/${mesFiltro.split('-')[1]} no valor de ${valorMsg}. Caso já tenha sido pago, por favor envie o comprovante ou desconsidere.`;
     window.open(`https://wa.me/55${telefone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   }
 
@@ -294,7 +299,6 @@ export default function FinanceiroPage() {
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      {/* BOTÃO ATUALIZADO: Chama a função que preenche o valor */}
                       <button onClick={() => abrirPagamentoMensalidade(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
                       {aluno.status !== 'pago' && (
                         <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
@@ -363,7 +367,6 @@ export default function FinanceiroPage() {
                       <td style={{ textAlign: 'center' }}>{part ? (pgto ? "PAGO" : "PENDENTE") : "-"}</td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{display:'flex', gap:5, justifyContent:'center'}}>
-                          {/* BOTÃO ATUALIZADO: abrirPagamentoEvento já preenche o valor do evento */}
                           {part && !pgto && <button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar)}>+ PGTO</button>}
                           {pgto && <><button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar, pgto)}>✏️</button><button onClick={() => excluirPagamentoEvento(pgto.id)}>🗑️</button></>}
                         </div>
@@ -419,7 +422,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL PGTO (COM VALOR AUTOMÁTICO) */}
+      {/* MODAL PGTO */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
@@ -440,13 +443,29 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL NOVO EVENTO */}
       {modalEventoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
             <h2 style={{textAlign:'center', marginBottom:'20px'}}>{idEventoEdicao ? "✏️ Editar Evento" : "🎟️ Novo Evento"}</h2>
             <input type="text" placeholder="Nome" value={nomeEvento} onChange={(e)=>setNomeEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
             <input type="number" placeholder="Valor" value={valorEvento} onChange={(e)=>setValorEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />
-            {!idEventoEdicao && (<div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '20px', border: '1px solid #eee', padding: '10px', borderRadius: '12px' }}><p style={{fontSize: 10, fontWeight: 'bold', color: '#666', marginBottom: 5}}>SELECIONE PARTICIPANTES:</p>{alunos.map(aluno => (<label key={aluno.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px', cursor: 'pointer' }}><input type="checkbox" checked={alunosSelecionados.includes(aluno.id)} onChange={() => toggleAlunoSelecao(aluno.id)} /><span style={{fontSize: 13}}>{aluno.nome}</span></label>))}</div>)}
+            {!idEventoEdicao && (
+              <div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '20px', border: '1px solid #eee', padding: '10px', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 5 }}>
+                  <p style={{fontSize: 10, fontWeight: 'bold', color: '#666', margin: 0}}>SELECIONE PARTICIPANTES:</p>
+                  <button onClick={toggleSelecionarTodos} style={{ background: '#f3f4f6', border: 'none', padding: '2px 8px', borderRadius: 4, fontSize: 10, cursor: 'pointer', fontWeight: 'bold' }}>
+                    {alunosSelecionados.length === alunos.length ? "DESELECIONAR TODOS" : "SELECIONAR TODOS"}
+                  </button>
+                </div>
+                {alunos.map(aluno => (
+                  <label key={aluno.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={alunosSelecionados.includes(aluno.id)} onChange={() => toggleAlunoSelecao(aluno.id)} />
+                    <span style={{fontSize: 13}}>{aluno.nome}</span>
+                  </label>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '10px' }}><button onClick={()=>setModalEventoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>CANCELAR</button><button onClick={salvarEvento} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>SALVAR</button></div>
           </div>
         </div>
