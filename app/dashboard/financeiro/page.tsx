@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { MetricasCard } from "./_components/MetricasCard";
+import { TabelaMensalidades } from "./_components/TabelaMensalidades";
 
 export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
@@ -240,6 +241,7 @@ export default function FinanceiroPage() {
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
+      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <header>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937' }}>Financeiro ABC DO PARK</h1>
@@ -260,52 +262,23 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* MÉTRICAS (Componente Isolado) */}
       <MetricasCard 
         metricas={metricas} 
         onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
       />
 
-      <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Status de Pagamento (Mensalidades)</h2>
-          <input type="text" placeholder="🔍 Pesquisar..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} style={{ padding: '8px 15px', borderRadius: '10px', border: '1px solid #ddd', width: '250px' }} />
-        </div>
-        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
-              <tr style={{ fontSize: '12px', color: '#6b7280', borderBottom: '2px solid #f3f4f6' }}>
-                <th style={{ padding: '12px' }}>ALUNO</th><th>VALOR</th><th style={{textAlign:'center'}}>VENC.</th><th style={{textAlign:'center'}}>STATUS</th><th style={{textAlign:'center'}}>AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alunosFiltrados.map((aluno) => (
-                <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</td>
-                  <td style={{ padding: '12px' }}>R$ {aluno.valor?.toLocaleString('pt-BR')}</td>
-                  <td style={{ textAlign: 'center' }}>{aluno.vencimento}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                      <span style={{ ...estiloBtnReduzido, backgroundColor: aluno.status === 'pago' ? '#dcfce7' : (aluno.status === 'atrasado' ? '#ef4444' : '#fee2e2'), color: aluno.status === 'pago' ? '#166534' : (aluno.status === 'atrasado' ? 'white' : '#991b1b') }}>
-                        {aluno.status?.toUpperCase() || 'PENDENTE'}
-                      </span>
-                      {aluno.status === 'pago' && <button onClick={() => desfazerStatus(aluno.id)} title="Desfazer Baixa" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>↩️</button>}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      <button onClick={() => abrirPagamentoMensalidade(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
-                      {aluno.status !== 'pago' && (
-                        <button onClick={() => cobrarWhatsApp(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* TABELA DE MENSALIDADES (Componente Isolado) */}
+      <TabelaMensalidades 
+        alunos={alunosFiltrados}
+        filtroNome={filtroNome}
+        setFiltroNome={setFiltroNome}
+        onPagamento={abrirPagamentoMensalidade}
+        onCobrar={cobrarWhatsApp}
+        onDesfazer={desfazerStatus}
+      />
 
+      {/* BALANÇO E CATEGORIAS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Método ({mesFiltro})</h2>
@@ -329,6 +302,7 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* GESTÃO DE EVENTOS */}
       <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '30px', paddingBottom: '50px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#1f2937' }}>Gestão de Eventos</h2>
         <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', marginBottom: '20px' }}>
@@ -372,6 +346,7 @@ export default function FinanceiroPage() {
         )}
       </div>
 
+      {/* MODAL LISTA DE GASTOS */}
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -399,6 +374,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL REGISTRAR GASTO */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '400px' }}>
@@ -412,6 +388,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL PGTO */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
@@ -432,6 +409,7 @@ export default function FinanceiroPage() {
         </div>
       )}
 
+      {/* MODAL EVENTOS */}
       {modalEventoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
