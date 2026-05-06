@@ -2,14 +2,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-// Importação dos Componentes que você criou
 import { AlunosHeader } from "./_components/AlunosHeader";
 import { AlunoCard } from "./_components/AlunoCard";
 import { FichaAlunoModal } from "./_components/FichaAlunoModal";
 import { FormAlunoModal } from "./_components/FormAlunoModal";
 
 export default function Alunos() {
-  // --- ESTADOS DE CONTROLE ---
   const [modalAberto, setModalAberto] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -17,7 +15,6 @@ export default function Alunos() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   
-  // --- ESTADOS DE DADOS (Exatamente como o seu original) ---
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [cpfAluno, setCpfAluno] = useState("");
@@ -44,9 +41,8 @@ export default function Alunos() {
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
-  // --- MÁSCARAS BLINDADAS (Para evitar o erro de 'undefined') ---
   const mWhatsApp = (v: string) => {
-    if (!v) return ""; // Proteção contra valores vazios
+    if (!v) return "";
     v = v.replace(/\D/g, "");
     if (v.length <= 11) {
       v = v.replace(/^(\d{2})(\d)/g, "($1) $2");
@@ -56,7 +52,7 @@ export default function Alunos() {
   };
 
   const mCPF = (v: string) => {
-    if (!v) return ""; // Proteção contra valores vazios
+    if (!v) return "";
     v = v.replace(/\D/g, "");
     v = v.replace(/(\d{3})(\d)/, "$1.$2");
     v = v.replace(/(\d{3})(\d)/, "$1.$2");
@@ -69,7 +65,6 @@ export default function Alunos() {
     return cores[turmaNome] || "#ffffff";
   };
 
-  // --- BUSCA DE DADOS ---
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -88,7 +83,6 @@ export default function Alunos() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // --- FUNÇÕES DE BOLETIM E HISTÓRICO ---
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
@@ -121,7 +115,102 @@ export default function Alunos() {
     setVerHistorico(true); setVerBoletim(false);
   }
 
-  // --- SALVAMENTO ---
+  // --- MOTOR DE PDF ---
+  function gerarPDFHistorico() {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Permita pop-ups no seu navegador.");
+
+    const linhas = historico.map(h => `
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid #eee;">${new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
+        <td style="padding:10px; border-bottom:1px solid #eee;">${h.descricao || 'Mensalidade'}</td>
+        <td style="padding:10px; border-bottom:1px solid #eee; text-align:right;">R$ ${h.valor_total?.toLocaleString('pt-BR')}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <body style="font-family:sans-serif; padding:40px; color:#333;">
+          <div style="text-align:center; border-bottom:2px solid #2563eb; padding-bottom:20px; marginBottom:30px;">
+            <h1 style="margin:0; color:#2563eb;">ABC DO PARK</h1>
+            <p style="margin:5px 0; font-size:14px; font-weight:bold;">EXTRATO FINANCEIRO 2026</p>
+          </div>
+          <p><b>Aluno:</b> ${nome.toUpperCase()}</p>
+          <p><b>Turma:</b> ${turma}</p>
+          <table style="width:100%; border-collapse:collapse; margin-top:20px;">
+            <thead>
+              <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:10px;">Data</th>
+                <th style="padding:10px;">Descrição</th>
+                <th style="padding:10px; text-align:right;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 500);
+  }
+
+  function gerarPDFBoletim() {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Permita pop-ups.");
+
+    const linhas = notas.map(n => `
+      <tr>
+        <td style="padding:12px; border:1px solid #000; font-weight:bold;">${n.disciplina}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center;">${n.bimestre1 || '-'}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center;">${n.bimestre2 || '-'}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center; background:#f9f9f9;">${n.recuperacao1 || '-'}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center;">${n.bimestre3 || '-'}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center;">${n.bimestre4 || '-'}</td>
+        <td style="padding:12px; border:1px solid #000; text-align:center; background:#f9f9f9;">${n.recuperacao2 || '-'}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <body style="font-family:Arial, sans-serif; padding:20px;">
+          <div style="border:4px double #000; padding:30px;">
+            <h1 style="text-align:center; margin:0; font-size:28px;">ABC DO PARK</h1>
+            <p style="text-align:center; font-weight:bold; margin:5px 0;">BOLETIM ESCOLAR - ANO LETIVO 2026</p>
+            
+            <div style="margin:30px 0; font-size:16px;">
+              <p><b>ALUNO(A):</b> ${nome.toUpperCase()}</p>
+              <p><b>TURMA:</b> ${turma}</p>
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; margin-top:20px;">
+              <thead>
+                <tr style="background:#eee;">
+                  <th style="padding:12px; border:1px solid #000; text-align:left;">DISCIPLINA</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px;">1º B</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px;">2º B</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px; background:#ddd;">REC 1</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px;">3º B</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px;">4º B</th>
+                  <th style="padding:12px; border:1px solid #000; width:50px; background:#ddd;">REC 2</th>
+                </tr>
+              </thead>
+              <tbody>${linhas}</tbody>
+            </table>
+
+            <div style="margin-top:80px; display:flex; justify-content:space-around;">
+              <div style="border-top:1px solid #000; width:200px; text-align:center; padding-top:5px;">Coordenação</div>
+              <div style="border-top:1px solid #000; width:200px; text-align:center; padding-top:5px;">Responsável</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 500);
+  }
+
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
@@ -146,7 +235,6 @@ export default function Alunos() {
     } finally { setCarregando(false); }
   }
 
-  // --- INTERFACE ---
   function limparEContinuar() {
     setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setResponsavel(""); setCpfResponsavel("");
     setWhatsapp(""); setResponsavel2(""); setCpfResponsavel2(""); setWhatsapp2(""); setValor("");
@@ -184,6 +272,8 @@ export default function Alunos() {
           onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
           onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
           onExcluir={async () => { if(confirm("Excluir?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
+          onGerarPDFBoletim={gerarPDFBoletim}
+          onGerarPDFHistorico={gerarPDFHistorico}
         />
       )}
 

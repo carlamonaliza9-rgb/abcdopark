@@ -18,6 +18,8 @@ interface FichaAlunoModalProps {
   onSalvarNota: (id: string, campo: string, valor: string) => void;
   onAdicionarDisciplina: () => void;
   onExcluirDisciplina: (id: string) => void;
+  onGerarPDFBoletim: () => void;
+  onGerarPDFHistorico: () => void;
 }
 
 export function FichaAlunoModal(props: FichaAlunoModalProps) {
@@ -25,7 +27,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     aluno, verBoletim, verHistorico, notas, historico, ehVisitante, 
     mCPF, mWhatsApp, onFechar, onEditar, onExcluir, onVerBoletim, 
     onVerHistorico, onVoltarParaFicha, onSalvarNota, onAdicionarDisciplina, 
-    onExcluirDisciplina 
+    onExcluirDisciplina, onGerarPDFBoletim, onGerarPDFHistorico 
   } = props;
 
   return (
@@ -34,7 +36,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ position: 'relative', marginBottom: '20px' }}>
-            {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f8fafc' }} /> : <div style={{ height: '120px', width: '120px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '40px' }}>{aluno.nome.charAt(0)}</div>}
+            {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f8fafc' }} /> : <div style={{ height: '120px', width: '120px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '40px' }}>{aluno.nome?.charAt(0)}</div>}
             {aluno.e_autista && <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px' }}>🧩</span>}
           </div>
           <h2 style={{ fontWeight: '800', color: '#1e293b', margin: '0', textAlign: 'center' }}>{aluno.nome}</h2>
@@ -92,19 +94,24 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           ) : verBoletim ? (
               <div style={{ width: '100%', marginTop: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                      <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Boletim Escolar 2026</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Boletim 2026</h3>
+                        <button onClick={onGerarPDFBoletim} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 PDF</button>
+                      </div>
                       <div style={{ display: 'flex', gap: '10px' }}>
                           {!ehVisitante && <button onClick={onAdicionarDisciplina} style={{ color: '#2563eb', border: '1px solid #2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', background: 'none', cursor: 'pointer' }}>+ MATÉRIA</button>}
                           <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
                       </div>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                           <thead>
                               <tr style={{ backgroundColor: '#f1f5f9' }}>
                                   <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
-                                  <th style={{ padding: '8px' }}>1º B</th><th style={{ padding: '8px' }}>2º B</th>
-                                  <th style={{ padding: '8px' }}>3º B</th><th style={{ padding: '8px' }}>4º B</th>
+                                  <th>1ºB</th><th>2ºB</th>
+                                  <th style={{ color: '#ef4444' }}>R1</th>
+                                  <th>3ºB</th><th>4ºB</th>
+                                  <th style={{ color: '#ef4444' }}>R2</th>
                                   {!ehVisitante && <th style={{ padding: '8px' }}></th>}
                               </tr>
                           </thead>
@@ -112,9 +119,22 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                               {notas.map((n) => (
                                   <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
                                       <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
-                                      {['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].map((b) => (
+                                      {['bimestre1', 'bimestre2', 'recuperacao1', 'bimestre3', 'bimestre4', 'recuperacao2'].map((b) => (
                                           <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
-                                              <input type="text" defaultValue={n[b] || ""} onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} disabled={ehVisitante} style={{ width: '35px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px' }} />
+                                              <input 
+                                                type="text" 
+                                                defaultValue={n[b] || ""} 
+                                                onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} 
+                                                disabled={ehVisitante} 
+                                                style={{ 
+                                                  width: '30px', 
+                                                  textAlign: 'center', 
+                                                  border: '1px solid #e2e8f0', 
+                                                  borderRadius: '4px', 
+                                                  padding: '2px',
+                                                  backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white' 
+                                                }} 
+                                              />
                                           </td>
                                       ))}
                                       {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => onExcluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
@@ -127,7 +147,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           ) : (
             <div style={{ width: '100%', marginTop: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Histórico de Pagamentos</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico</h3>
+                  <button onClick={onGerarPDFHistorico} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 EXTRATO</button>
+                </div>
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
               </div>
               <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
