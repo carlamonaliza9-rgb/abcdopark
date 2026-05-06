@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { MetricasCard } from "./_components/MetricasCard";
 import { TabelaMensalidades } from "./_components/TabelaMensalidades";
+import { GestaoEventos } from "./_components/GestaoEventos";
+import { BalancoResumo } from "./_components/BalancoResumo";
+import { FinanceiroHeader } from "./_components/FinanceiroHeader";
 
 export default function FinanceiroPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
@@ -234,33 +237,24 @@ export default function FinanceiroPage() {
     }
   }
 
-  const estiloBtnReduzido = { padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' as 'bold', border: 'none', cursor: 'pointer', display: 'inline-block' };
-
   if (carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando dados financeiros...</div>;
 
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-        <header>
-          <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937' }}>Financeiro ABC DO PARK</h1>
-          <div style={{ marginTop: '10px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280', marginRight: '10px' }}>VISUALIZAR MÊS:</label>
-            <input type="month" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)} style={{ border: '1px solid #ddd', padding: '5px 10px', borderRadius: '8px', fontWeight: 'bold' }} />
-          </div>
-        </header>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => { limparFormEvento(); setModalEventoAberto(true); }} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>🎟️ NOVO EVENTO</button>
-          <button onClick={() => window.print()} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#2563eb', color: 'white' }}>📄 PDF</button>
-          <button onClick={() => setModalGastoAberto(true)} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#ef4444', color: 'white' }}>- GASTO</button>
-          <button onClick={zerarMes} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#374151', color: 'white' }}>🔄 ZERAR MÊS</button>
-          <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-            <button onClick={() => { if(prompt("Senha:") === SENHA_MESTRA) setEditandoValor(!editandoValor); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>{editandoValor ? "🔓" : "🔒"}</button>
-            <input type="number" value={valorPadrao} disabled={!editandoValor} onChange={(e) => setValorPadrao(Number(e.target.value))} style={{ width: '60px', border: 'none', textAlign: 'center', fontWeight: 'bold' }} />
-          </div>
-        </div>
-      </div>
+      {/* HEADER (Componente Isolado) */}
+      <FinanceiroHeader 
+        mesFiltro={mesFiltro}
+        setMesFiltro={setMesFiltro}
+        onNovoEvento={() => { limparFormEvento(); setModalEventoAberto(true); }}
+        onRegistrarGasto={() => setModalGastoAberto(true)}
+        onZerarMes={zerarMes}
+        valorPadrao={valorPadrao}
+        setValorPadrao={setValorPadrao}
+        editandoValor={editandoValor}
+        setEditandoValor={setEditandoValor}
+        senhaMestra={SENHA_MESTRA}
+      />
 
       {/* MÉTRICAS (Componente Isolado) */}
       <MetricasCard 
@@ -278,75 +272,30 @@ export default function FinanceiroPage() {
         onDesfazer={desfazerStatus}
       />
 
-      {/* BALANÇO E CATEGORIAS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px' }}>Recebido por Método ({mesFiltro})</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {Object.entries(resumoMetodos).map(([key, val]) => (
-              <div key={key} style={{ padding: '10px', backgroundColor: '#f9fafb', borderRadius: '10px' }}>
-                <p style={{ fontSize: '10px', color: '#6b7280', margin: 0, textTransform: 'uppercase' }}>{key}</p>
-                <p style={{ fontWeight: 'bold', color: '#10b981' }}>R$ {val.toLocaleString('pt-BR')}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '20px' }}>📊 Balanço Geral ({mesFiltro})</h2>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '20px', height: '120px', justifyContent: 'center' }}>
-            <div style={{ width: '40px', height: `${(metricas.pago / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#10b981', borderRadius: '5px' }} />
-            <div style={{ width: '40px', height: `${(metricas.gastos / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#ef4444', borderRadius: '5px' }} />
-            <div style={{ width: '40px', height: `${(Math.max(0, metricas.lucro) / (Math.max(metricas.pago, metricas.gastos, 1))) * 100}px`, backgroundColor: '#2563eb', borderRadius: '5px' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '10px', fontSize: '10px', fontWeight: 'bold' }}><span>RECEITA</span><span>GASTOS</span><span>LUCRO</span></div>
-        </div>
-      </div>
+      {/* BALANÇO E MÉTODO DE PAGAMENTO (Componente Isolado) */}
+      <BalancoResumo 
+        resumoMetodos={resumoMetodos}
+        metricas={metricas}
+        mesFiltro={mesFiltro}
+      />
 
-      {/* GESTÃO DE EVENTOS */}
-      <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '30px', paddingBottom: '50px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#1f2937' }}>Gestão de Eventos</h2>
-        <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', marginBottom: '20px' }}>
-          {eventosAtivos.map(ev => (
-            <div key={ev.id} onClick={() => setEventoParaGerenciar(ev)} style={{ minWidth: '220px', backgroundColor: 'white', padding: '15px', borderRadius: '15px', border: eventoParaGerenciar?.id === ev.id ? '2px solid #7c3aed' : '2px solid #ddd6fe', position: 'relative', cursor: 'pointer' }}>
-              <div style={{position:'absolute', top:8, right:8}}><button onClick={(e) => {e.stopPropagation(); abrirEdicaoEvento(ev);}}>✏️</button><button onClick={(e) => {e.stopPropagation(); excluirEvento(ev.id);}}>🗑️</button></div>
-              <h3 style={{ margin: 0, fontSize: '15px', color: '#7c3aed' }}>{ev.nome}</h3>
-              <p style={{ margin: 0, fontSize: '12px' }}>R$ {ev.valor_unitario}</p>
-            </div>
-          ))}
-        </div>
-        {eventoParaGerenciar && (
-          <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', border: '2px solid #7c3aed' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c3aed' }}>{eventoParaGerenciar.nome}</h2>
-              <button onClick={gerarPDFEvento} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>📄 PDF LISTA</button>
-            </div>
-            <table style={{ width: '100%', fontSize: '12px' }}>
-              <thead><tr style={{color:'#6b7280', borderBottom:'1px solid #eee'}}><th style={{textAlign:'left'}}>ALUNO</th><th>PARTICIPAÇÃO</th><th>STATUS</th><th>AÇÕES</th></tr></thead>
-              <tbody>
-                {alunos.map(aluno => {
-                  const part = eventoParaGerenciar.participantes?.includes(aluno.id);
-                  const pgto = historicoPagamentosEventos.find(p => p.aluno_id === aluno.id && p.descricao.includes(eventoParaGerenciar.nome));
-                  return (
-                    <tr key={aluno.id} style={{ opacity: part ? 1 : 0.5, borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '8px', fontWeight:'bold' }}>{aluno.nome}</td>
-                      <td style={{ textAlign: 'center' }}><button onClick={() => atualizarParticipanteEvento(aluno.id, !part)}>{part ? "✅" : "NÃO"}</button></td>
-                      <td style={{ textAlign: 'center' }}>{part ? (pgto ? "PAGO" : "PENDENTE") : "-"}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{display:'flex', gap:5, justifyContent:'center'}}>
-                          {part && !pgto && <button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar)}>+ PGTO</button>}
-                          {pgto && <><button onClick={() => abrirPagamentoEvento(aluno, eventoParaGerenciar, pgto)}>✏️</button><button onClick={() => excluirPagamentoEvento(pgto.id)}>🗑️</button></>}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* GESTÃO DE EVENTOS (Componente Isolado) */}
+      <GestaoEventos 
+        eventosAtivos={eventosAtivos}
+        eventoParaGerenciar={eventoParaGerenciar}
+        setEventoParaGerenciar={setEventoParaGerenciar}
+        alunos={alunos}
+        historicoPagamentosEventos={historicoPagamentosEventos}
+        onEditarEvento={abrirEdicaoEvento}
+        onExcluirEvento={excluirEvento}
+        onGerarPDF={gerarPDFEvento}
+        onAtualizarParticipante={atualizarParticipanteEvento}
+        onAbrirPagamento={abrirPagamentoEvento}
+        onExcluirPagamento={excluirPagamentoEvento}
+      />
 
-      {/* MODAL LISTA DE GASTOS */}
+      {/* MODAIS (Manteremos aqui por enquanto, pois compartilham muitas funções de estado) */}
+      
       {modalListaGastosAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '700px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -374,7 +323,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR GASTO */}
       {modalGastoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '400px' }}>
@@ -388,7 +336,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL PGTO */}
       {modalPgtoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
@@ -409,7 +356,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {/* MODAL EVENTOS */}
       {modalEventoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
