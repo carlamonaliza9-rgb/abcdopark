@@ -61,7 +61,17 @@ export default function Alunos() {
   };
 
   const obterCorTurma = (turmaNome: string) => {
-    const cores: any = { "Maternal": "#e0f2fe", "Jardim I": "#f0fdf4", "Jardim II": "#fdf2f8", "1º Ano": "#faf5ff", "2º Ano": "#fff7ed", "3º Ano": "#f5f3ff", "4º Ano": "#ecfeff", "5º Ano": "#fefce8" };
+    // CORES AJUSTADAS: Equilíbrio entre vivas e suaves
+    const cores: any = { 
+      "Maternal": "#B9E2F5", // Azul claro presente
+      "Jardim I": "#C2F0D5",  // Verde menta suave
+      "Jardim II": "#F7C8E0", // Rosa doce
+      "1º Ano": "#D7C0F0",    // Lilás elegante
+      "2º Ano": "#F9D9B4",    // Pêssego/Laranja suave
+      "3º Ano": "#C5C5FC",    // Violeta claro
+      "4º Ano": "#B4EAEA",    // Acqua/Ciano suave
+      "5º Ano": "#F9E89D"     // Amarelo creme
+    };
     return cores[turmaNome] || "#ffffff";
   };
 
@@ -280,7 +290,7 @@ export default function Alunos() {
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, cpfResponsavel, whatsapp, responsavel2, cpfResponsavel2, whatsapp2, eAutista, temAlergia, alergiaDescricao}}
+          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, cpf_responsavel: cpfResponsavel, whatsapp, responsavel_2_nome: responsavel2, cpf_responsavel_2: cpfResponsavel2, responsavel_2_contato: whatsapp2, eAutista, temAlergia, alergiaDescricao}}
           setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setCpfResponsavel(d.cpfResponsavel); setWhatsapp(d.whatsapp); setResponsavel2(d.responsavel2); setCpfResponsavel2(d.cpfResponsavel2); setWhatsapp2(d.whatsapp2); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); }}
           onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
           onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
