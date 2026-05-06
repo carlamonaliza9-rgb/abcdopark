@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AlertaVencimento } from "./_components/AlertaVencimento"; // Caminho corrigido
 
 export default function DashboardLayout({
   children,
@@ -7,6 +8,9 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* NOVO: Componente que monitora os vencimentos do dia */}
+      <AlertaVencimento />
+
       {/* Menu Lateral (Sidebar) */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         {/* Cabeçalho com Logo - Centralizado */}
