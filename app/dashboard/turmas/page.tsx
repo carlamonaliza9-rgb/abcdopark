@@ -89,10 +89,11 @@ export default function Turmas() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  // --- AÇÕES DE ADMIN ---
+  // --- AÇÕES DE ADMIN COM TRAVA DE SEGURANÇA ---
   async function editarProfessor(e: React.MouseEvent, nomeTurma: string) {
     e.stopPropagation();
     if (!ehAdmin) return; 
+    
     if (listaProfessores.length === 0) return alert("Cadastre um professor primeiro.");
     const nomesProfs = listaProfessores.map((p, i) => `${i + 1} - ${p.nome}`).join('\n');
     const escolha = prompt(`Vincular professor para ${nomeTurma}:\n\n${nomesProfs}\n\nDigite o NÚMERO:`);
@@ -107,6 +108,8 @@ export default function Turmas() {
   }
 
   async function salvarHorarioImagem() {
+    if (!ehAdmin) return alert("Acesso negado: apenas administradores podem alterar horários.");
+    
     if (!arquivoHorario && !previewHorario) return alert("Selecione uma imagem.");
     setSalvandoHorario(true);
 
@@ -123,6 +126,7 @@ export default function Turmas() {
       const { error: dbError } = await supabase.from('turmas_info').upsert({ nome_turma: turmaParaHorario.nome, horario_url: publicUrl }, { onConflict: 'nome_turma' });
       if (dbError) throw dbError;
 
+      alert("Horário atualizado com sucesso!");
       setModalHorarioAberto(false);
       carregarDados();
     } catch (err: any) {
@@ -155,7 +159,15 @@ export default function Turmas() {
             key={turma.nome} 
             turma={turma} 
             ehAdmin={ehAdmin} 
-            onAbrirTurma={(t) => { setTurmaSelecionada({ ...t, alunos: todosAlunos.filter(a => a.turma === t.nome) }); setModalTurmaAberto(true); }}
+            onAbrirTurma={(t) => { 
+              // FILTRA E ORDENA ALFABETICAMENTE
+              const listaOrdenada = todosAlunos
+                .filter(a => a.turma === t.nome)
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+
+              setTurmaSelecionada({ ...t, alunos: listaOrdenada }); 
+              setModalTurmaAberto(true); 
+            }}
             onEditarProfessor={editarProfessor}
             onAbrirUploadHorario={(e, t) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
           />
