@@ -9,6 +9,21 @@ interface TurmaCardProps {
 }
 
 export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onAbrirUploadHorario }: TurmaCardProps) {
+  // Lógica para decidir o que exibir no campo de professores fixos
+  const exibirProfessoresFixos = () => {
+    if (!turma.profFixo1 && !turma.profFixo2) return "Não definido";
+    if (turma.profFixo1 && !turma.profFixo2) return turma.profFixo1;
+    if (!turma.profFixo1 && turma.profFixo2) return turma.profFixo2;
+    return `${turma.profFixo1} / ${turma.profFixo2}`;
+  };
+
+  // Lógica para professores especialistas
+  const temEspecialistas = turma.profEspec1 || turma.profEspec2;
+  const exibirEspecialistas = () => {
+    const lista = [turma.profEspec1, turma.profEspec2].filter(p => p !== "" && p !== null);
+    return lista.join(" / ");
+  };
+
   return (
     <div 
       onClick={() => onAbrirTurma(turma)} 
@@ -26,15 +41,47 @@ export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onA
       <div style={{ fontSize: '45px', marginBottom: '10px' }}>{turma.icone || '🏫'}</div>
       <h3 style={{ fontSize: '22px', fontWeight: '800', color: turma.texto || '#111827' }}>{turma.nome}</h3>
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', margin: '10px 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', margin: '15px 0' }}>
           {ehAdmin ? (
             <>
               <button 
                 onClick={(e) => onEditarProfessor(e, turma.nome)} 
-                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+                style={{ 
+                  fontSize: '11px', 
+                  color: turma.texto, 
+                  background: 'white', 
+                  border: `1px solid ${turma.borda}`, 
+                  padding: '10px', 
+                  borderRadius: '12px', 
+                  fontWeight: '600', 
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}
               >
-                👤 Prof: {turma.professor || "Não definido"} ✏️
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    👤 {exibirProfessoresFixos()}
+                  </span>
+                  <span style={{ fontSize: '10px' }}>✏️</span>
+                </div>
+                
+                {temEspecialistas && (
+                  <div style={{ 
+                    fontSize: '10px', 
+                    opacity: 0.7, 
+                    borderTop: `1px solid ${turma.borda}44`, 
+                    marginTop: '4px', 
+                    paddingTop: '6px',
+                    color: '#4b5563'
+                  }}>
+                    ⭐ {exibirEspecialistas()}
+                  </div>
+                )}
               </button>
+
               <button 
                 onClick={(e) => onAbrirUploadHorario(e, turma)} 
                 style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
@@ -43,9 +90,33 @@ export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onA
               </button>
             </>
           ) : (
-            <span style={{ fontSize: '12px', color: turma.texto, background: 'rgba(255,255,255,0.5)', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600' }}>
-              👤 Prof: {turma.professor || "Não definido"}
-            </span>
+            <div style={{ 
+              fontSize: '11px', 
+              color: turma.texto, 
+              background: 'rgba(255,255,255,0.5)', 
+              border: `1px solid ${turma.borda}`, 
+              padding: '10px', 
+              borderRadius: '12px', 
+              fontWeight: '600',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <span>👤 {exibirProfessoresFixos()}</span>
+              
+              {temEspecialistas && (
+                <div style={{ 
+                  fontSize: '10px', 
+                  opacity: 0.8, 
+                  borderTop: `1px solid ${turma.borda}44`, 
+                  marginTop: '4px', 
+                  paddingTop: '6px' 
+                }}>
+                  ⭐ {exibirEspecialistas()}
+                </div>
+              )}
+            </div>
           )}
       </div>
 
