@@ -4,9 +4,10 @@ interface ModalFichaAlunoTurmaProps {
   aluno: any;
   onClose: () => void;
   historico?: any[];
+  ehAdmin: boolean; // Propriedade adicionada para controle de acesso
 }
 
-export function ModalFichaAlunoTurma({ aluno, onClose }: ModalFichaAlunoTurmaProps) {
+export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin }: ModalFichaAlunoTurmaProps) {
   if (!aluno) return null;
 
   return (
@@ -24,7 +25,6 @@ export function ModalFichaAlunoTurma({ aluno, onClose }: ModalFichaAlunoTurmaPro
               </div>
             )}
             
-            {/* Símbolo TEA (Autismo) Sobreposto na Foto */}
             {aluno.e_autista && (
                <span style={{ position: 'absolute', bottom: 5, right: 0, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                  🧩
@@ -36,7 +36,6 @@ export function ModalFichaAlunoTurma({ aluno, onClose }: ModalFichaAlunoTurmaPro
           
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', marginTop: '5px' }}>
             <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>{aluno.turma}</span>
-            {/* Badges Adicionais Abaixo do Nome */}
             {aluno.e_autista && <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>TEA 🧩</span>}
           </div>
         </div>
@@ -52,15 +51,51 @@ export function ModalFichaAlunoTurma({ aluno, onClose }: ModalFichaAlunoTurmaPro
             <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>RESPONSÁVEL</small>
             <p style={{ margin: 0, fontWeight: 'bold', fontSize: '12px' }}>{aluno.responsavel || '--'}</p>
           </div>
+
+          {/* CPF: Visível apenas para Admin */}
+          {ehAdmin && (
+            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9', gridColumn: 'span 2' }}>
+              <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>DOCUMENTO (CPF)</small>
+              <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>{aluno.cpf || '--'}</p>
+            </div>
+          )}
         </div>
 
-        {/* Alerta de Alergia Detalhado */}
+        {/* Alerta de Alergia Detalhado (Visível para todos) */}
         {aluno.tem_alergia && (
           <div style={{ background: '#fef2f2', padding: '15px', borderRadius: '15px', marginTop: '15px', border: '1px solid #fecaca' }}>
             <p style={{ margin: 0, color: '#dc2626', fontWeight: 'bold', fontSize: '13px', marginBottom: '5px' }}>⚠️ ALERGIA / RESTRIÇÃO</p>
             <p style={{ margin: 0, color: '#991b1b', fontSize: '14px' }}>{aluno.alergia_descricao || "Nenhuma descrição fornecida."}</p>
           </div>
         )}
+
+        {/* Seção de Histórico de Eventos / Pagamentos */}
+        <div style={{ marginTop: '25px' }}>
+          <h4 style={{ fontSize: '14px', color: '#475569', marginBottom: '10px', fontWeight: '800' }}>HISTÓRICO E EVENTOS</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+            {historico.length > 0 ? (
+              historico.map((item: any, idx: number) => {
+                // Filtra: se for financeiro (ex: mensalidade), só Admin vê. Se for evento pedagógico, todos veem.
+                const ehFinanceiro = item.valor !== undefined || item.tipo === 'financeiro';
+                if (ehFinanceiro && !ehAdmin) return null;
+
+                return (
+                  <div key={idx} style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                       <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>
+                         {new Date(item.data_pagamento || item.created_at).toLocaleDateString('pt-BR')}
+                       </span>
+                       {ehFinanceiro && <span style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>R$ {item.valor?.toLocaleString('pt-BR')}</span>}
+                    </div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#334155', fontWeight: '500' }}>{item.descricao || item.observacao}</p>
+                  </div>
+                );
+              })
+            ) : (
+              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>Nenhum registro encontrado.</p>
+            )}
+          </div>
+        </div>
 
         <div style={{ marginTop: '30px' }}>
           <button onClick={onClose} style={{ width: '100%', padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 'bold', cursor: 'pointer' }}>

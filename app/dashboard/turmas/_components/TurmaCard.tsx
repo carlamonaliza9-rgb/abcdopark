@@ -6,9 +6,10 @@ interface TurmaCardProps {
   onAbrirTurma: (turma: any) => void;
   onEditarProfessor: (e: React.MouseEvent, nomeTurma: string) => void;
   onAbrirUploadHorario: (e: React.MouseEvent, turma: any) => void;
+  onAbrirAgenda: (e: React.MouseEvent, turma: any) => void; // Nova prop adicionada
 }
 
-export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onAbrirUploadHorario }: TurmaCardProps) {
+export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onAbrirUploadHorario, onAbrirAgenda }: TurmaCardProps) {
   // Lógica para decidir o que exibir no campo de professores fixos
   const exibirProfessoresFixos = () => {
     if (!turma.profFixo1 && !turma.profFixo2) return "Não definido";
@@ -88,35 +89,51 @@ export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onA
               >
                 📅 {turma.horario_url ? "Trocar Horário" : "Definir Horário"}
               </button>
+
+              <button 
+                onClick={(e) => onAbrirAgenda(e, turma)} 
+                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                📝 Agenda Escolar
+              </button>
             </>
           ) : (
-            <div style={{ 
-              fontSize: '11px', 
-              color: turma.texto, 
-              background: 'rgba(255,255,255,0.5)', 
-              border: `1px solid ${turma.borda}`, 
-              padding: '10px', 
-              borderRadius: '12px', 
-              fontWeight: '600',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px'
-            }}>
-              <span>👤 {exibirProfessoresFixos()}</span>
-              
-              {temEspecialistas && (
-                <div style={{ 
-                  fontSize: '10px', 
-                  opacity: 0.8, 
-                  borderTop: `1px solid ${turma.borda}44`, 
-                  marginTop: '4px', 
-                  paddingTop: '6px' 
-                }}>
-                  ⭐ {exibirEspecialistas()}
-                </div>
-              )}
-            </div>
+            <>
+              <div style={{ 
+                fontSize: '11px', 
+                color: turma.texto, 
+                background: 'rgba(255,255,255,0.5)', 
+                border: `1px solid ${turma.borda}`, 
+                padding: '10px', 
+                borderRadius: '12px', 
+                fontWeight: '600',
+                textAlign: 'left',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <span>👤 {exibirProfessoresFixos()}</span>
+                
+                {temEspecialistas && (
+                  <div style={{ 
+                    fontSize: '10px', 
+                    opacity: 0.8, 
+                    borderTop: `1px solid ${turma.borda}44`, 
+                    marginTop: '4px', 
+                    paddingTop: '6px' 
+                  }}>
+                    ⭐ {exibirEspecialistas()}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={(e) => onAbrirAgenda(e, turma)} 
+                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '2px' }}
+              >
+                📝 Agenda Escolar
+              </button>
+            </>
           )}
       </div>
 
