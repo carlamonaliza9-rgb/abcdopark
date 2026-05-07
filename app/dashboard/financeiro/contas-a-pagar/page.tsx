@@ -48,7 +48,6 @@ export default function ContasAPagar() {
       parcelas.push({
         descricao: dados.repetirMeses > 1 ? `${dados.descricao} (${i + 1}/${dados.repetirMeses})` : dados.descricao,
         valor: dados.valor,
-        data_venc_original: dataVencimento.toISOString().split('T')[0], // mantendo compatibilidade se necessário
         data_vencimento: dataVencimento.toISOString().split('T')[0],
         is_recorrente: dados.repetirMeses > 1,
         grupo_id: grupoId 
@@ -144,20 +143,11 @@ export default function ContasAPagar() {
     else carregarContas();
   }
 
-  // LÓGICA DE STATUS ATUALIZADA
   function obterStatus(conta: any) {
     if (conta.pago) return { texto: "Pago", corFundo: "#dcfce7", corTexto: "#166534" };
-    
     const hoje = new Date().toISOString().split('T')[0];
-    const vencimento = conta.data_vencimento;
-
-    if (vencimento < hoje) {
-      return { texto: "Atrasado", corFundo: "#fee2e2", corTexto: "#991b1b" };
-    }
-    if (vencimento === hoje) {
-      return { texto: "Pendente", corFundo: "#ffedd5", corTexto: "#9a3412" };
-    }
-    return { texto: "A Vencer", corFundo: "#f1f5f9", corTexto: "#475569" };
+    if (conta.data_vencimento < hoje) return { texto: "Pendente", corFundo: "#fee2e2", corTexto: "#991b1b" }; 
+    return { texto: "A Vencer", corFundo: "#fef3c7", corTexto: "#92400e" }; 
   }
 
   return (
@@ -179,22 +169,7 @@ export default function ContasAPagar() {
               <div key={conta.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: `1px solid ${conta.pago ? '#dcfce7' : '#f1f5f9'}` }}>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  {/* Etiqueta de Status Estilizada como Balão/Pílula */}
-                  <div style={{ 
-                    backgroundColor: status.corFundo, 
-                    color: status.corTexto, 
-                    padding: '6px 16px', 
-                    borderRadius: '100px', 
-                    fontSize: '11px', 
-                    fontWeight: '900', 
-                    minWidth: '100px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap'
-                  }}>
+                  <div style={{ backgroundColor: status.corFundo, color: status.corTexto, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', width: '80px', textAlign: 'center' }}>
                     {status.texto}
                   </div>
                   <div>

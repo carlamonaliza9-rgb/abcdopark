@@ -17,13 +17,20 @@ export function AlertaVencimento() {
       return;
     }
 
-    const hoje = new Date().toISOString().split('T')[0];
+    // CORREÇÃO DE FUSO HORÁRIO: Garante que pegue "hoje" no horário local de Belém
+    const agora = new Date();
+    const hoje = [
+      agora.getFullYear(),
+      String(agora.getMonth() + 1).padStart(2, '0'),
+      String(agora.getDate()).padStart(2, '0')
+    ].join('-');
     
+    // ALTERAÇÃO: .lte garante que mostre contas vencendo hoje E contas atrasadas
     const { data } = await supabase
       .from('contas_a_pagar')
       .select('descricao, valor')
       .eq('pago', false)
-      .eq('data_vencimento', hoje);
+      .lte('data_vencimento', hoje);
 
     if (data && data.length > 0) {
       setContasDeHoje(data);
@@ -47,7 +54,7 @@ export function AlertaVencimento() {
         verificarVencimentos();
       }, 30 * 60 * 1000); // 30 minutos em milissegundos
     } else {
-      // Se não estiver na página, verifica imediatamente
+      // Se não estiver na página (incluindo logo após o login), verifica imediatamente
       verificarVencimentos();
     }
 
@@ -96,7 +103,7 @@ export function AlertaVencimento() {
       </div>
       
       <p style={{ fontSize: '12px', color: '#4b5563', margin: '0 0 10px 0' }}>
-        Abre a página para regularizar.
+        Há pagamentos pendentes. Clique para regularizar.
       </p>
 
       <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
