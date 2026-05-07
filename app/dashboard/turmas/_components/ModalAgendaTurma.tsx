@@ -6,119 +6,147 @@ interface ModalAgendaTurmaProps {
   turma: any;
   onClose: () => void;
   userEmail: string | null;
+  modo: 'registrar' | 'consultar';
+  ehAdmin?: boolean;
 }
 
-export function ModalAgendaTurma({ turma, onClose, userEmail }: ModalAgendaTurmaProps) {
+export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: ModalAgendaTurmaProps) {
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toISOString().split('T')[0]);
   const [conteudoAula, setConteudoAula] = useState("");
   const [tarefaCasa, setTarefaCasa] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [estaEditando, setEstaEditando] = useState(modo === 'registrar');
 
-  // Busca se já existe registro para a data selecionada
   async function carregarRegistroDaData(data: string) {
     setCarregando(true);
-    const { data: registro, error } = await supabase
-      .from('agenda_escolar')
-      .select('*')
-      .eq('nome_turma', turma.nome)
-      .eq('data', data)
-      .single();
-
+    const { data: registro } = await supabase.from('agenda_escolar').select('*').eq('nome_turma', turma.nome).eq('data', data).single();
     if (registro) {
       setConteudoAula(registro.conteudo_aula || "");
       setTarefaCasa(registro.tarefa_casa || "");
     } else {
-      setConteudoAula("");
-      setTarefaCasa("");
+      setConteudoAula(""); setTarefaCasa("");
     }
     setCarregando(false);
   }
 
   useEffect(() => {
     carregarRegistroDaData(dataSelecionada);
-  }, [dataSelecionada]);
+    setEstaEditando(modo === 'registrar');
+  }, [dataSelecionada, modo]);
 
   async function handleSalvar() {
     if (!conteudoAula && !tarefaCasa) return alert("Preencha ao menos um campo.");
-    
     setSalvando(true);
     const { error } = await supabase.from('agenda_escolar').upsert({
-      nome_turma: turma.nome,
-      data: dataSelecionada,
-      conteudo_aula: conteudoAula,
-      tarefa_casa: tarefaCasa,
+      nome_turma: turma.nome, data: dataSelecionada,
+      conteudo_aula: conteudoAula, tarefa_casa: tarefaCasa,
       professor_email: userEmail
-    }, { onConflict: 'nome_turma, data' }); // Requer que você tenha uma constraint unique no banco para (nome_turma, data)
+    }, { onConflict: 'nome_turma, data' });
 
-    if (error) {
-      alert("Erro ao salvar: " + error.message);
-    } else {
+    if (error) alert("Erro ao salvar: " + error.message);
+    else {
       alert("Agenda salva com sucesso! 📝");
-      onClose();
+      if (modo === 'registrar') onClose();
+      else setEstaEditando(false);
     }
     setSalvando(false);
   }
 
+  // NOVA FUNÇÃO: EXCLUIR REGISTRO COM SENHA
+  async function handleExcluir() {
+    const senha = prompt("🔒 Digite a senha para EXCLUIR este registro:");
+    
+    if (senha === "1123") {
+      const confirmou = confirm("Tem certeza que deseja apagar permanentemente a agenda deste dia?");
+      if (confirmou) {
+        const { error } = await supabase
+          .from('agenda_escolar')
+          .delete()
+          .eq('nome_turma', turma.nome)
+          .eq('data', dataSelecionada);
+
+        if (error) {
+          alert("Erro ao excluir: " + error.message);
+        } else {
+          alert("Registro removido com sucesso!");
+          // Limpa os campos após excluir
+          setConteudoAula("");
+          setTarefaCasa("");
+          setEstaEditando(false);
+        }
+      }
+    } else if (senha !== null) {
+      alert("⚠️ Senha incorreta.");
+    }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(8px)' }}>
-      <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '95%', maxWidth: '500px', padding: '30px', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '95%', maxWidth: '500px', padding: '30px', position: 'relative' }}>
+        
+        {/* BOTÃO EXCLUIR: Visível apenas no modo consultar */}
+        {modo === 'consultar' && (
+          <button 
+            onClick={handleExcluir}
+            style={{ position: 'absolute', top: 20, left: 20, border: 'none', background: '#fee2e2', color: '#dc2626', borderRadius: '12px', padding: '8px 15px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            🗑️ EXCLUIR
+          </button>
+        )}
+
         <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, border: 'none', background: '#f1f5f9', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer' }}>✕</button>
 
-        <header style={{ textAlign: 'center', marginBottom: '25px' }}>
-          <span style={{ fontSize: '40px' }}>📝</span>
-          <h2 style={{ margin: '10px 0 5px', fontSize: '22px', fontWeight: '800', color: '#111827' }}>Agenda da Turma</h2>
+        <header style={{ textAlign: 'center', marginBottom: '25px', marginTop: modo === 'consultar' ? '20px' : '0' }}>
+          <span style={{ fontSize: '40px' }}>{modo === 'registrar' ? "📝" : "🔍"}</span>
+          <h2 style={{ margin: '10px 0 5px', fontSize: '22px', fontWeight: '800', color: '#111827' }}>
+            {modo === 'registrar' ? 'Registrar Agenda de Hoje' : 'Consultar Agendas'}
+          </h2>
           <p style={{ margin: 0, color: '#64748b', fontWeight: '600' }}>{turma.nome}</p>
         </header>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Seleção de Data */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>DATA DA ATIVIDADE</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>DATA DA ATIVIDADE</label>
             <input 
-              type="date" 
-              value={dataSelecionada}
+              type="date" value={dataSelecionada}
               onChange={(e) => setDataSelecionada(e.target.value)}
-              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none', fontFamily: 'inherit' }}
+              disabled={modo === 'registrar'}
+              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: modo === 'registrar' ? '#f1f5f9' : '#fff' }}
             />
           </div>
 
-          {/* Conteúdo da Aula */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>O QUE FOI REALIZADO EM SALA</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>O QUE FOI REALIZADO EM SALA</label>
             <textarea 
-              placeholder="Descreva as atividades, temas abordados..."
-              value={conteudoAula}
-              onChange={(e) => setConteudoAula(e.target.value)}
-              disabled={carregando}
-              style={{ width: '100%', minHeight: '100px', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+              value={conteudoAula} onChange={(e) => setConteudoAula(e.target.value)}
+              disabled={!estaEditando || carregando}
+              placeholder={estaEditando ? "Descreva as atividades..." : "Sem registro para esta data."}
+              style={{ width: '100%', minHeight: '100px', padding: '12px', borderRadius: '12px', border: estaEditando ? '1px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: estaEditando ? '#fff' : '#f8fafc', resize: 'none' }}
             />
           </div>
 
-          {/* Tarefa de Casa */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>ATIVIDADE PARA CASA (PARA OS PAIS)</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px' }}>ATIVIDADE PARA CASA</label>
             <textarea 
-              placeholder="Livro página X, trazer material Y..."
-              value={tarefaCasa}
-              onChange={(e) => setTarefaCasa(e.target.value)}
-              disabled={carregando}
-              style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+              value={tarefaCasa} onChange={(e) => setTarefaCasa(e.target.value)}
+              disabled={!estaEditando || carregando}
+              placeholder={estaEditando ? "Lição de casa..." : "Nenhuma tarefa registrada."}
+              style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '12px', border: estaEditando ? '1px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: estaEditando ? '#fff' : '#f8fafc', resize: 'none' }}
             />
           </div>
         </div>
 
         <div style={{ marginTop: '30px', display: 'flex', gap: '10px' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 'bold', cursor: 'pointer' }}>
-            CANCELAR
-          </button>
-          <button 
-            onClick={handleSalvar} 
-            disabled={salvando || carregando}
-            style={{ flex: 2, padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer', opacity: salvando ? 0.7 : 1 }}
-          >
-            {salvando ? "SALVANDO..." : "SALVAR NA AGENDA"}
-          </button>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 'bold', cursor: 'pointer' }}>FECHAR</button>
+          
+          {modo === 'consultar' && !estaEditando ? (
+            <button onClick={() => setEstaEditando(true)} style={{ flex: 2, padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>✏️ EDITAR ESTA DATA</button>
+          ) : (
+            <button onClick={handleSalvar} disabled={salvando || carregando} style={{ flex: 2, padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+              {salvando ? "SALVANDO..." : "SALVAR NA AGENDA"}
+            </button>
+          )}
         </div>
       </div>
     </div>

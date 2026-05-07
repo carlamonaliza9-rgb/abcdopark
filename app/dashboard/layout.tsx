@@ -1,4 +1,7 @@
+"use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { AlertaVencimento } from "./_components/AlertaVencimento";
 
 export default function DashboardLayout({
@@ -6,9 +9,41 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [ehAdmin, setEhAdmin] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function verificarAcesso() {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        const email = authData.user.email;
+        
+        // Verifica se é um dos e-mails da diretoria ou se tem cargo Admin no perfil
+        const { data: perfil } = await supabase
+          .from('perfis')
+          .select('cargo')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (
+          email === 'carlamonaliza9@gmail.com' || 
+          email === 'diretoria@abcdopark.com' || 
+          perfil?.cargo === 'Admin'
+        ) {
+          setEhAdmin(true);
+        }
+      }
+      setCarregando(false);
+    }
+    verificarAcesso();
+  }, []);
+
+  // Enquanto verifica o acesso, mostra um menu básico ou nada para evitar "piscada" de tela
+  if (carregando) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Carregando menu...</div>;
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* NOVO: Componente que monitora os vencimentos do dia */}
+      {/* Componente que monitora os vencimentos do dia */}
       <AlertaVencimento />
 
       {/* Menu Lateral (Sidebar) */}
@@ -25,34 +60,46 @@ export default function DashboardLayout({
           <p className="text-xs text-blue-600 mt-1 uppercase tracking-widest font-semibold">Gestão Escolar</p>
         </div>
 
-        {/* Links de Navegação - FONTE AUMENTADA (text-lg e font-bold) */}
+        {/* Links de Navegação */}
         <nav className="flex-1 p-4 space-y-2">
           <Link href="/dashboard" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             📊 Dashboard
           </Link>
-          <Link href="/dashboard/alunos" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            👨‍🎓 Alunos
-          </Link>
+
+          {/* SÓ APARECE PARA ADMIN */}
+          {ehAdmin && (
+            <>
+              <Link href="/dashboard/alunos" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                👨‍🎓 Alunos
+              </Link>
+            </>
+          )}
+
+          {/* AJUSTE: NOME DINÂMICO APENAS NO TEXTO DO BOTÃO */}
           <Link href="/dashboard/turmas" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            🏫 Turmas
+            {ehAdmin ? "🏫 Turmas" : "🏫 Minha Turma"}
           </Link>
           
-          <Link href="/dashboard/funcionarios" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            👥 Funcionários
-          </Link>
+          {/* SÓ APARECE PARA ADMIN */}
+          {ehAdmin && (
+            <>
+              <Link href="/dashboard/funcionarios" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                👥 Funcionários
+              </Link>
 
-          <Link href="/dashboard/financeiro" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            💰 Financeiro
-          </Link>
+              <Link href="/dashboard/financeiro" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                💰 Financeiro
+              </Link>
 
-          {/* LINK DE CONTAS A PAGAR */}
-          <Link href="/dashboard/financeiro/contas-a-pagar" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            💸 Contas a Pagar
-          </Link>
+              <Link href="/dashboard/financeiro/contas-a-pagar" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                💸 Contas a Pagar
+              </Link>
 
-          <Link href="/dashboard/fechamento" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            🎓 Fechamento Letivo
-          </Link>
+              <Link href="/dashboard/fechamento" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                🎓 Fechamento Letivo
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Botão Sair */}
