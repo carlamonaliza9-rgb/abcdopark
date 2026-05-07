@@ -16,6 +16,8 @@ interface FormAlunoModalProps {
 export function FormAlunoModal(props: FormAlunoModalProps) {
   const { idEdicao, form, setForm, previewUrl, carregando, mCPF, mWhatsApp, onTrocarFoto, onSalvar, onCancelar } = props;
 
+  const listaTags = ["Mãe", "Pai", "Avó", "Avô", "Tio", "Tia", "Madrasta", "Padrasto", "Irmão", "Irmã", "Outro"];
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
       <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -50,20 +52,42 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
           </div>
 
           <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0' }}>RESPONSÁVEIS</p>
-            <div style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0', textTransform: 'uppercase' }}>Contatos e Responsáveis</p>
+            
+            {/* RESPONSÁVEL 1 */}
+            <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
+              <select value={form.parentesco1} onChange={(e)=>setForm({...form, parentesco1: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
+                {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+              </select>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                <input type="text" placeholder="Nome Resp. 1" value={form.responsavel} onChange={(e)=>setForm({...form, responsavel: e.target.value})} required style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                <input type="text" placeholder="CPF Resp. 1" value={form.cpfResponsavel} onChange={(e)=>setForm({...form, cpfResponsavel: mCPF(e.target.value)})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" placeholder="Nome" value={form.responsavel} onChange={(e)=>setForm({...form, responsavel: e.target.value})} required style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" placeholder="CPF" value={form.cpfResponsavel} onChange={(e)=>setForm({...form, cpfResponsavel: mCPF(e.target.value)})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
               </div>
-              <input type="text" placeholder="WhatsApp 1" value={form.whatsapp} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+              <input type="text" placeholder="WhatsApp" value={form.whatsapp} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
             </div>
-            <div>
+
+            {/* RESPONSÁVEL 2 */}
+            <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
+              <select value={form.parentesco2} onChange={(e)=>setForm({...form, parentesco2: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
+                {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+              </select>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                <input type="text" placeholder="Nome Resp. 2" value={form.responsavel2} onChange={(e)=>setForm({...form, responsavel2: e.target.value})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                <input type="text" placeholder="CPF Resp. 2" value={form.cpfResponsavel2} onChange={(e)=>setForm({...form, cpfResponsavel2: mCPF(e.target.value)})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" placeholder="Nome" value={form.responsavel2} onChange={(e)=>setForm({...form, responsavel2: e.target.value})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" placeholder="CPF" value={form.cpfResponsavel2} onChange={(e)=>setForm({...form, cpfResponsavel2: mCPF(e.target.value)})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
               </div>
-              <input type="text" placeholder="WhatsApp 2" value={form.whatsapp2} onChange={(e)=>setForm({...form, whatsapp2: mWhatsApp(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+              <input type="text" placeholder="WhatsApp" value={form.whatsapp2} onChange={(e)=>setForm({...form, whatsapp2: mWhatsApp(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+            </div>
+
+            {/* RESPONSÁVEL 3 (OUTROS) */}
+            <div>
+              <select value={form.parentesco3} onChange={(e)=>setForm({...form, parentesco3: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
+                <option value="">Outro Responsável (Opcional)...</option>
+                {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+              </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
+                <input type="text" placeholder="Nome Terceiro Contato" value={form.responsavel3} onChange={(e)=>setForm({...form, responsavel3: e.target.value})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                <input type="text" placeholder="WhatsApp" value={form.whatsapp3} onChange={(e)=>setForm({...form, whatsapp3: mWhatsApp(e.target.value)})} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+              </div>
             </div>
           </div>
 
