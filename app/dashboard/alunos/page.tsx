@@ -15,21 +15,25 @@ export default function Alunos() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   
+  // --- ESTADOS DOS CAMPOS ---
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [cpfAluno, setCpfAluno] = useState("");
   const [turma, setTurma] = useState("");
   
+  // Responsável 1
   const [responsavel, setResponsavel] = useState("");
   const [parentesco1, setParentesco1] = useState("Mãe");
   const [cpfResponsavel, setCpfResponsavel] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   
+  // Responsável 2
   const [responsavel2, setResponsavel2] = useState("");
   const [parentesco2, setParentesco2] = useState("Pai");
   const [cpfResponsavel2, setCpfResponsavel2] = useState("");
   const [whatsapp2, setWhatsapp2] = useState("");
 
+  // Responsável 3
   const [responsavel3, setResponsavel3] = useState("");
   const [parentesco3, setParentesco3] = useState("");
   const [whatsapp3, setWhatsapp3] = useState("");
@@ -50,6 +54,7 @@ export default function Alunos() {
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
+  // --- FUNÇÕES UTILITÁRIAS ---
   const mWhatsApp = (v: string) => {
     if (!v) return "";
     v = v.replace(/\D/g, "");
@@ -88,6 +93,7 @@ export default function Alunos() {
     return cores[turmaNome] || "#ffffff";
   };
 
+  // --- COMUNICAÇÃO COM SUPABASE ---
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -224,11 +230,11 @@ export default function Alunos() {
         <FichaAlunoModal 
           aluno={{
             id: idEdicao, nome, cpf_aluno: cpfAluno, turma, 
-            responsavel, parentesco1: parentesco1, // FIX: Removido o underline para combinar com o Modal
+            responsavel, parentesco1: parentesco1, 
             whatsapp, cpf_responsavel: cpfResponsavel, 
-            responsavel2, parentesco2: parentesco2, // FIX: Removido o underline
+            responsavel2, parentesco2: parentesco2, 
             whatsapp2, cpf_responsavel2: cpfResponsavel2, 
-            responsavel3, parentesco3: parentesco3, // FIX: Removido o underline
+            responsavel3, parentesco3: parentesco3, 
             whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
             e_autista: eAutista, foto_url: previewUrl

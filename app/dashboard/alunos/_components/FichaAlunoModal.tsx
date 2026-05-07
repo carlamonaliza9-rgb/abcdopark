@@ -41,11 +41,26 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   if (!aluno) return null;
 
-  // Mapeamento organizado dos contatos
+  // Mapeamento organizado dos 3 responsáveis com suporte aos nomes do banco (parentesco_1) ou do estado (parentesco1)
   const contatos = [
-    { nome: aluno.responsavel, whats: aluno.whatsapp, tag: aluno.parentesco1 || "Mãe", cor: "#db2777", bg: "#fdf2f8" },
-    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, tag: aluno.parentesco2 || "Pai", cor: "#2563eb", bg: "#eff6ff" },
-    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, tag: aluno.parentesco3 || "Outro", cor: "#16a34a", bg: "#f0fdf4" }
+    { 
+      nome: aluno.responsavel, 
+      whats: aluno.whatsapp, 
+      tag: aluno.parentesco1 || aluno.parentesco_1 || "Mãe", 
+      cor: "#db2777", bg: "#fdf2f8" 
+    },
+    { 
+      nome: aluno.responsavel2 || aluno.responsavel_2_nome, 
+      whats: aluno.whatsapp2 || aluno.responsavel_2_contato, 
+      tag: aluno.parentesco2 || aluno.parentesco_2 || "Pai", 
+      cor: "#2563eb", bg: "#eff6ff" 
+    },
+    { 
+      nome: aluno.responsavel3 || aluno.responsavel_3_nome, 
+      whats: aluno.whatsapp3 || aluno.responsavel_3_contato, 
+      tag: aluno.parentesco3 || aluno.parentesco_3 || "Outro", 
+      cor: "#16a34a", bg: "#f0fdf4" 
+    }
   ];
 
   return (
@@ -89,7 +104,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
               </div>
 
-              {/* SEÇÃO DE CONTATOS COM TAGS SINGELAS */}
+              {/* SEÇÃO DE CONTATOS COM TAGS SINGELAS E BOTÃO DISCRETO */}
               <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
                 <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 12px', textTransform: 'uppercase' }}>Contatos de Emergência</p>
                 

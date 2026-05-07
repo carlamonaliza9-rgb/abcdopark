@@ -40,7 +40,7 @@ export default function Turmas() {
   const [arrastandoHorario, setArrastandoHorario] = useState(false);
   const [salvandoHorario, setSalvandoHorario] = useState(false);
 
-  // --- ESTADOS DA AGENDA ESCOLAR (AJUSTADO) ---
+  // --- ESTADOS DA AGENDA ESCOLAR ---
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false);
   const [turmaParaAgenda, setTurmaParaAgenda] = useState<any>(null);
   const [modoAgenda, setModoAgenda] = useState<'registrar' | 'consultar'>('registrar');
@@ -54,6 +54,16 @@ export default function Turmas() {
     "3º Ano": { icone: "🧪", texto: "#6d28d9" },
     "4º Ano": { icone: "🌍", texto: "#0e7490" },
     "5º Ano": { icone: "🚀", texto: "#a16207" },
+  };
+
+  const calcularIdade = (dataNasc: string) => {
+    if (!dataNasc) return "--";
+    const hoje = new Date();
+    const nascimento = new Date(dataNasc);
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const m = hoje.getMonth() - nascimento.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--;
+    return `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
   };
 
   const escurecerCor = (hex: string, valor: number = 35) => {
@@ -198,7 +208,6 @@ export default function Turmas() {
     <div style={{ width: '100%', padding: '0px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
       {ehAdmin ? (
-        // --- VISÃO DA DIRETORIA (IGUAL AO QUE VOCÊ ENVIOU) ---
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
             <button onClick={() => { if (editandoCores) cancelarEdicao(); else { setEditandoCores(true); setCoresTemporarias(coresConfig); } }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.4 }} title="Personalizar Cores">
@@ -209,11 +218,11 @@ export default function Turmas() {
           {editandoCores && (
             <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', color: '#111827', fontWeight: '800' }}>Personalizar Cores (Preview Ativo)</h4>
+                <h4 style={{ margin: 0, fontSize: '15px', color: '#111827', fontWeight: '800' }}>Personalizar Cores</h4>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={cancelarEdicao} style={{ padding: '8px 15px', backgroundColor: '#f3f4f6', color: '#4b5563', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Descartar</button>
                     <button onClick={confirmarNovasCores} disabled={salvandoCores} style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-                     {salvandoCores ? "Gravando..." : "OK - Salvar Cores e Contornos"}
+                     {salvandoCores ? "Gravando..." : "Salvar Cores"}
                     </button>
                 </div>
               </div>
@@ -249,7 +258,7 @@ export default function Turmas() {
           </div>
         </>
       ) : (
-        // --- VISÃO DO PROFESSOR (LISTA COLORIDA VIBRANTE + ALERTAS) ---
+        // --- VISÃO DO PROFESSOR ---
         <div style={{ paddingTop: '30px' }}>
           {turmas.map(minhaTurma => (
             <div key={minhaTurma.nome} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '30px', border: '1px solid #f1f5f9', marginBottom: '30px' }}>
@@ -299,13 +308,14 @@ export default function Turmas() {
                         </div>
                         <div>
                           <p style={{ fontWeight: '900', color: cor.text, fontSize: '18px', margin: 0 }}>{aluno.nome}</p>
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: cor.text, opacity: 0.8 }}>{calcularIdade(aluno.data_nascimento)}</span>
                             {aluno.tem_alergia && <span style={{ fontSize: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', padding: '3px 10px', borderRadius: '8px', fontWeight: '800', border: '1px solid #fecaca' }}>⚠️ ALERGIA: {aluno.alergia_descricao || "Sim"}</span>}
-                            {aluno.tem_tea && <span style={{ fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: '8px', fontWeight: '800', border: '1px solid #bae6fd' }}>🧩 TEA (AUTISMO)</span>}
+                            {aluno.e_autista && <span style={{ fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: '8px', fontWeight: '800', border: '1px solid #bae6fd' }}>🧩 TEA</span>}
                           </div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '12px', color: cor.text, fontWeight: '900', opacity: 0.6 }}>VER FICHA ➔</span>
+                      <span style={{ fontSize: '11px', color: cor.text, fontWeight: '900', opacity: 0.6 }}>VER FICHA ➔</span>
                     </div>
                   );
                 })}
@@ -315,7 +325,7 @@ export default function Turmas() {
         </div>
       )}
 
-      {/* MODAIS (MANTIDOS E INTEGRADOS) */}
+      {/* MODAIS */}
       {modalHorarioAberto && (
         <ModalHorario turma={turmaParaHorario} previewHorario={previewHorario} arrastandoHorario={arrastandoHorario} salvandoHorario={salvandoHorario} onClose={() => setModalHorarioAberto(false)} onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop} onFileSelect={(e: any) => { const file = e.target.files?.[0]; if (file) { setArquivoHorario(file); setPreviewHorario(URL.createObjectURL(file)); } }} onSalvar={salvarHorarioImagem} />
       )}
@@ -325,17 +335,17 @@ export default function Turmas() {
       )}
 
       {modalFichaAberto && (
-        <ModalFichaAlunoTurma aluno={alunoSelecionado} historico={historico} ehAdmin={ehAdmin} onClose={() => setModalFichaAberto(false)} />
+        <ModalFichaAlunoTurma 
+          aluno={alunoSelecionado} 
+          historico={historico} 
+          ehAdmin={ehAdmin} 
+          onClose={() => setModalFichaAberto(false)} 
+          calcularIdade={calcularIdade} // FIX: Passando a função necessária
+        />
       )}
 
       {modalAgendaAberto && (
-        <ModalAgendaTurma 
-          turma={turmaParaAgenda} 
-          userEmail={userEmail} 
-          modo={modoAgenda} // ESTE COMANDO AGORA FUNCIONA
-          ehAdmin={ehAdmin} 
-          onClose={() => setModalAgendaAberto(false)} 
-        />
+        <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={ehAdmin} onClose={() => setModalAgendaAberto(false)} />
       )}
     </div>
   );
