@@ -4,11 +4,35 @@ interface ModalFichaAlunoTurmaProps {
   aluno: any;
   onClose: () => void;
   historico?: any[];
-  ehAdmin: boolean; // Propriedade adicionada para controle de acesso
+  ehAdmin: boolean;
 }
 
 export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin }: ModalFichaAlunoTurmaProps) {
   if (!aluno) return null;
+
+  // FUNÇÕES AUXILIARES (IDADE E WHATSAPP)
+  const calcularIdade = (dataNasc: string) => {
+    if (!dataNasc) return "--";
+    const hoje = new Date();
+    const nascimento = new Date(dataNasc);
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const m = hoje.getMonth() - nascimento.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--;
+    return `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
+  };
+
+  const abrirWhatsApp = (numero: any) => {
+    if (!numero) return;
+    const apenasNumeros = String(numero).replace(/\D/g, '');
+    window.open(`https://wa.me/55${apenasNumeros}`, '_blank');
+  };
+
+  // LISTA DE CONTATOS ORGANIZADA (3 RESPONSÁVEIS)
+  const contatos = [
+    { nome: aluno.responsavel, whats: aluno.whatsapp, tag: aluno.parentesco1 || "Mãe", cor: "#db2777", bg: "#fdf2f8" },
+    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, tag: aluno.parentesco2 || "Pai", cor: "#2563eb", bg: "#eff6ff" },
+    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, tag: aluno.parentesco3 || "Outro", cor: "#16a34a", bg: "#f0fdf4" }
+  ];
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(8px)' }}>
@@ -21,85 +45,97 @@ export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin }
               <img src={aluno.foto_url} style={{ width: '110px', height: '110px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #fff', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} alt="Foto" />
             ) : (
               <div style={{ width: '110px', height: '110px', borderRadius: '50%', backgroundColor: '#f1f5f9', margin: '0 auto', fontSize: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {aluno.nome?.[0]}
+                👤
               </div>
             )}
             
             {aluno.e_autista && (
                <span style={{ position: 'absolute', bottom: 5, right: 0, fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                 🧩
+                  🧩
                </span>
             )}
           </div>
 
-          <h2 style={{ margin: '15px 0 5px', fontSize: '22px', fontWeight: '800' }}>{aluno.nome}</h2>
+          <h2 style={{ margin: '15px 0 5px', fontSize: '22px', fontWeight: '800', color: '#1e293b' }}>{aluno.nome}</h2>
           
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', marginTop: '5px' }}>
-            <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>{aluno.turma}</span>
-            {aluno.e_autista && <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>TEA 🧩</span>}
+            <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>{calcularIdade(aluno.data_nascimento)}</span>
+            <span style={{ color: '#cbd5e1' }}>•</span>
+            <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>{aluno.turma}</span>
+            {aluno.e_autista && <span style={{ backgroundColor: '#f5f3ff', color: '#7c3aed', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>TEA</span>}
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
           <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
-            <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>NASCIMENTO</small>
-            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>
+            <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Data de Nascimento</small>
+            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px', color: '#475569' }}>
               {aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}
             </p>
           </div>
-          <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
-            <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>RESPONSÁVEL</small>
-            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '12px' }}>{aluno.responsavel || '--'}</p>
-          </div>
 
-          {/* CPF: Visível apenas para Admin */}
+          {/* CPF: Totalmente bloqueado para Professores */}
           {ehAdmin && (
-            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9', gridColumn: 'span 2' }}>
+            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
               <small style={{ color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>DOCUMENTO (CPF)</small>
-              <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>{aluno.cpf || '--'}</p>
+              <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>{aluno.cpf_aluno || '--'}</p>
             </div>
           )}
         </div>
 
-        {/* Alerta de Alergia Detalhado (Visível para todos) */}
+        {/* SEÇÃO DE CONTATOS SINGELAS (Igual ao Admin, mas Professor não edita) */}
+        <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9', marginTop: '15px' }}>
+          <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 12px', textTransform: 'uppercase' }}>Contatos de Emergência</p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {contatos.map((contato, index) => contato.nome && (
+              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: '800', color: contato.cor, backgroundColor: contato.bg, padding: '1px 6px', borderRadius: '4px', alignSelf: 'flex-start', textTransform: 'uppercase' }}>
+                    {contato.tag}
+                  </span>
+                  <p style={{ margin: 0, fontWeight: '700', color: '#475569', fontSize: '13px' }}>{contato.nome}</p>
+                </div>
+                {contato.whats && (
+                  <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px', opacity: 0.8 }}>
+                    <span style={{ fontSize: '20px' }}>📱</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Alerta de Alergia Detalhado */}
         {aluno.tem_alergia && (
           <div style={{ background: '#fef2f2', padding: '15px', borderRadius: '15px', marginTop: '15px', border: '1px solid #fecaca' }}>
-            <p style={{ margin: 0, color: '#dc2626', fontWeight: 'bold', fontSize: '13px', marginBottom: '5px' }}>⚠️ ALERGIA / RESTRIÇÃO</p>
-            <p style={{ margin: 0, color: '#991b1b', fontSize: '14px' }}>{aluno.alergia_descricao || "Nenhuma descrição fornecida."}</p>
+            <p style={{ margin: 0, color: '#dc2626', fontWeight: 'bold', fontSize: '11px', marginBottom: '5px', textTransform: 'uppercase' }}>⚠️ Alergia / Restrição</p>
+            <p style={{ margin: 0, color: '#991b1b', fontSize: '14px', fontWeight: '600' }}>{aluno.alergia_descricao || "Sim"}</p>
           </div>
         )}
 
-        {/* Seção de Histórico de Eventos / Pagamentos */}
+        {/* Histórico Pedagógico (Financeiro Bloqueado) */}
         <div style={{ marginTop: '25px' }}>
-          <h4 style={{ fontSize: '14px', color: '#475569', marginBottom: '10px', fontWeight: '800' }}>HISTÓRICO E EVENTOS</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
-            {historico.length > 0 ? (
-              historico.map((item: any, idx: number) => {
-                // Filtra: se for financeiro (ex: mensalidade), só Admin vê. Se for evento pedagógico, todos veem.
-                const ehFinanceiro = item.valor !== undefined || item.tipo === 'financeiro';
-                if (ehFinanceiro && !ehAdmin) return null;
-
-                return (
-                  <div key={idx} style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                       <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>
-                         {new Date(item.data_pagamento || item.created_at).toLocaleDateString('pt-BR')}
-                       </span>
-                       {ehFinanceiro && <span style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>R$ {item.valor?.toLocaleString('pt-BR')}</span>}
-                    </div>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#334155', fontWeight: '500' }}>{item.descricao || item.observacao}</p>
-                  </div>
-                );
-              })
+          <h4 style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase' }}>Eventos e Registros</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+            {historico.filter(item => !(item.valor !== undefined || item.tipo === 'financeiro')).length > 0 ? (
+              historico.filter(item => !(item.valor !== undefined || item.tipo === 'financeiro')).map((item: any, idx: number) => (
+                <div key={idx} style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                   <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '2px' }}>
+                     {new Date(item.created_at || item.data).toLocaleDateString('pt-BR')}
+                   </span>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#334155', fontWeight: '500' }}>{item.descricao || item.observacao}</p>
+                </div>
+              ))
             ) : (
-              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>Nenhum registro encontrado.</p>
+              <p style={{ fontSize: '12px', color: '#cbd5e1', textAlign: 'center', padding: '10px' }}>Nenhum registro pedagógico.</p>
             )}
           </div>
         </div>
 
         <div style={{ marginTop: '30px' }}>
-          <button onClick={onClose} style={{ width: '100%', padding: '14px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 'bold', cursor: 'pointer' }}>
-            FECHAR
+          <button onClick={onClose} style={{ width: '100%', padding: '16px', borderRadius: '15px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 6px rgba(30, 58, 138, 0.2)' }}>
+            FECHAR FICHA
           </button>
         </div>
       </div>

@@ -15,25 +15,21 @@ export default function Alunos() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   
-  // --- ESTADOS DOS CAMPOS ---
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [cpfAluno, setCpfAluno] = useState("");
   const [turma, setTurma] = useState("");
   
-  // Responsável 1 + Tag
   const [responsavel, setResponsavel] = useState("");
   const [parentesco1, setParentesco1] = useState("Mãe");
   const [cpfResponsavel, setCpfResponsavel] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   
-  // Responsável 2 + Tag
   const [responsavel2, setResponsavel2] = useState("");
   const [parentesco2, setParentesco2] = useState("Pai");
   const [cpfResponsavel2, setCpfResponsavel2] = useState("");
   const [whatsapp2, setWhatsapp2] = useState("");
 
-  // Responsável 3 (NOVO) + Tag
   const [responsavel3, setResponsavel3] = useState("");
   const [parentesco3, setParentesco3] = useState("");
   const [whatsapp3, setWhatsapp3] = useState("");
@@ -54,7 +50,6 @@ export default function Alunos() {
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
-  // --- FUNÇÕES AUXILIARES ---
   const mWhatsApp = (v: string) => {
     if (!v) return "";
     v = v.replace(/\D/g, "");
@@ -93,7 +88,6 @@ export default function Alunos() {
     return cores[turmaNome] || "#ffffff";
   };
 
-  // --- CARREGAMENTO DE DADOS ---
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -112,7 +106,6 @@ export default function Alunos() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // --- FUNÇÕES DE BOLETIM E FINANCEIRO (Mantidas) ---
   async function buscarBoletim(alunoId: string) {
     const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
     if (data) setNotas(data);
@@ -145,11 +138,9 @@ export default function Alunos() {
     setVerHistorico(true); setVerBoletim(false);
   }
 
-  // --- MOTOR DE PDF ---
   function gerarPDFHistorico() { /* Lógica de PDF preservada */ }
   function gerarPDFBoletim() { /* Lógica de PDF preservada */ }
 
-  // --- SALVAR NO BANCO ---
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
@@ -162,13 +153,26 @@ export default function Alunos() {
         if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
       const dados = { 
-        nome, cpf_aluno: cpfAluno, turma, 
-        responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
-        responsavel_2_nome: responsavel2, parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
-        responsavel_3_nome: responsavel3, parentesco3, responsavel_3_contato: whatsapp3,
-        valor: valor ? parseFloat(valor) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", 
-        e_autista: eAutista, // Correção confirmada: e_autista
+        nome, 
+        cpf_aluno: cpfAluno, 
+        turma, 
+        responsavel, 
+        parentesco_1: parentesco1, 
+        whatsapp, 
+        cpf_responsavel: cpfResponsavel,
+        responsavel_2_nome: responsavel2, 
+        parentesco_2: parentesco2, 
+        responsavel_2_contato: whatsapp2, 
+        cpf_responsavel_2: cpfResponsavel2,
+        responsavel_3_nome: responsavel3, 
+        parentesco_3: parentesco3, 
+        responsavel_3_contato: whatsapp3,
+        valor: valor ? parseFloat(valor) : null, 
+        vencimento, 
+        data_nascimento: dataNascimento,
+        tem_alergia: temAlergia, 
+        alergia_descricao: temAlergia ? alergiaDescricao : "", 
+        e_autista: eAutista, 
         foto_url: urlFinal
       };
       if (idEdicao) await supabase.from('alunos').update(dados).eq('id', idEdicao);
@@ -190,10 +194,16 @@ export default function Alunos() {
 
   function abrirFicha(aluno: any) {
     setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma);
-    setResponsavel(aluno.responsavel); setParentesco1(aluno.parentesco1 || "Mãe"); setCpfResponsavel(aluno.cpf_responsavel || ""); setWhatsapp(aluno.whatsapp);
-    setResponsavel2(aluno.responsavel_2_nome || ""); setParentesco2(aluno.parentesco2 || "Pai"); setCpfResponsavel2(aluno.cpf_responsavel_2 || "");
+    setResponsavel(aluno.responsavel); 
+    setParentesco1(aluno.parentesco_1 || "Mãe"); 
+    setCpfResponsavel(aluno.cpf_responsavel || ""); setWhatsapp(aluno.whatsapp);
+    setResponsavel2(aluno.responsavel_2_nome || ""); 
+    setParentesco2(aluno.parentesco_2 || "Pai");
+    setCpfResponsavel2(aluno.cpf_responsavel_2 || "");
     setWhatsapp2(aluno.responsavel_2_contato || ""); 
-    setResponsavel3(aluno.responsavel_3_nome || ""); setParentesco3(aluno.parentesco3 || ""); setWhatsapp3(aluno.responsavel_3_contato || "");
+    setResponsavel3(aluno.responsavel_3_nome || ""); 
+    setParentesco3(aluno.parentesco_3 || ""); 
+    setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
     setEAutista(aluno.e_autista || false); setPreviewUrl(aluno.foto_url);
@@ -212,14 +222,23 @@ export default function Alunos() {
 
       {modalAberto && !modoEdicao && (
         <FichaAlunoModal 
-          aluno={{id: idEdicao, nome, cpf_aluno: cpfAluno, turma, responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, responsavel3, parentesco3, whatsapp3, valor, vencimento, data_nascimento: dataNascimento, tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, e_autista: eAutista, foto_url: previewUrl}}
+          aluno={{
+            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, 
+            responsavel, parentesco1: parentesco1, // FIX: Removido o underline para combinar com o Modal
+            whatsapp, cpf_responsavel: cpfResponsavel, 
+            responsavel2, parentesco2: parentesco2, // FIX: Removido o underline
+            whatsapp2, cpf_responsavel2: cpfResponsavel2, 
+            responsavel3, parentesco3: parentesco3, // FIX: Removido o underline
+            whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
+            tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
+            e_autista: eAutista, foto_url: previewUrl
+          }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
           onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
           onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
           onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
-          onGerarPDFBoletim={gerarPDFBoletim}
-          onGerarPDFHistorico={gerarPDFHistorico}
+          onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
           calcularIdade={calcularIdade}
         />
       )}
