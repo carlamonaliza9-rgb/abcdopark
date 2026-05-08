@@ -16,7 +16,6 @@ export default function DiarioClassePage() {
   const [senhaConfirmacao, setSenhaConfirmacao] = useState("");
   const [acaoPendente, setAcaoPendente] = useState<'excluir' | 'editar' | null>(null);
 
-  // NOVO ESTADO PARA O ALERTA BONITINHO
   const [alertaEvasao, setAlertaEvasao] = useState<{ aberto: boolean; nomeAluno: string } | null>(null);
 
   const [registrosLocal, setRegistrosLocal] = useState<{[key: string]: { presenca: boolean | null, estrelas: number }}>({});
@@ -118,7 +117,6 @@ export default function DiarioClassePage() {
       await supabase.from('frequencias').delete().in('aluno_id', ids).eq('data', dataLancamento);
       await supabase.from('avaliacoes').delete().in('aluno_id', ids).eq('data_avaliacao', dataLancamento);
       
-      alert("🗑️ Diário excluído com sucesso!");
       setModalSeguranca(false);
       setSenhaConfirmacao("");
       carregarDadosSalvosDoDia();
@@ -130,7 +128,6 @@ export default function DiarioClassePage() {
     }
   }
 
-  // FUNÇÃO DE VERIFICAÇÃO PARA O ALERTA BONITINHO
   async function verificarFaltasEvasao(alunoId: number, nomeAluno: string) {
     const dataRef = new Date(dataLancamento);
     dataRef.setDate(dataRef.getDate() - 1);
@@ -144,10 +141,7 @@ export default function DiarioClassePage() {
       .maybeSingle();
 
     if (registroOntem && registroOntem.presente === false) {
-      // Dispara o Modal bonitinho para o Professor
       setAlertaEvasao({ aberto: true, nomeAluno });
-
-      // Registra no Histórico Pedagógico para o Admin ver
       await supabase.from('historico_pedagogico').insert({
         aluno_id: alunoId,
         descricao: `🚨 ALERTA: O aluno faltou por 2 dias consecutivos. O professor(a) foi orientado a entrar em contato com os pais.`,
@@ -156,12 +150,7 @@ export default function DiarioClassePage() {
     }
   }
 
-  async function handleSalvarAvaliacao() {
-    if (acaoPendente === 'editar') {
-      const autorizado = await confirmarSeguranca();
-      if (!autorizado) return;
-    }
-
+  async function handleSalvarNovo() {
     setSalvando(true);
     try {
       for (const alunoId in registrosLocal) {
@@ -175,7 +164,6 @@ export default function DiarioClassePage() {
             presente: reg.presenca
           }, { onConflict: 'aluno_id, data' });
 
-          // Se for falta, verifica se é a segunda seguida
           if (reg.presenca === false && alunoInfo) {
             await verificarFaltasEvasao(Number(alunoId), alunoInfo.nome);
           }
@@ -187,16 +175,23 @@ export default function DiarioClassePage() {
           comentario: ""
         }, { onConflict: 'aluno_id, data_avaliacao' });
       }
-      alert("✅ Salvo com sucesso!");
-      setModalSeguranca(false);
-      setSenhaConfirmacao("");
-      setAcaoPendente(null);
+      // REMOVIDO: O alert preto que aparecia aqui
       buscarDadosMensais();
     } catch (error) {
-      alert("Erro ao salvar.");
+      alert("Erro ao salvar lançamento.");
     } finally {
       setSalvando(false);
     }
+  }
+
+  async function handleEditarDiario() {
+    const autorizado = await confirmarSeguranca();
+    if (!autorizado) return;
+
+    await handleSalvarNovo(); 
+    setModalSeguranca(false);
+    setSenhaConfirmacao("");
+    setAcaoPendente(null);
   }
 
   const handlePresencaLocal = (alunoId: number, status: boolean | null) => {
@@ -238,13 +233,22 @@ export default function DiarioClassePage() {
             onClick={() => { setAcaoPendente('excluir'); setModalSeguranca(true); }}
             style={{ backgroundColor: '#ef4444', color: 'white', padding: '12px 20px', borderRadius: '14px', border: 'none', fontWeight: '800', cursor: 'pointer' }}
           >
-            🗑️ Excluir Dia
+            🗑️ Excluir
           </button>
+          
           <button 
             onClick={() => { setAcaoPendente('editar'); setModalSeguranca(true); }}
-            style={{ backgroundColor: '#22c55e', color: 'white', padding: '12px 24px', borderRadius: '14px', border: 'none', fontWeight: '900', cursor: 'pointer' }}
+            style={{ backgroundColor: '#f59e0b', color: 'white', padding: '12px 20px', borderRadius: '14px', border: 'none', fontWeight: '800', cursor: 'pointer' }}
           >
-            💾 Salvar/Editar
+            ✏️ Editar
+          </button>
+
+          <button 
+            onClick={handleSalvarNovo}
+            disabled={salvando}
+            style={{ backgroundColor: '#22c55e', color: 'white', padding: '12px 24px', borderRadius: '14px', border: 'none', fontWeight: '900', cursor: 'pointer', opacity: salvando ? 0.7 : 1 }}
+          >
+            {salvando ? "Salvando..." : "💾 Salvar"}
           </button>
         </div>
       </header>
@@ -254,7 +258,7 @@ export default function DiarioClassePage() {
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '400px', textAlign: 'center' }}>
             <h3 style={{ color: '#1e3a8a', marginBottom: '10px' }}>🔒 Confirmação de Segurança</h3>
-            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>Para {acaoPendente} o diário de <b>{dataLancamento.split('-').reverse().join('/')}</b>, digite sua senha de login:</p>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>Para {acaoPendente === 'excluir' ? 'excluir' : 'editar'} o diário, digite sua senha:</p>
             <input 
               type="password" 
               placeholder="Sua senha" 
@@ -265,8 +269,8 @@ export default function DiarioClassePage() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setModalSeguranca(false); setSenhaConfirmacao(""); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: '#f1f5f9', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
               <button 
-                onClick={acaoPendente === 'excluir' ? handleExcluirDiario : handleSalvarAvaliacao} 
-                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: acaoPendente === 'excluir' ? '#ef4444' : '#22c55e', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                onClick={acaoPendente === 'excluir' ? handleExcluirDiario : handleEditarDiario} 
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: acaoPendente === 'excluir' ? '#ef4444' : '#f59e0b', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
               >
                 Confirmar
               </button>
@@ -275,7 +279,7 @@ export default function DiarioClassePage() {
         </div>
       )}
 
-      {/* MODAL DE ALERTA DE EVASÃO COM ORIENTAÇÃO AO PROFESSOR */}
+      {/* MODAL DE ALERTA DE EVASÃO */}
       {alertaEvasao?.aberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(30, 58, 138, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(8px)' }}>
           <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '32px', width: '90%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
@@ -284,19 +288,12 @@ export default function DiarioClassePage() {
             <p style={{ color: '#475569', fontSize: '16px', lineHeight: '1.6', marginBottom: '25px' }}>
               O aluno <b>{alertaEvasao.nomeAluno}</b> faltou ontem e hoje também. 
             </p>
-            
             <div style={{ backgroundColor: '#fef2f2', padding: '15px', borderRadius: '16px', border: '1px solid #fee2e2', marginBottom: '30px' }}>
               <p style={{ color: '#b91c1c', fontSize: '14px', fontWeight: '700', margin: 0 }}>
                 📌 Por gentileza, entre em contato com os pais ou responsáveis para verificar o motivo das ausências. A administração já foi notificada.
               </p>
             </div>
-
-            <button 
-              onClick={() => setAlertaEvasao(null)} 
-              style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', fontSize: '16px', cursor: 'pointer' }}
-            >
-              Ciente, vou entrar em contato
-            </button>
+            <button onClick={() => setAlertaEvasao(null)} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', fontSize: '16px', cursor: 'pointer' }}>Ciente, vou entrar em contato</button>
           </div>
         </div>
       )}
