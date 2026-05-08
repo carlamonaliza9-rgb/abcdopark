@@ -97,7 +97,6 @@ export default function DashboardPage() {
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .map(a => ({ ...a, tipo: 'aluno' }));
 
-        // AJUSTE: Funcionários agora aparecem para todos (Equipe) no Dashboard
         const bdayFuncs = (funcionarios || [])
           .filter(f => f.data_nascimento && new Date(f.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .map(f => ({ ...f, tipo: 'funcionario' }));
@@ -113,8 +112,6 @@ export default function DashboardPage() {
             const sessionId = sessionData.session?.access_token.slice(-15) || 'default';
             const notifKey = `bday_session_${hojeString}_${sessionId}`;
             const exibições = parseInt(sessionStorage.getItem(notifKey) || '0');
-            
-            // AJUSTE: Modal de festa agora abre para Professor e Admin
             if (exibições < 2) {
               setModalBdayAberto(true);
               sessionStorage.setItem(notifKey, (exibições + 1).toString());
@@ -235,33 +232,58 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* NOTIFICAÇÃO BDAY */}
+      {/* NOTIFICAÇÃO BDAY PERSONALIZADA E CARINHOSA */}
       {modalBdayAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '450px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', textAlign: 'center' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', textAlign: 'center' }}>
             <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%)', padding: '40px 20px', color: 'white' }}>
-              <span style={{ fontSize: '50px' }}>🎉</span>
-              <h2 style={{ fontSize: '24px', fontWeight: '800', marginTop: '10px' }}>Aniversariante(s) do Dia!</h2>
-              <p style={{ opacity: 0.9, fontSize: '14px' }}>Hoje o dia é de festa na ABC DO PARK!</p>
+              <span style={{ fontSize: '50px' }}>🎂</span>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', marginTop: '10px' }}>
+                {aniversariantesHoje.some(p => p.email === userEmail) 
+                  ? `Parabéns, ${nomeUsuario}! ✨` 
+                  : "Aniversariante(s) do Dia!"}
+              </h2>
+              
+              {/* MINI TEXTO CARINHOSO PARA O FUNCIONÁRIO */}
+              {aniversariantesHoje.some(p => p.email === userEmail) ? (
+                <div style={{ padding: '0 20px', marginTop: '10px' }}>
+                  <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.5', fontWeight: '500' }}>
+                    "Que seu novo ciclo seja repleto de luz, saúde e muitas alegrias. É um privilégio ter sua dedicação e carinho fazendo parte da nossa história. Aproveite cada segundo do seu dia!"
+                  </p>
+                  <p style={{ marginTop: '8px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Com carinho, Família ABC DO PARK</p>
+                </div>
+              ) : (
+                <p style={{ opacity: 0.9, fontSize: '14px', marginTop: '10px' }}>Hoje o dia é de festa e gratidão na nossa escola!</p>
+              )}
             </div>
+
             <div style={{ padding: '30px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {aniversariantesHoje.map(pessoa => (
-                  <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '20px', border: `2px solid ${pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb'}` }}>
-                    <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', border: '2px solid #eee', overflow: 'hidden', flexShrink: 0 }}>
-                      {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {aniversariantesHoje.map(pessoa => {
+                  const ehVoce = pessoa.email === userEmail;
+                  return (
+                    <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: ehVoce ? '#f0f9ff' : '#f8fafc', padding: '15px', borderRadius: '22px', border: `2px solid ${ehVoce ? '#3b82f6' : '#e5e7eb'}` }}>
+                      <div style={{ width: '65px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', border: '2px solid #eee', overflow: 'hidden', flexShrink: 0 }}>
+                        {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
+                          {ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}
+                        </h4>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: ehVoce ? '#2563eb' : (pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#64748b') }}>
+                          {ehVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
+                        </span>
+                      </div>
+                      {!ehVoce && (
+                        <button onClick={() => parabensWhatsApp(pessoa)} style={{ background: '#22c55e', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 6px rgba(34, 197, 94, 0.2)' }} title="Dar parabéns">📱</button>
+                      )}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>{pessoa.nome}</h4>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb' }}>
-                        {pessoa.tipo === 'funcionario' ? '⭐ Funcionário' : `📚 Aluno - ${pessoa.turma}`}
-                      </span>
-                    </div>
-                    <button onClick={() => parabensWhatsApp(pessoa)} style={{ background: '#22c55e', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }} title="Dar parabéns">📱</button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '30px', width: '100%', padding: '15px', borderRadius: '15px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: '800', cursor: 'pointer' }}>FECHAR</button>
+              <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '25px', width: '100%', padding: '16px', borderRadius: '18px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', cursor: 'pointer', fontSize: '14px', letterSpacing: '0.05em' }}>
+                {aniversariantesHoje.some(p => p.email === userEmail) ? 'RECEBER COM CARINHO ❤️' : 'FECHAR'}
+              </button>
             </div>
           </div>
         </div>
