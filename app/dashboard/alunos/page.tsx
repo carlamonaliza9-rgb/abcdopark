@@ -2,10 +2,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-import { AlunosHeader } from "./_components/AlunosHeader";
-import { AlunoCard } from "./_components/AlunoCard";
-import { FichaAlunoModal } from "./_components/FichaAlunoModal";
-import { FormAlunoModal } from "./_components/FormAlunoModal";
+// Importando os novos componentes que você criou
+import { AdminView } from "./_components/AdminView";
+import { ProfessorView } from "./_components/ProfessorView";
 
 export default function Alunos() {
   const [modalAberto, setModalAberto] = useState(false);
@@ -56,6 +55,8 @@ export default function Alunos() {
   const [notas, setNotas] = useState<any[]>([]);
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
+  // Definindo se é professor (você pode ajustar esse e-mail depois se quiser)
+  const ehProfessor = userEmail !== "seu-email-admin@gmail.com" && !ehVisitante;
 
   // --- FUNÇÕES UTILITÁRIAS ---
   const mWhatsApp = (v: string) => {
@@ -192,12 +193,11 @@ export default function Alunos() {
         if (novoAluno) alunoIdReal = novoAluno.id;
       }
 
-      // SALVAR OBSERVAÇÃO (Na tabela historico_pedagogico)
       if (observacoes.trim() && alunoIdReal) {
         const { error: errorObs } = await supabase.from('historico_pedagogico').insert({
-          aluno_id: Number(alunoIdReal), // Garante que é número
+          aluno_id: Number(alunoIdReal),
           descricao: observacoes.trim(),
-          data: new Date().toISOString().split('T')[0] // Formato YYYY-MM-DD
+          data: new Date().toISOString().split('T')[0]
         });
         if (errorObs) alert("Ficha salva, mas observação falhou: " + errorObs.message);
       }
@@ -242,48 +242,43 @@ export default function Alunos() {
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
+  // --- LOGICA DE RENDERIZAÇÃO ---
+  // Se for professor, mostra a ProfessorView. Caso contrário (Admin), mostra AdminView.
+  if (ehProfessor) {
+    return (
+      <ProfessorView 
+        busca={busca} setBusca={setBusca} alunosFiltrados={alunosFiltrados} obterCorTurma={obterCorTurma} 
+        mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} modalAberto={modalAberto} idEdicao={idEdicao}
+        nome={nome} cpfAluno={cpfAluno} turma={turma} responsavel={responsavel} parentesco1={parentesco1}
+        whatsapp={whatsapp} responsavel2={responsavel2} parentesco2={parentesco2} whatsapp2={whatsapp2}
+        responsavel3={responsavel3} parentesco3={parentesco3} whatsapp3={whatsapp3}
+        dataNascimento={dataNascimento} temAlergia={temAlergia} alergiaDescricao={alergiaDescricao}
+        eAutista={eAutista} previewUrl={previewUrl} verBoletim={verBoletim} notas={notas}
+        mCPF={mCPF} setModalAberto={setModalAberto} buscarBoletim={buscarBoletim} calcularIdade={calcularIdade}
+      />
+    );
+  }
+
   return (
-    <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
-        {alunosFiltrados.map((aluno) => (
-          <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} />
-        ))}
-      </div>
-
-      {modalAberto && !modoEdicao && (
-        <FichaAlunoModal 
-          aluno={{
-            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, 
-            responsavel, parentesco1: parentesco1, 
-            whatsapp, cpf_responsavel: cpfResponsavel, 
-            responsavel2, parentesco2: parentesco2, 
-            whatsapp2, cpf_responsavel2: cpfResponsavel2, 
-            responsavel3, parentesco3: parentesco3, 
-            whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
-            tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_autista: eAutista, foto_url: previewUrl
-          }}
-          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
-          onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
-          onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
-          onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
-          onGerarPDFBoletim={() => {}} onGerarPDFHistorico={() => {}}
-          calcularIdade={calcularIdade}
-        />
-      )}
-
-      {modalAberto && modoEdicao && (
-        <FormAlunoModal 
-          idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
-          setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setParentesco1(d.parentesco1); setWhatsapp(d.whatsapp); setCpfResponsavel(d.cpfResponsavel); setResponsavel2(d.responsavel2); setParentesco2(d.parentesco2); setWhatsapp2(d.whatsapp2); setCpfResponsavel2(d.cpfResponsavel2); setResponsavel3(d.responsavel3); setParentesco3(d.parentesco3); setWhatsapp3(d.whatsapp3); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); setObservacoes(d.observacoes); }}
-          onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
-          onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
-        />
-      )}
-    </div>
+    <AdminView 
+      busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar}
+      alunosFiltrados={alunosFiltrados} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp}
+      onAbrirFicha={abrirFicha} modalAberto={modalAberto} modoEdicao={modoEdicao} idEdicao={idEdicao}
+      nome={nome} cpfAluno={cpfAluno} turma={turma} responsavel={responsavel} parentesco1={parentesco1}
+      whatsapp={whatsapp} cpfResponsavel={cpfResponsavel} responsavel2={responsavel2} parentesco2={parentesco2}
+      whatsapp2={whatsapp2} cpfResponsavel2={cpfResponsavel2} responsavel3={responsavel3} parentesco3={parentesco3}
+      whatsapp3={whatsapp3} valor={valor} vencimento={vencimento} dataNascimento={dataNascimento}
+      temAlergia={temAlergia} alergiaDescricao={alergiaDescricao} eAutista={eAutista} previewUrl={previewUrl}
+      verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico}
+      mCPF={mCPF} setModalAberto={setModalAberto} setModoEdicao={setModoEdicao}
+      buscarBoletim={buscarBoletim} buscarHistoricoPagamento={buscarHistoricoPagamento}
+      setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico}
+      salvarNota={salvarNota} adicionarDisciplina={adicionarDisciplina} excluirDisciplina={excluirDisciplina}
+      excluirAluno={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
+      calcularIdade={calcularIdade} carregando={carregando} observacoes={observacoes}
+      setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setParentesco1(d.parentesco1); setWhatsapp(d.whatsapp); setCpfResponsavel(d.cpfResponsavel); setResponsavel2(d.responsavel2); setParentesco2(d.parentesco2); setWhatsapp2(d.whatsapp2); setCpfResponsavel2(d.cpfResponsavel2); setResponsavel3(d.responsavel3); setParentesco3(d.parentesco3); setWhatsapp3(d.whatsapp3); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); setObservacoes(d.observacoes); }}
+      onTrocarFoto={(e: any) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
+      onSalvar={salvarAluno}
+    />
   );
 }

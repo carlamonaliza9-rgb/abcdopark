@@ -16,6 +16,9 @@ export default function DiarioClassePage() {
   const [senhaConfirmacao, setSenhaConfirmacao] = useState("");
   const [acaoPendente, setAcaoPendente] = useState<'excluir' | 'editar' | null>(null);
 
+  // NOVO ESTADO PARA O ALERTA BONITINHO
+  const [alertaEvasao, setAlertaEvasao] = useState<{ aberto: boolean; nomeAluno: string } | null>(null);
+
   const [registrosLocal, setRegistrosLocal] = useState<{[key: string]: { presenca: boolean | null, estrelas: number }}>({});
 
   const supabase = createClient(
@@ -89,7 +92,6 @@ export default function DiarioClassePage() {
     if (data) setFrequenciaMensal(data);
   }
 
-  // Lógica de verificação de senha antes de ações críticas
   async function confirmarSeguranca() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user?.email) return false;
@@ -128,6 +130,32 @@ export default function DiarioClassePage() {
     }
   }
 
+  // FUNÇÃO DE VERIFICAÇÃO PARA O ALERTA BONITINHO
+  async function verificarFaltasEvasao(alunoId: number, nomeAluno: string) {
+    const dataRef = new Date(dataLancamento);
+    dataRef.setDate(dataRef.getDate() - 1);
+    const dataOntem = dataRef.toISOString().split('T')[0];
+
+    const { data: registroOntem } = await supabase
+      .from('frequencias')
+      .select('presente')
+      .eq('aluno_id', alunoId)
+      .eq('data', dataOntem)
+      .maybeSingle();
+
+    if (registroOntem && registroOntem.presente === false) {
+      // Dispara o Modal bonitinho para o Professor
+      setAlertaEvasao({ aberto: true, nomeAluno });
+
+      // Registra no Histórico Pedagógico para o Admin ver
+      await supabase.from('historico_pedagogico').insert({
+        aluno_id: alunoId,
+        descricao: `🚨 ALERTA: O aluno faltou por 2 dias consecutivos. O professor(a) foi orientado a entrar em contato com os pais.`,
+        data: dataLancamento
+      });
+    }
+  }
+
   async function handleSalvarAvaliacao() {
     if (acaoPendente === 'editar') {
       const autorizado = await confirmarSeguranca();
@@ -138,12 +166,19 @@ export default function DiarioClassePage() {
     try {
       for (const alunoId in registrosLocal) {
         const reg = registrosLocal[alunoId];
+        const alunoInfo = alunos.find(a => a.id === Number(alunoId));
+
         if (reg.presenca !== null) {
           await supabase.from('frequencias').upsert({
             aluno_id: Number(alunoId),
             data: dataLancamento,
             presente: reg.presenca
           }, { onConflict: 'aluno_id, data' });
+
+          // Se for falta, verifica se é a segunda seguida
+          if (reg.presenca === false && alunoInfo) {
+            await verificarFaltasEvasao(Number(alunoId), alunoInfo.nome);
+          }
         }
         await supabase.from('avaliacoes').upsert({
           aluno_id: Number(alunoId),
@@ -240,7 +275,33 @@ export default function DiarioClassePage() {
         </div>
       )}
 
-      {/* LISTAGEM DE ALUNOS - MANTIDA IGUAL */}
+      {/* MODAL DE ALERTA DE EVASÃO COM ORIENTAÇÃO AO PROFESSOR */}
+      {alertaEvasao?.aberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(30, 58, 138, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(8px)' }}>
+          <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '32px', width: '90%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ fontSize: '60px', marginBottom: '20px' }}>⚠️</div>
+            <h2 style={{ color: '#1e3a8a', fontWeight: '900', marginBottom: '15px' }}>Atenção Professor(a)!</h2>
+            <p style={{ color: '#475569', fontSize: '16px', lineHeight: '1.6', marginBottom: '25px' }}>
+              O aluno <b>{alertaEvasao.nomeAluno}</b> faltou ontem e hoje também. 
+            </p>
+            
+            <div style={{ backgroundColor: '#fef2f2', padding: '15px', borderRadius: '16px', border: '1px solid #fee2e2', marginBottom: '30px' }}>
+              <p style={{ color: '#b91c1c', fontSize: '14px', fontWeight: '700', margin: 0 }}>
+                📌 Por gentileza, entre em contato com os pais ou responsáveis para verificar o motivo das ausências. A administração já foi notificada.
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setAlertaEvasao(null)} 
+              style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', fontSize: '16px', cursor: 'pointer' }}
+            >
+              Ciente, vou entrar em contato
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* LISTAGEM DE ALUNOS */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '40px' }}>
         {alunos.map((aluno) => {
           const reg = registrosLocal[aluno.id] || { presenca: null, estrelas: 0 };
@@ -275,7 +336,7 @@ export default function DiarioClassePage() {
         })}
       </div>
 
-      {/* TABELA MENSAL - MANTIDA IGUAL */}
+      {/* TABELA MENSAL */}
       <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
         <h3 style={{ marginBottom: '20px', color: '#1e3a8a', fontWeight: '800' }}>Resumo Mensal de Frequência</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>

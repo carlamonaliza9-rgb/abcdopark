@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { AlertaVencimento } from "./_components/AlertaVencimento";
+import { AlertaEvasao } from "./_components/AlertaEvasao"; // 1. ADICIONADO: Importação do novo alerta
 
 export default function DashboardLayout({
   children,
@@ -45,6 +46,9 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gray-50 flex">
       {/* Componente que monitora os vencimentos do dia */}
       <AlertaVencimento />
+      
+      {/* 2. ADICIONADO: Alerta de Evasão que só aparece para Admin */}
+      {ehAdmin && <AlertaEvasao />}
 
       {/* Menu Lateral (Sidebar) */}
       <aside className="w-64 bg-blue-600/10 backdrop-blur-md flex flex-col shadow-sm border-r border-blue-100">
