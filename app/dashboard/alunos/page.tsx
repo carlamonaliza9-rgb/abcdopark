@@ -47,6 +47,9 @@ export default function Alunos() {
   const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // ESTADO DE OBSERVAÇÕES
+  const [observacoes, setObservacoes] = useState("");
+
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
   const [verBoletim, setVerBoletim] = useState(false);
@@ -93,7 +96,6 @@ export default function Alunos() {
     return cores[turmaNome] || "#ffffff";
   };
 
-  // --- COMUNICAÇÃO COM SUPABASE ---
   async function buscarAlunos() {
     const { data } = await supabase.from('alunos').select('*').order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -144,9 +146,6 @@ export default function Alunos() {
     setVerHistorico(true); setVerBoletim(false);
   }
 
-  function gerarPDFHistorico() { /* Lógica de PDF preservada */ }
-  function gerarPDFBoletim() { /* Lógica de PDF preservada */ }
-
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
@@ -181,11 +180,38 @@ export default function Alunos() {
         e_autista: eAutista, 
         foto_url: urlFinal
       };
-      if (idEdicao) await supabase.from('alunos').update(dados).eq('id', idEdicao);
-      else await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]);
-      setModalAberto(false); setModoEdicao(false); buscarAlunos();
-      alert("Sucesso!");
-    } finally { setCarregando(false); }
+
+      let alunoIdReal = idEdicao;
+
+      if (idEdicao) {
+        const { error } = await supabase.from('alunos').update(dados).eq('id', idEdicao);
+        if (error) throw error;
+      } else {
+        const { data: novoAluno, error } = await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]).select().single();
+        if (error) throw error;
+        if (novoAluno) alunoIdReal = novoAluno.id;
+      }
+
+      // SALVAR OBSERVAÇÃO (Na tabela historico_pedagogico)
+      if (observacoes.trim() && alunoIdReal) {
+        const { error: errorObs } = await supabase.from('historico_pedagogico').insert({
+          aluno_id: Number(alunoIdReal), // Garante que é número
+          descricao: observacoes.trim(),
+          data: new Date().toISOString().split('T')[0] // Formato YYYY-MM-DD
+        });
+        if (errorObs) alert("Ficha salva, mas observação falhou: " + errorObs.message);
+      }
+
+      setModalAberto(false); 
+      setModoEdicao(false); 
+      setObservacoes(""); 
+      buscarAlunos();
+      alert("✅ Sucesso ao salvar!");
+    } catch (err: any) {
+      alert("Erro ao salvar: " + err.message);
+    } finally { 
+      setCarregando(false); 
+    }
   }
 
   function limparEContinuar() {
@@ -194,7 +220,7 @@ export default function Alunos() {
     setResponsavel2(""); setParentesco2("Pai"); setCpfResponsavel2(""); setWhatsapp2(""); 
     setResponsavel3(""); setParentesco3(""); setWhatsapp3("");
     setValor(""); setVencimento(""); setDataNascimento(""); setTemAlergia(false); setAlergiaDescricao("");
-    setEAutista(false); setArquivoFoto(null); setPreviewUrl(null);
+    setEAutista(false); setArquivoFoto(null); setPreviewUrl(null); setObservacoes("");
     setModoEdicao(true); setModalAberto(true);
   }
 
@@ -212,7 +238,7 @@ export default function Alunos() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_autista || false); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_autista || false); setPreviewUrl(aluno.foto_url); setObservacoes("");
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
@@ -244,7 +270,7 @@ export default function Alunos() {
           onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
           onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
           onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
-          onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
+          onGerarPDFBoletim={() => {}} onGerarPDFHistorico={() => {}}
           calcularIdade={calcularIdade}
         />
       )}
@@ -252,8 +278,8 @@ export default function Alunos() {
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao}}
-          setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setParentesco1(d.parentesco1); setWhatsapp(d.whatsapp); setCpfResponsavel(d.cpfResponsavel); setResponsavel2(d.responsavel2); setParentesco2(d.parentesco2); setWhatsapp2(d.whatsapp2); setCpfResponsavel2(d.cpfResponsavel2); setResponsavel3(d.responsavel3); setParentesco3(d.parentesco3); setWhatsapp3(d.whatsapp3); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); }}
+          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+          setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setParentesco1(d.parentesco1); setWhatsapp(d.whatsapp); setCpfResponsavel(d.cpfResponsavel); setResponsavel2(d.responsavel2); setParentesco2(d.parentesco2); setWhatsapp2(d.whatsapp2); setCpfResponsavel2(d.cpfResponsavel2); setResponsavel3(d.responsavel3); setParentesco3(d.parentesco3); setWhatsapp3(d.whatsapp3); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); setObservacoes(d.observacoes); }}
           onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
           onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
         />

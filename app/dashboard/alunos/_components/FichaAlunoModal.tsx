@@ -42,6 +42,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   const [mediaEstrelas, setMediaEstrelas] = useState(0);
   const [percentualPresenca, setPercentualPresenca] = useState(100);
+  const [obsPedagogicas, setObsPedagogicas] = useState<any[]>([]);
 
   useEffect(() => {
     if (aluno?.id) {
@@ -50,38 +51,47 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   }, [aluno?.id]);
 
   async function buscarDadosAdicionais() {
-    // Busca média real na tabela 'avaliacoes'
+    const alunoIdReal = Number(aluno.id);
+
+    // 1. Busca média real na tabela 'avaliacoes'
     const { data: avs } = await supabase
       .from('avaliacoes')
       .select('estrelas')
-      .eq('aluno_id', aluno.id);
+      .eq('aluno_id', alunoIdReal);
     
     if (avs && avs.length > 0) {
       const soma = avs.reduce((acc: number, curr: any) => acc + curr.estrelas, 0);
       setMediaEstrelas(soma / avs.length);
     }
 
-    // Busca presença na tabela 'frequencias' usando coluna 'presente'
+    // 2. Busca presença na tabela 'frequencias'
     const { data: freqs } = await supabase
       .from('frequencias')
       .select('presente')
-      .eq('aluno_id', aluno.id);
+      .eq('aluno_id', alunoIdReal);
     
     if (freqs && freqs.length > 0) {
       const presentes = freqs.filter((f: any) => f.presente).length;
       setPercentualPresenca((presentes / freqs.length) * 100);
     }
+
+    // 3. Busca Observações Pedagógicas
+    const { data: obs } = await supabase
+      .from('historico_pedagogico')
+      .select('*')
+      .eq('aluno_id', alunoIdReal)
+      .order('data', { ascending: false });
+    
+    if (obs) setObsPedagogicas(obs);
   }
 
-  // FUNÇÃO PARA RENDERIZAR ESTRELAS FRACIONADAS
+  // FUNÇÃO PARA RENDERIZAR ESTRELAS
   const RenderizarEstrelas = (media: number) => {
     const estrelas = [];
     for (let i = 1; i <= 5; i++) {
       if (i <= Math.floor(media)) {
-        // Estrela cheia (amarela)
         estrelas.push(<span key={i} style={{ color: '#fbbf24', fontSize: '20px' }}>★</span>);
       } else if (i === Math.ceil(media) && media % 1 !== 0) {
-        // Estrela pela metade (Metade amarela / Metade cinza)
         estrelas.push(
           <span key={i} style={{ 
             fontSize: '20px', 
@@ -92,7 +102,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           }}>★</span>
         );
       } else {
-        // Estrela vazia (cinza)
         estrelas.push(<span key={i} style={{ color: '#e2e8f0', fontSize: '20px' }}>★</span>);
       }
     }
@@ -155,7 +164,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
               </div>
 
-              {/* Restante do código mantido conforme o original para não quebrar estilos */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={EstiloCard}>
                   <span style={EstiloLabel}>Nascimento</span>
@@ -191,12 +199,25 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                         <span style={{ fontSize: '12px', color: '#64748b' }}>{mWhatsApp(contato.whats)} • CPF: {mCPF(contato.cpf)}</span>
                       </div>
                       {contato.whats && (
-                        <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px', opacity: 0.8 }}>
+                        <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px' }}>
                           <span style={{ fontSize: '20px' }}>📱</span>
                         </button>
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* POSIÇÃO ABAIXO DE CONTATOS */}
+              <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#dcfce7' }}>
+                <span style={{ ...EstiloLabel, color: '#166534' }}>Registros Pedagógicos</span>
+                <div style={{ maxHeight: '120px', overflowY: 'auto', marginTop: '8px' }}>
+                  {obsPedagogicas.length > 0 ? obsPedagogicas.map((o, i) => (
+                    <div key={i} style={{ marginBottom: '10px', paddingBottom: '8px', borderBottom: i === obsPedagogicas.length - 1 ? 'none' : '1px solid #dcfce7' }}>
+                      <p style={{ ...EstiloDado, fontSize: '13px', fontWeight: '500' }}>{o.descricao}</p>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{new Date(o.data).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                  )) : <p style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Nenhum registro pedagógico encontrado.</p>}
                 </div>
               </div>
 
@@ -213,7 +234,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
           ) : verBoletim ? (
-            /* Lógica do Boletim mantida */
             <div style={{ width: '100%', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -252,11 +272,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
             </div>
           ) : (
-            /* Histórico mantido */
             <div style={{ width: '100%', marginTop: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico</h3>
+                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico Financeiro</h3>
                   <button onClick={onGerarPDFHistorico} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 EXTRATO</button>
                 </div>
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>

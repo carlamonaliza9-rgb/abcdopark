@@ -72,7 +72,6 @@ export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin, 
           )}
         </div>
 
-        {/* SEÇÃO DE CONTATOS SINGELAS */}
         <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #f1f5f9', marginTop: '15px' }}>
           <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', margin: '0 0 12px', textTransform: 'uppercase' }}>Contatos de Emergência</p>
           
@@ -95,7 +94,6 @@ export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin, 
           </div>
         </div>
 
-        {/* Alerta de Alergia Detalhado */}
         {aluno.tem_alergia && (
           <div style={{ background: '#fef2f2', padding: '15px', borderRadius: '15px', marginTop: '15px', border: '1px solid #fecaca' }}>
             <p style={{ margin: 0, color: '#dc2626', fontWeight: 'bold', fontSize: '11px', marginBottom: '5px', textTransform: 'uppercase' }}>⚠️ Alergia / Restrição</p>
@@ -103,9 +101,9 @@ export function ModalFichaAlunoTurma({ aluno, onClose, historico = [], ehAdmin, 
           </div>
         )}
 
-        {/* Histórico Pedagógico */}
+        {/* ALTERAÇÃO REALIZADA AQUI: De 'Eventos e Registros' para 'Observações' */}
         <div style={{ marginTop: '25px' }}>
-          <h4 style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase' }}>Eventos e Registros</h4>
+          <h4 style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase' }}>Observações</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
             {historico.filter(item => !(item.valor !== undefined || item.tipo === 'financeiro')).length > 0 ? (
               historico.filter(item => !(item.valor !== undefined || item.tipo === 'financeiro')).map((item: any, idx: number) => (
