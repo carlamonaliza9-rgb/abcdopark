@@ -8,7 +8,14 @@ export function AlertaEvasao() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   async function verificarAlertasEvasao() {
-    // 1. FILTRO DE DATA: Pega o dia de hoje no formato YYYY-MM-DD (Horário Local)
+    // REGRA DE LIMITE: Verifica quantas vezes já apareceu neste login
+    const exibicoesHoje = sessionStorage.getItem("exibicoes_alerta_evasao") || "0";
+    
+    if (parseInt(exibicoesHoje) >= 2) {
+      setVisivel(false);
+      return; // Se já apareceu 2 vezes, interrompe a função aqui
+    }
+
     const agora = new Date();
     const hoje = [
       agora.getFullYear(),
@@ -16,7 +23,6 @@ export function AlertaEvasao() {
       String(agora.getDate()).padStart(2, '0')
     ].join('-');
     
-    // 2. BUSCA RESTRITA: Somente registros criados HOJE
     const { data } = await supabase
       .from('historico_pedagogico')
       .select(`
@@ -26,11 +32,15 @@ export function AlertaEvasao() {
         alunos (nome, turma)
       `)
       .ilike('descricao', '%ALERTA%')
-      .eq('data', hoje); // Garante que alertas de ontem não apareçam
+      .eq('data', hoje);
 
     if (data && data.length > 0) {
       setAlertas(data);
       setVisivel(true);
+      
+      // Incrementa o contador no sessionStorage
+      const novaContagem = parseInt(exibicoesHoje) + 1;
+      sessionStorage.setItem("exibicoes_alerta_evasao", novaContagem.toString());
     } else {
       setVisivel(false);
     }
@@ -39,7 +49,7 @@ export function AlertaEvasao() {
   useEffect(() => {
     verificarAlertasEvasao();
 
-    // Verifica novos alertas a cada 10 minutos
+    // Mantemos a verificação em segundo plano, mas a regra do sessionStorage travará a exibição
     timerRef.current = setInterval(verificarAlertasEvasao, 10 * 60 * 1000);
 
     return () => {

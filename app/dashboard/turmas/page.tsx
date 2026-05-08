@@ -303,10 +303,12 @@ export default function Turmas() {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
+                        {/* FOTO AUMENTADA PARA 85PX (AJUSTE REALIZADO) */}
+                        <div style={{ width: '75px', height: '75px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
                           {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : "👤"}
                         </div>
                         <div>
+                          {/* FONTES REVERTIDAS PARA O TAMANHO ORIGINAL (A PEDIDO) */}
                           <p style={{ fontWeight: '900', color: cor.text, fontSize: '18px', margin: 0 }}>{aluno.nome}</p>
                           <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: cor.text, opacity: 0.8 }}>{calcularIdade(aluno.data_nascimento)}</span>
@@ -337,10 +339,9 @@ export default function Turmas() {
       {modalFichaAberto && (
         <ModalFichaAlunoTurma 
           aluno={alunoSelecionado} 
-          historico={historico} 
           ehAdmin={ehAdmin} 
           onClose={() => setModalFichaAberto(false)} 
-          calcularIdade={calcularIdade} // FIX: Passando a função necessária
+          calcularIdade={calcularIdade} 
         />
       )}
 
