@@ -112,16 +112,12 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
       <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
         
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {/* AJUSTADO: Container da foto maior e margem inferior ajustada */}
           <div style={{ position: 'relative', marginBottom: '20px' }}>
             {aluno.foto_url ? (
-              // AJUSTADO: Foto maior (140x140)
               <img src={aluno.foto_url} style={{ width: '140px', height: '140px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f1f5f9' }} />
             ) : (
-              // AJUSTADO: Placeholder maior (140x140 e fonte maior)
               <div style={{ height: '140px', width: '140px', borderRadius: '50%', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '60px' }}>👤</div>
             )}
-            {/* AJUSTADO: Ícone autista reposicionado para a foto maior */}
             {aluno.e_autista && <span style={{ position: 'absolute', bottom: '5px', right: '5px', fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '3px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🧩</span>}
           </div>
           
