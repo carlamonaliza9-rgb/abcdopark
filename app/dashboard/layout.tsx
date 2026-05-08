@@ -75,15 +75,17 @@ export default function DashboardLayout({
             </>
           )}
 
-          {/* AJUSTE: NOME DINÂMICO APENAS NO TEXTO DO BOTÃO */}
+          {/* NOME DINÂMICO APENAS NO TEXTO DO BOTÃO */}
           <Link href="/dashboard/turmas" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             {ehAdmin ? "🏫 Turmas" : "🏫 Minha Turma"}
           </Link>
 
-          {/* ADIÇÃO TRANCADA: Diário de Classe (Visível para todos) */}
-          <Link href="/dashboard/diario" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            📒 Diário de Classe
-          </Link>
+          {/* AJUSTE: Diário de Classe (Oculto para Admin, visível para Professor) */}
+          {!ehAdmin && (
+            <Link href="/dashboard/diario" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+              📒 Diário de Classe
+            </Link>
+          )}
           
           {/* SÓ APARECE PARA ADMIN */}
           {ehAdmin && (

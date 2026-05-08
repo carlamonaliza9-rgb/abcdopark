@@ -26,6 +26,7 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
   }, [turma?.nome, mesAtual]);
 
   async function buscarFrequenciaMensal() {
+    // Define o intervalo do mês selecionado para a busca
     const dataInicio = new Date(anoAtual, mesAtual, 1).toISOString().split('T')[0];
     const dataFim = new Date(anoAtual, mesAtual + 1, 0).toISOString().split('T')[0];
 
@@ -40,13 +41,19 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
 
   // Função para você (Admin) editar clicando na tabela
   async function alternarFrequencia(alunoId: number, dia: number) {
-    const dataFormatada = new Date(anoAtual, mesAtual, dia).toISOString().split('T')[0];
+    // Ajusta a data para o fuso horário local antes de transformar em string
+    const dataObj = new Date(anoAtual, mesAtual, dia);
+    const dataFormatada = dataObj.toISOString().split('T')[0];
+    
     const registroExistente = frequenciaMensal.find(f => f.aluno_id === alunoId && f.data === dataFormatada);
 
-    let novoStatus: boolean | null = true; // Default Presente
+    let novoStatus: boolean | null = true; // Começa como Presente
     if (registroExistente) {
-      if (registroExistente.presenca === true) novoStatus = false; // Vira Falta
-      else novoStatus = null; // Remove registro (Desfazer)
+      if (registroExistente.presenca === true) {
+        novoStatus = false; // Se era P, vira F
+      } else {
+        novoStatus = null; // Se era F, remove (limpa)
+      }
     }
 
     if (novoStatus === null) {
@@ -58,6 +65,8 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
         presenca: novoStatus
       }, { onConflict: 'aluno_id, data' });
     }
+    
+    // Atualiza a tabela imediatamente após a alteração
     buscarFrequenciaMensal();
   }
 
@@ -68,15 +77,16 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      {/* Aumentado o maxWidth para 800px para caber a tabela caderneta */}
       <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '95%', maxWidth: '850px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         
+        {/* Cabeçalho do Modal - Mantido conforme configurado */}
         <div style={{ backgroundColor: turma.cor, padding: '20px', textAlign: 'center' }}>
           <h2 style={{ margin: 0, color: turma.texto }}>{turma.nome}</h2>
           <button onClick={onClose} style={{ position: 'absolute', top: 15, right: 15, background: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>✕</button>
         </div>
         
         <div style={{ padding: '25px', overflowY: 'auto' }}>
+          {/* Quadro de Horários - Mantido conforme configurado */}
           <div style={{ marginBottom: '25px' }}>
             <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📅 Quadro de Horários</h4>
             {turma.horario_url ? (
@@ -90,6 +100,7 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
             )}
           </div>
 
+          {/* Lista de Alunos - Mantido conforme configurado */}
           <h4 style={{ fontSize: '14px', color: '#64748b', marginBottom: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>👥 Alunos da Turma</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '30px' }}>
             {turma.alunos?.map((aluno: any) => (
@@ -102,7 +113,7 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
             ))}
           </div>
 
-          {/* NOVA SEÇÃO: CADERNETA DE FREQUÊNCIA (Logo abaixo dos alunos) */}
+          {/* CADERNETA DE FREQUÊNCIA - Sincronizada com turmas_info */}
           <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h4 style={{ fontSize: '14px', color: '#1e3a8a', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>📊 Caderneta de Frequência: {nomeMes}</h4>
@@ -128,8 +139,10 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
                       <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>{aluno.nome.split(' ')[0]}</td>
                       {[...Array(diasNoMes)].map((_, i) => {
                         const dia = i + 1;
-                        const dataStr = new Date(anoAtual, mesAtual, dia).toISOString().split('T')[0];
-                        const reg = frequenciaMensal.find(f => f.aluno_id === aluno.id && f.data === dataStr);
+                        // Cria a data no formato YYYY-MM-DD para comparação
+                        const dataComp = `${anoAtual}-${(mesAtual + 1).toString().padStart(2, '0')}-${dia.toString().padStart(2, '0')}`;
+                        const reg = frequenciaMensal.find(f => f.aluno_id === aluno.id && f.data === dataComp);
+                        
                         return (
                           <td 
                             key={i} 
