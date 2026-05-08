@@ -56,7 +56,6 @@ export default function DashboardPage() {
         if (emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin') {
           setEhAdmin(true);
         } else {
-          // Se for professor, busca a boneca personalizada
           const { data: func } = await supabase.from('funcionarios').select('foto_url').eq('email', emailAtual).single();
           if (func?.foto_url) setIlustracaoProfessor(func.foto_url);
         }
@@ -81,7 +80,6 @@ export default function DashboardPage() {
 
       if (alunos) {
         let alunosBase = alunos;
-        // FILTRO DE SEGURANÇA PARA PROFESSOR
         if (emailAtual && emailAtual !== 'carlamonaliza9@gmail.com' && emailAtual !== 'diretoria@abcdopark.com') {
            const minhasTurmas = (turmasInfo || [])
             .filter(t => t.email_prof_fixo_1 === emailAtual || t.email_prof_fixo_2 === emailAtual || t.email_prof_especifico_1 === emailAtual || t.email_prof_especifico_2 === emailAtual)
@@ -99,9 +97,10 @@ export default function DashboardPage() {
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
           .map(a => ({ ...a, tipo: 'aluno' }));
 
-        const bdayFuncs = (ehAdmin) ? (funcionarios || [])
+        // AJUSTE: Funcionários agora aparecem para todos (Equipe) no Dashboard
+        const bdayFuncs = (funcionarios || [])
           .filter(f => f.data_nascimento && new Date(f.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
-          .map(f => ({ ...f, tipo: 'funcionario' })) : [];
+          .map(f => ({ ...f, tipo: 'funcionario' }));
 
         const listaAniversariantes = [...bdayAlunos, ...bdayFuncs]
           .sort((a, b) => extrairDiaUTC(a.data_nascimento) - extrairDiaUTC(b.data_nascimento));
@@ -114,6 +113,8 @@ export default function DashboardPage() {
             const sessionId = sessionData.session?.access_token.slice(-15) || 'default';
             const notifKey = `bday_session_${hojeString}_${sessionId}`;
             const exibições = parseInt(sessionStorage.getItem(notifKey) || '0');
+            
+            // AJUSTE: Modal de festa agora abre para Professor e Admin
             if (exibições < 2) {
               setModalBdayAberto(true);
               sessionStorage.setItem(notifKey, (exibições + 1).toString());
@@ -217,7 +218,7 @@ export default function DashboardPage() {
   return (
     <div style={{ width: '100%', padding: '10px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      {/* MODAL CONFIGURAÇÕES (ORIGINAL) */}
+      {/* MODAL CONFIGURAÇÕES */}
       {modalConfigAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '30px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
@@ -234,7 +235,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* NOTIFICAÇÃO BDAY (ORIGINAL) */}
+      {/* NOTIFICAÇÃO BDAY */}
       {modalBdayAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '450px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', textAlign: 'center' }}>
@@ -246,7 +247,7 @@ export default function DashboardPage() {
             <div style={{ padding: '30px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {aniversariantesHoje.map(pessoa => (
-                  <div key={pessoa.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '20px', border: `2px solid ${pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb'}` }}>
+                  <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '20px', border: `2px solid ${pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb'}` }}>
                     <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', border: '2px solid #eee', overflow: 'hidden', flexShrink: 0 }}>
                       {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
                     </div>
@@ -283,9 +284,8 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ÁREA DE CONTEÚDO (ADMIN vs PROFESSOR) */}
+      {/* ÁREA DE CONTEÚDO */}
       {ehAdmin ? (
-        // --- CÓDIGO INICIAL APROVADO PARA ADMIN (100% PRESERVADO) ---
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '25px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
@@ -327,7 +327,6 @@ export default function DashboardPage() {
           </div>
         </>
       ) : (
-        // --- NOVO LAYOUT DO PROFESSOR (BONECA + FILTROS) ---
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', marginBottom: '25px' }}>
           <div style={{ ...estiloCard, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px', textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
@@ -360,7 +359,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ANIVERSARIANTES E SAÚDE (FILTRADOS AUTOMATICAMENTE PELO CÓDIGO) */}
+      {/* ANIVERSARIANTES E SAÚDE */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
         <div style={estiloCard}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}</h2>
@@ -401,7 +400,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL CALENDÁRIO (COMPLETO) */}
+      {/* MODAL CALENDÁRIO */}
       {modalCalendarioAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -446,7 +445,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL AVISO (ADMIN APENAS) */}
+      {/* MODAL AVISO */}
       {modalAvisoAberto && ehAdmin && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px' }}>
