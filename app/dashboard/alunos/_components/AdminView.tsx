@@ -81,7 +81,7 @@ export function AdminView({
             responsavel3, parentesco3: parentesco3, 
             whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_autista: eAutista, foto_url: previewUrl
+            e_artista: eAutista, foto_url: previewUrl
           }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}

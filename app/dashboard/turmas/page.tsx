@@ -222,7 +222,7 @@ export default function Turmas() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={cancelarEdicao} style={{ padding: '8px 15px', backgroundColor: '#f3f4f6', color: '#4b5563', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Descartar</button>
                     <button onClick={confirmarNovasCores} disabled={salvandoCores} style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
-                     {salvandoCores ? "Gravando..." : "Salvar Cores"}
+                      {salvandoCores ? "Gravando..." : "Salvar Cores"}
                     </button>
                 </div>
               </div>
@@ -303,12 +303,11 @@ export default function Turmas() {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        {/* FOTO AUMENTADA PARA 85PX (AJUSTE REALIZADO) */}
+                        {/* FOTO AUMENTADA PARA 75PX (COMO NO SEU CÓDIGO ATUAL) */}
                         <div style={{ width: '75px', height: '75px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
                           {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : "👤"}
                         </div>
                         <div>
-                          {/* FONTES REVERTIDAS PARA O TAMANHO ORIGINAL (A PEDIDO) */}
                           <p style={{ fontWeight: '900', color: cor.text, fontSize: '18px', margin: 0 }}>{aluno.nome}</p>
                           <div style={{ display: 'flex', gap: '8px', marginTop: '6px', alignItems: 'center' }}>
                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: cor.text, opacity: 0.8 }}>{calcularIdade(aluno.data_nascimento)}</span>

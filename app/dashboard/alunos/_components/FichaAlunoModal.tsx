@@ -42,7 +42,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   const [mediaEstrelas, setMediaEstrelas] = useState(0);
   const [percentualPresenca, setPercentualPresenca] = useState(100);
-  const [obsPedagogicas, setObsPedagogicas] = useState<any[]>([]);
 
   useEffect(() => {
     if (aluno?.id) {
@@ -51,62 +50,26 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   }, [aluno?.id]);
 
   async function buscarDadosAdicionais() {
-    const alunoIdReal = Number(aluno.id);
-
-    // 1. Busca média real na tabela 'avaliacoes'
     const { data: avs } = await supabase
       .from('avaliacoes')
       .select('estrelas')
-      .eq('aluno_id', alunoIdReal);
+      .eq('aluno_id', aluno.id);
     
     if (avs && avs.length > 0) {
       const soma = avs.reduce((acc: number, curr: any) => acc + curr.estrelas, 0);
       setMediaEstrelas(soma / avs.length);
     }
 
-    // 2. Busca presença na tabela 'frequencias'
     const { data: freqs } = await supabase
       .from('frequencias')
-      .select('presente')
-      .eq('aluno_id', alunoIdReal);
+      .select('presenca')
+      .eq('aluno_id', aluno.id);
     
     if (freqs && freqs.length > 0) {
-      const presentes = freqs.filter((f: any) => f.presente).length;
+      const presentes = freqs.filter((f: any) => f.presenca).length;
       setPercentualPresenca((presentes / freqs.length) * 100);
     }
-
-    // 3. Busca Observações Pedagógicas
-    const { data: obs } = await supabase
-      .from('historico_pedagogico')
-      .select('*')
-      .eq('aluno_id', alunoIdReal)
-      .order('data', { ascending: false });
-    
-    if (obs) setObsPedagogicas(obs);
   }
-
-  // FUNÇÃO PARA RENDERIZAR ESTRELAS
-  const RenderizarEstrelas = (media: number) => {
-    const estrelas = [];
-    for (let i = 1; i <= 5; i++) {
-      if (i <= Math.floor(media)) {
-        estrelas.push(<span key={i} style={{ color: '#fbbf24', fontSize: '20px' }}>★</span>);
-      } else if (i === Math.ceil(media) && media % 1 !== 0) {
-        estrelas.push(
-          <span key={i} style={{ 
-            fontSize: '20px', 
-            background: 'linear-gradient(90deg, #fbbf24 50%, #e2e8f0 50%)', 
-            WebkitBackgroundClip: 'text', 
-            WebkitTextFillColor: 'transparent',
-            display: 'inline-block'
-          }}>★</span>
-        );
-      } else {
-        estrelas.push(<span key={i} style={{ color: '#e2e8f0', fontSize: '20px' }}>★</span>);
-      }
-    }
-    return <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>{estrelas}</div>;
-  };
 
   const abrirWhatsApp = (numero: any) => {
     if (!numero) return;
@@ -117,9 +80,27 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   if (!aluno) return null;
 
   const contatos = [
-    { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
-    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
-    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.responsavel_3_cpf, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
+    { 
+      nome: aluno.responsavel, 
+      whats: aluno.whatsapp, 
+      cpf: aluno.responsavel_cpf || aluno.cpf_responsavel,
+      tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", 
+      cor: "#db2777", bg: "#fdf2f8" 
+    },
+    { 
+      nome: aluno.responsavel2 || aluno.responsavel_2_nome, 
+      whats: aluno.whatsapp2 || aluno.responsavel_2_contato, 
+      cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2,
+      tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", 
+      cor: "#2563eb", bg: "#eff6ff" 
+    },
+    { 
+      nome: aluno.responsavel3 || aluno.responsavel_3_nome, 
+      whats: aluno.whatsapp3 || aluno.responsavel_3_contato, 
+      cpf: aluno.responsavel_3_cpf,
+      tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", 
+      cor: "#16a34a", bg: "#f0fdf4" 
+    }
   ];
 
   const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -152,11 +133,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ ...EstiloCard, backgroundColor: '#fffbeb', borderColor: '#fef3c7', textAlign: 'center' }}>
-                  <span style={{ ...EstiloLabel, color: '#b45309' }}>Comportamento Geral</span>
-                  <div style={{ marginTop: '5px' }}>
-                    {mediaEstrelas > 0 ? RenderizarEstrelas(mediaEstrelas) : <p style={EstiloDado}>S/ Nota</p>}
-                    {mediaEstrelas > 0 && <span style={{ fontSize: '10px', color: '#92400e', fontWeight: 'bold' }}>Média: {mediaEstrelas.toFixed(1)}</span>}
-                  </div>
+                  <span style={{ ...EstiloLabel, color: '#b45309' }}>Avaliação</span>
+                  <p style={{ ...EstiloDado, color: '#92400e' }}>{mediaEstrelas > 0 ? "⭐".repeat(Math.round(mediaEstrelas)) : "S/ Nota"}</p>
                 </div>
                 <div style={{ ...EstiloCard, textAlign: 'center' }}>
                   <span style={EstiloLabel}>Frequência</span>
@@ -193,31 +171,18 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                     <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                           <p style={EstiloDado}>{contato.nome}</p>
-                           <span style={{ fontSize: '9px', fontWeight: '800', color: contato.cor, backgroundColor: contato.bg, padding: '1px 6px', borderRadius: '4px' }}>{contato.tag}</span>
+                            <p style={EstiloDado}>{contato.nome}</p>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: contato.cor, backgroundColor: contato.bg, padding: '1px 6px', borderRadius: '4px' }}>{contato.tag}</span>
                         </div>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>{mWhatsApp(contato.whats)} • CPF: {mCPF(contato.cpf)}</span>
                       </div>
                       {contato.whats && (
-                        <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px' }}>
+                        <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px', opacity: 0.8 }}>
                           <span style={{ fontSize: '20px' }}>📱</span>
                         </button>
                       )}
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* POSIÇÃO ABAIXO DE CONTATOS */}
-              <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#dcfce7' }}>
-                <span style={{ ...EstiloLabel, color: '#166534' }}>Registros Pedagógicos</span>
-                <div style={{ maxHeight: '120px', overflowY: 'auto', marginTop: '8px' }}>
-                  {obsPedagogicas.length > 0 ? obsPedagogicas.map((o, i) => (
-                    <div key={i} style={{ marginBottom: '10px', paddingBottom: '8px', borderBottom: i === obsPedagogicas.length - 1 ? 'none' : '1px solid #dcfce7' }}>
-                      <p style={{ ...EstiloDado, fontSize: '13px', fontWeight: '500' }}>{o.descricao}</p>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>{new Date(o.data).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                  )) : <p style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Nenhum registro pedagógico encontrado.</p>}
                 </div>
               </div>
 
@@ -275,7 +240,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
             <div style={{ width: '100%', marginTop: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico Financeiro</h3>
+                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico</h3>
                   <button onClick={onGerarPDFHistorico} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 EXTRATO</button>
                 </div>
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
