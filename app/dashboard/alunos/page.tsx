@@ -44,6 +44,7 @@ export default function Alunos() {
   const [temAlergia, setTemAlergia] = useState(false);
   const [alergiaDescricao, setAlergiaDescricao] = useState("");
   const [eAutista, setEAutista] = useState(false);
+  const [observacoes, setObservacoes] = useState(""); 
   const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -155,9 +156,11 @@ export default function Alunos() {
       let urlFinal = previewUrl;
       if (arquivoFoto) {
         const nomeArquivo = `${Date.now()}_${arquivoFoto.name}`;
-        const { data } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
+        const { data, error: uploadError } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
+        if (uploadError) throw uploadError;
         if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
+      
       const dados = { 
         nome, 
         cpf_aluno: cpfAluno, 
@@ -173,19 +176,34 @@ export default function Alunos() {
         responsavel_3_nome: responsavel3, 
         parentesco_3: parentesco3, 
         responsavel_3_contato: whatsapp3,
-        valor: valor ? parseFloat(valor) : null, 
+        valor: valor ? parseFloat(valor.toString()) : null, 
         vencimento, 
         data_nascimento: dataNascimento,
         tem_alergia: temAlergia, 
         alergia_descricao: temAlergia ? alergiaDescricao : "", 
         e_autista: eAutista, 
+        observacoes,
         foto_url: urlFinal
       };
-      if (idEdicao) await supabase.from('alunos').update(dados).eq('id', idEdicao);
-      else await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]);
-      setModalAberto(false); setModoEdicao(false); buscarAlunos();
-      alert("Sucesso!");
-    } finally { setCarregando(false); }
+
+      if (idEdicao) {
+        const { error: updateError } = await supabase.from('alunos').update(dados).eq('id', idEdicao);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]);
+        if (insertError) throw insertError;
+      }
+
+      setModalAberto(false); 
+      setModoEdicao(false); 
+      buscarAlunos();
+      alert("Salvo com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar: " + (error.message || "Erro desconhecido"));
+    } finally { 
+      setCarregando(false); 
+    }
   }
 
   function limparEContinuar() {
@@ -194,7 +212,7 @@ export default function Alunos() {
     setResponsavel2(""); setParentesco2("Pai"); setCpfResponsavel2(""); setWhatsapp2(""); 
     setResponsavel3(""); setParentesco3(""); setWhatsapp3("");
     setValor(""); setVencimento(""); setDataNascimento(""); setTemAlergia(false); setAlergiaDescricao("");
-    setEAutista(false); setArquivoFoto(null); setPreviewUrl(null);
+    setEAutista(false); setObservacoes(""); setArquivoFoto(null); setPreviewUrl(null);
     setModoEdicao(true); setModalAberto(true);
   }
 
@@ -212,7 +230,7 @@ export default function Alunos() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_autista || false); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
@@ -237,7 +255,7 @@ export default function Alunos() {
             responsavel3, parentesco3: parentesco3, 
             whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_autista: eAutista, foto_url: previewUrl
+            e_autista: eAutista, foto_url: previewUrl, observacoes
           }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
@@ -252,8 +270,30 @@ export default function Alunos() {
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao}}
-          setForm={(d: any) => { setNome(d.nome); setCpfAluno(d.cpfAluno); setDataNascimento(d.dataNascimento); setTurma(d.turma); setValor(d.valor); setVencimento(d.vencimento); setResponsavel(d.responsavel); setParentesco1(d.parentesco1); setWhatsapp(d.whatsapp); setCpfResponsavel(d.cpfResponsavel); setResponsavel2(d.responsavel2); setParentesco2(d.parentesco2); setWhatsapp2(d.whatsapp2); setCpfResponsavel2(d.cpfResponsavel2); setResponsavel3(d.responsavel3); setParentesco3(d.parentesco3); setWhatsapp3(d.whatsapp3); setEAutista(d.eAutista); setTemAlergia(d.temAlergia); setAlergiaDescricao(d.alergiaDescricao); }}
+          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+          setForm={(d: any) => { 
+            if (d.nome !== undefined) setNome(d.nome);
+            if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
+            if (d.dataNascimento !== undefined) setDataNascimento(d.dataNascimento);
+            if (d.turma !== undefined) setTurma(d.turma);
+            if (d.valor !== undefined) setValor(d.valor);
+            if (d.vencimento !== undefined) setVencimento(d.vencimento);
+            if (d.responsavel !== undefined) setResponsavel(d.responsavel);
+            if (d.parentesco1 !== undefined) setParentesco1(d.parentesco1);
+            if (d.whatsapp !== undefined) setWhatsapp(d.whatsapp);
+            if (d.cpfResponsavel !== undefined) setCpfResponsavel(d.cpfResponsavel);
+            if (d.responsavel2 !== undefined) setResponsavel2(d.responsavel2);
+            if (d.parentesco2 !== undefined) setParentesco2(d.parentesco2);
+            if (d.whatsapp2 !== undefined) setWhatsapp2(d.whatsapp2);
+            if (d.cpfResponsavel2 !== undefined) setCpfResponsavel2(d.cpfResponsavel2);
+            if (d.responsavel3 !== undefined) setResponsavel3(d.responsavel3);
+            if (d.parentesco3 !== undefined) setParentesco3(d.parentesco3);
+            if (d.whatsapp3 !== undefined) setWhatsapp3(d.whatsapp3);
+            if (d.eAutista !== undefined) setEAutista(d.eAutista);
+            if (d.temAlergia !== undefined) setTemAlergia(d.temAlergia);
+            if (d.alergiaDescricao !== undefined) setAlergiaDescricao(d.alergiaDescricao);
+            if (d.observacoes !== undefined) setObservacoes(d.observacoes);
+          }}
           onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
           onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
         />

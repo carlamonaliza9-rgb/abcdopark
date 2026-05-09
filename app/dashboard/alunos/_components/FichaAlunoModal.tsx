@@ -186,6 +186,13 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
               </div>
 
+              {aluno.observacoes && (
+                <div style={{ ...EstiloCard, backgroundColor: '#f8fafc', borderLeft: '4px solid #2563eb' }}>
+                  <span style={{ ...EstiloLabel, color: '#2563eb' }}>Observações Pedagógicas</span>
+                  <p style={{ ...EstiloDado, fontSize: '12px', whiteSpace: 'pre-wrap', color: '#475569', fontWeight: '500' }}>{aluno.observacoes}</p>
+                </div>
+              )}
+
               {aluno.tem_alergia && (
                 <div style={{ ...EstiloCard, backgroundColor: '#fff5f5', borderColor: '#fed7d7' }}>
                   <span style={{ ...EstiloLabel, color: '#c53030' }}>⚠️ Alergia</span>
