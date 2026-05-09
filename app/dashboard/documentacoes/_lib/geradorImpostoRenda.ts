@@ -53,8 +53,11 @@ export const gerarPDFImpostoRenda = async (
 ) => {
   const doc = new jsPDF();
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  
+  // URLs dos Assets no Storage
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-  const carimboUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
+  const carimboEscolaUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Escola.png";
+  const carimboSuellenUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
   
   // Cálculos automáticos
   const valorTotal = valorMensalidade * mesesPagos;
@@ -62,7 +65,7 @@ export const gerarPDFImpostoRenda = async (
   const mensalidadeFormatada = valorMensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const valorExtenso = escreverValorPorExtenso(Math.floor(valorTotal));
 
-  // --- MARCA D'ÁGUA (LOGO CENTRALIZADA P&B) ---
+  // --- MARCA D'ÁGUA ---
   try {
     doc.saveGraphicsState();
     const gState = new (doc as any).GState({ opacity: 0.05 });
@@ -96,7 +99,7 @@ export const gerarPDFImpostoRenda = async (
   doc.text("DECLARAÇÃO DE QUITAÇÃO PARA IMPOSTO DE RENDA", 105, 65, { align: "center" });
   doc.text(`ANO BASE ${anoBase}`, 105, 72, { align: "center" });
 
-  // 3. Texto da Declaração com Valor por Extenso
+  // 3. Texto da Declaração
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   
@@ -108,15 +111,23 @@ Quantidade de mensalidades pagas: ${mesesPagos} Meses`;
   const textoLinhas = doc.splitTextToSize(texto, 170);
   doc.text(textoLinhas, 20, 90);
 
+  // --- DATA E CARIMBO DA ESCOLA ---
   doc.text(`Belém, ${hoje}`, 20, 150);
+  
+  try {
+    // Carimbo da Escola (Aumentado: 80x80)
+    // Posicionado um pouco mais acima (y: 115) para destaque ao lado da data
+    doc.addImage(carimboEscolaUrl, "PNG", 120, 115, 80, 80);
+  } catch (e) {
+    console.error("Erro ao carregar o carimbo da escola");
+  }
 
-  // 4. Assinatura e Carimbo (Atualizado)
+  // 4. Assinatura e Carimbo Direção
   doc.setFont("helvetica", "bold");
   try { 
-    // Carimbo PNG transparente posicionado sobre a linha
-    doc.addImage(carimboUrl, "PNG", 75, 170, 60, 30); 
+    doc.addImage(carimboSuellenUrl, "PNG", 75, 170, 60, 30); 
   } catch (e) {
-    console.error("Erro ao carregar o carimbo");
+    console.error("Erro ao carregar o carimbo da direção");
   }
 
   doc.text("__________________________________________", 105, 200, { align: "center" });

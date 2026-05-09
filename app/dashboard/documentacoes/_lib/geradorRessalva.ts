@@ -3,15 +3,17 @@ import { jsPDF } from "jspdf";
 export const gerarPDFRessalva = async (aluno: any, sexoAluno: "M" | "F") => {
   const doc = new jsPDF();
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  
+  // URLs dos Assets no Storage
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-  const carimboUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
+  const carimboEscolaUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Escola.png";
+  const carimboSuellenUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
 
   // --- FORMATAÇÃO DA DATA DE NASCIMENTO ---
   const formatarData = (dataString: string) => {
     if (!dataString) return '___/___/___';
     try {
       const data = new Date(dataString);
-      // Garante que a data não sofra fuso horário ao formatar
       return new Date(data.getTime() + data.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
     } catch (e) {
       return dataString;
@@ -28,35 +30,22 @@ export const gerarPDFRessalva = async (aluno: any, sexoAluno: "M" | "F") => {
   const p2Tag = (aluno.parentesco_2 || aluno.parentesco2)?.toLowerCase() || "";
   const r2Nome = aluno.responsavel2 || aluno.responsavel_2_nome;
 
-  // Verifica Responsável 1
   if (p1Tag === "pai") nomePai = aluno.responsavel;
   if (p1Tag === "mãe") nomeMae = aluno.responsavel;
-
-  // Verifica Responsável 2
   if (p2Tag === "pai") nomePai = r2Nome;
   if (p2Tag === "mãe") nomeMae = r2Nome;
 
-  // --- LÓGICA DE PROGRESSÃO DE TURMA (ORDEM AJUSTADA) ---
+  // --- LÓGICA DE PROGRESSÃO DE TURMA ---
   const turmasSequencia = [
-    "Maternal", 
-    "Jardim I", 
-    "Jardim II", 
-    "1º Ano", 
-    "2º Ano", 
-    "3º Ano", 
-    "4º Ano", 
-    "5º Ano", 
-    "6º Ano"
+    "Maternal", "Jardim I", "Jardim II", 
+    "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano", "6º Ano"
   ];
   
-  // Encontra a posição da turma atual para definir a próxima
   const indexAtual = turmasSequencia.findIndex(t => t.toLowerCase() === aluno.turma?.toLowerCase());
-  
   const proximaTurma = indexAtual !== -1 && indexAtual < turmasSequencia.length - 1 
     ? turmasSequencia[indexAtual + 1] 
     : "Série Seguinte";
 
-  // Define segmento baseado na PRÓXIMA turma
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
   const segmentoEnsino = turmasInfantil.includes(proximaTurma) ? "Ensino Infantil" : "Ensino Fundamental";
 
@@ -102,21 +91,28 @@ Seu documento será expedido no prazo de 45 dias a contar desta data.`;
   const textoLinhas = doc.splitTextToSize(texto, 170);
   doc.text(textoLinhas, 20, 90);
 
-  doc.text(`Belém, ${hoje}.`, 20, 150);
-
-  // 4. Assinatura e Carimbo (Atualizado)
-  doc.setFont("helvetica", "bold");
-  try { 
-    // Carimbo PNG posicionado sobre a linha
-    doc.addImage(carimboUrl, "PNG", 75, 170, 60, 30); 
+  // --- DATA E CARIMBO DA ESCOLA ---
+  doc.text(`Belém, ${hoje}.`, 20, 160);
+  
+  try {
+    // Carimbo da Escola (80x80) posicionado acima da data para destaque
+    doc.addImage(carimboEscolaUrl, "PNG", 120, 125, 80, 80);
   } catch (e) {
-    console.error("Erro ao carregar o carimbo");
+    console.error("Erro ao carregar carimbo da escola");
   }
 
-  doc.text("__________________________________________", 105, 200, { align: "center" });
-  doc.text("Suellen C. S. Figueiredo", 105, 206, { align: "center" });
+  // 4. Assinatura e Carimbo Direção
+  doc.setFont("helvetica", "bold");
+  try { 
+    doc.addImage(carimboSuellenUrl, "PNG", 75, 185, 60, 30); 
+  } catch (e) {
+    console.error("Erro ao carregar o carimbo da direção");
+  }
+
+  doc.text("__________________________________________", 105, 215, { align: "center" });
+  doc.text("Suellen C. S. Figueiredo", 105, 221, { align: "center" });
   doc.setFontSize(10);
-  doc.text("DIRETORA / REG. 6235", 105, 212, { align: "center" });
+  doc.text("DIRETORA / REG. 6235", 105, 227, { align: "center" });
 
   doc.save(`Ressalva_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
 };

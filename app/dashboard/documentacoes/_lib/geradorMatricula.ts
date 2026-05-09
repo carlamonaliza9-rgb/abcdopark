@@ -3,8 +3,11 @@ import { jsPDF } from "jspdf";
 export const gerarPDFMatricula = async (aluno: any, resp: any, sexoAluno: "M" | "F") => {
   const doc = new jsPDF();
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  
+  // URLs dos Assets no Storage
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-  const carimboUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
+  const carimboEscolaUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Escola.png";
+  const carimboSuellenUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
 
   // --- LÓGICA DE SEGMENTO DE ENSINO ---
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
@@ -20,7 +23,10 @@ export const gerarPDFMatricula = async (aluno: any, resp: any, sexoAluno: "M" | 
   } catch (e) {}
 
   // 1. Cabeçalho Institucional
-  try { doc.addImage(logoUrl, "PNG", 20, 10, 35, 35); } catch (e) {}
+  try { 
+    doc.addImage(logoUrl, "PNG", 20, 10, 35, 35); 
+  } catch (e) {}
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.text("ESCOLA ABC DO PARK", 60, 20);
@@ -59,17 +65,25 @@ Colocamo-nos à disposição para quaisquer esclarecimentos.`;
   const textoLinhas = doc.splitTextToSize(texto, 170);
   doc.text(textoLinhas, 20, 90);
 
+  // --- DATA E CARIMBO DA ESCOLA ---
   doc.text(`Belém, ${hoje}.`, 20, 160);
+  
+  try {
+    // Carimbo da Escola (Aumentado: 80x80)
+    // Ajustado para ficar um pouco mais acima (y: 125 em vez de 135)
+    doc.addImage(carimboEscolaUrl, "PNG", 120, 125, 80, 80);
+  } catch (e) {
+    console.error("Erro ao carregar carimbo da escola");
+  }
 
-  // 4. Assinatura e Carimbo (Atualizado)
+  // 4. Assinatura e Carimbo Direção
   doc.setFont("helvetica", "bold");
   doc.text("Atenciosamente,", 20, 185);
   
   try {
-    // Carimbo PNG posicionado sobre a linha
-    doc.addImage(carimboUrl, "PNG", 75, 185, 60, 30);
+    doc.addImage(carimboSuellenUrl, "PNG", 75, 185, 60, 30);
   } catch (e) {
-    console.error("Erro ao carregar carimbo");
+    console.error("Erro ao carregar carimbo da direção");
   }
 
   doc.text("__________________________________________", 105, 215, { align: "center" });
