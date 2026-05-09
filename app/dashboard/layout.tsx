@@ -94,6 +94,10 @@ export default function DashboardLayout({
           {/* SÓ APARECE PARA ADMIN */}
           {ehAdmin && (
             <>
+              <Link href="/dashboard/documentacoes" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                📑 Documentações
+              </Link>
+
               <Link href="/dashboard/funcionarios" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
                 👥 Funcionários
               </Link>
