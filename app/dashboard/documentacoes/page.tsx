@@ -8,11 +8,10 @@ import { gerarPDFImpostoRenda } from "./_lib/geradorImpostoRenda";
 export default function DocumentacoesPage() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
-  const [responsavelEscolhido, setResponsavelEscolhido] = useState({ nome: "", cpf: "" });
+  const [responsavelEscolhido, setResponsavelEscolhido] = useState({ nome: "", cpf: "", telefone: "" });
   const [documentoAtivo, setDocumentoAtivo] = useState<string | null>(null);
   const [sexoAluno, setSexoAluno] = useState<"M" | "F">("M");
   
-  // Estados para Imposto de Renda
   const [valorMensalidade, setValorMensalidade] = useState<string>("450,00");
   const [mesesPagos, setMesesPagos] = useState<string>("12");
   const [anoBase, setAnoBase] = useState<string>("2025");
@@ -28,18 +27,33 @@ export default function DocumentacoesPage() {
 
   const selecionarResponsavel = (aluno: any, tipo: number) => {
     if (tipo === 1) {
-      setResponsavelEscolhido({ nome: aluno.responsavel || "", cpf: aluno.cpf_responsavel || "" });
-    } else if (tipo === 2) {
       setResponsavelEscolhido({ 
-        nome: aluno.responsavel2 || aluno.responsavel_2_nome || "", 
-        cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2 || "" 
+        nome: aluno.responsavel || "", 
+        cpf: aluno.cpf_responsavel || "",
+        telefone: aluno.whatsapp || "" 
       });
     } else {
       setResponsavelEscolhido({ 
-        nome: aluno.responsavel3 || aluno.responsavel_3_nome || "", 
-        cpf: aluno.responsavel_3_contato || "" 
+        nome: aluno.responsavel2 || aluno.responsavel_2_nome || "", 
+        cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2 || "",
+        telefone: aluno.responsavel_2_contato || ""
       });
     }
+  };
+
+  const enviarWhatsApp = (aluno: any, resp: any) => {
+    if (!resp.telefone) {
+      alert("Responsável não possui telefone cadastrado!");
+      return;
+    }
+
+    const numeroLimpo = resp.telefone.replace(/\D/g, "");
+    const nomeDoc = documentoAtivo === 'matricula' ? 'Declaração de Matrícula' : 'Quitação de Imposto de Renda';
+    
+    const mensagem = `Olá! Aqui é da *Escola ABC do Park*. Segue a ${nomeDoc} de *${aluno.nome}*. Por favor, salve o arquivo PDF que acabei de gerar para você.`;
+    
+    const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, "_blank");
   };
 
   return (
@@ -52,18 +66,18 @@ export default function DocumentacoesPage() {
           <div onClick={() => setDocumentoAtivo('matricula')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
             <span style={{ fontSize: '40px', marginBottom: '15px' }}>📑</span>
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Declaração de Matrícula</h3>
-            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Gera o documento padrão com dados do aluno e responsável.</p>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Gera o documento padrão com dados do aluno.</p>
           </div>
 
           <div onClick={() => setDocumentoAtivo('quitacao')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
             <span style={{ fontSize: '40px', marginBottom: '15px' }}>💰</span>
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Quitação Imposto de Renda</h3>
-            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Declaração de valores pagos no ano base para o IR.</p>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Declaração de valores pagos no ano base.</p>
           </div>
         </div>
       ) : (
         <div style={{ animation: 'fadeIn 0.3s' }}>
-          <button onClick={() => { setDocumentoAtivo(null); setAlunoSelecionado(null); setResponsavelEscolhido({ nome: "", cpf: "" }); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <button onClick={() => { setDocumentoAtivo(null); setAlunoSelecionado(null); setResponsavelEscolhido({ nome: "", cpf: "", telefone: "" }); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             ← Voltar para opções
           </button>
 
@@ -79,9 +93,9 @@ export default function DocumentacoesPage() {
                 const id = e.target.value;
                 const selecionado = alunos.find(a => String(a.id) === String(id));
                 setAlunoSelecionado(selecionado || null);
-                setResponsavelEscolhido({ nome: "", cpf: "" });
+                setResponsavelEscolhido({ nome: "", cpf: "", telefone: "" });
               }}
-              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', outline: 'none', fontSize: '14px' }}
+              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', outline: 'none', fontSize: '14px', color: '#1e293b' }}
             >
               <option value="">Escolha um aluno na lista...</option>
               {alunos.map(aluno => (
@@ -96,31 +110,16 @@ export default function DocumentacoesPage() {
                   <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ANO BASE</label>
-                      <input 
-                        type="text" 
-                        value={anoBase}
-                        onChange={(e) => setAnoBase(e.target.value)}
-                        style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}
-                      />
+                      <input type="text" value={anoBase} onChange={(e) => setAnoBase(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '15px' }}>
                       <div style={{ flex: 1 }}>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MENSALIDADE (R$)</label>
-                        <input 
-                          type="text" 
-                          value={valorMensalidade}
-                          onChange={(e) => setValorMensalidade(e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}
-                        />
+                        <input type="text" value={valorMensalidade} onChange={(e) => setValorMensalidade(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MESES PAGOS</label>
-                        <input 
-                          type="text" 
-                          value={mesesPagos}
-                          onChange={(e) => setMesesPagos(e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}
-                        />
+                        <input type="text" value={mesesPagos} onChange={(e) => setMesesPagos(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
                       </div>
                     </div>
                   </div>
@@ -130,8 +129,8 @@ export default function DocumentacoesPage() {
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textTransform: 'uppercase' }}>2. Qual o sexo do aluno?</label>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button type="button" onClick={() => setSexoAluno("M")} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: sexoAluno === "M" ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: sexoAluno === "M" ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer' }}>Masculino</button>
-                      <button type="button" onClick={() => setSexoAluno("F")} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: sexoAluno === "F" ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: sexoAluno === "F" ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer' }}>Feminino</button>
+                      <button type="button" onClick={() => setSexoAluno("M")} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: sexoAluno === "M" ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: sexoAluno === "M" ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b' }}>Masculino</button>
+                      <button type="button" onClick={() => setSexoAluno("F")} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: sexoAluno === "F" ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: sexoAluno === "F" ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b' }}>Feminino</button>
                     </div>
                   </div>
                 )}
@@ -140,37 +139,52 @@ export default function DocumentacoesPage() {
                   {documentoAtivo === 'matricula' ? '3. Qual responsável assinará?' : '2. Qual responsável financeiro?'}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {alunoSelecionado.responsavel && (
-                    <button type="button" onClick={() => selecionarResponsavel(alunoSelecionado, 1)} style={{ textAlign: 'left', padding: '15px', borderRadius: '12px', border: responsavelEscolhido.nome === alunoSelecionado.responsavel ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: responsavelEscolhido.nome === alunoSelecionado.responsavel ? '#eff6ff' : 'white', cursor: 'pointer' }}>
-                      <span style={{ fontWeight: 'bold', display: 'block', color: '#1e293b', fontSize: '14px' }}>{alunoSelecionado.responsavel}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>{alunoSelecionado.parentesco_1 || alunoSelecionado.parentesco1 || "Responsável Principal"}</span>
-                    </button>
-                  )}
-                  {(alunoSelecionado.responsavel2 || alunoSelecionado.responsavel_2_nome) && (
-                    <button type="button" onClick={() => selecionarResponsavel(alunoSelecionado, 2)} style={{ textAlign: 'left', padding: '15px', borderRadius: '12px', border: responsavelEscolhido.nome === (alunoSelecionado.responsavel2 || alunoSelecionado.responsavel_2_nome) ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: responsavelEscolhido.nome === (alunoSelecionado.responsavel2 || alunoSelecionado.responsavel_2_nome) ? '#eff6ff' : 'white', cursor: 'pointer' }}>
-                      <span style={{ fontWeight: 'bold', display: 'block', color: '#1e293b', fontSize: '14px' }}>{alunoSelecionado.responsavel2 || alunoSelecionado.responsavel_2_nome}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>{alunoSelecionado.parentesco_2 || alunoSelecionado.parentesco2 || "Responsável 2"}</span>
-                    </button>
-                  )}
+                  {[1, 2].map((tipo) => {
+                    const nome = tipo === 1 ? alunoSelecionado.responsavel : (alunoSelecionado.responsavel2 || alunoSelecionado.responsavel_2_nome);
+                    if (!nome) return null;
+                    const isSelected = responsavelEscolhido.nome === nome;
+                    return (
+                      <button key={tipo} type="button" onClick={() => selecionarResponsavel(alunoSelecionado, tipo)} style={{ textAlign: 'left', padding: '15px', borderRadius: '12px', border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: isSelected ? '#eff6ff' : 'white', cursor: 'pointer' }}>
+                        <span style={{ fontWeight: 'bold', display: 'block', color: '#1e293b', fontSize: '14px' }}>{nome}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>{tipo === 1 ? (alunoSelecionado.parentesco_1 || "Principal") : (alunoSelecionado.parentesco_2 || "Responsável 2")}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {responsavelEscolhido.nome && (
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if(documentoAtivo === 'matricula') {
-                        gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
-                      } else if(documentoAtivo === 'quitacao') {
-                        // Converte string "450,00" para número 450.00
-                        const vMensalidade = parseFloat(valorMensalidade.replace('.', '').replace(',', '.'));
-                        const qMeses = parseInt(mesesPagos);
-                        gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, qMeses, anoBase);
-                      }
-                    }}
-                    style={{ width: '100%', marginTop: '30px', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                  >
-                    GERAR PDF AGORA
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '30px' }}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
+                        else {
+                          const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
+                          gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
+                        }
+                      }}
+                      style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                    >
+                      GERAR PDF AGORA
+                    </button>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        // Primeiro gera o PDF para o usuário
+                        if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
+                        else {
+                          const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
+                          gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
+                        }
+                        // Depois abre o WhatsApp
+                        enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
+                      }}
+                      style={{ width: '100%', padding: '16px', backgroundColor: '#22c55e', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                    >
+                      ENVIAR VIA WHATSAPP 📱
+                    </button>
+                  </div>
                 )}
               </div>
             )}
