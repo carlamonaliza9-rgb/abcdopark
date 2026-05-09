@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { gerarPDFMatricula } from "./_lib/geradorMatricula";
 import { gerarPDFImpostoRenda } from "./_lib/geradorImpostoRenda";
+import { gerarPDFRessalva } from "./_lib/geradorRessalva";
 
 export default function DocumentacoesPage() {
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -48,7 +49,10 @@ export default function DocumentacoesPage() {
     }
 
     const numeroLimpo = resp.telefone.replace(/\D/g, "");
-    const nomeDoc = documentoAtivo === 'matricula' ? 'Declaração de Matrícula' : 'Quitação de Imposto de Renda';
+    let nomeDoc = "";
+    if (documentoAtivo === 'matricula') nomeDoc = "Declaração de Matrícula";
+    else if (documentoAtivo === 'quitacao') nomeDoc = "Quitação de Imposto de Renda";
+    else if (documentoAtivo === 'ressalva') nomeDoc = "Ressalva (Transferência)";
     
     const mensagem = `Olá! Aqui é da *Escola ABC do Park*. Segue a ${nomeDoc} de *${aluno.nome}*. Por favor, salve o arquivo PDF que acabei de gerar para você.`;
     
@@ -74,6 +78,12 @@ export default function DocumentacoesPage() {
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Quitação Imposto de Renda</h3>
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Declaração de valores pagos no ano base.</p>
           </div>
+
+          <div onClick={() => setDocumentoAtivo('ressalva')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontSize: '40px', marginBottom: '15px' }}>🔄</span>
+            <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Ressalva</h3>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Documento de transferência com direito à matrícula.</p>
+          </div>
         </div>
       ) : (
         <div style={{ animation: 'fadeIn 0.3s' }}>
@@ -83,7 +93,9 @@ export default function DocumentacoesPage() {
 
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: '600px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
-              {documentoAtivo === 'matricula' ? 'Gerar Declaração de Matrícula' : 'Gerar Quitação de Imposto de Renda'}
+              {documentoAtivo === 'matricula' && 'Gerar Declaração de Matrícula'}
+              {documentoAtivo === 'quitacao' && 'Gerar Quitação de Imposto de Renda'}
+              {documentoAtivo === 'ressalva' && 'Gerar Ressalva'}
             </h2>
             
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>1. Selecione o Aluno</label>
@@ -125,7 +137,7 @@ export default function DocumentacoesPage() {
                   </div>
                 )}
 
-                {documentoAtivo === 'matricula' && (
+                {(documentoAtivo === 'matricula' || documentoAtivo === 'ressalva') && (
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textTransform: 'uppercase' }}>2. Qual o sexo do aluno?</label>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -136,7 +148,7 @@ export default function DocumentacoesPage() {
                 )}
 
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textTransform: 'uppercase' }}>
-                  {documentoAtivo === 'matricula' ? '3. Qual responsável assinará?' : '2. Qual responsável financeiro?'}
+                  3. Qual responsável assinará?
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {[1, 2].map((tipo) => {
@@ -158,9 +170,11 @@ export default function DocumentacoesPage() {
                       type="button"
                       onClick={() => {
                         if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
-                        else {
+                        else if(documentoAtivo === 'quitacao') {
                           const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
                           gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
+                        } else if(documentoAtivo === 'ressalva') {
+                          gerarPDFRessalva(alunoSelecionado, sexoAluno);
                         }
                       }}
                       style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
@@ -171,13 +185,13 @@ export default function DocumentacoesPage() {
                     <button 
                       type="button"
                       onClick={() => {
-                        // Primeiro gera o PDF para o usuário
                         if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
-                        else {
+                        else if(documentoAtivo === 'quitacao') {
                           const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
                           gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
+                        } else if(documentoAtivo === 'ressalva') {
+                          gerarPDFRessalva(alunoSelecionado, sexoAluno);
                         }
-                        // Depois abre o WhatsApp
                         enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
                       }}
                       style={{ width: '100%', padding: '16px', backgroundColor: '#22c55e', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
