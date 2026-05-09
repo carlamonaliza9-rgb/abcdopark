@@ -4,12 +4,14 @@ export const gerarPDFRessalva = async (aluno: any, sexoAluno: "M" | "F") => {
   const doc = new jsPDF();
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+  const carimboUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
 
   // --- FORMATAÇÃO DA DATA DE NASCIMENTO ---
   const formatarData = (dataString: string) => {
     if (!dataString) return '___/___/___';
     try {
       const data = new Date(dataString);
+      // Garante que a data não sofra fuso horário ao formatar
       return new Date(data.getTime() + data.getTimezoneOffset() * 60000).toLocaleDateString('pt-BR');
     } catch (e) {
       return dataString;
@@ -102,13 +104,19 @@ Seu documento será expedido no prazo de 45 dias a contar desta data.`;
 
   doc.text(`Belém, ${hoje}.`, 20, 150);
 
-  // 4. Assinatura e Carimbo
+  // 4. Assinatura e Carimbo (Atualizado)
   doc.setFont("helvetica", "bold");
-  try { doc.addImage("/icon.jpg", "JPEG", 75, 175, 60, 30); } catch (e) {}
-  doc.text("__________________________________________", 105, 210, { align: "center" });
-  doc.text("Suellen C. S. Figueiredo", 105, 216, { align: "center" });
+  try { 
+    // Carimbo PNG posicionado sobre a linha
+    doc.addImage(carimboUrl, "PNG", 75, 170, 60, 30); 
+  } catch (e) {
+    console.error("Erro ao carregar o carimbo");
+  }
+
+  doc.text("__________________________________________", 105, 200, { align: "center" });
+  doc.text("Suellen C. S. Figueiredo", 105, 206, { align: "center" });
   doc.setFontSize(10);
-  doc.text("DIRETORA / REG. 6235", 105, 222, { align: "center" });
+  doc.text("DIRETORA / REG. 6235", 105, 212, { align: "center" });
 
   doc.save(`Ressalva_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
 };

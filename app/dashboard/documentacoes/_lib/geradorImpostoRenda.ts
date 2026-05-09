@@ -54,6 +54,7 @@ export const gerarPDFImpostoRenda = async (
   const doc = new jsPDF();
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+  const carimboUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
   
   // Cálculos automáticos
   const valorTotal = valorMensalidade * mesesPagos;
@@ -109,16 +110,19 @@ Quantidade de mensalidades pagas: ${mesesPagos} Meses`;
 
   doc.text(`Belém, ${hoje}`, 20, 150);
 
-  // 4. Assinatura e Carimbo
+  // 4. Assinatura e Carimbo (Atualizado)
   doc.setFont("helvetica", "bold");
   try { 
-    doc.addImage("/icon.jpg", "JPEG", 75, 175, 60, 30); 
-  } catch (e) {}
+    // Carimbo PNG transparente posicionado sobre a linha
+    doc.addImage(carimboUrl, "PNG", 75, 170, 60, 30); 
+  } catch (e) {
+    console.error("Erro ao carregar o carimbo");
+  }
 
-  doc.text("__________________________________________", 105, 210, { align: "center" });
-  doc.text("Suellen C. S. Figueiredo", 105, 216, { align: "center" });
+  doc.text("__________________________________________", 105, 200, { align: "center" });
+  doc.text("Suellen C. S. Figueiredo", 105, 206, { align: "center" });
   doc.setFontSize(10);
-  doc.text("DIRETORA / REG. 6235", 105, 222, { align: "center" });
+  doc.text("DIRETORA / REG. 6235", 105, 212, { align: "center" });
 
   doc.save(`Quitacao_IR_${anoBase}_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
 };
