@@ -48,15 +48,21 @@ export default function AvaliacoesProfessorPage() {
         const nomesTurmas = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
         setListaTurmas(nomesTurmas);
       } else {
-        // Se for Professor, identifica a turma pelo e-mail
-        const { data: turmaData } = await supabase
+        // 2. Lógica para Professores (Fixos e Especialistas)
+        // Busca todas as turmas onde o e-mail aparece em qualquer um dos campos de professor
+        const { data: turmasData } = await supabase
           .from('turmas_info')
           .select('nome_turma')
-          .eq('email_prof_fixo_1', email)
-          .maybeSingle();
+          .or(`email_prof_fixo_1.eq.${email},email_prof_fixo_2.eq.${email},email_prof_especifico_1.eq.${email},email_prof_especifico_2.eq.${email}`);
 
-        if (turmaData) {
-          setTurmaSelecionada(turmaData.nome_turma);
+        if (turmasData && turmasData.length > 0) {
+          const nomesEncontrados = turmasData.map(t => t.nome_turma);
+          setListaTurmas(nomesEncontrados);
+          
+          // Se o professor só tiver uma turma, já seleciona automaticamente
+          if (nomesEncontrados.length === 1) {
+            setTurmaSelecionada(nomesEncontrados[0]);
+          }
         }
       }
       setCarregando(false);
@@ -97,7 +103,6 @@ export default function AvaliacoesProfessorPage() {
   }, [turmaSelecionada, disciplinaSelecionada, bimestreSelecionado]);
 
   async function carregarDadosLancamento() {
-    // 1. Busca alunos da turma
     const { data: listaAlunos } = await supabase
       .from('alunos')
       .select('id, nome, foto_url')
@@ -107,7 +112,6 @@ export default function AvaliacoesProfessorPage() {
     if (listaAlunos) {
       setAlunos(listaAlunos);
 
-      // 2. Busca notas existentes para esta matéria e bimestre
       const { data: notasData } = await supabase
         .from('boletins')
         .select('*')
@@ -166,8 +170,8 @@ export default function AvaliacoesProfessorPage() {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '20px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px' }}>
           
-          {/* Seletor de Turma visível apenas para Admin */}
-          {ehAdmin && (
+          {/* Seletor de Turma visível para Admin ou Especialistas (mais de 1 turma) */}
+          {(ehAdmin || listaTurmas.length > 1) ? (
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>SELECIONE A TURMA</label>
               <select 
@@ -178,6 +182,13 @@ export default function AvaliacoesProfessorPage() {
                 <option value="">Escolha uma turma...</option>
                 {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
+            </div>
+          ) : (
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>TURMA</label>
+              <div style={{ padding: '10px', backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: '800', color: '#1e3a8a' }}>
+                {turmaSelecionada || "Nenhuma turma vinculada"}
+              </div>
             </div>
           )}
 
