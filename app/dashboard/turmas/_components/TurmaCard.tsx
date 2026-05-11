@@ -5,7 +5,7 @@ interface TurmaCardProps {
   ehAdmin: boolean;
   onAbrirTurma: (turma: any) => void;
   onEditarProfessor: (e: React.MouseEvent, nomeTurma: string) => void;
-  onGerenciarMaterias: (e: React.MouseEvent, nomeTurma: string) => void; // Prop adicionada
+  onGerenciarMaterias: (e: React.MouseEvent, nomeTurma: string) => void; // Prop necessária para limpar o erro
   onAbrirUploadHorario: (e: React.MouseEvent, turma: any) => void;
   onAbrirAgenda: (e: React.MouseEvent, turma: any) => void;
 }
@@ -15,7 +15,7 @@ export function TurmaCard({
   ehAdmin, 
   onAbrirTurma, 
   onEditarProfessor, 
-  onGerenciarMaterias, // Destruturação adicionada
+  onGerenciarMaterias, 
   onAbrirUploadHorario, 
   onAbrirAgenda 
 }: TurmaCardProps) {
@@ -92,7 +92,7 @@ export function TurmaCard({
                 )}
               </button>
 
-              {/* BOTÃO DE GESTÃO DE MATÉRIAS ADICIONADO */}
+              {/* BOTÃO DE GESTÃO DE MATÉRIAS */}
               <button 
                 onClick={(e) => onGerenciarMaterias(e, turma.nome)} 
                 style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
