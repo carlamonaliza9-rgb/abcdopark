@@ -81,6 +81,11 @@ export default function DashboardLayout({
           <Link href={ehAdmin ? "/admin/diario" : "/professor/diario"} className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             📒 Diário de Classe
           </Link>
+
+          {/* Avaliações - Acesso para Professor e Admin */}
+          <Link href="/professor/avaliacoes" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+            ⭐ Avaliações
+          </Link>
           
           {/* SÓ APARECE PARA ADMIN */}
           {ehAdmin && (
