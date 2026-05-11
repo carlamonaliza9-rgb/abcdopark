@@ -67,7 +67,7 @@ export default function AlunosAdminPage() {
   const [verHistorico, setVerHistorico] = useState(false);
   const [verBoletim, setVerBoletim] = useState(false);
   const [notas, setNotas] = useState<any[]>([]);
-  const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); // Novo estado para controle de ano
+  const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); 
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
@@ -139,9 +139,8 @@ export default function AlunosAdminPage() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // Função buscarBoletim atualizada para filtrar por ano
   async function buscarBoletim(alunoId: string, ano: string = "2026") {
-    setAnoBoletimAtivo(ano); // Sincroniza o ano ativo
+    setAnoBoletimAtivo(ano);
     const { data } = await supabase
       .from('boletins')
       .select('*')
@@ -152,7 +151,6 @@ export default function AlunosAdminPage() {
     setVerBoletim(true); setVerHistorico(false);
   }
 
-  // Função adicionarDisciplina atualizada para usar o ano selecionado
   async function adicionarDisciplina() {
     const disc = prompt("Nome da Disciplina:");
     if (!disc || !idEdicao) return;
@@ -194,13 +192,25 @@ export default function AlunosAdminPage() {
     }
   }
 
-  async function buscarHistoricoPagamento(alunoId: string) {
-    const { data } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoId).order('data_pagamento', { ascending: false });
+  async function buscarHistoricoPagamento(alunoId: string, ano: string = "2026") {
+    const { data } = await supabase
+      .from('historico_pagamentos')
+      .select('*')
+      .eq('aluno_id', alunoId)
+      .gte('data_pagamento', `${ano}-01-01`)
+      .lte('data_pagamento', `${ano}-12-31`)
+      .order('data_pagamento', { ascending: false });
     if (data) setHistorico(data);
     setVerHistorico(true); setVerBoletim(false);
   }
 
   function gerarPDFHistorico() {
+    const extrairForma = (detalhes: any) => {
+      if (!detalhes) return "-";
+      const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0);
+      return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : "-";
+    };
+
     const doc = new jsPDF();
     doc.setFontSize(16);
     doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
@@ -208,10 +218,11 @@ export default function AlunosAdminPage() {
     doc.text(`Aluno: ${nome.toUpperCase()}`, 15, 35);
     autoTable(doc, {
       startY: 45,
-      head: [['DATA', 'DESCRIÇÃO', 'VALOR']],
+      head: [['DATA', 'DESCRIÇÃO', 'FORMA', 'VALOR']],
       body: historico.map(h => [
         new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
         h.descricao.toUpperCase(),
+        extrairForma(h.detalhes_metodos),
         `R$ ${h.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]),
       headStyles: { fillColor: [37, 99, 235] }
@@ -300,7 +311,7 @@ export default function AlunosAdminPage() {
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
     setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
-    setAnoBoletimAtivo("2026"); // Reseta para o ano atual ao abrir nova ficha
+    setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 

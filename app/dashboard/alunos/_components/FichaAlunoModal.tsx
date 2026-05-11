@@ -93,30 +93,19 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     return (soma / 4).toFixed(1);
   };
 
+  // Função para identificar o método utilizado no Financeiro
+  const extrairFormaPagamento = (detalhes: any) => {
+    if (!detalhes) return null;
+    const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0);
+    return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
+  };
+
   if (!aluno) return null;
 
   const contatos = [
-    { 
-      nome: aluno.responsavel, 
-      whats: aluno.whatsapp, 
-      cpf: aluno.responsavel_cpf || aluno.cpf_responsavel,
-      tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", 
-      cor: "#db2777", bg: "#fdf2f8" 
-    },
-    { 
-      nome: aluno.responsavel2 || aluno.responsavel_2_nome, 
-      whats: aluno.whatsapp2 || aluno.responsavel_2_contato, 
-      cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2,
-      tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", 
-      cor: "#2563eb", bg: "#eff6ff" 
-    },
-    { 
-      nome: aluno.responsavel3 || aluno.responsavel_3_nome, 
-      whats: aluno.whatsapp3 || aluno.responsavel_3_contato, 
-      cpf: aluno.responsavel_3_cpf,
-      tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", 
-      cor: "#16a34a", bg: "#f0fdf4" 
-    }
+    { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
+    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
+    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.responsavel_3_cpf, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
   ];
 
   const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -146,7 +135,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
           {!verHistorico && !verBoletim ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ ...EstiloCard, backgroundColor: '#fffbeb', borderColor: '#fef3c7', textAlign: 'center' }}>
                   <span style={{ ...EstiloLabel, color: '#b45309' }}>Média Pedagógica</span>
@@ -330,17 +318,27 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
               </div>
               <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
-                {historico.length > 0 ? historico.map((h, i) => (
+                {historico.length > 0 ? historico.map((h, i) => {
+                  const forma = extrairFormaPagamento(h.detalhes_metodos);
+                  return (
                     <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginRight: '10px' }}>
                           <span style={{ fontWeight: 'bold' }}>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                           <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
                         </div>
-                        <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                          <p style={{ margin: 0, color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
+                          {forma && (
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                              {forma}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado em {anoPagamentoSelecionado}.</p>}
+                  );
+                }) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado em {anoPagamentoSelecionado}.</p>}
               </div>
             </div>
           )}
