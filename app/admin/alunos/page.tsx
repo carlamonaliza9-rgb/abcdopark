@@ -67,6 +67,7 @@ export default function AlunosAdminPage() {
   const [verHistorico, setVerHistorico] = useState(false);
   const [verBoletim, setVerBoletim] = useState(false);
   const [notas, setNotas] = useState<any[]>([]);
+  const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); // Novo estado para controle de ano
 
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
@@ -138,16 +139,27 @@ export default function AlunosAdminPage() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  async function buscarBoletim(alunoId: string) {
-    const { data } = await supabase.from('boletins').select('*').eq('aluno_id', alunoId).order('disciplina', { ascending: true });
+  // Função buscarBoletim atualizada para filtrar por ano
+  async function buscarBoletim(alunoId: string, ano: string = "2026") {
+    setAnoBoletimAtivo(ano); // Sincroniza o ano ativo
+    const { data } = await supabase
+      .from('boletins')
+      .select('*')
+      .eq('aluno_id', alunoId)
+      .eq('ano', ano)
+      .order('disciplina', { ascending: true });
     if (data) setNotas(data);
     setVerBoletim(true); setVerHistorico(false);
   }
 
+  // Função adicionarDisciplina atualizada para usar o ano selecionado
   async function adicionarDisciplina() {
     const disc = prompt("Nome da Disciplina:");
     if (!disc || !idEdicao) return;
-    const { data } = await supabase.from('boletins').insert([{ aluno_id: idEdicao, disciplina: disc, ano: "2026" }]).select();
+    const { data } = await supabase
+      .from('boletins')
+      .insert([{ aluno_id: idEdicao, disciplina: disc, ano: anoBoletimAtivo }])
+      .select();
     if (data) setNotas([...notas, data[0]]);
   }
 
@@ -210,7 +222,7 @@ export default function AlunosAdminPage() {
   function gerarPDFBoletim() {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text("BOLETIM ESCOLAR 2026 - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
+    doc.text(`BOLETIM ESCOLAR ${anoBoletimAtivo} - ESCOLA ABC DO PARK`, 105, 20, { align: "center" });
     doc.setFontSize(10);
     doc.text(`Aluno: ${nome.toUpperCase()}`, 15, 35);
     autoTable(doc, {
@@ -226,7 +238,7 @@ export default function AlunosAdminPage() {
       styles: { halign: 'center' },
       columnStyles: { 0: { halign: 'left' } }
     });
-    doc.save(`Boletim_${nome.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_${anoBoletimAtivo}.pdf`);
   }
 
   async function salvarAluno(e: React.FormEvent) {
@@ -288,6 +300,7 @@ export default function AlunosAdminPage() {
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
     setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setAnoBoletimAtivo("2026"); // Reseta para o ano atual ao abrir nova ficha
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
@@ -297,7 +310,6 @@ export default function AlunosAdminPage() {
     <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
 
-      {/* NOVO BOTÃO DE NAVEGAÇÃO PARA RELATÓRIO DE FREQUÊNCIA */}
       {!ehVisitante && (
         <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'flex-end' }}>
           <button 

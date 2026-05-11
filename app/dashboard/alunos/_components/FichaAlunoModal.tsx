@@ -15,8 +15,8 @@ interface FichaAlunoModalProps {
   onFechar: () => void;
   onEditar: () => void;
   onExcluir: () => void;
-  onVerBoletim: (id: string) => void;
-  onVerHistorico: (id: string) => void;
+  onVerBoletim: (id: string, ano?: string) => void;
+  onVerHistorico: (id: string, ano?: string) => void;
   onVoltarParaFicha: () => void;
   onSalvarNota: (id: string, campo: string, valor: string) => void;
   onAdicionarDisciplina: () => void;
@@ -42,6 +42,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   const [mediaEstrelas, setMediaEstrelas] = useState(0);
   const [percentualPresenca, setPercentualPresenca] = useState(100);
+  const [anoSelecionado, setAnoSelecionado] = useState("2026");
+  const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("2026");
 
   useEffect(() => {
     if (aluno?.id) {
@@ -50,7 +52,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   }, [aluno?.id]);
 
   async function buscarDadosAdicionais() {
-    // 1. Busca os novos parâmetros pedagógicos para calcular a média real
     const { data: avs } = await supabase
       .from('avaliacoes')
       .select('participacao, comportamento, atividades, socioemocional')
@@ -58,7 +59,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     
     if (avs && avs.length > 0) {
       const somaDasMediasDiarias = avs.reduce((acc: number, curr: any) => {
-        // Média do dia = soma dos 4 pilares / 4
         const mediaDoDia = (
           (curr.participacao || 0) + 
           (curr.comportamento || 0) + 
@@ -67,12 +67,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         ) / 4;
         return acc + mediaDoDia;
       }, 0);
-      
-      // Média total = Soma das médias / quantidade de dias avaliados
       setMediaEstrelas(somaDasMediasDiarias / avs.length);
     }
 
-    // 2. Busca a frequência
     const { data: freqs } = await supabase
       .from('frequencias')
       .select('presente')
@@ -205,7 +202,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
               </div>
 
-              {/* --- ENDEREÇO POSICIONADO ABAIXO DOS RESPONSÁVEIS --- */}
               <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
                 <span style={{ ...EstiloLabel, color: '#15803d' }}>Endereço Residencial</span>
                 <p style={EstiloDado}>
@@ -232,15 +228,27 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                  <button onClick={() => onVerBoletim(aluno.id)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', fontWeight: '700', cursor: 'pointer', fontSize: '11px' }}>📄 BOLETIM</button>
-                  <button onClick={() => onVerHistorico(aluno.id)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '700', cursor: 'pointer', fontSize: '11px' }}>💰 PAGAMENTOS</button>
+                  <button onClick={() => onVerBoletim(aluno.id, anoSelecionado)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', fontWeight: '700', cursor: 'pointer', fontSize: '11px' }}>📄 BOLETIM</button>
+                  <button onClick={() => onVerHistorico(aluno.id, anoPagamentoSelecionado)} style={{ padding: '12px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '700', cursor: 'pointer', fontSize: '11px' }}>💰 PAGAMENTOS</button>
               </div>
             </div>
           ) : verBoletim ? (
             <div style={{ width: '100%', marginTop: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Boletim 2026</h3>
+                      <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Boletim</h3>
+                      <select 
+                        value={anoSelecionado} 
+                        onChange={(e) => {
+                          setAnoSelecionado(e.target.value);
+                          onVerBoletim(aluno.id, e.target.value);
+                        }}
+                        style={{ padding: '4px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', outline: 'none' }}
+                      >
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                      </select>
                       <button onClick={onGerarPDFBoletim} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 PDF</button>
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -260,7 +268,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                             </tr>
                         </thead>
                         <tbody>
-                            {notas.map((n) => {
+                            {notas.length > 0 ? notas.map((n) => {
                                 const media = obterMediaFinal(n);
                                 return (
                                   <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
@@ -291,7 +299,11 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                                       {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => onExcluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
                                   </tr>
                                 );
-                            })}
+                            }) : (
+                              <tr>
+                                <td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Nenhum dado encontrado para o ano {anoSelecionado}.</td>
+                              </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -301,6 +313,18 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Histórico</h3>
+                  <select 
+                    value={anoPagamentoSelecionado} 
+                    onChange={(e) => {
+                      setAnoPagamentoSelecionado(e.target.value);
+                      onVerHistorico(aluno.id, e.target.value);
+                    }}
+                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', outline: 'none' }}
+                  >
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                  </select>
                   <button onClick={onGerarPDFHistorico} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>📄 EXTRATO</button>
                 </div>
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
@@ -316,7 +340,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                         <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
                       </div>
                     </div>
-                )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado.</p>}
+                )) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado em {anoPagamentoSelecionado}.</p>}
               </div>
             </div>
           )}
