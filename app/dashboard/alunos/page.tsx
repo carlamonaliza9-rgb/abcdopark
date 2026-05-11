@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { AlunosHeader } from "./_components/AlunosHeader";
 import { AlunoCard } from "./_components/AlunoCard";
@@ -127,9 +129,44 @@ export default function Alunos() {
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
-    const v = valorNota === "" ? null : parseFloat(valorNota.replace(',', '.'));
-    await supabase.from('boletins').update({ [campo]: v }).eq('id', id);
-    setNotas(notas.map(n => n.id === id ? { ...n, [campo]: v } : n));
+    const v = valorNota === "" ? 0 : parseFloat(valorNota.replace(',', '.'));
+    
+    const notaAtual = notas.find(n => n.id === id);
+    if (!notaAtual) return;
+
+    // Objeto temporário para calcular a média seguindo a regra escolar
+    const nCalculo = { ...notaAtual, [campo]: v };
+
+    let n1 = parseFloat(nCalculo.bimestre1 || 0);
+    let n2 = parseFloat(nCalculo.bimestre2 || 0);
+    let r1 = parseFloat(nCalculo.recuperacao1 || 0);
+    let n3 = parseFloat(nCalculo.bimestre3 || 0);
+    let n4 = parseFloat(nCalculo.bimestre4 || 0);
+    let r2 = parseFloat(nCalculo.recuperacao2 || 0);
+
+    // Regra: Recuperação substitui a menor nota do semestre se for maior
+    if (r1 > Math.min(n1, n2)) {
+      if (n1 <= n2) n1 = r1; else n2 = r1;
+    }
+    if (r2 > Math.min(n3, n4)) {
+      if (n3 <= n4) n3 = r2; else n4 = r2;
+    }
+
+    const novaMedia = parseFloat(((n1 + n2 + n3 + n4) / 4).toFixed(1));
+
+    // Salva no banco (Agora com a coluna 'media' criada)
+    const { error } = await supabase
+      .from('boletins')
+      .update({ [campo]: v, media: novaMedia })
+      .eq('id', id);
+
+    if (error) {
+      console.error("Erro ao salvar:", error.message);
+      return;
+    }
+
+    // Atualiza estado local
+    setNotas(notas.map(n => n.id === id ? { ...n, [campo]: v, media: novaMedia } : n));
   }
 
   async function excluirDisciplina(id: string) {
@@ -145,8 +182,46 @@ export default function Alunos() {
     setVerHistorico(true); setVerBoletim(false);
   }
 
-  function gerarPDFHistorico() { /* Lógica de PDF preservada */ }
-  function gerarPDFBoletim() { /* Lógica de PDF preservada */ }
+  function gerarPDFHistorico() {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Aluno: ${nome.toUpperCase()}`, 15, 35);
+    autoTable(doc, {
+      startY: 45,
+      head: [['DATA', 'DESCRIÇÃO', 'VALOR']],
+      body: historico.map(h => [
+        new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+        h.descricao.toUpperCase(),
+        `R$ ${h.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]),
+      headStyles: { fillColor: [37, 99, 235] }
+    });
+    doc.save(`Extrato_${nome.replace(/\s+/g, '_')}.pdf`);
+  }
+
+  function gerarPDFBoletim() {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("BOLETIM ESCOLAR 2026 - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Aluno: ${nome.toUpperCase()}`, 15, 35);
+    autoTable(doc, {
+      startY: 45,
+      head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
+      body: notas.map(n => [
+        n.disciplina.toUpperCase(),
+        n.bimestre1 || '-', n.bimestre2 || '-', n.recuperacao1 || '-',
+        n.bimestre3 || '-', n.bimestre4 || '-', n.recuperacao2 || '-',
+        n.media || '0.0'
+      ]),
+      headStyles: { fillColor: [37, 99, 235] },
+      styles: { halign: 'center' },
+      columnStyles: { 0: { halign: 'left' } }
+    });
+    doc.save(`Boletim_${nome.replace(/\s+/g, '_')}.pdf`);
+  }
 
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();

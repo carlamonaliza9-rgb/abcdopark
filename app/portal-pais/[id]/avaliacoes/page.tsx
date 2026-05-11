@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
 import { Star, Trophy, BookOpen, GraduationCap, CheckCircle2 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function AvaliacoesPage() {
   const { id } = useParams();
@@ -15,18 +17,77 @@ export default function AvaliacoesPage() {
     async function buscarDados() {
       if (!id) return;
       
-      // Busca dados do aluno
       const { data: a } = await supabase.from("alunos").select("*").eq("id", id).single();
       if (a) setAluno(a);
 
-      // Busca Notas (Simulando uma tabela 'notas')
-      const { data: n } = await supabase.from("notas").select("*").eq("aluno_id", id);
+      const { data: n } = await supabase
+        .from("boletins")
+        .select("*")
+        .eq("aluno_id", id)
+        .order("disciplina", { ascending: true });
+        
       if (n) setNotas(n);
 
       setCarregando(false);
     }
     buscarDados();
   }, [id]);
+
+  const gerarPDF = () => {
+    if (!aluno) return;
+    const doc = new jsPDF();
+
+    // Cabeçalho estilizado
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59); // Slate 800
+    doc.text("ESCOLA ABC DO PARK", 105, 20, { align: "center" });
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100);
+    doc.text("Boletim Escolar Oficial - Ano Letivo 2026", 105, 28, { align: "center" });
+
+    // Informações do Aluno e Responsável
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, 35, 195, 35);
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text(`ALUNO(A): ${aluno.nome.toUpperCase()}`, 15, 42);
+    doc.text(`RESPONSÁVEL: ${aluno.responsavel?.toUpperCase() || "NÃO INFORMADO"}`, 15, 47);
+    doc.setFont("helvetica", "normal");
+    doc.text(`TURMA: ${aluno.turma}`, 15, 52);
+    doc.text(`DATA DE EMISSÃO: ${new Date().toLocaleDateString('pt-BR')}`, 195, 42, { align: "right" });
+
+    // Tabela de Notas
+    autoTable(doc, {
+      startY: 58,
+      head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
+      body: notas.map(n => [
+        n.disciplina.toUpperCase(),
+        n.bimestre1 || '-',
+        n.bimestre2 || '-',
+        n.recuperacao1 || '-',
+        n.bimestre3 || '-',
+        n.bimestre4 || '-',
+        n.recuperacao2 || '-',
+        n.media || '0.0'
+      ]),
+      headStyles: { fillColor: [79, 70, 229], fontSize: 9, halign: 'center' }, // Indigo 600
+      bodyStyles: { fontSize: 8, halign: 'center' },
+      columnStyles: { 
+        0: { halign: 'left', fontStyle: 'bold', cellWidth: 50 } 
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+
+    // Rodapé
+    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Documento gerado digitalmente via Portal do Responsável.", 105, finalY, { align: "center" });
+
+    doc.save(`Boletim_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
+  };
 
   const renderEstrelas = (media: number) => (
     <div className="flex gap-1">
@@ -60,7 +121,6 @@ export default function AvaliacoesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* COLUNA 1: AVALIAÇÃO POR TÓPICOS (ESTRELAS) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
             <div className="flex items-center gap-3 mb-8">
@@ -82,14 +142,13 @@ export default function AvaliacoesPage() {
           </div>
         </div>
 
-        {/* COLUNA 2: BOLETIM ESCOLAR */}
         <div className="lg:col-span-8 bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><BookOpen size={20} /></div>
               <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest">Boletim Escolar</h2>
             </div>
-            <span className="bg-slate-100 px-4 py-2 rounded-xl text-[9px] font-black text-slate-500 uppercase tracking-widest">Ano Letivo 2025</span>
+            <span className="bg-slate-100 px-4 py-2 rounded-xl text-[9px] font-black text-slate-500 uppercase tracking-widest">Ano Letivo 2026</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -97,22 +156,52 @@ export default function AvaliacoesPage() {
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">Disciplina</th>
-                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">1º Bim</th>
-                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">2º Bim</th>
-                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">3º Bim</th>
+                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">1ºB</th>
+                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">2ºB</th>
+                  <th className="px-2 py-2 text-[9px] font-black text-red-400 uppercase tracking-widest text-center">R1</th>
+                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">3ºB</th>
+                  <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">4ºB</th>
+                  <th className="px-2 py-2 text-[9px] font-black text-red-400 uppercase tracking-widest text-center">R2</th>
                   <th className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Média</th>
                 </tr>
               </thead>
               <tbody>
-                {["Língua Portuguesa", "Matemática", "Ciências", "História", "Geografia", "Artes", "Educação Física"].map((disc) => (
-                  <tr key={disc} className="group">
-                    <td className="bg-slate-50 group-hover:bg-indigo-50 px-5 py-4 rounded-l-2xl text-[10px] font-black text-slate-700 uppercase transition-colors">{disc}</td>
-                    <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">9.5</td>
-                    <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">--</td>
-                    <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">--</td>
-                    <td className="bg-indigo-100/50 px-5 py-4 rounded-r-2xl text-center text-xs font-black text-indigo-600">9.5</td>
+                {notas.length > 0 ? (
+                  notas.map((item) => (
+                    <tr key={item.id} className="group">
+                      <td className="bg-slate-50 group-hover:bg-indigo-50 px-5 py-4 rounded-l-2xl text-[10px] font-black text-slate-700 uppercase transition-colors">
+                        {item.disciplina}
+                      </td>
+                      <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">
+                        {item.bimestre1 ?? "--"}
+                      </td>
+                      <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">
+                        {item.bimestre2 ?? "--"}
+                      </td>
+                      <td className="bg-red-50/30 group-hover:bg-red-50 px-2 py-4 text-center text-xs font-black text-red-500">
+                        {item.recuperacao1 ?? "--"}
+                      </td>
+                      <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">
+                        {item.bimestre3 ?? "--"}
+                      </td>
+                      <td className="bg-slate-50 group-hover:bg-indigo-50 px-4 py-4 text-center text-xs font-bold text-slate-600">
+                        {item.bimestre4 ?? "--"}
+                      </td>
+                      <td className="bg-red-50/30 group-hover:bg-red-50 px-2 py-4 text-center text-xs font-black text-red-500">
+                        {item.recuperacao2 ?? "--"}
+                      </td>
+                      <td className="bg-indigo-100/50 px-5 py-4 rounded-r-2xl text-center text-xs font-black text-indigo-600">
+                        {item.media ?? "0.0"}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="text-center py-10 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Nenhum registro de nota localizado.
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -122,10 +211,13 @@ export default function AvaliacoesPage() {
               <div className="bg-white/10 p-3 rounded-2xl"><GraduationCap size={24} /></div>
               <div className="text-left">
                 <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Situação Acadêmica</p>
-                <p className="text-sm font-black uppercase italic tracking-tight">Destaque da Turma</p>
+                <p className="text-sm font-black uppercase italic tracking-tight">Em acompanhamento</p>
               </div>
             </div>
-            <button className="bg-white text-slate-900 px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all active:scale-95">
+            <button 
+              onClick={gerarPDF}
+              className="bg-white text-slate-900 px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all active:scale-95"
+            >
               Imprimir Boletim
             </button>
           </div>

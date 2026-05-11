@@ -77,6 +77,13 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     window.open(`https://wa.me/55${apenasNumeros}`, '_blank');
   };
 
+  // Função para calcular a média em tempo real para exibição
+  const obterMediaFinal = (n: any) => {
+    const bimestres = [n.bimestre1, n.bimestre2, n.bimestre3, n.bimestre4].map(v => parseFloat(v) || 0);
+    const soma = bimestres.reduce((acc, curr) => acc + curr, 0);
+    return (soma / 4).toFixed(1);
+  };
+
   if (!aluno) return null;
 
   const contatos = [
@@ -224,21 +231,43 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                                 <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
                                 <th>1ºB</th><th>2ºB</th><th style={{ color: '#ef4444' }}>R1</th>
                                 <th>3ºB</th><th>4ºB</th><th style={{ color: '#ef4444' }}>R2</th>
+                                <th style={{ color: '#2563eb' }}>MÉD</th>
                                 {!ehVisitante && <th style={{ padding: '8px' }}></th>}
                             </tr>
                         </thead>
                         <tbody>
-                            {notas.map((n) => (
-                                <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
-                                    <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
-                                    {['bimestre1', 'bimestre2', 'recuperacao1', 'bimestre3', 'bimestre4', 'recuperacao2'].map((b) => (
-                                        <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
-                                            <input type="text" defaultValue={n[b] || ""} onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} disabled={ehVisitante} style={{ width: '30px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px', backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white' }} />
-                                        </td>
-                                    ))}
-                                    {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => onExcluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
-                                </tr>
-                            ))}
+                            {notas.map((n) => {
+                                const media = obterMediaFinal(n);
+                                return (
+                                  <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
+                                      <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
+                                      {['bimestre1', 'bimestre2', 'recuperacao1', 'bimestre3', 'bimestre4', 'recuperacao2'].map((b) => (
+                                          <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
+                                              <input 
+                                                type="text" 
+                                                defaultValue={n[b] || ""} 
+                                                onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} 
+                                                disabled={ehVisitante} 
+                                                style={{ 
+                                                  width: '30px', 
+                                                  textAlign: 'center', 
+                                                  border: '1px solid #e2e8f0', 
+                                                  borderRadius: '4px', 
+                                                  padding: '2px', 
+                                                  backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white',
+                                                  color: parseFloat(n[b]) < 7 ? '#ef4444' : '#1e293b',
+                                                  fontWeight: 'bold'
+                                                }} 
+                                              />
+                                          </td>
+                                      ))}
+                                      <td style={{ textAlign: 'center', fontWeight: '900', color: parseFloat(media) < 7 ? '#ef4444' : '#2563eb' }}>
+                                        {media}
+                                      </td>
+                                      {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => onExcluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
+                                  </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
