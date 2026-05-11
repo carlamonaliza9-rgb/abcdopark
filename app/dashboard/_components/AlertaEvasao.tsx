@@ -8,22 +8,10 @@ export function AlertaEvasao() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   async function verificarAlertasEvasao() {
-    // REGRA DE LIMITE: Verifica quantas vezes já apareceu neste login
-    const exibicoesHoje = sessionStorage.getItem("exibicoes_alerta_evasao") || "0";
+    // Pegamos a data de hoje no formato YYYY-MM-DD para bater com o banco
+    const hoje = new Date().toISOString().split('T')[0];
     
-    if (parseInt(exibicoesHoje) >= 2) {
-      setVisivel(false);
-      return; // Se já apareceu 2 vezes, interrompe a função aqui
-    }
-
-    const agora = new Date();
-    const hoje = [
-      agora.getFullYear(),
-      String(agora.getMonth() + 1).padStart(2, '0'),
-      String(agora.getDate()).padStart(2, '0')
-    ].join('-');
-    
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('historico_pedagogico')
       .select(`
         descricao,
@@ -31,26 +19,25 @@ export function AlertaEvasao() {
         aluno_id,
         alunos (nome, turma)
       `)
-      .ilike('descricao', '%ALERTA%')
+      .ilike('descricao', '%ALERTA%') // Filtra apenas registros de alerta
       .eq('data', hoje);
 
     if (data && data.length > 0) {
       setAlertas(data);
       setVisivel(true);
-      
-      // Incrementa o contador no sessionStorage
-      const novaContagem = parseInt(exibicoesHoje) + 1;
-      sessionStorage.setItem("exibicoes_alerta_evasao", novaContagem.toString());
     } else {
       setVisivel(false);
     }
+    
+    if (error) console.error("Erro ao buscar alertas:", error.message);
   }
 
   useEffect(() => {
+    // Verifica assim que o Admin loga
     verificarAlertasEvasao();
 
-    // Mantemos a verificação em segundo plano, mas a regra do sessionStorage travará a exibição
-    timerRef.current = setInterval(verificarAlertasEvasao, 10 * 60 * 1000);
+    // Verifica a cada 5 minutos se há novos alertas de evasão
+    timerRef.current = setInterval(verificarAlertasEvasao, 5 * 60 * 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -63,22 +50,21 @@ export function AlertaEvasao() {
     <div 
       style={{
         position: 'fixed',
-        top: '160px', 
+        top: '100px', 
         right: '20px',
-        zIndex: 9998,
+        zIndex: 9999,
         backgroundColor: '#fff',
-        borderLeft: '6px solid #f59e0b', 
+        borderLeft: '6px solid #ef4444', // Vermelho para chamar atenção do Admin
         borderRadius: '16px',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         padding: '20px',
-        width: '320px',
+        width: '350px',
         fontFamily: 'sans-serif',
-        cursor: 'default',
         animation: 'slideIn 0.5s ease-out'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <strong style={{ color: '#92400e', fontSize: '14px' }}>🚨 Alerta Pedagógico (Hoje)</strong>
+        <strong style={{ color: '#b91c1c', fontSize: '14px' }}>⚠️ Alerta de Evasão Escolar</strong>
         <button 
           onClick={() => setVisivel(false)} 
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
@@ -87,26 +73,30 @@ export function AlertaEvasao() {
         </button>
       </div>
       
-      <p style={{ fontSize: '12px', color: '#4b5563', margin: '0 0 10px 0' }}>
-        Faltas consecutivas detectadas hoje:
+      <p style={{ fontSize: '12px', color: '#4b5563', margin: '0 0 15px 0', lineHeight: '1.4' }}>
+        Os seguintes alunos faltaram por <b>2 dias consecutivos</b>. Acompanhe a situação pedagógica:
       </p>
 
-      <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+      <div style={{ maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
         {alertas.map((alerta, index) => (
-          <div key={index} style={{ backgroundColor: '#fffbeb', padding: '8px', borderRadius: '8px', marginBottom: '5px', border: '1px solid #fef3c7' }}>
-            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#92400e' }}>
-              {alerta.alunos?.nome?.split(' ')[0]} - {alerta.alunos?.turma}
+          <div key={index} style={{ backgroundColor: '#fef2f2', padding: '10px', borderRadius: '10px', marginBottom: '8px', border: '1px solid #fee2e2' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#991b1b' }}>
+              {alerta.alunos?.nome}
             </div>
-            <div style={{ fontSize: '10px', color: '#b45309', marginTop: '2px' }}>
+            <div style={{ fontSize: '10px', color: '#b91c1c', fontWeight: '600', marginBottom: '4px' }}>
+              Turma: {alerta.alunos?.turma}
+            </div>
+            <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic', borderTop: '1px solid #fecaca', paddingTop: '4px' }}>
               {alerta.descricao}
             </div>
           </div>
         ))}
       </div>
+
       <style>{`
         @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          from { transform: translateX(120%); }
+          to { transform: translateX(0); }
         }
       `}</style>
     </div>

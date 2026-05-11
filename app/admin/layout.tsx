@@ -60,29 +60,37 @@ export default function DashboardLayout({
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-          {/* Dashboard Geral (Aponta para o nosso Redirecionador) */}
+          {/* Dashboard Geral */}
           <Link href="/dashboard" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             📊 Dashboard
           </Link>
 
-          {/* SÓ APARECE PARA ADMIN */}
+          {/* ITENS PARA ADMIN */}
           {ehAdmin && (
-            <Link href="/admin/alunos" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-              👨‍🎓 Alunos
-            </Link>
+            <>
+              <Link href="/admin/alunos" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                👨‍🎓 Alunos
+              </Link>
+              
+              <Link href="/admin/frequencia" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                📊 Frequência Geral
+              </Link>
+            </>
           )}
 
-          {/* Turmas Dinâmico - Redireciona para a pasta correta */}
+          {/* Turmas Dinâmico */}
           <Link href={ehAdmin ? "/admin/turmas" : "/professor/turmas"} className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             {ehAdmin ? "🏫 Turmas" : "🏫 Minha Turma"}
           </Link>
 
-          {/* Diário de Classe Dinâmico */}
-          <Link href={ehAdmin ? "/admin/diario" : "/professor/diario"} className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            📒 Diário de Classe
-          </Link>
+          {/* Diário de Classe - EXCLUSIVO PARA PROFESSORES */}
+          {!ehAdmin && (
+            <Link href="/professor/diario" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+              📒 Diário de Classe
+            </Link>
+          )}
           
-          {/* SÓ APARECE PARA ADMIN */}
+          {/* RESTANTE DOS ITENS ADMIN */}
           {ehAdmin && (
             <>
               <Link href="/dashboard/documentacoes" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">

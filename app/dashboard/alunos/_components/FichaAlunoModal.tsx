@@ -50,23 +50,36 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   }, [aluno?.id]);
 
   async function buscarDadosAdicionais() {
+    // 1. Busca os novos parâmetros pedagógicos para calcular a média real
     const { data: avs } = await supabase
       .from('avaliacoes')
-      .select('estrelas')
+      .select('participacao, comportamento, atividades, socioemocional')
       .eq('aluno_id', aluno.id);
     
     if (avs && avs.length > 0) {
-      const soma = avs.reduce((acc: number, curr: any) => acc + curr.estrelas, 0);
-      setMediaEstrelas(soma / avs.length);
+      const somaDasMediasDiarias = avs.reduce((acc: number, curr: any) => {
+        // Média do dia = soma dos 4 pilares / 4
+        const mediaDoDia = (
+          (curr.participacao || 0) + 
+          (curr.comportamento || 0) + 
+          (curr.atividades || 0) + 
+          (curr.socioemocional || 0)
+        ) / 4;
+        return acc + mediaDoDia;
+      }, 0);
+      
+      // Média total = Soma das médias / quantidade de dias avaliados
+      setMediaEstrelas(somaDasMediasDiarias / avs.length);
     }
 
+    // 2. Busca a frequência
     const { data: freqs } = await supabase
       .from('frequencias')
-      .select('presenca')
+      .select('presente')
       .eq('aluno_id', aluno.id);
     
     if (freqs && freqs.length > 0) {
-      const presentes = freqs.filter((f: any) => f.presenca).length;
+      const presentes = freqs.filter((f: any) => f.presente).length;
       setPercentualPresenca((presentes / freqs.length) * 100);
     }
   }
@@ -139,7 +152,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ ...EstiloCard, backgroundColor: '#fffbeb', borderColor: '#fef3c7', textAlign: 'center' }}>
-                  <span style={{ ...EstiloLabel, color: '#b45309' }}>Avaliação</span>
+                  <span style={{ ...EstiloLabel, color: '#b45309' }}>Média Pedagógica</span>
                   <p style={{ ...EstiloDado, color: '#92400e' }}>{mediaEstrelas > 0 ? "⭐".repeat(Math.round(mediaEstrelas)) : "S/ Nota"}</p>
                 </div>
                 <div style={{ ...EstiloCard, textAlign: 'center' }}>

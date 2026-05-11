@@ -297,6 +297,18 @@ export default function AlunosAdminPage() {
     <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
 
+      {/* NOVO BOTÃO DE NAVEGAÇÃO PARA RELATÓRIO DE FREQUÊNCIA */}
+      {!ehVisitante && (
+        <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button 
+            onClick={() => router.push('/admin/frequencia')}
+            style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '4px solid #dbeafe' }}
+          >
+            📊 Relatório de Frequência Geral
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
         {alunosFiltrados.map((aluno) => (
           <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} />
