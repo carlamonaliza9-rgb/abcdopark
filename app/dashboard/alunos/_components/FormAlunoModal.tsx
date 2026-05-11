@@ -20,6 +20,32 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
 
   const EstiloInput = { padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' };
 
+  // --- FUNÇÃO PARA BUSCAR CEP ---
+  const buscarCep = async (valor: string) => {
+    const cep = valor.replace(/\D/g, "");
+    setForm({ ...form, cep: cep });
+
+    if (cep.length === 8) {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
+
+        if (!data.erro) {
+          setForm({
+            ...form,
+            cep: cep,
+            endereco: data.logradouro,
+            bairro: data.bairro,
+            cidade: data.localidade,
+            estado: data.uf
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao buscar CEP:", error);
+      }
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
       <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -38,19 +64,47 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             <input type="text" placeholder="CPF do Aluno" value={form?.cpfAluno || ""} onChange={(e)=>setForm({...form, cpfAluno: mCPF(e.target.value)})} style={EstiloInput} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
             <input type="date" value={form?.dataNascimento || ""} onChange={(e)=>setForm({...form, dataNascimento: e.target.value})} required style={EstiloInput} />
+            
             <select value={form?.turma || ""} onChange={(e) => setForm({...form, turma: e.target.value})} required style={EstiloInput}>
               <option value="">Turma...</option>
               <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
               <option value="1º Ano">1º Ano</option><option value="2º Ano">2º Ano</option><option value="3º Ano">3º Ano</option>
               <option value="4º Ano">4º Ano</option><option value="5º Ano">5º Ano</option>
             </select>
+
+            <select value={form?.turno || ""} onChange={(e) => setForm({...form, turno: e.target.value})} required style={EstiloInput}>
+              <option value="">Turno...</option>
+              <option value="Manhã">Manhã</option>
+              <option value="Tarde">Tarde</option>
+              <option value="Integral">Integral</option>
+            </select>
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <input type="number" placeholder="Mensalidade (R$)" value={form?.valor || ""} onChange={(e)=>setForm({...form, valor: e.target.value})} style={EstiloInput} />
             <input type="number" placeholder="Dia Vencimento" value={form?.vencimento || ""} onChange={(e)=>setForm({...form, vencimento: e.target.value})} style={EstiloInput} />
+          </div>
+
+          {/* --- NOVA SEÇÃO: ENDEREÇO --- */}
+          <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '15px', border: '1px solid #bbf7d0' }}>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#15803d', marginBottom: '10px', marginTop: '0', textTransform: 'uppercase' }}>Endereço Residencial</p>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
+              <input type="text" placeholder="CEP (Automático)" value={form?.cep || ""} onChange={(e) => buscarCep(e.target.value)} maxLength={8} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Rua / Avenida" value={form?.endereco || ""} onChange={(e)=>setForm({...form, endereco: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
+              <input type="text" placeholder="Número" value={form?.numero || ""} onChange={(e)=>setForm({...form, numero: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Bairro" value={form?.bairro || ""} onChange={(e)=>setForm({...form, bairro: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+              <input type="text" placeholder="Cidade" value={form?.cidade || ""} onChange={(e)=>setForm({...form, cidade: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="UF" value={form?.estado || ""} onChange={(e)=>setForm({...form, estado: e.target.value})} maxLength={2} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', textAlign: 'center' }} />
+            </div>
           </div>
 
           <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>

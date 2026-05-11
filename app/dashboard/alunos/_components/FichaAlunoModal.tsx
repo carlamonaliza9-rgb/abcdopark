@@ -77,7 +77,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     window.open(`https://wa.me/55${apenasNumeros}`, '_blank');
   };
 
-  // Função para calcular a média em tempo real para exibição
   const obterMediaFinal = (n: any) => {
     const bimestres = [n.bimestre1, n.bimestre2, n.bimestre3, n.bimestre4].map(v => parseFloat(v) || 0);
     const soma = bimestres.reduce((acc, curr) => acc + curr, 0);
@@ -132,7 +131,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', marginBottom: '24px' }}>
             <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>{calcularIdade(aluno.data_nascimento)}</span>
-            <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '12px', backgroundColor: '#eff6ff', padding: '2px 10px', borderRadius: '10px' }}>{aluno.turma}</span>
+            <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '12px', backgroundColor: '#eff6ff', padding: '2px 10px', borderRadius: '10px' }}>{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
           </div>
 
           {!verHistorico && !verBoletim ? (
@@ -161,8 +160,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4' }}>
-                  <span style={{ ...EstiloLabel, color: '#166534' }}>Mensalidade</span>
+                <div style={{ ...EstiloCard, backgroundColor: '#f8fafc' }}>
+                  <span style={{ ...EstiloLabel }}>Mensalidade</span>
                   <p style={{ ...EstiloDado, color: '#15803d' }}>{aluno.valor ? parseFloat(aluno.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
                 </div>
                 <div style={EstiloCard}>
@@ -191,6 +190,18 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* --- ENDEREÇO POSICIONADO ABAIXO DOS RESPONSÁVEIS --- */}
+              <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+                <span style={{ ...EstiloLabel, color: '#15803d' }}>Endereço Residencial</span>
+                <p style={EstiloDado}>
+                  {aluno.endereco ? `${aluno.endereco}, ${aluno.numero || 'S/N'}` : 'Endereço não cadastrado'}
+                </p>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
+                  {aluno.bairro ? `${aluno.bairro} • ${aluno.cidade}-${aluno.estado}` : ''}
+                  {aluno.cep ? ` • CEP: ${aluno.cep}` : ''}
+                </span>
               </div>
 
               {aluno.observacoes && (

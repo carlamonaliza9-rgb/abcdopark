@@ -26,6 +26,15 @@ export default function AlunosAdminPage() {
   const [nome, setNome] = useState("");
   const [cpfAluno, setCpfAluno] = useState("");
   const [turma, setTurma] = useState("");
+  const [turno, setTurno] = useState("");
+
+  // Endereço
+  const [cep, setCep] = useState("");
+  const [endereco, setEndereco] = useState("");
+  const [numero, setNumero] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
   
   // Responsável 1
   const [responsavel, setResponsavel] = useState("");
@@ -234,7 +243,9 @@ export default function AlunosAdminPage() {
       }
       
       const dados = { 
-        nome, cpf_aluno: cpfAluno, turma, responsavel, parentesco_1: parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
+        nome, cpf_aluno: cpfAluno, turma, turno,
+        cep, endereco, numero, bairro, cidade, estado,
+        responsavel, parentesco_1: parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
@@ -254,7 +265,8 @@ export default function AlunosAdminPage() {
   }
 
   function limparEContinuar() {
-    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); 
+    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setTurno("");
+    setCep(""); setEndereco(""); setNumero(""); setBairro(""); setCidade(""); setEstado("");
     setResponsavel(""); setParentesco1("Mãe"); setCpfResponsavel(""); setWhatsapp(""); 
     setResponsavel2(""); setParentesco2("Pai"); setCpfResponsavel2(""); setWhatsapp2(""); 
     setResponsavel3(""); setParentesco3(""); setWhatsapp3("");
@@ -264,7 +276,9 @@ export default function AlunosAdminPage() {
   }
 
   function abrirFicha(aluno: any) {
-    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma);
+    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); setTurno(aluno.turno || "");
+    setCep(aluno.cep || ""); setEndereco(aluno.endereco || ""); setNumero(aluno.numero || ""); 
+    setBairro(aluno.bairro || ""); setCidade(aluno.cidade || ""); setEstado(aluno.estado || "");
     setResponsavel(aluno.responsavel); setParentesco1(aluno.parentesco_1 || "Mãe"); 
     setCpfResponsavel(aluno.cpf_responsavel || ""); setWhatsapp(aluno.whatsapp);
     setResponsavel2(aluno.responsavel_2_nome || ""); setParentesco2(aluno.parentesco_2 || "Pai");
@@ -292,7 +306,9 @@ export default function AlunosAdminPage() {
       {modalAberto && !modoEdicao && (
         <FichaAlunoModal 
           aluno={{
-            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, responsavel, parentesco1: parentesco1, 
+            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
+            cep, endereco, numero, bairro, cidade, estado,
+            responsavel, parentesco1: parentesco1, 
             whatsapp, cpf_responsavel: cpfResponsavel, responsavel2, parentesco2: parentesco2, 
             whatsapp2, cpf_responsavel2: cpfResponsavel2, responsavel3, parentesco3: parentesco3, 
             whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
@@ -312,12 +328,19 @@ export default function AlunosAdminPage() {
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+          form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
           setForm={(d: any) => { 
             if (d.nome !== undefined) setNome(d.nome);
             if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
             if (d.dataNascimento !== undefined) setDataNascimento(d.dataNascimento);
             if (d.turma !== undefined) setTurma(d.turma);
+            if (d.turno !== undefined) setTurno(d.turno);
+            if (d.cep !== undefined) setCep(d.cep);
+            if (d.endereco !== undefined) setEndereco(d.endereco);
+            if (d.numero !== undefined) setNumero(d.numero);
+            if (d.bairro !== undefined) setBairro(d.bairro);
+            if (d.cidade !== undefined) setCidade(d.cidade);
+            if (d.estado !== undefined) setEstado(d.estado);
             if (d.valor !== undefined) setValor(d.valor);
             if (d.vencimento !== undefined) setVencimento(d.vencimento);
             if (d.responsavel !== undefined) setResponsavel(d.responsavel);
