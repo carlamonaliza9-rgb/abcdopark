@@ -138,6 +138,46 @@ export default function TurmasAdminPage() {
     }
   }
 
+  // --- NOVA FUNÇÃO: GERENCIAR MATÉRIAS POR TURMA ---
+  async function gerenciarMaterias(e: React.MouseEvent, nomeTurma: string) {
+    e.stopPropagation();
+    const acao = prompt(`Gerenciar Matérias - ${nomeTurma}\n1 - Adicionar Matéria\n2 - Ver/Remover Matérias`);
+    
+    if (acao === "1") {
+      const novaMateria = prompt("Digite o nome da nova matéria (Ex: Matemática):");
+      if (novaMateria) {
+        const { error } = await supabase
+          .from('turma_disciplinas')
+          .insert([{ nome_turma: nomeTurma, disciplina: novaMateria, ano: "2026" }]);
+        
+        if (error) alert("Erro ao adicionar. Verifique se a matéria já existe.");
+        else alert("Matéria adicionada com sucesso!");
+      }
+    } else if (acao === "2") {
+      const { data } = await supabase
+        .from('turma_disciplinas')
+        .select('*')
+        .eq('nome_turma', nomeTurma)
+        .eq('ano', '2026')
+        .order('disciplina', { ascending: true });
+
+      if (data && data.length > 0) {
+        const lista = data.map((m, i) => `${i + 1} - ${m.disciplina}`).join('\n');
+        const escolha = prompt(`Matérias cadastradas para ${nomeTurma}:\n\n${lista}\n\nDigite o NÚMERO da matéria para EXCLUIR ou cancele:`);
+        
+        if (escolha) {
+          const item = data[parseInt(escolha) - 1];
+          if (item && confirm(`Deseja remover "${item.disciplina}" da grade da turma?`)) {
+            await supabase.from('turma_disciplinas').delete().eq('id', item.id);
+            alert("Matéria removida da grade da turma!");
+          }
+        }
+      } else {
+        alert("Nenhuma matéria cadastrada para esta turma.");
+      }
+    }
+  }
+
   async function salvarHorarioImagem() {
     if (!arquivoHorario && !previewHorario) return alert("Selecione uma imagem.");
     setSalvandoHorario(true);
@@ -204,6 +244,7 @@ export default function TurmasAdminPage() {
               setModalTurmaAberto(true);
             }}
             onEditarProfessor={editarProfessor}
+            onGerenciarMaterias={gerenciarMaterias} // Novo prop passado ao TurmaCard
             onAbrirUploadHorario={(e, t) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
             onAbrirAgenda={(e, t) => { e.stopPropagation(); setTurmaParaAgenda(t); setModoAgenda('consultar'); setModalAgendaAberto(true); }}
           />

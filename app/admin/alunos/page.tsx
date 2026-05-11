@@ -139,16 +139,57 @@ export default function AlunosAdminPage() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
+  // --- FUNÇÃO DE BUSCA E SINCRONIZAÇÃO AUTOMÁTICA DE DISCIPLINAS ---
   async function buscarBoletim(alunoId: string, ano: string = "2026") {
     setAnoBoletimAtivo(ano);
-    const { data } = await supabase
+
+    // 1. Buscar disciplinas obrigatórias da turma para este ano
+    const { data: disciplinasPadrao } = await supabase
+      .from('turma_disciplinas')
+      .select('disciplina')
+      .eq('nome_turma', turma)
+      .eq('ano', ano);
+
+    // 2. Buscar disciplinas que o aluno já possui no banco
+    const { data: notasAtuais } = await supabase
       .from('boletins')
       .select('*')
       .eq('aluno_id', alunoId)
       .eq('ano', ano)
       .order('disciplina', { ascending: true });
-    if (data) setNotas(data);
-    setVerBoletim(true); setVerHistorico(false);
+
+    // 3. Comparar e inserir disciplinas faltantes automaticamente
+    if (disciplinasPadrao && disciplinasPadrao.length > 0) {
+      const nomesExistentes = notasAtuais ? notasAtuais.map(n => n.disciplina) : [];
+      const faltantes = disciplinasPadrao.filter(d => !nomesExistentes.includes(d.disciplina));
+
+      if (faltantes.length > 0) {
+        const novasLinhas = faltantes.map(f => ({
+          aluno_id: alunoId,
+          disciplina: f.disciplina,
+          ano: ano
+        }));
+
+        await supabase.from('boletins').insert(novasLinhas);
+
+        // Busca novamente os dados atualizados com as novas disciplinas
+        const { data: notasSincronizadas } = await supabase
+          .from('boletins')
+          .select('*')
+          .eq('aluno_id', alunoId)
+          .eq('ano', ano)
+          .order('disciplina', { ascending: true });
+        
+        if (notasSincronizadas) setNotas(notasSincronizadas);
+      } else {
+        if (notasAtuais) setNotas(notasAtuais);
+      }
+    } else {
+      if (notasAtuais) setNotas(notasAtuais);
+    }
+
+    setVerBoletim(true); 
+    setVerHistorico(false);
   }
 
   async function adicionarDisciplina() {
