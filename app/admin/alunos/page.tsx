@@ -139,6 +139,17 @@ export default function AlunosAdminPage() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
+  // --- FUNÇÃO AUXILIAR DE ORDENAÇÃO MANUAL (PORTUGUÊS NO TOPO) ---
+  const aplicarOrdenacaoManual = (lista: any[]) => {
+    const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
+    return [...lista].sort((a, b) => {
+      const indexA = ordemManual.indexOf(a.disciplina);
+      const indexB = ordemManual.indexOf(b.disciplina);
+      // Itens não encontrados na lista de prioridade vão para o final
+      return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+    });
+  };
+
   // --- FUNÇÃO DE BUSCA E SINCRONIZAÇÃO AUTOMÁTICA DE DISCIPLINAS ---
   async function buscarBoletim(alunoId: string, ano: string = "2026") {
     setAnoBoletimAtivo(ano);
@@ -150,17 +161,18 @@ export default function AlunosAdminPage() {
       .eq('nome_turma', turma)
       .eq('ano', ano);
 
-    // 2. Buscar disciplinas que o aluno já possui no banco ordenadas pela ordem de cadastro
+    // 2. Buscar disciplinas que o aluno já possui no banco
     const { data: notasAtuais } = await supabase
       .from('boletins')
       .select('*')
       .eq('aluno_id', alunoId)
-      .eq('ano', ano)
-      .order('created_at', { ascending: true });
+      .eq('ano', ano);
+
+    let listaParaExibir = notasAtuais || [];
 
     // 3. Comparar e inserir disciplinas faltantes automaticamente
     if (disciplinasPadrao && disciplinasPadrao.length > 0) {
-      const nomesExistentes = notasAtuais ? notasAtuais.map(n => n.disciplina) : [];
+      const nomesExistentes = listaParaExibir.map(n => n.disciplina);
       const faltantes = disciplinasPadrao.filter(d => !nomesExistentes.includes(d.disciplina));
 
       if (faltantes.length > 0) {
@@ -172,22 +184,19 @@ export default function AlunosAdminPage() {
 
         await supabase.from('boletins').insert(novasLinhas);
 
-        // Busca novamente os dados atualizados com as novas disciplinas mantendo a ordem de cadastro
+        // Busca novamente os dados atualizados
         const { data: notasSincronizadas } = await supabase
           .from('boletins')
           .select('*')
           .eq('aluno_id', alunoId)
-          .eq('ano', ano)
-          .order('created_at', { ascending: true });
+          .eq('ano', ano);
         
-        if (notasSincronizadas) setNotas(notasSincronizadas);
-      } else {
-        if (notasAtuais) setNotas(notasAtuais);
+        if (notasSincronizadas) listaParaExibir = notasSincronizadas;
       }
-    } else {
-      if (notasAtuais) setNotas(notasAtuais);
     }
 
+    // Aplica a ordenação solicitada antes de atualizar o estado
+    setNotas(aplicarOrdenacaoManual(listaParaExibir));
     setVerBoletim(true); 
     setVerHistorico(false);
   }
@@ -199,7 +208,9 @@ export default function AlunosAdminPage() {
       .from('boletins')
       .insert([{ aluno_id: idEdicao, disciplina: disc, ano: anoBoletimAtivo }])
       .select();
-    if (data) setNotas([...notas, data[0]]);
+    if (data) {
+      setNotas(aplicarOrdenacaoManual([...notas, data[0]]));
+    }
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
@@ -271,7 +282,6 @@ export default function AlunosAdminPage() {
     doc.save(`Extrato_${nome.replace(/\s+/g, '_')}.pdf`);
   }
 
-  // --- FUNÇÃO GERAR BOLETIM ATUALIZADA (PADRÃO DECLARAÇÃO) ---
   function gerarPDFBoletim() {
     const doc = new jsPDF();
     const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -280,7 +290,6 @@ export default function AlunosAdminPage() {
     const carimboEscolaUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Escola.png";
     const carimboSuellenUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
 
-    // --- MARCA D'ÁGUA ---
     try {
       doc.saveGraphicsState();
       const gState = new (doc as any).GState({ opacity: 0.05 });
@@ -289,7 +298,6 @@ export default function AlunosAdminPage() {
       doc.restoreGraphicsState();
     } catch (e) {}
 
-    // 1. Cabeçalho Institucional
     try { 
       doc.addImage(logoUrl, "PNG", 20, 10, 35, 35); 
     } catch (e) {}
@@ -305,12 +313,10 @@ export default function AlunosAdminPage() {
     doc.text("INEP - 15159213", 60, 41);
     doc.line(20, 50, 190, 50);
 
-    // 2. Título
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.text(`BOLETIM ESCOLAR OFICIAL - ${anoBoletimAtivo}`, 105, 65, { align: "center" });
 
-    // 3. Dados do Estudante
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("DADOS DO ALUNO(A):", 20, 75);
@@ -320,10 +326,10 @@ export default function AlunosAdminPage() {
     doc.text(`Responsável: ${responsavel.toUpperCase() || "NÃO INFORMADO"}`, 20, 92);
     doc.text(`Nascimento: ${dataNascimento ? new Date(dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : "--"} (${calcularIdade(dataNascimento)})`, 20, 97);
 
-    // 4. Tabela de Notas
     autoTable(doc, {
       startY: 105,
       head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
+      // A tabela do PDF usará o estado 'notas' que já foi ordenado manualmente
       body: notas.map(n => [
         n.disciplina.toUpperCase(),
         n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
@@ -338,21 +344,18 @@ export default function AlunosAdminPage() {
         if (data.section === 'body' && data.column.index > 0) {
           const valorNota = parseFloat(data.cell.raw as string);
           if (!isNaN(valorNota) && valorNota < 7) {
-            data.cell.styles.textColor = [220, 38, 38]; // Vermelho para notas baixas
+            data.cell.styles.textColor = [220, 38, 38]; 
           }
         }
       }
     });
 
     const finalY = (doc as any).lastAutoTable.finalY + 15;
-
-    // 5. Rodapé e Carimbos
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.text(`Belém, ${hoje}.`, 20, finalY);
 
     try {
-      // Carimbo da Escola (Aumentado conforme padrão)
       doc.addImage(carimboEscolaUrl, "PNG", 120, finalY - 15, 75, 75);
     } catch (e) {}
 
@@ -360,7 +363,6 @@ export default function AlunosAdminPage() {
     doc.text("Atenciosamente,", 20, finalY + 25);
     
     try {
-      // Carimbo Suellen
       doc.addImage(carimboSuellenUrl, "PNG", 75, finalY + 25, 55, 25);
     } catch (e) {}
 
@@ -392,7 +394,7 @@ export default function AlunosAdminPage() {
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_autista: eAutista, 
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_artista: eAutista, 
         observacoes, foto_url: urlFinal
       };
 
@@ -430,7 +432,7 @@ export default function AlunosAdminPage() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_artista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
     setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
@@ -468,7 +470,7 @@ export default function AlunosAdminPage() {
             whatsapp2, cpf_responsavel2: cpfResponsavel2, responsavel3, parentesco3: parentesco3, 
             whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_autista: eAutista, foto_url: previewUrl, observacoes
+            e_artista: eAutista, foto_url: previewUrl, observacoes
           }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}

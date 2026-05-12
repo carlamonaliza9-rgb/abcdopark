@@ -138,38 +138,65 @@ export default function TurmasAdminPage() {
     }
   }
 
-  // --- NOVA FUNÇÃO: GERENCIAR MATÉRIAS POR TURMA ---
+  // --- FUNÇÃO ATUALIZADA: ADICIONAR E APAGAR EM MASSA COM PORTUGUÊS NO TOPO ---
   async function gerenciarMaterias(e: React.MouseEvent, nomeTurma: string) {
     e.stopPropagation();
-    const acao = prompt(`Gerenciar Matérias - ${nomeTurma}\n1 - Adicionar Matéria\n2 - Ver/Remover Matérias`);
+    const acao = prompt(`Gerenciar Matérias - ${nomeTurma}\n1 - Adicionar Matérias (Várias por vez)\n2 - Ver/Remover Matérias`);
     
     if (acao === "1") {
-      const novaMateria = prompt("Digite o nome da nova matéria (Ex: Matemática):");
-      if (novaMateria) {
-        const { error } = await supabase
-          .from('turma_disciplinas')
-          .insert([{ nome_turma: nomeTurma, disciplina: novaMateria, ano: "2026" }]);
-        
-        if (error) alert("Erro ao adicionar. Verifique se a matéria já existe.");
-        else alert("Matéria adicionada com sucesso!");
+      const input = prompt("Digite as matérias separadas por VÍRGULA (Ex: Português, Matemática, Artes):");
+      
+      if (input) {
+        const listaMaterias = input.split(",")
+          .map(m => m.trim())
+          .filter(m => m !== "");
+
+        if (listaMaterias.length > 0) {
+          const novasMaterias = listaMaterias.map(materia => ({
+            nome_turma: nomeTurma,
+            disciplina: materia,
+            ano: "2026"
+          }));
+
+          const { error } = await supabase
+            .from('turma_disciplinas')
+            .insert(novasMaterias);
+          
+          if (error) alert("Erro ao adicionar. Verifique se as matérias já existem.");
+          else alert(`${listaMaterias.length} matérias adicionadas com sucesso!`);
+        }
       }
     } else if (acao === "2") {
       const { data } = await supabase
         .from('turma_disciplinas')
         .select('*')
         .eq('nome_turma', nomeTurma)
-        .eq('ano', '2026')
-        .order('disciplina', { ascending: true });
+        .eq('ano', '2026');
 
       if (data && data.length > 0) {
-        const lista = data.map((m, i) => `${i + 1} - ${m.disciplina}`).join('\n');
-        const escolha = prompt(`Matérias cadastradas para ${nomeTurma}:\n\n${lista}\n\nDigite o NÚMERO da matéria para EXCLUIR ou cancele:`);
+        // Ordenação manual conforme solicitado: Português no topo e Ed. Física na base
+        const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
+        
+        const dataOrdenada = data.sort((a, b) => {
+          const indexA = ordemManual.indexOf(a.disciplina);
+          const indexB = ordemManual.indexOf(b.disciplina);
+          // Disciplinas fora da lista manual vão para o fim por padrão
+          return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+        });
+
+        const lista = dataOrdenada.map((m, i) => `${i + 1} - ${m.disciplina}`).join('\n');
+        const escolha = prompt(`Matérias para ${nomeTurma}:\n\n${lista}\n\nDigite os NÚMEROS para EXCLUIR separados por vírgula (Ex: 1, 3, 5):`);
         
         if (escolha) {
-          const item = data[parseInt(escolha) - 1];
-          if (item && confirm(`Deseja remover "${item.disciplina}" da grade da turma?`)) {
-            await supabase.from('turma_disciplinas').delete().eq('id', item.id);
-            alert("Matéria removida da grade da turma!");
+          const indices = escolha.split(',').map(num => parseInt(num.trim()) - 1);
+          const idsParaExcluir = indices
+            .map(idx => dataOrdenada[idx]?.id)
+            .filter(id => id !== undefined);
+
+          if (idsParaExcluir.length > 0 && confirm(`Deseja remover ${idsParaExcluir.length} matéria(s) da grade da turma?`)) {
+            const { error } = await supabase.from('turma_disciplinas').delete().in('id', idsParaExcluir);
+            if (!error) alert("Matérias removidas com sucesso!");
+            else alert("Erro ao excluir matérias.");
           }
         }
       } else {
@@ -244,7 +271,7 @@ export default function TurmasAdminPage() {
               setModalTurmaAberto(true);
             }}
             onEditarProfessor={editarProfessor}
-            onGerenciarMaterias={gerenciarMaterias} // Novo prop passado ao TurmaCard
+            onGerenciarMaterias={gerenciarMaterias}
             onAbrirUploadHorario={(e, t) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
             onAbrirAgenda={(e, t) => { e.stopPropagation(); setTurmaParaAgenda(t); setModoAgenda('consultar'); setModalAgendaAberto(true); }}
           />
