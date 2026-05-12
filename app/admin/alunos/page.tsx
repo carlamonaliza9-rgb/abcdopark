@@ -271,26 +271,105 @@ export default function AlunosAdminPage() {
     doc.save(`Extrato_${nome.replace(/\s+/g, '_')}.pdf`);
   }
 
+  // --- FUNÇÃO GERAR BOLETIM ATUALIZADA (PADRÃO DECLARAÇÃO) ---
   function gerarPDFBoletim() {
     const doc = new jsPDF();
+    const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    
+    const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+    const carimboEscolaUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Escola.png";
+    const carimboSuellenUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
+
+    // --- MARCA D'ÁGUA ---
+    try {
+      doc.saveGraphicsState();
+      const gState = new (doc as any).GState({ opacity: 0.05 });
+      doc.setGState(gState);
+      doc.addImage(logoUrl, "PNG", 30, 80, 150, 150, undefined, 'FAST'); 
+      doc.restoreGraphicsState();
+    } catch (e) {}
+
+    // 1. Cabeçalho Institucional
+    try { 
+      doc.addImage(logoUrl, "PNG", 20, 10, 35, 35); 
+    } catch (e) {}
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("ESCOLA ABC DO PARK", 60, 20);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("CNPJ 05.067.797-68", 60, 26);
+    doc.text("CONJ PARKLANDIA - QUADRA A CASA 02", 60, 31);
+    doc.text("TELEFONE (91) 3268-3484 / (91) 98622-7715", 60, 36);
+    doc.text("INEP - 15159213", 60, 41);
+    doc.line(20, 50, 190, 50);
+
+    // 2. Título
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text(`BOLETIM ESCOLAR ${anoBoletimAtivo} - ESCOLA ABC DO PARK`, 105, 20, { align: "center" });
+    doc.text(`BOLETIM ESCOLAR OFICIAL - ${anoBoletimAtivo}`, 105, 65, { align: "center" });
+
+    // 3. Dados do Estudante
     doc.setFontSize(10);
-    doc.text(`Aluno: ${nome.toUpperCase()}`, 15, 35);
+    doc.setFont("helvetica", "bold");
+    doc.text("DADOS DO ALUNO(A):", 20, 75);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Nome: ${nome.toUpperCase()}`, 20, 82);
+    doc.text(`Turma: ${turma}`, 20, 87);
+    doc.text(`Responsável: ${responsavel.toUpperCase() || "NÃO INFORMADO"}`, 20, 92);
+    doc.text(`Nascimento: ${dataNascimento ? new Date(dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : "--"} (${calcularIdade(dataNascimento)})`, 20, 97);
+
+    // 4. Tabela de Notas
     autoTable(doc, {
-      startY: 45,
+      startY: 105,
       head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
       body: notas.map(n => [
         n.disciplina.toUpperCase(),
-        n.bimestre1 || '-', n.bimestre2 || '-', n.recuperacao1 || '-',
-        n.bimestre3 || '-', n.bimestre4 || '-', n.recuperacao2 || '-',
+        n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
+        n.bimestre3 ?? '-', n.bimestre4 ?? '-', n.recuperacao2 ?? '-',
         n.media || '0.0'
       ]),
-      headStyles: { fillColor: [37, 99, 235] },
-      styles: { halign: 'center' },
-      columnStyles: { 0: { halign: 'left' } }
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', halign: 'center' },
+      styles: { fontSize: 8, halign: 'center' },
+      columnStyles: { 0: { halign: 'left', fontStyle: 'bold', cellWidth: 50 } },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index > 0) {
+          const valorNota = parseFloat(data.cell.raw as string);
+          if (!isNaN(valorNota) && valorNota < 7) {
+            data.cell.styles.textColor = [220, 38, 38]; // Vermelho para notas baixas
+          }
+        }
+      }
     });
-    doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_${anoBoletimAtivo}.pdf`);
+
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+
+    // 5. Rodapé e Carimbos
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Belém, ${hoje}.`, 20, finalY);
+
+    try {
+      // Carimbo da Escola (Aumentado conforme padrão)
+      doc.addImage(carimboEscolaUrl, "PNG", 120, finalY - 15, 75, 75);
+    } catch (e) {}
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Atenciosamente,", 20, finalY + 25);
+    
+    try {
+      // Carimbo Suellen
+      doc.addImage(carimboSuellenUrl, "PNG", 75, finalY + 25, 55, 25);
+    } catch (e) {}
+
+    doc.text("__________________________________________", 105, finalY + 55, { align: "center" });
+    doc.text("Suellen C. S. Figueiredo", 105, finalY + 61, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("DIRETORA / REG. 6235", 105, finalY + 67, { align: "center" });
+
+    doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_2026.pdf`);
   }
 
   async function salvarAluno(e: React.FormEvent) {
