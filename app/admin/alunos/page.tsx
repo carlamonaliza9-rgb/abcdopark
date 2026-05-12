@@ -150,13 +150,13 @@ export default function AlunosAdminPage() {
       .eq('nome_turma', turma)
       .eq('ano', ano);
 
-    // 2. Buscar disciplinas que o aluno já possui no banco
+    // 2. Buscar disciplinas que o aluno já possui no banco ordenadas pela ordem de cadastro
     const { data: notasAtuais } = await supabase
       .from('boletins')
       .select('*')
       .eq('aluno_id', alunoId)
       .eq('ano', ano)
-      .order('disciplina', { ascending: true });
+      .order('created_at', { ascending: true });
 
     // 3. Comparar e inserir disciplinas faltantes automaticamente
     if (disciplinasPadrao && disciplinasPadrao.length > 0) {
@@ -172,13 +172,13 @@ export default function AlunosAdminPage() {
 
         await supabase.from('boletins').insert(novasLinhas);
 
-        // Busca novamente os dados atualizados com as novas disciplinas
+        // Busca novamente os dados atualizados com as novas disciplinas mantendo a ordem de cadastro
         const { data: notasSincronizadas } = await supabase
           .from('boletins')
           .select('*')
           .eq('aluno_id', alunoId)
           .eq('ano', ano)
-          .order('disciplina', { ascending: true });
+          .order('created_at', { ascending: true });
         
         if (notasSincronizadas) setNotas(notasSincronizadas);
       } else {
