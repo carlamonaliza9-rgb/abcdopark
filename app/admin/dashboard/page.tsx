@@ -231,11 +231,12 @@ export default function DashboardAdminPage() {
                   : "Aniversariante(s) do Dia!"}
               </h2>
               {aniversariantesHoje.some(p => p.email === userEmail) ? (
-                <div style={{ padding: '0 20px', marginTop: '10px' }}>
-                  <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.5', fontWeight: '500' }}>
-                    "Que seu novo ciclo seja repleto de luz, saúde e muitas alegrias. É um privilégio ter sua dedicação e carinho fazendo parte da nossa história."
+                <div style={{ padding: '0 20px', marginTop: '15px' }}>
+                  <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>
+                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
+                    Que este novo ciclo seja repleto de paz, saúde, conquistas e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história todos os dias. Celebre muito, você merece o mundo!
                   </p>
-                  <p style={{ marginTop: '8px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Com carinho, Família ABC DO PARK</p>
+                  <p style={{ marginTop: '15px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Um abraço bem apertado da Família ABC DO PARK ❤️</p>
                 </div>
               ) : (
                 <p style={{ opacity: 0.9, fontSize: '14px', marginTop: '10px' }}>Hoje o dia é de festa e gratidão na nossa escola!</p>

@@ -6,6 +6,7 @@ export function AlertaEvasao() {
   const [alertas, setAlertas] = useState<any[]>([]);
   const [visivel, setVisivel] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const visivelRef = useRef(false); // Referência para evitar contagem duplicada
 
   async function verificarAlertasEvasao() {
     // Pegamos a data de hoje no formato YYYY-MM-DD para bater com o banco
@@ -24,9 +25,21 @@ export function AlertaEvasao() {
 
     if (data && data.length > 0) {
       setAlertas(data);
-      setVisivel(true);
+      
+      if (typeof window !== 'undefined') {
+        const storageKey = `alerta_evasao_${hoje}`;
+        const exibicoes = parseInt(sessionStorage.getItem(storageKey) || '0');
+        
+        // Só exibe e conta se não estiver visível no momento e se não bateu o limite de 2
+        if (!visivelRef.current && exibicoes < 2) {
+          setVisivel(true);
+          visivelRef.current = true;
+          sessionStorage.setItem(storageKey, (exibicoes + 1).toString());
+        }
+      }
     } else {
       setVisivel(false);
+      visivelRef.current = false;
     }
     
     if (error) console.error("Erro ao buscar alertas:", error.message);
@@ -66,7 +79,10 @@ export function AlertaEvasao() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <strong style={{ color: '#b91c1c', fontSize: '14px' }}>⚠️ Alerta de Evasão Escolar</strong>
         <button 
-          onClick={() => setVisivel(false)} 
+          onClick={() => {
+            setVisivel(false);
+            visivelRef.current = false;
+          }} 
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
         >
           ✕

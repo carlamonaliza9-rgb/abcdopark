@@ -196,6 +196,17 @@ export default function DashboardProfessorPage() {
                   ? `Parabéns, ${nomeUsuario}! ✨` 
                   : "Aniversariante(s) do Dia!"}
               </h2>
+              {aniversariantesHoje.some(p => p.email === userEmail) ? (
+                <div style={{ padding: '0 20px', marginTop: '15px' }}>
+                  <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>
+                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
+                    Que este novo ciclo seja repleto de paz, saúde, conquistas e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história todos os dias. Celebre muito, você merece o mundo!
+                  </p>
+                  <p style={{ marginTop: '15px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Um abraço bem apertado da Família ABC DO PARK ❤️</p>
+                </div>
+              ) : (
+                <p style={{ opacity: 0.9, fontSize: '14px', marginTop: '10px' }}>Hoje o dia é de festa e gratidão na nossa escola!</p>
+              )}
             </div>
             <div style={{ padding: '30px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -222,7 +233,7 @@ export default function DashboardProfessorPage() {
                 })}
               </div>
               <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '25px', width: '100%', padding: '16px', borderRadius: '18px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', cursor: 'pointer', fontSize: '14px' }}>
-                FECHAR
+                {aniversariantesHoje.some(p => p.email === userEmail) ? 'RECEBER COM CARINHO ❤️' : 'FECHAR'}
               </button>
             </div>
           </div>
