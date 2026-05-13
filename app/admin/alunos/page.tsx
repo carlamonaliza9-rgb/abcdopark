@@ -374,6 +374,7 @@ export default function AlunosAdminPage() {
     doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_2026.pdf`);
   }
 
+  // --- FUNÇÃO DE SALVAR COM CORREÇÃO DE PERSISTÊNCIA ---
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
@@ -387,26 +388,34 @@ export default function AlunosAdminPage() {
         if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
       
-      const dados = { 
+      const dadosParaEnviar = { 
         nome, cpf_aluno: cpfAluno, turma, turno,
         cep, endereco, numero, bairro, cidade, estado,
         responsavel, parentesco_1: parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_artista: eAutista, 
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_autista: eAutista, 
         observacoes, foto_url: urlFinal
       };
 
       if (idEdicao) {
-        await supabase.from('alunos').update(dados).eq('id', idEdicao);
+        const { error: errorUpdate } = await supabase.from('alunos').update(dadosParaEnviar).eq('id', idEdicao);
+        if (errorUpdate) throw errorUpdate;
       } else {
-        await supabase.from('alunos').insert([{ ...dados, status: 'pendente' }]);
+        const { error: errorInsert } = await supabase.from('alunos').insert([{ ...dadosParaEnviar, status: 'pendente' }]);
+        if (errorInsert) throw errorInsert;
       }
 
-      setModalAberto(false); setModoEdicao(false); buscarAlunos();
+      setModalAberto(false); 
+      setModoEdicao(false); 
+      await buscarAlunos();
       alert("Salvo com sucesso!");
-    } catch (error: any) { alert("Erro ao salvar: " + error.message); } finally { setCarregando(false); }
+    } catch (error: any) { 
+      alert("Erro ao salvar: " + (error.message || "Ocorreu um erro inesperado.")); 
+    } finally { 
+      setCarregando(false); 
+    }
   }
 
   function limparEContinuar() {
@@ -432,7 +441,7 @@ export default function AlunosAdminPage() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_artista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
     setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
@@ -465,10 +474,9 @@ export default function AlunosAdminPage() {
           aluno={{
             id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
             cep, endereco, numero, bairro, cidade, estado,
-            responsavel, parentesco1: parentesco1, 
-            whatsapp, cpf_responsavel: cpfResponsavel, responsavel2, parentesco2: parentesco2, 
-            whatsapp2, cpf_responsavel2: cpfResponsavel2, responsavel3, parentesco3: parentesco3, 
-            whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
+            responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, 
+            responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, 
+            responsavel3, parentesco3, whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
             e_artista: eAutista, foto_url: previewUrl, observacoes
           }}
