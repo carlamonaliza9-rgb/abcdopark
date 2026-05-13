@@ -136,21 +136,31 @@ export default function ContasAPagarAdminPage() {
     carregarContas();
   }
 
-  async function registrarPagamento(file: File) {
+  // ATUALIZAÇÃO FINAL: Sem alerta e com suporte a File | null para evitar erros no VS Code
+  async function registrarPagamento(file: File | null, dataPgto: string) {
     setSalvandoPgto(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `comprovante_${contaParaPagar.id}_${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('comprovantes').upload(fileName, file);
-      if (uploadError) throw uploadError;
+      let urlFinal = contaParaPagar.comprovante_url;
 
-      const { data: urlData } = supabase.storage.from('comprovantes').getPublicUrl(fileName);
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `comprovante_${contaParaPagar.id}_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('comprovantes').upload(fileName, file);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from('comprovantes').getPublicUrl(fileName);
+        urlFinal = urlData.publicUrl;
+      }
+
       const { error: dbError } = await supabase.from('contas_a_pagar').update({
-        pago: true, data_pagamento: new Date().toISOString().split('T')[0], comprovante_url: urlData.publicUrl
+        pago: true, 
+        data_pagamento: dataPgto, 
+        comprovante_url: urlFinal
       }).eq('id', contaParaPagar.id);
 
       if (dbError) throw dbError;
-      alert("Pagamento registrado com sucesso!");
+      
+      // O Alerta de sucesso foi removido daqui para salvar silenciosamente
       setContaParaPagar(null);
       carregarContas();
     } catch (err: any) {
@@ -212,7 +222,15 @@ export default function ContasAPagarAdminPage() {
                     
                     {conta.pago ? (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px', marginTop: '5px' }}>
-                        <a href={conta.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Visualizar Comprovante 📄</a>
+                        {conta.data_pagamento && (
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                            Pago em: {new Date(conta.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <button onClick={() => setContaParaPagar(conta)} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Editar Pgto ⚙️</button>
+                          <a href={conta.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Ver Comprovante 📄</a>
+                        </div>
                         <button onClick={() => desfazerPagamento(conta.id)} style={{ fontSize: '11px', color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Desfazer pagamento</button>
                       </div>
                     ) : (
