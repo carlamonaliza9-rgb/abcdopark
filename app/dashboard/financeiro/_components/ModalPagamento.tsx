@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 interface ModalPagamentoProps {
   aberto: boolean;
   onFechar: () => void;
@@ -37,6 +39,16 @@ export function ModalPagamento({
   onConfirmar,
   editando
 }: ModalPagamentoProps) {
+  // Estado local para controlar o ano de referência separadamente
+  const [anoReferencia, setAnoReferencia] = useState(new Date().getFullYear().toString());
+
+  // Lógica cirúrgica: Atualiza a descrição automaticamente para vincular Mês/Ano e evitar erros de soma
+  useEffect(() => {
+    if (aberto && tipoPagamento === "mensalidade") {
+      setDescricaoOutro(`Mensalidade - ${mesReferencia}/${anoReferencia}`);
+    }
+  }, [mesReferencia, anoReferencia, tipoPagamento, aberto, setDescricaoOutro]);
+
   if (!aberto) return null;
 
   return (
@@ -45,26 +57,54 @@ export function ModalPagamento({
         <h2 style={{ textAlign: 'center', marginBottom: 15 }}>{aluno?.nome}</h2>
         
         <div style={{ marginBottom: 15 }}>
-          <label style={{ fontSize: 10, fontWeight: 'bold' }}>DATA DO PAGAMENTO:</label>
-          <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd' }} />
+          <label style={{ fontSize: 10, fontWeight: 'bold' }}>DATA QUE O DINHEIRO CAIU (FLUXO DE CAIXA):</label>
+          <input 
+            type="date" 
+            value={dataPagamento} 
+            onChange={(e) => setDataPagamento(e.target.value)} 
+            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd' }} 
+          />
         </div>
 
-        <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: '1px solid #ddd' }}>
-          <option value="mensalidade">Mensalidade</option>
-          <option value="evento">Evento</option>
-          <option value="outro">Outro</option>
-        </select>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 10, fontWeight: 'bold' }}>CATEGORIA:</label>
+          <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd' }}>
+            <option value="mensalidade">Mensalidade</option>
+            <option value="evento">Evento</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
 
         {tipoPagamento === "mensalidade" && (
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '10px', fontWeight: 'bold' }}>MÊS DE REFERÊNCIA:</label>
-            <select value={mesReferencia} onChange={(e) => setMesReferencia(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-              {mesesAno.map(m => (<option key={m} value={m}>{m}</option>))}
-            </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>MÊS DE REFERÊNCIA:</label>
+              <select value={mesReferencia} onChange={(e) => setMesReferencia(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                {mesesAno.map(m => (<option key={m} value={m}>{m}</option>))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 'bold' }}>ANO DE REFERÊNCIA:</label>
+              <select value={anoReferencia} onChange={(e) => setAnoReferencia(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+              </select>
+            </div>
           </div>
         )}
 
-        <input type="text" placeholder="Descrição..." value={descricaoOutro} onChange={(e) => setDescricaoOutro(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 15, borderRadius: 8, border: '1px solid #ddd' }} />
+        <div style={{ marginBottom: 15 }}>
+          <label style={{ fontSize: 10, fontWeight: 'bold' }}>IDENTIFICAÇÃO NO REGISTRO:</label>
+          <input 
+            type="text" 
+            placeholder="Ex: Mensalidade Junho/2026..." 
+            value={descricaoOutro} 
+            onChange={(e) => setDescricaoOutro(e.target.value)} 
+            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', backgroundColor: tipoPagamento === 'mensalidade' ? '#f8fafc' : 'white' }} 
+          />
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
           <div><label style={{ fontSize: 10 }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
@@ -75,8 +115,8 @@ export function ModalPagamento({
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={onFechar} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #ddd' }}>CANCELAR</button>
-          <button onClick={onConfirmar} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#10b981', color: 'white', fontWeight: 'bold' }}>
+          <button onClick={onFechar} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #ddd', cursor: 'pointer' }}>CANCELAR</button>
+          <button onClick={onConfirmar} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
             {editando ? "ATUALIZAR" : "CONFIRMAR"}
           </button>
         </div>

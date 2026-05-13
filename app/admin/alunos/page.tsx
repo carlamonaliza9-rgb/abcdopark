@@ -10,6 +10,7 @@ import { AlunosHeader } from "@/app/dashboard/alunos/_components/AlunosHeader";
 import { AlunoCard } from "@/app/dashboard/alunos/_components/AlunoCard";
 import { FichaAlunoModal } from "@/app/dashboard/alunos/_components/FichaAlunoModal";
 import { FormAlunoModal } from "@/app/dashboard/alunos/_components/FormAlunoModal";
+import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 
 export default function AlunosAdminPage() {
   const router = useRouter();
@@ -69,6 +70,17 @@ export default function AlunosAdminPage() {
   const [notas, setNotas] = useState<any[]>([]);
   const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); 
 
+  // --- ESTADOS PARA EDIÇÃO DE PAGAMENTO NO HISTÓRICO ---
+  const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
+  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
+  const [dataPagamento, setDataPagamento] = useState("");
+  const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
+  const [descricaoOutro, setDescricaoOutro] = useState("");
+  const [mesReferencia, setMesReferencia] = useState("");
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+
+  const SENHA_MESTRA = "1234";
+  const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
 
   // --- TRAVA DE SEGURANÇA E CARREGAMENTO ---
@@ -395,7 +407,7 @@ export default function AlunosAdminPage() {
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_autista: eAutista, 
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_artista: eAutista, 
         observacoes, foto_url: urlFinal
       };
 
@@ -416,6 +428,33 @@ export default function AlunosAdminPage() {
     } finally { 
       setCarregando(false); 
     }
+  }
+
+  // --- NOVAS FUNÇÕES: GERENCIAR PAGAMENTOS DO HISTÓRICO ---
+  async function handleExcluirPagamento(idPgto: string) {
+    const { data: pgto } = await supabase.from('historico_pagamentos').select('*').eq('id', idPgto).single();
+    if (pgto?.tipo === 'mensalidade') {
+      await supabase.from('alunos').update({ status: 'pendente' }).eq('id', idEdicao);
+    }
+    await supabase.from('historico_pagamentos').delete().eq('id', idPgto);
+    buscarHistoricoPagamento(idEdicao!, "2026");
+  }
+
+  function handleEditarPagamento(pgto: any) {
+    setIdPagamentoEdicao(pgto.id);
+    setDataPagamento(pgto.data_pagamento);
+    setTipoPagamento(pgto.tipo);
+    setDescricaoOutro(pgto.descricao);
+    setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    setModalPgtoAberto(true);
+  }
+
+  async function handleSalvarPgtoEditado() {
+    const soma = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    const dados = { tipo: tipoPagamento, descricao: descricaoOutro, valor_total: soma, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
+    await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
+    setModalPgtoAberto(false);
+    buscarHistoricoPagamento(idEdicao!, "2026");
   }
 
   function limparEContinuar() {
@@ -441,7 +480,7 @@ export default function AlunosAdminPage() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_artista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
     setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
@@ -480,10 +519,11 @@ export default function AlunosAdminPage() {
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
             e_artista: eAutista, foto_url: previewUrl, observacoes
           }}
-          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
+          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
           onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
           onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
+          onEditarPagamento={handleEditarPagamento} onExcluirPagamento={handleExcluirPagamento}
           onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
           onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
           calcularIdade={calcularIdade}
@@ -528,6 +568,17 @@ export default function AlunosAdminPage() {
           onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
         />
       )}
+
+      {/* MODAL PARA EDITAR PAGAMENTO DO HISTÓRICO */}
+      <ModalPagamento 
+        aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
+        aluno={{ nome }} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
+        tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
+        mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno}
+        descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
+        pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
+        onConfirmar={handleSalvarPgtoEditado} editando={true}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ interface FichaAlunoModalProps {
   notas: any[];
   historico: any[];
   ehVisitante: boolean;
+  userEmail: string | null; // ADICIONADO: Para validar permissão
   mCPF: (v: string) => string;
   mWhatsApp: (v: string) => string;
   onFechar: () => void;
@@ -23,15 +24,18 @@ interface FichaAlunoModalProps {
   onExcluirDisciplina: (id: string) => void;
   onGerarPDFBoletim: () => void;
   onGerarPDFHistorico: () => void;
+  onEditarPagamento: (pagamento: any) => void; // ADICIONADO
+  onExcluirPagamento: (id: string) => void; // ADICIONADO
   calcularIdade: (data: string) => string;
 }
 
 export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const { 
-    aluno, verBoletim, verHistorico, notas, historico, ehVisitante, 
+    aluno, verBoletim, verHistorico, notas, historico, ehVisitante, userEmail,
     mCPF, mWhatsApp, onFechar, onEditar, onExcluir, onVerBoletim, 
     onVerHistorico, onVoltarParaFicha, onSalvarNota, onAdicionarDisciplina, 
     onExcluirDisciplina, onGerarPDFBoletim, onGerarPDFHistorico,
+    onEditarPagamento, onExcluirPagamento,
     calcularIdade 
   } = props;
 
@@ -44,6 +48,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const [percentualPresenca, setPercentualPresenca] = useState(100);
   const [anoSelecionado, setAnoSelecionado] = useState("2026");
   const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("2026");
+  
+  const SENHA_MESTRA = "1234";
 
   useEffect(() => {
     if (aluno?.id) {
@@ -93,7 +99,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     return (soma / 4).toFixed(1);
   };
 
-  // Função para identificar o método utilizado no Financeiro
   const extrairFormaPagamento = (detalhes: any) => {
     if (!detalhes) return null;
     const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0);
@@ -123,7 +128,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
             ) : (
               <div style={{ height: '140px', width: '140px', borderRadius: '50%', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '60px' }}>👤</div>
             )}
-            {aluno.e_autista && <span style={{ position: 'absolute', bottom: '5px', right: '5px', fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '3px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🧩</span>}
+            {aluno.e_artista && <span style={{ position: 'absolute', bottom: '5px', right: '5px', fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '3px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🧩</span>}
           </div>
           
           <h2 style={{ fontWeight: '800', color: '#0f172a', margin: '0', fontSize: '20px', textAlign: 'center' }}>{aluno.nome}</h2>
@@ -317,9 +322,11 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
                 <button onClick={onVoltarParaFicha} style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
               </div>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
+              <div style={{ maxHeight: '250px', overflowY: 'auto', backgroundColor: '#f8fafc', borderRadius: '15px', padding: '10px' }}>
                 {historico.length > 0 ? historico.map((h, i) => {
                   const forma = extrairFormaPagamento(h.detalhes_metodos);
+                  const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
+
                   return (
                     <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ flex: 1 }}>
@@ -336,6 +343,40 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                           )}
                         </div>
                       </div>
+                      
+                      {/* ADIÇÃO: Botões de Editar e Excluir com Trava de Senha */}
+                      {podeGerenciar && (
+                        <div style={{ display: 'flex', gap: '8px', marginLeft: '15px', borderLeft: '1px solid #e2e8f0', paddingLeft: '12px' }}>
+                          <button 
+                            onClick={() => {
+                              if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) {
+                                onEditarPagamento(h);
+                              } else {
+                                alert("Senha incorreta.");
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                            title="Editar registro"
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (prompt("Digite a Senha Mestra para EXCLUIR:") === SENHA_MESTRA) {
+                                if(confirm("Deseja realmente excluir este registro permanentemente?")) {
+                                  onExcluirPagamento(h.id);
+                                }
+                              } else {
+                                alert("Senha incorreta.");
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                            title="Excluir registro"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 }) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Nenhum pagamento registrado em {anoPagamentoSelecionado}.</p>}

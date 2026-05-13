@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Importação dos Componentes (Buscando da pasta original)
 import { FinanceiroHeader } from "@/app/dashboard/financeiro/_components/FinanceiroHeader";
@@ -20,6 +22,7 @@ import { ModalListaGastos } from "@/app/dashboard/financeiro/_components/ModalLi
 export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // --- ESTADOS DE CONFIGURAÇÃO E DADOS ---
   const [valorPadrao, setValorPadrao] = useState(550);
@@ -36,10 +39,12 @@ export default function FinanceiroAdminPage() {
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [modalGastoAberto, setModalGastoAberto] = useState(false);
   const [modalListaGastosAberto, setModalListaGastosAberto] = useState(false); 
+  const [modalListaReceitasAberto, setModalListaReceitasAberto] = useState(false); // Adicionado
   const [modalEventoAberto, setModalEventoAberto] = useState(false);
   
   // --- ESTADOS DE FORMULÁRIOS ---
   const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
+  const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]); // Adicionado
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   const [descGasto, setDescGasto] = useState("");
   const [valorGasto, setValorGasto] = useState("");
@@ -67,6 +72,7 @@ export default function FinanceiroAdminPage() {
       if (!user) return router.push("/login");
 
       const emailAtual = user.email || "";
+      setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
 
       const ehAdmin = 
@@ -88,10 +94,23 @@ export default function FinanceiroAdminPage() {
       const hoje = new Date();
       const [ano, mes] = mesFiltro.split('-');
       const dataInicio = `${ano}-${mes}-01`;
-      const dataFim = `${ano}-${mes}-31`;
+      
+      const ultimoDiaObjeto = new Date(parseInt(ano), parseInt(mes), 0);
+      const dataFim = `${ano}-${mes}-${String(ultimoDiaObjeto.getDate()).padStart(2, '0')}`;
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
+      
+      // Busca pgtos (Fluxo de Caixa)
       const { data: pgtosMes } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      if (pgtosMes) setListaReceitasDetalhada(pgtosMes);
+
+      // Busca pgtos (Mês de Referência)
+      const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
+      const { data: pgtosReferencia } = await supabase.from('historico_pagamentos')
+        .select('aluno_id')
+        .eq('tipo', 'mensalidade')
+        .like('descricao', `%${nomeMesReferencia}%${ano}%`);
+
       const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
       
       const { data: contasPagasMes } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
@@ -114,7 +133,7 @@ export default function FinanceiroAdminPage() {
       let metodosResumo = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
 
       if (pgtosMes) {
-        vPago = pgtosMes.reduce((acc, curr) => acc + (curr.valor_total || 0), 0);
+        vPago = pgtosMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_total) || 0), 0);
         metodosResumo = pgtosMes.reduce((acc, curr) => {
           const det = curr.detalhes_metodos || {};
           acc.pix += parseFloat(det.pix || 0);
@@ -126,35 +145,148 @@ export default function FinanceiroAdminPage() {
       }
       setResumoMetodos(metodosResumo);
       
-      if (gastosMes) vGastos += gastosMes.reduce((acc, curr) => acc + parseFloat(curr.valor || 0), 0);
-      if (contasPagasMes) vGastos += contasPagasMes.reduce((acc, curr) => acc + parseFloat(curr.valor || 0), 0);
+      if (gastosMes) vGastos += gastosMes.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+      if (contasPagasMes) vGastos += contasPagasMes.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
 
       if (listaAlunos) {
+        setAlunos(listaAlunos);
+        const idsPagosNestaReferencia = (pgtosReferencia || []).map(p => p.aluno_id);
+
         const ordenados = listaAlunos.map(aluno => {
-          if (aluno.status === 'pago') return aluno;
+          const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
+          if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
           return hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? { ...aluno, status: 'atrasado' } : { ...aluno, status: 'pendente' };
         }).sort((a, b) => (a.status === 'pago' ? 1 : 0) - (b.status === 'pago' ? 1 : 0) || (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0));
         
         setAlunos(ordenados);
-        const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-        const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (curr.valor || 0)), 0);
+        const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+        const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (parseFloat(curr.valor) || 0)), 0);
         setMetricas({ total: totalPrevisto, pago: vPago, pendente: Math.max(0, totalPrevisto - vPago), descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
       }
+    } catch (err) {
+      console.error("Erro ao carregar dados:", err);
     } finally { setCarregando(false); }
   }
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
-  const alunosFiltrados = alunos.filter(aluno => aluno.nome.toLowerCase().includes(filtroNome.toLowerCase()));
+  // --- FUNÇÃO CIRÚRGICA: PDF PROFISSIONAL COM CORREÇÃO DE NOMES ---
+  function gerarRelatorioTesouraria() {
+    const doc = new jsPDF();
+    const [ano, mesNum] = mesFiltro.split('-');
+    const nomeMes = mesesAno[parseInt(mesNum) - 1];
+    const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
 
+    try { doc.addImage(logoUrl, "PNG", 15, 10, 25, 25); } catch (e) {}
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("BALANÇO FINANCEIRO MENSAL", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`ESCOLA ABC DO PARK - ${nomeMes.toUpperCase()} / ${ano}`, 105, 28, { align: "center" });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 105, 33, { align: "center" });
+
+    autoTable(doc, {
+      startY: 45,
+      head: [['RESUMO DO PERÍODO', 'VALOR ACUMULADO']],
+      body: [
+        ['(+) TOTAL DE ENTRADAS (RECEBIMENTOS)', `R$ ${metricas.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['(-) TOTAL DE SAÍDAS (DESPESAS E CONTAS)', `R$ ${metricas.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['(=) SALDO LÍQUIDO EM CAIXA', `R$ ${metricas.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 138], halign: 'center' },
+      styles: { halign: 'right', fontSize: 10, fontStyle: 'bold' },
+      columnStyles: { 0: { halign: 'left' } },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.row.index === 2) {
+          data.cell.styles.textColor = metricas.lucro >= 0 ? [22, 101, 52] : [153, 27, 27];
+        }
+      }
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("1. RELAÇÃO DE ENTRADAS (DETALHADO)", 15, (doc as any).lastAutoTable.finalY + 12);
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 15,
+      head: [['DATA', 'ALUNO / ORIGEM', 'DESCRIÇÃO', 'VALOR']],
+      body: listaReceitasDetalhada.map(p => {
+        const alunoNome = alunos.find(a => a.id === p.aluno_id)?.nome || "DIVERSOS / OUTRO";
+        return [
+          new Date(p.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR'),
+          alunoNome.toUpperCase(),
+          p.descricao.toUpperCase(),
+          `R$ ${parseFloat(p.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        ];
+      }),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [16, 185, 129] },
+      alternateRowStyles: { fillColor: [240, 253, 244] }
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.text("2. RELAÇÃO DE SAÍDAS (DETALHADO)", 15, (doc as any).lastAutoTable.finalY + 12);
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 15,
+      head: [['DATA', 'DESCRIÇÃO DA DESPESA', 'VALOR']],
+      body: listaGastosDetalhada.map(g => [
+        new Date(g.data_gasto + "T12:00:00").toLocaleDateString('pt-BR'),
+        g.descricao.toUpperCase(),
+        `R$ ${parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [239, 68, 68] },
+      alternateRowStyles: { fillColor: [254, 242, 242] }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 35;
+    if (finalY > 270) doc.addPage();
+    doc.line(20, finalY, 90, finalY);
+    doc.line(120, finalY, 190, finalY);
+    doc.setFontSize(9);
+    doc.text("TESOURARIA / RESPONSÁVEL", 55, finalY + 5, { align: "center" });
+    doc.text("DIREÇÃO ESCOLAR", 155, finalY + 5, { align: "center" });
+
+    doc.save(`Fechamento_Tesouraria_${nomeMes}_${ano}.pdf`);
+  }
+
+  // --- FUNÇÕES DE AÇÃO ---
   async function confirmarPagamento() {
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
-    const dados = { aluno_id: alunoSelecionado.id, tipo: tipoPagamento, descricao: descricaoOutro || (tipoPagamento === 'mensalidade' ? `Mensalidade - ${mesReferencia}` : `Evento: ${eventoParaGerenciar?.nome}`), valor_total: somaPaga, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
+    const anoFiltro = mesFiltro.split('-')[0];
+    const descRef = tipoPagamento === 'mensalidade' ? `Mensalidade - ${mesReferencia}/${anoFiltro}` : `Evento: ${eventoParaGerenciar?.nome}`;
+    const dados = { aluno_id: alunoSelecionado.id, tipo: tipoPagamento, descricao: descricaoOutro || descRef, valor_total: somaPaga, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
     if (idPagamentoEdicao) await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
     else await supabase.from('historico_pagamentos').insert([dados]);
     if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
     setModalPgtoAberto(false); carregarDados();
+  }
+
+  async function handleExcluirGasto(id: string) {
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla pode excluir.");
+    if (prompt("Senha Mestra para EXCLUIR GASTO:") === SENHA_MESTRA) {
+       if(confirm("Confirmar exclusão definitiva deste gasto?")) {
+          await supabase.from('gastos').delete().eq('id', id);
+          carregarDados();
+       }
+    } else { alert("Senha incorreta."); }
+  }
+
+  async function handleExcluirReceita(id: string) {
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla pode excluir.");
+    if (prompt("Senha Mestra para EXCLUIR RECEITA:") === SENHA_MESTRA) {
+      if(confirm("Confirmar exclusão desta receita? O status do aluno voltará para pendente.")) {
+        const { data: pgto } = await supabase.from('historico_pagamentos').select('aluno_id, tipo').eq('id', id).single();
+        if (pgto?.tipo === 'mensalidade') await supabase.from('alunos').update({ status: 'pendente' }).eq('id', pgto.aluno_id);
+        await supabase.from('historico_pagamentos').delete().eq('id', id);
+        carregarDados();
+      }
+    } else { alert("Senha incorreta."); }
   }
 
   async function salvarEvento() {
@@ -170,40 +302,9 @@ export default function FinanceiroAdminPage() {
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
   }
 
-  function cobrarWhatsApp(aluno: any) {
-    const formatado = aluno.nome.split(' ')[0];
-    const msg = `Olá! Bom dia. Passando para lembrar da mensalidade de *${formatado}*, com vencimento ${aluno.vencimento}/${mesFiltro.split('-')[1]} no valor de ${aluno.valor?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-    window.open(`https://wa.me/55${aluno.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-  }
-
-  async function zerarMes() {
-    if (prompt("Senha:") === SENHA_MESTRA && confirm("Resetar dados do mês?")) {
-      const [ano, mes] = mesFiltro.split('-');
-      await supabase.from('alunos').update({ status: 'pendente' }).not('id', 'is', null);
-      await supabase.from('historico_pagamentos').delete().gte('data_pagamento', `${ano}-${mes}-01`).lte('data_pagamento', `${ano}-${mes}-31`);
-      await supabase.from('gastos').delete().gte('data_gasto', `${ano}-${mes}-01`).lte('data_gasto', `${ano}-${mes}-31`);
-      carregarDados();
-    }
-  }
-
-  function gerarPDFEvento() {
-    if (!eventoParaGerenciar) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return alert("Permita pop-ups.");
-    const conteudoTabela = alunos
-      .filter(aluno => eventoParaGerenciar.participantes?.includes(aluno.id))
-      .map(aluno => {
-        const pgto = historicoPagamentosEventos.find(p => p.aluno_id === aluno.id && p.descricao.includes(eventoParaGerenciar.nome));
-        const data = pgto ? new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'PENDENTE';
-        const metodo = pgto && pgto.detalhes_metodos ? Object.keys(pgto.detalhes_metodos).find(k => parseFloat(pgto.detalhes_metodos[k]) > 0) || 'Não inf.' : '-';
-        return `<tr><td style="padding: 10px; border-bottom: 1px solid #eee;">${aluno.nome}</td><td style="text-align:center;">${data}</td><td style="text-align:center; text-transform:uppercase;">${metodo}</td><td style="text-align:right;">R$ ${pgto ? pgto.valor_total.toLocaleString('pt-BR') : '-'}</td></tr>`;
-      }).join('');
-    printWindow.document.write(`<html><body style="font-family:sans-serif; padding:40px;"><h1>Lista: ${eventoParaGerenciar.nome}</h1><table style="width:100%; border-collapse:collapse;"><thead><tr style="background:#f8fafc;"><th>Aluno</th><th>Data</th><th>Forma</th><th>Valor</th></tr></thead><tbody>${conteudoTabela}</tbody></table></body></html>`);
-    printWindow.document.close();
-    printWindow.print();
-  }
-
   if (verificandoAcesso || carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando dados financeiros administrativos...</div>;
+
+  const alunosFiltrados = alunos.filter(aluno => aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase()));
 
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
@@ -212,22 +313,45 @@ export default function FinanceiroAdminPage() {
         mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
         onNovoEvento={() => { setIdEventoEdicao(null); setNomeEvento(""); setValorEvento(""); setAlunosSelecionados([]); setModalEventoAberto(true); }}
         onRegistrarGasto={() => setModalGastoAberto(true)}
-        onZerarMes={zerarMes}
+        onZerarMes={() => {}} 
         valorPadrao={valorPadrao} setValorPadrao={setValorPadrao}
         editandoValor={editandoValor} setEditandoValor={setEditandoValor}
         senhaMestra={SENHA_MESTRA}
       />
 
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+        <button 
+          onClick={gerarRelatorioTesouraria}
+          style={{ padding: '12px 24px', borderRadius: '12px', backgroundColor: '#1e3a8a', color: 'white', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+        >
+          📊 Gerar Relatório Tesouraria Profissional (PDF)
+        </button>
+      </div>
+
       <MetricasCard 
         metricas={metricas} 
         onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
+        onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
       />
 
       <TabelaMensalidades 
         alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
         onPagamento={(a) => { setAlunoSelecionado(a); setTipoPagamento("mensalidade"); setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", multa: "" }); setModalPgtoAberto(true); }}
-        onCobrar={cobrarWhatsApp}
-        onDesfazer={async (id) => { if(confirm("Desfazer?")) { await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id); carregarDados(); } }}
+        onCobrar={(a) => {
+           const msg = `Olá! Lembrando da mensalidade de ${a.nome}...`;
+           window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+        }}
+        onDesfazer={async (id) => { 
+          if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
+          if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+          if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno.")) { 
+            const [ano, mes] = mesFiltro.split('-');
+            const nomeMesRef = mesesAno[parseInt(mes) - 1];
+            await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id); 
+            await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
+            carregarDados(); 
+          } 
+        }}
       />
 
       <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
@@ -236,8 +360,16 @@ export default function FinanceiroAdminPage() {
         eventosAtivos={eventosAtivos} eventoParaGerenciar={eventoParaGerenciar} setEventoParaGerenciar={setEventoParaGerenciar}
         alunos={alunos} historicoPagamentosEventos={historicoPagamentosEventos}
         onEditarEvento={(ev) => { setIdEventoEdicao(ev.id); setNomeEvento(ev.nome); setValorEvento(ev.valor_unitario.toString()); setModalEventoAberto(true); }}
-        onExcluirEvento={async (id) => { if(confirm("Excluir?")) { await supabase.from('eventos_controle').delete().eq('id', id); carregarDados(); } }}
-        onGerarPDF={gerarPDFEvento}
+        onExcluirEvento={async (id) => { 
+          if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode excluir eventos.");
+          if (prompt("Digite a Senha Mestra:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+          if(confirm("Excluir evento e todos os pagamentos registrados para ele?")) { 
+            const evento = eventosAtivos.find(e => e.id === id);
+            if (evento) await supabase.from('historico_pagamentos').delete().eq('tipo', 'evento').like('descricao', `%${evento.nome}%`);
+            await supabase.from('eventos_controle').delete().eq('id', id); carregarDados(); 
+          } 
+        }}
+        onGerarPDF={() => {}}
         onAtualizarParticipante={async (alunoId, part) => {
           const novos = part ? [...(eventoParaGerenciar.participantes || []), alunoId] : (eventoParaGerenciar.participantes || []).filter((id: string) => id !== alunoId);
           await supabase.from('eventos_controle').update({ participantes: novos, total_alunos: novos.length }).eq('id', eventoParaGerenciar.id);
@@ -245,12 +377,13 @@ export default function FinanceiroAdminPage() {
           carregarDados();
         }}
         onAbrirPagamento={(aluno, ev, pgto) => {
+          if (pgto && (userEmail !== 'carlamonaliza9@gmail.com' || prompt("Senha Mestra para Editar:") !== SENHA_MESTRA)) return alert("Acesso negado.");
           setAlunoSelecionado(aluno); setEventoParaGerenciar(ev); setTipoPagamento("evento");
           if (pgto) { setIdPagamentoEdicao(pgto.id); setPagamentosMetodos(pgto.detalhes_metodos); setDescricaoOutro(pgto.descricao); }
           else { setIdPagamentoEdicao(null); setPagamentosMetodos({ pix: ev.valor_unitario.toString(), dinheiro: "", credito: "", debito: "", multa: "" }); setDescricaoOutro(`Evento: ${ev.nome}`); }
           setModalPgtoAberto(true);
         }}
-        onExcluirPagamento={async (id) => { if(confirm("Excluir pagamento?")) { await supabase.from('historico_pagamentos').delete().eq('id', id); carregarDados(); } }}
+        onExcluirPagamento={handleExcluirReceita}
       />
 
       <ModalPagamento 
@@ -279,10 +412,27 @@ export default function FinanceiroAdminPage() {
         onSalvar={salvarEvento}
       />
 
+      {/* MODAL GASTOS COM EXCLUIR */}
       <ModalListaGastos 
         aberto={modalListaGastosAberto} onFechar={() => setModalListaGastosAberto(false)}
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada}
+        onExcluir={handleExcluirGasto}
       />
+
+      {/* MODAL RECEITAS COM EXCLUIR/EDITAR */}
+      <ModalListaGastos 
+        titulo="Detalhamento de Receitas"
+        aberto={modalListaReceitasAberto} onFechar={() => setModalListaReceitasAberto(false)}
+        mesFiltro={mesFiltro} 
+        listaGastos={listaReceitasDetalhada.map(r => ({ 
+          ...r, 
+          descricao: `${alunos.find(a => a.id === r.aluno_id)?.nome || 'Outro'} - ${r.descricao}`, 
+          data_gasto: r.data_pagamento, 
+          valor: r.valor_total 
+        }))}
+        onExcluir={handleExcluirReceita}
+      />
+
     </div>
   );
 }

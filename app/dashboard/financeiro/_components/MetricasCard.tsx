@@ -10,13 +10,14 @@ interface MetricasCardProps {
     lucro: number;
   };
   onAbrirListaGastos: () => void;
+  onAbrirListaReceitas: () => void;
 }
 
-export function MetricasCard({ metricas, onAbrirListaGastos }: MetricasCardProps) {
+export function MetricasCard({ metricas, onAbrirListaGastos, onAbrirListaReceitas }: MetricasCardProps) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #10b981' }}>
-        <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>RECEITA NO MÊS</span>
+      <div onClick={onAbrirListaReceitas} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', borderLeft: '6px solid #10b981', cursor: 'pointer' }}>
+        <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 'bold' }}>RECEITA NO MÊS 👁️</span>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#064e3b' }}>R$ {metricas.pago.toLocaleString('pt-BR')}</h2>
       </div>
       
