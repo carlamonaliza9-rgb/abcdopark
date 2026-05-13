@@ -70,7 +70,6 @@ export default function DashboardProfessorPage() {
       const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
 
       if (alunos) {
-        // Filtro de Turmas do Professor
         const minhasTurmas = (turmasInfo || [])
           .filter(t => t.email_prof_fixo_1 === emailAtual || t.email_prof_fixo_2 === emailAtual || t.email_prof_especifico_1 === emailAtual || t.email_prof_especifico_2 === emailAtual)
           .map(t => t.nome_turma);
@@ -247,22 +246,29 @@ export default function DashboardProfessorPage() {
         </div>
       </header>
 
-      {/* CARDS PROFESSOR */}
+      {/* CARDS PROFESSOR - OTIMIZAÇÃO DE ESPAÇO */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', marginBottom: '25px' }}>
-        <div style={{ ...estiloCard, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#111827', margin: 0 }}>Olá, {nomeUsuario}! 👋</h1>
+        <div style={{ ...estiloCard, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 20px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '10px' }}>
+            <h1 style={{ fontSize: '30px', fontWeight: '800', color: '#111827', margin: 0 }}>Olá, {nomeUsuario}! 👋</h1>
             <button onClick={() => setModalConfigAberto(true)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', opacity: 0.6 }}>⚙️</button>
           </div>
-          <p style={{ color: '#6b7280', fontSize: '15px', marginBottom: '30px' }}>Resumo atualizado da ABC DO PARK.</p>
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', marginBottom: '30px' }}>
-            <img src={ilustracaoProfessor || "/image_de2d33.jpg"} alt="Ilustração" style={{ width: '100%', maxWidth: '380px', height: 'auto', borderRadius: '15px' }} />
+          <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '10px' }}>Resumo atualizado da ABC DO PARK.</p>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <img 
+              src={ilustracaoProfessor || "/image_de2d33.jpg"} 
+              alt="Ilustração" 
+              style={{ width: '100%', maxWidth: '380px', height: 'auto', borderRadius: '15px', objectFit: 'contain' }} 
+            />
           </div>
-          <div style={{ width: '100%', borderTop: '2px solid #f1f5f9', paddingTop: '20px' }}>
-            <h3 style={{ fontSize: '48px', fontWeight: '900', color: '#111827', margin: 0 }}>{dados.totalAlunos}</h3>
-            <p style={{ color: '#64748b', fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', margin: 0, letterSpacing: '0.1em' }}>Meus Alunos</p>
+          
+          <div style={{ width: '100%', borderTop: '2px solid #f1f5f9', paddingTop: '10px', marginTop: '5px' }}>
+            <h3 style={{ fontSize: '42px', fontWeight: '900', color: '#111827', margin: 0 }}>{dados.totalAlunos}</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', margin: 0, letterSpacing: '0.1em' }}>Meus Alunos</p>
           </div>
         </div>
+
         <div style={estiloCard}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px' }}>🚀 Próximas Programações</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
