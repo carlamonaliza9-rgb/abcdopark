@@ -1,74 +1,36 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+export function middleware(request: NextRequest) {
+  // 1. Pega o endereço que a pessoa está tentando acessar
+  const caminho = request.nextUrl.pathname;
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
+  // 2. Definimos quais áreas são exclusivas para quem tem login
+  const rotasProtegidas = ['/dashboard', '/admin', '/professor'];
+  
+  // Verifica se o caminho atual faz parte das áreas protegidas
+  const tentandoAcessarAreaFechada = rotasProtegidas.some(rota => caminho.startsWith(rota));
+
+  if (tentandoAcessarAreaFechada) {
+    // 3. Procura no navegador se existe o Cookie (crachá) do Supabase
+    // O Supabase sempre cria um cookie que termina com '-auth-token'
+    const temCracha = request.cookies.getAll().some(cookie => cookie.name.includes('-auth-token'));
+
+    // 4. Se a pessoa tentar entrar sem o crachá, é barrada e mandada para o Login (/)
+    if (!temCracha) {
+      return NextResponse.redirect(new URL('/', request.url));
     }
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // Se o usuário não estiver logado e tentar acessar o dashboard ou admin
-  if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin'))) {
-    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Se o usuário já estiver logado e tentar ir para o login, joga ele para o dashboard
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  return response
+  // Se a pessoa tem o crachá ou está acessando uma área livre (como o próprio login), deixa passar
+  return NextResponse.next();
 }
 
+// Isso avisa ao Next.js para só acionar o segurança nessas pastas, deixando o sistema mais rápido
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
-}
+  matcher: [
+    '/dashboard/:path*',
+    '/admin/:path*',
+    '/professor/:path*'
+  ]
+};
