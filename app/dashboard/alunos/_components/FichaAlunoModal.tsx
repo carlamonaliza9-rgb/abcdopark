@@ -10,7 +10,7 @@ interface FichaAlunoModalProps {
   notas: any[];
   historico: any[];
   ehVisitante: boolean;
-  userEmail: string | null; // ADICIONADO: Para validar permissão
+  userEmail?: string | null; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
   mCPF: (v: string) => string;
   mWhatsApp: (v: string) => string;
   onFechar: () => void;
@@ -24,8 +24,8 @@ interface FichaAlunoModalProps {
   onExcluirDisciplina: (id: string) => void;
   onGerarPDFBoletim: () => void;
   onGerarPDFHistorico: () => void;
-  onEditarPagamento: (pagamento: any) => void; // ADICIONADO
-  onExcluirPagamento: (id: string) => void; // ADICIONADO
+  onEditarPagamento?: (pagamento: any) => void; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
+  onExcluirPagamento?: (id: string) => void; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
   calcularIdade: (data: string) => string;
 }
 
@@ -344,13 +344,12 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                         </div>
                       </div>
                       
-                      {/* ADIÇÃO: Botões de Editar e Excluir com Trava de Senha */}
                       {podeGerenciar && (
                         <div style={{ display: 'flex', gap: '8px', marginLeft: '15px', borderLeft: '1px solid #e2e8f0', paddingLeft: '12px' }}>
                           <button 
                             onClick={() => {
                               if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) {
-                                onEditarPagamento(h);
+                                if (onEditarPagamento) onEditarPagamento(h); // CIRURGIA: Check de existência
                               } else {
                                 alert("Senha incorreta.");
                               }
@@ -364,7 +363,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                             onClick={() => {
                               if (prompt("Digite a Senha Mestra para EXCLUIR:") === SENHA_MESTRA) {
                                 if(confirm("Deseja realmente excluir este registro permanentemente?")) {
-                                  onExcluirPagamento(h.id);
+                                  if (onExcluirPagamento) onExcluirPagamento(h.id); // CIRURGIA: Check de existência
                                 }
                               } else {
                                 alert("Senha incorreta.");

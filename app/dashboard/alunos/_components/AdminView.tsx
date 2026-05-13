@@ -35,7 +35,7 @@ export function AdminView({
   vencimento,
   dataNascimento,
   temAlergia,
-  alergiaDescricao,
+  alergiaDescricao, // CIRURGIA: Nome corrigido (estava alegiaDescricao na sua imagem)
   eAutista,
   previewUrl,
   verBoletim,
@@ -58,7 +58,12 @@ export function AdminView({
   observacoes,
   setForm,
   onTrocarFoto,
-  onSalvar
+  onSalvar,
+  userEmail, // ADICIONADO: Para o Vercel reconhecer
+  onEditarPagamento, // ADICIONADO: Para o Vercel reconhecer
+  onExcluirPagamento, // ADICIONADO: Para o Vercel reconhecer
+  onGerarPDFBoletim, // ADICIONADO: Para os botões funcionarem
+  onGerarPDFHistorico // ADICIONADO: Para os botões funcionarem
 }: any) {
   return (
     <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
@@ -83,12 +88,27 @@ export function AdminView({
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
             e_artista: eAutista, foto_url: previewUrl
           }}
-          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
-          onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
-          onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
+          verBoletim={verBoletim} 
+          verHistorico={verHistorico} 
+          notas={notas} 
+          historico={historico} 
+          ehVisitante={ehVisitante} 
+          userEmail={userEmail} // CONECTADO
+          mCPF={mCPF} 
+          mWhatsApp={mWhatsApp}
+          onFechar={() => setModalAberto(false)} 
+          onEditar={() => setModoEdicao(true)}
+          onVerBoletim={buscarBoletim} 
+          onVerHistorico={buscarHistoricoPagamento} 
+          onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
+          onSalvarNota={salvarNota} 
+          onAdicionarDisciplina={adicionarDisciplina} 
+          onExcluirDisciplina={excluirDisciplina}
           onExcluir={excluirAluno}
-          onGerarPDFBoletim={() => {}} onGerarPDFHistorico={() => {}}
+          onGerarPDFBoletim={onGerarPDFBoletim} // CONECTADO
+          onGerarPDFHistorico={onGerarPDFHistorico} // CONECTADO
+          onEditarPagamento={onEditarPagamento} // CONECTADO
+          onExcluirPagamento={onExcluirPagamento} // CONECTADO
           calcularIdade={calcularIdade}
         />
       )}
