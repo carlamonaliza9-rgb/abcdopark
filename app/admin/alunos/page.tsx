@@ -407,7 +407,7 @@ export default function AlunosAdminPage() {
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
-        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_artista: eAutista, 
+        tem_alergia: temAlergia, alergia_descricao: temAlergia ? alergiaDescricao : "", e_Autista: eAutista, 
         observacoes, foto_url: urlFinal
       };
 
@@ -480,7 +480,7 @@ export default function AlunosAdminPage() {
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
-    setEAutista(aluno.e_artista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
     setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
@@ -517,7 +517,7 @@ export default function AlunosAdminPage() {
             responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, 
             responsavel3, parentesco3, whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_artista: eAutista, foto_url: previewUrl, observacoes
+            e_autista: eAutista, foto_url: previewUrl, observacoes
           }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
