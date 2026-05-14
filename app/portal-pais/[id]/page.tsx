@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Calendar as CalendarIcon, Bell, Heart, Star } from "lucide-react";
 
 export default function DashboardAluno() {
-  const { id } = useParams();
+  const { id } = useParams(); // Captura o ID da URL
   const router = useRouter();
   const [aluno, setAluno] = useState<any>(null);
   const [nomeResponsavel, setNomeResponsavel] = useState("");
@@ -14,8 +14,6 @@ export default function DashboardAluno() {
   const [programacoes, setProgramacoes] = useState<any[]>([]);
   const [equipe, setEquipe] = useState<any[]>([]);
   const [abaAniversario, setAbaAniversario] = useState<"turma" | "equipe">("turma");
-
-  const cpfResponsavelLogado = "016.959.772-54"; 
 
   useEffect(() => {
     if (id) buscarDadosIniciais();
@@ -37,7 +35,6 @@ export default function DashboardAluno() {
     const nascimento = new Date(dataNasc);
     let idade = hoje.getFullYear() - nascimento.getFullYear();
     const m = hoje.getMonth() - nascimento.getMonth();
-    // AQUI ESTAVA O ERRO: Corrigido de 'hoy' para 'hoje'
     if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) { idade--; }
     return `${idade} anos`;
   };
@@ -49,16 +46,50 @@ export default function DashboardAluno() {
   };
 
   async function buscarDadosIniciais() {
-    const { data: dadosAluno } = await supabase.from("alunos").select("*").eq("id", id).single();
+    // 1. Pega o usuário logado
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return router.push("/");
+
+    const emailLogado = user.email;
+
+    // 2. Busca o aluno pelo ID da URL
+    const { data: dadosAluno } = await supabase
+      .from("alunos")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     if (dadosAluno) {
+      // SEGURANÇA: Verifica se o e-mail logado é de um dos responsáveis deste aluno
+      const ehResponsavel = 
+        dadosAluno.email_responsavel === emailLogado || 
+        dadosAluno.email_responsavel_2 === emailLogado || 
+        dadosAluno.email_responsavel_3 === emailLogado;
+
+      // Se não for responsável, bloqueia o acesso
+      if (!ehResponsavel) {
+        console.error("Acesso negado: Este e-mail não é responsável por este aluno.");
+        return router.push("/");
+      }
+
       setAluno(dadosAluno);
-      const nomeFull = dadosAluno.cpf_responsavel === cpfResponsavelLogado ? dadosAluno.responsavel : dadosAluno.responsavel_2_nome;
-      setNomeResponsavel(nomeFull?.split(' ')[0] || "Responsável");
+      
+      // Define o nome do responsável para a saudação
+      let nomeCompletoResp = dadosAluno.responsavel;
+      if (dadosAluno.email_responsavel_2 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_2_nome;
+      if (dadosAluno.email_responsavel_3 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_3_nome;
+      
+      setNomeResponsavel(nomeCompletoResp?.split(' ')[0] || "Responsável");
+
+      // Busca os colegas de turma
       const { data: c } = await supabase.from("alunos").select("nome, data_nascimento, foto_url").eq("turma", dadosAluno.turma);
       if (c) setColegas(c.sort((a, b) => obterPesoCronologico(a.data_nascimento) - obterPesoCronologico(b.data_nascimento)));
     }
+
+    // Busca programações e equipe
     const { data: p } = await supabase.from("eventos_calendario").select("*").order("data", { ascending: true });
     if (p) setProgramacoes(p);
+    
     const { data: e } = await supabase.from("funcionarios").select("nome, data_nascimento, foto_url");
     if (e) setEquipe(e.sort((a, b) => obterPesoCronologico(a.data_nascimento) - obterPesoCronologico(b.data_nascimento)));
   }
@@ -69,7 +100,7 @@ export default function DashboardAluno() {
   if (!aluno) return <div className="p-10 text-center text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
 
   return (
-    <div className="animate-in fade-in duration-500 pb-10">
+    <div className="animate-in fade-in duration-500 pb-10 px-4 md:px-0">
       <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-100 pb-8">
         <div>
           <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>

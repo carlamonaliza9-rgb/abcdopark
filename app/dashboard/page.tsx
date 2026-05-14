@@ -9,7 +9,8 @@ export default function DashboardRedirectorPage() {
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      // Se não estiver logado, volta para a raiz (onde está o seu login)
+      if (!user) return router.push("/");
 
       const emailAtual = user.email || "";
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
@@ -20,10 +21,28 @@ export default function DashboardRedirectorPage() {
         perfil?.cargo === 'Admin';
 
       if (ehAdmin) {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/professor/dashboard");
+        return router.push("/admin/dashboard");
       }
+
+      const ehProfessor = perfil?.cargo === 'Professor';
+      if (ehProfessor) {
+        return router.push("/professor/dashboard");
+      }
+
+      // --- CAMINHO DOS PAIS ---
+      // Verifica se o e-mail consta em alguma coluna de responsável na tabela de alunos
+      const { data: alunoVinculado } = await supabase
+        .from('alunos')
+        .select('id')
+        .or(`email_responsavel.eq.${emailAtual},email_responsavel_2.eq.${emailAtual},email_responsavel_3.eq.${emailAtual}`)
+        .maybeSingle();
+
+      if (alunoVinculado) {
+        return router.push(`/portal-pais/${alunoVinculado.id}`);
+      }
+
+      // Se não cair em nenhuma regra, por segurança, manda para a home
+      router.push("/");
     }
     verificarAcesso();
   }, [router]);
