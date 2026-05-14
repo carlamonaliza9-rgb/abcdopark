@@ -23,6 +23,7 @@ export default function Login() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // Ajustado para a raiz do projeto ou dashboard
         redirectTo: `${window.location.origin}/dashboard/redefinir-senha`,
       });
 
@@ -46,7 +47,7 @@ export default function Login() {
 
     try {
       if (ehCadastro) {
-        // 1. Tenta fazer o cadastro
+        // 1. Tenta fazer o cadastro manual
         const { data, error } = await supabase.auth.signUp({
           email: email,
           password: senha,
@@ -60,18 +61,71 @@ export default function Login() {
           setEhCadastro(false);
         }
       } else {
+        // --- LÓGICA DE ACESSO DOS PAIS (SENHA POR DATA DE NASCIMENTO) ---
+        let senhaTentativa = senha;
+
+        // Verifica se o e-mail pertence a algum responsável na tabela de alunos
+        const { data: alunoVinculado } = await supabase
+          .from('alunos')
+          .select('data_nascimento, responsavel, responsavel_2_nome, responsavel_3_nome, email_responsavel, email_responsavel_2, email_responsavel_3')
+          .or(`email_responsavel.eq.${email},email_responsavel_2.eq.${email},email_responsavel_3.eq.${email}`)
+          .maybeSingle();
+
+        // Se encontrou um aluno vinculado, calculamos a senha baseada na data
+        if (alunoVinculado && alunoVinculado.data_nascimento) {
+          const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
+          const senhaDataNascimento = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
+
+          if (senha === senhaDataNascimento) {
+            senhaTentativa = senhaDataNascimento;
+          }
+        }
+
         // 2. Tenta fazer o login no Supabase
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email,
-          password: senha,
+          password: senhaTentativa,
         });
 
         if (error) {
+          // Caso o erro seja de usuário não encontrado (primeiro acesso), tentamos cadastrar o pai automaticamente
+          if (error.message.includes("Invalid login credentials") && alunoVinculado) {
+             const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
+             const senhaPadrao = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
+             
+             if (senha === senhaPadrao) {
+               // Descobrir qual o nome do responsável para o perfil
+               let nomeResponsavel = alunoVinculado.responsavel;
+               if (alunoVinculado.email_responsavel_2 === email) nomeResponsavel = alunoVinculado.responsavel_2_nome;
+               if (alunoVinculado.email_responsavel_3 === email) nomeResponsavel = alunoVinculado.responsavel_3_nome;
+
+               const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                 email: email,
+                 password: senhaPadrao,
+                 options: { data: { nome: nomeResponsavel } }
+               });
+
+               if (!signUpError && signUpData.user) {
+                 // CRICIAL: Criar o perfil como 'Responsável' imediatamente para não virar professor
+                 await supabase.from('perfis').insert([{
+                   id: signUpData.user.id,
+                   email: email,
+                   nome: nomeResponsavel,
+                   cargo: 'Responsável'
+                 }]);
+
+                 // Tenta logar novamente após cadastro automático
+                 await supabase.auth.signInWithPassword({ email, password: senhaPadrao });
+                 router.push("/dashboard");
+                 return;
+               }
+             }
+          }
           setErro("E-mail ou senha incorretos. Tente novamente.");
           return;
         }
 
-        // 3. Se deu certo, vai para o painel principal
+        // 3. Se deu certo, vai para o painel principal (que redirecionará para o portal-pais)
         if (data.session) {
           router.push("/dashboard");
         }
