@@ -3,7 +3,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
-import { User, ShieldCheck, Heart, Phone, FileText, MapPin, Fingerprint, CreditCard, X, Upload, Clock, Eye, AlertCircle } from "lucide-react";
+import { 
+  User, ShieldCheck, Heart, Phone, FileText, MapPin, 
+  Fingerprint, CreditCard, X, Upload, Clock, Eye, 
+  AlertCircle, Stethoscope, Briefcase, Calendar, Info, Mail
+} from "lucide-react";
 
 export default function FichaAlunoPage() {
   const { id } = useParams();
@@ -73,7 +77,7 @@ export default function FichaAlunoPage() {
       status: 'pendente'
     });
 
-    await buscarSolicitacoes(); // Atualiza a lista para mostrar o botão de visualizar
+    await buscarSolicitacoes();
     setEnviando(null);
   };
 
@@ -81,6 +85,24 @@ export default function FichaAlunoPage() {
     if (!cep) return "---";
     const limpo = String(cep).replace(/\D/g, "");
     return limpo.replace(/(\d{5})(\d{3})/, "$1-$2");
+  };
+
+  const formatarData = (data: string) => {
+    if (!data) return "---";
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const calcularIdade = (dataNasc: string) => {
+    if (!dataNasc) return "";
+    const hoje = new Date();
+    const nascimento = new Date(dataNasc);
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const m = hoje.getMonth() - nascimento.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) {
+      idade--;
+    }
+    return `${idade} anos`;
   };
 
   const LinhaInfo = ({ icone: Icon, label, value }: { icone: any; label: string; value: string }) => (
@@ -159,29 +181,55 @@ export default function FichaAlunoPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <div className="lg:col-span-8 space-y-8">
+          
+          {/* IDENTIFICAÇÃO */}
           <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
             <h2 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Fingerprint size={14} /> Identificação do Aluno</h2>
             <div className="flex flex-col">
-              <LinhaInfo icone={User} label="Nome do Aluno" value={aluno.nome} />
+              <LinhaInfo icone={User} label="Nome Completo" value={aluno.nome} />
+              <LinhaInfo icone={Calendar} label="Data de Nascimento" value={`${formatarData(aluno.data_nascimento)} • ${calcularIdade(aluno.data_nascimento)}`} />
               <LinhaInfo icone={Fingerprint} label="Matrícula" value={String(aluno.id).toUpperCase()} />
               <LinhaInfo icone={ShieldCheck} label="Turma / Turno" value={`${aluno.turma} • ${aluno.turno || 'Integral'}`} />
-              <LinhaInfo icone={Heart} label="Saúde / Alergias" value={aluno.alergias} />
+              <LinhaInfo icone={Info} label="Naturalidade" value={aluno.naturalidade} />
             </div>
           </div>
 
+          {/* SAÚDE */}
           <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
-            <h2 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Phone size={14} /> Responsáveis e Contato</h2>
+            <h2 className="text-[11px] font-black text-rose-600 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Stethoscope size={14} /> Informações de Saúde</h2>
             <div className="flex flex-col">
-              <LinhaInfo icone={User} label="Responsável 01" value={aluno.responsavel} />
-              <LinhaInfo icone={CreditCard} label="CPF R1" value={aluno.cpf_responsavel} />
-              <LinhaInfo icone={Phone} label="Contato R1" value={aluno.telefone} />
-              <div className="my-6 border-t border-slate-50 relative"><span className="absolute left-1/2 -top-2 -translate-x-1/2 bg-white px-4 text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Apoio Familiar</span></div>
-              <LinhaInfo icone={User} label="Responsável 02" value={aluno.responsavel_2_nome} />
-              <LinhaInfo icone={CreditCard} label="CPF R2" value={aluno.responsavel_2_cpf} />
-              <LinhaInfo icone={Phone} label="Contato R2" value={aluno.responsavel_2_telefone} />
-              <div className="my-6 border-t border-slate-50"></div>
-              <LinhaInfo icone={MapPin} label="Endereço Cadastrado" value={aluno.endereco} />
+              <LinhaInfo icone={Heart} label="Alergias Detectadas" value={aluno.alergias} />
+              <LinhaInfo icone={AlertCircle} label="Restrições Alimentares" value={aluno.restricoes_alimentares} />
+            </div>
+          </div>
+
+          {/* ENDEREÇO */}
+          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
+            <h2 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><MapPin size={14} /> Localização de Residência</h2>
+            <div className="flex flex-col">
+              <LinhaInfo icone={MapPin} label="Logradouro" value={aluno.endereco} />
+              <LinhaInfo icone={MapPin} label="Número / Complemento" value={aluno.numero_endereco} />
+              <LinhaInfo icone={MapPin} label="Bairro" value={aluno.bairro} />
               <LinhaInfo icone={MapPin} label="CEP" value={formatarCEP(aluno.cep)} />
+            </div>
+          </div>
+
+          {/* RESPONSÁVEIS */}
+          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
+            <h2 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Phone size={14} /> Responsáveis Legais</h2>
+            <div className="flex flex-col">
+              <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel} />
+              <LinhaInfo icone={CreditCard} label="CPF" value={aluno.cpf_responsavel} />
+              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_profissao} />
+              <LinhaInfo icone={Phone} label="Telefone" value={aluno.telefone} />
+              <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel} />
+
+              <LinhaInfo icone={User} label="Responsável 2" value={aluno.responsavel_2_nome} />
+              <LinhaInfo icone={CreditCard} label="CPF" value={aluno.responsavel_2_cpf} />
+              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_2_profissao} />
+              <LinhaInfo icone={Phone} label="Telefone" value={aluno.responsavel_2_telefone} />
+             <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel_2} />
+
             </div>
           </div>
         </div>
@@ -193,7 +241,12 @@ export default function FichaAlunoPage() {
             <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-8">Contratos, RG, CPF e declarações digitalizadas.</p>
             <button onClick={() => setModalAberto(true)} className="w-full bg-white text-indigo-600 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all">Abrir Documentação</button>
           </div>
-          <div className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-8 text-center"><p className="text-[9px] text-slate-400 font-bold uppercase leading-relaxed italic">Para atualizações cadastrais entre em contato com a coordenação.</p></div>
+          
+          <div className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-8 text-center">
+            <p className="text-[9px] text-slate-400 font-bold uppercase leading-relaxed italic">
+              Para atualizações cadastrais ou informar mudanças de saúde, entre em contato com a coordenação via WhatsApp.
+            </p>
+          </div>
         </div>
       </div>
     </div>
