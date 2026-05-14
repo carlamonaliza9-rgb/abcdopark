@@ -123,7 +123,8 @@ export default function DashboardLayout({
         </aside>
       )}
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      {/* AJUSTE: Padding zero para Responsáveis para não empurrar a SidebarPais para baixo */}
+      <main className={`flex-1 overflow-y-auto ${ehResponsavel ? "p-0" : "p-8"}`}>
         {children}
       </main>
     </div>
