@@ -118,7 +118,10 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
                 <input type="text" placeholder="Nome" value={form?.responsavel || ""} onChange={(e)=>setForm({...form, responsavel: e.target.value})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
                 <input type="text" placeholder="CPF" value={form?.cpfResponsavel || ""} onChange={(e)=>setForm({...form, cpfResponsavel: mCPF(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
-              <input type="text" placeholder="WhatsApp" value={form?.whatsapp || ""} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px', width: '100%' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <input type="text" placeholder="WhatsApp" value={form?.whatsapp || ""} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="email" placeholder="E-mail" value={form?.emailResponsavel || ""} onChange={(e)=>setForm({...form, emailResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              </div>
             </div>
 
             <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
@@ -129,7 +132,10 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
                 <input type="text" placeholder="Nome" value={form?.responsavel2 || ""} onChange={(e)=>setForm({...form, responsavel2: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
                 <input type="text" placeholder="CPF" value={form?.cpfResponsavel2 || ""} onChange={(e)=>setForm({...form, cpfResponsavel2: mCPF(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
-              <input type="text" placeholder="WhatsApp" value={form?.whatsapp2 || ""} onChange={(e)=>setForm({...form, whatsapp2: mWhatsApp(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', width: '100%' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <input type="text" placeholder="WhatsApp" value={form?.whatsapp2 || ""} onChange={(e)=>setForm({...form, whatsapp2: mWhatsApp(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="email" placeholder="E-mail" value={form?.emailResponsavel2 || ""} onChange={(e)=>setForm({...form, emailResponsavel2: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              </div>
             </div>
 
             <div>
@@ -137,9 +143,10 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
                 <option value="">Outro Responsável (Opcional)...</option>
                 {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
               </select>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
-                <input type="text" placeholder="Nome Terceiro Contato" value={form?.responsavel3 || ""} onChange={(e)=>setForm({...form, responsavel3: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <input type="text" placeholder="Nome" value={form?.responsavel3 || ""} onChange={(e)=>setForm({...form, responsavel3: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
                 <input type="text" placeholder="WhatsApp" value={form?.whatsapp3 || ""} onChange={(e)=>setForm({...form, whatsapp3: mWhatsApp(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="email" placeholder="E-mail" value={form?.emailResponsavel3 || ""} onChange={(e)=>setForm({...form, emailResponsavel3: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
             </div>
           </div>
