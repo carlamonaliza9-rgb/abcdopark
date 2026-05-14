@@ -47,7 +47,7 @@ export default function Login() {
 
     try {
       if (ehCadastro) {
-        // 1. Tenta fazer o cadastro
+        // 1. Tenta fazer o cadastro manual
         const { data, error } = await supabase.auth.signUp({
           email: email,
           password: senha,
@@ -67,20 +67,15 @@ export default function Login() {
         // Verifica se o e-mail pertence a algum responsável na tabela de alunos
         const { data: alunoVinculado } = await supabase
           .from('alunos')
-          .select('data_nascimento')
+          .select('data_nascimento, responsavel, responsavel_2_nome, responsavel_3_nome, email_responsavel, email_responsavel_2, email_responsavel_3')
           .or(`email_responsavel.eq.${email},email_responsavel_2.eq.${email},email_responsavel_3.eq.${email}`)
-          .single();
+          .maybeSingle();
 
-        // Se encontrou um aluno vinculado e a senha digitada for vazia ou o pai estiver tentando o primeiro acesso
+        // Se encontrou um aluno vinculado, calculamos a senha baseada na data
         if (alunoVinculado && alunoVinculado.data_nascimento) {
-          // Formata a data de nascimento para ser a senha (DDMMAAAA)
-          const dataPura = alunoVinculado.data_nascimento.replace(/-/g, ""); // "1999-09-04" -> "19990904"
-          const ano = dataPura.substring(0, 4);
-          const mes = dataPura.substring(4, 6);
-          const dia = dataPura.substring(6, 8);
-          const senhaDataNascimento = `${dia}${mes}${ano}`; // "04091999"
+          const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
+          const senhaDataNascimento = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
 
-          // Se o pai digitou a data de nascimento corretamente ou deixou a senha padrão
           if (senha === senhaDataNascimento) {
             senhaTentativa = senhaDataNascimento;
           }
@@ -93,17 +88,32 @@ export default function Login() {
         });
 
         if (error) {
-          // Caso o erro seja de usuário não encontrado, tentamos cadastrar o pai automaticamente
+          // Caso o erro seja de usuário não encontrado (primeiro acesso), tentamos cadastrar o pai automaticamente
           if (error.message.includes("Invalid login credentials") && alunoVinculado) {
              const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
              const senhaPadrao = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
              
              if (senha === senhaPadrao) {
-               const { error: signUpError } = await supabase.auth.signUp({
+               // Descobrir qual o nome do responsável para o perfil
+               let nomeResponsavel = alunoVinculado.responsavel;
+               if (alunoVinculado.email_responsavel_2 === email) nomeResponsavel = alunoVinculado.responsavel_2_nome;
+               if (alunoVinculado.email_responsavel_3 === email) nomeResponsavel = alunoVinculado.responsavel_3_nome;
+
+               const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                  email: email,
                  password: senhaPadrao,
+                 options: { data: { nome: nomeResponsavel } }
                });
-               if (!signUpError) {
+
+               if (!signUpError && signUpData.user) {
+                 // CRICIAL: Criar o perfil como 'Responsável' imediatamente para não virar professor
+                 await supabase.from('perfis').insert([{
+                   id: signUpData.user.id,
+                   email: email,
+                   nome: nomeResponsavel,
+                   cargo: 'Responsável'
+                 }]);
+
                  // Tenta logar novamente após cadastro automático
                  await supabase.auth.signInWithPassword({ email, password: senhaPadrao });
                  router.push("/dashboard");
@@ -115,7 +125,7 @@ export default function Login() {
           return;
         }
 
-        // 3. Se deu certo, vai para o painel principal
+        // 3. Se deu certo, vai para o painel principal (que redirecionará para o portal-pais)
         if (data.session) {
           router.push("/dashboard");
         }
