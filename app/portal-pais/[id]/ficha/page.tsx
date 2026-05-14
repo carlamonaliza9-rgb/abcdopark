@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 
 export default function FichaAlunoPage() {
-  const { id } = useParams();
+  const params = useParams();
+  // Garante que o ID seja sempre uma string única
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  
   const [aluno, setAluno] = useState<any>(null);
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
@@ -63,19 +66,24 @@ export default function FichaAlunoPage() {
       .upload(filePath, file);
 
     if (uploadError) {
-      alert("Erro ao subir arquivo.");
+      alert("Erro ao subir arquivo para o Storage.");
       setEnviando(null);
       return;
     }
 
     const { data: { publicUrl } } = supabase.storage.from('escola_arquivos').getPublicUrl(filePath);
     
-    await supabase.from("solicitacoes_documentos").insert({
+    // Usamos upsert para evitar erro de duplicidade se o documento já existir
+    const { error: dbError } = await supabase.from("solicitacoes_documentos").upsert({
       aluno_id: id,
       tipo_documento: tipo,
       arquivo_url: publicUrl,
       status: 'pendente'
-    });
+    }, { onConflict: 'aluno_id, tipo_documento' });
+
+    if (dbError) {
+      alert("Erro ao registrar documento no banco de dados.");
+    }
 
     await buscarSolicitacoes();
     setEnviando(null);
@@ -188,9 +196,7 @@ export default function FichaAlunoPage() {
             <div className="flex flex-col">
               <LinhaInfo icone={User} label="Nome Completo" value={aluno.nome} />
               <LinhaInfo icone={Calendar} label="Data de Nascimento" value={`${formatarData(aluno.data_nascimento)} • ${calcularIdade(aluno.data_nascimento)}`} />
-              <LinhaInfo icone={Fingerprint} label="Matrícula" value={String(aluno.id).toUpperCase()} />
               <LinhaInfo icone={ShieldCheck} label="Turma / Turno" value={`${aluno.turma} • ${aluno.turno || 'Integral'}`} />
-              <LinhaInfo icone={Info} label="Naturalidade" value={aluno.naturalidade} />
             </div>
           </div>
 
@@ -228,8 +234,7 @@ export default function FichaAlunoPage() {
               <LinhaInfo icone={CreditCard} label="CPF" value={aluno.responsavel_2_cpf} />
               <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_2_profissao} />
               <LinhaInfo icone={Phone} label="Telefone" value={aluno.responsavel_2_telefone} />
-             <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel_2} />
-
+              <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel_2} />
             </div>
           </div>
         </div>
