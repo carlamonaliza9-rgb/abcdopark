@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, FileText, BarChart3, CreditCard, LogOut } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export function SidebarPais({ alunoId }: { alunoId: string }) {
   const pathname = usePathname();
+  const router = useRouter();
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
 
   const menuItems = [
@@ -14,6 +16,11 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
     { name: "Avaliações", icon: BarChart3, path: `/portal-pais/${alunoId}/avaliacoes` },
     { name: "Financeiro", icon: CreditCard, path: `/portal-pais/${alunoId}/financeiro` },
   ];
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
 
   return (
     <aside className="w-64 bg-white h-screen sticky top-0 border-r border-slate-100 p-6 flex flex-col shadow-sm">
@@ -46,7 +53,7 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
 
       {/* Botão Sair */}
       <button 
-        onClick={() => window.location.href = '/portal-pais'}
+        onClick={handleLogout}
         className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase text-rose-500 hover:bg-rose-50 transition-all"
       >
         <LogOut size={16} strokeWidth={2.5} />

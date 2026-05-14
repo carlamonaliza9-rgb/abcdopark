@@ -62,75 +62,83 @@ export default function Login() {
         }
       } else {
         // --- LÓGICA DE ACESSO DOS PAIS (SENHA POR DATA DE NASCIMENTO) ---
-        let senhaTentativa = senha;
-
-        // Verifica se o e-mail pertence a algum responsável na tabela de alunos
-        const { data: alunoVinculado } = await supabase
+        console.log("🔍 1. Tentando acessar com e-mail:", email);
+        
+        const { data: alunoVinculado, error: erroBusca } = await supabase
           .from('alunos')
           .select('data_nascimento, responsavel, responsavel_2_nome, responsavel_3_nome, email_responsavel, email_responsavel_2, email_responsavel_3')
           .or(`email_responsavel.eq.${email},email_responsavel_2.eq.${email},email_responsavel_3.eq.${email}`)
           .maybeSingle();
 
-        // Se encontrou um aluno vinculado, calculamos a senha baseada na data
+        console.log("🔍 2. Aluno encontrado no banco?", alunoVinculado);
+        if (erroBusca) console.error("🛑 Erro na busca:", erroBusca);
+
+        let senhaTentativa = senha;
+        let senhaDataNascimento = "";
+
         if (alunoVinculado && alunoVinculado.data_nascimento) {
-          const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
-          const senhaDataNascimento = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
+          const partes = alunoVinculado.data_nascimento.split("-");
+          senhaDataNascimento = `${partes[2]}${partes[1]}${partes[0]}`;
+          
+          console.log("🔍 3. Data de nascimento gerada:", senhaDataNascimento);
+          console.log("🔍 4. Senha que você digitou:", senha);
 
           if (senha === senhaDataNascimento) {
+            console.log("✅ 5. A senha digitada BATE com a data de nascimento!");
             senhaTentativa = senhaDataNascimento;
+          } else {
+            console.log("❌ 5. A senha digitada NÃO bate com a data.");
           }
         }
 
-        // 2. Tenta fazer o login no Supabase
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email,
           password: senhaTentativa,
         });
 
+        console.log("🔍 6. Resposta do Supabase para o Login:", error ? error.message : "Sucesso");
+
         if (error) {
-          // Caso o erro seja de usuário não encontrado (primeiro acesso), tentamos cadastrar o pai automaticamente
-          if (error.message.includes("Invalid login credentials") && alunoVinculado) {
-             const dataPura = alunoVinculado.data_nascimento.replace(/-/g, "");
-             const senhaPadrao = `${dataPura.substring(6, 8)}${dataPura.substring(4, 6)}${dataPura.substring(0, 4)}`;
+          if (error.message.includes("Invalid login credentials") && alunoVinculado && senha === senhaDataNascimento) {
+             console.log("🔄 7. Entrando no Auto-Cadastro...");
              
-             if (senha === senhaPadrao) {
-               // Descobrir qual o nome do responsável para o perfil
-               let nomeResponsavel = alunoVinculado.responsavel;
-               if (alunoVinculado.email_responsavel_2 === email) nomeResponsavel = alunoVinculado.responsavel_2_nome;
-               if (alunoVinculado.email_responsavel_3 === email) nomeResponsavel = alunoVinculado.responsavel_3_nome;
+             let nomeResp = alunoVinculado.responsavel;
+             if (alunoVinculado.email_responsavel_2 === email) nomeResp = alunoVinculado.responsavel_2_nome;
+             if (alunoVinculado.email_responsavel_3 === email) nomeResp = alunoVinculado.responsavel_3_nome;
 
-               const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+               email: email,
+               password: senhaDataNascimento,
+               options: { data: { nome: nomeResp } }
+             });
+
+             console.log("🔍 8. Resultado da criação da conta:", { signUpData, signUpError });
+
+             if (!signUpError && signUpData.user) {
+               console.log("✅ 9. Inserindo na tabela Perfis...");
+               // USANDO UPSERT PARA SOBRESCREVER QUALQUER CARGO PADRÃO CRIADO POR TRIGGERS
+               await supabase.from('perfis').upsert([{
+                 id: signUpData.user.id,
                  email: email,
-                 password: senhaPadrao,
-                 options: { data: { nome: nomeResponsavel } }
-               });
+                 nome: nomeResp,
+                 cargo: 'Responsável'
+               }], { onConflict: 'id' });
 
-               if (!signUpError && signUpData.user) {
-                 // CRICIAL: Criar o perfil como 'Responsável' imediatamente para não virar professor
-                 await supabase.from('perfis').insert([{
-                   id: signUpData.user.id,
-                   email: email,
-                   nome: nomeResponsavel,
-                   cargo: 'Responsável'
-                 }]);
-
-                 // Tenta logar novamente após cadastro automático
-                 await supabase.auth.signInWithPassword({ email, password: senhaPadrao });
-                 router.push("/dashboard");
-                 return;
-               }
+               await supabase.auth.signInWithPassword({ email, password: senhaDataNascimento });
+               router.push("/dashboard");
+               return;
              }
           }
           setErro("E-mail ou senha incorretos. Tente novamente.");
           return;
         }
 
-        // 3. Se deu certo, vai para o painel principal (que redirecionará para o portal-pais)
         if (data.session) {
           router.push("/dashboard");
         }
       }
     } catch (err) {
+      console.error("🛑 Erro geral:", err);
       setErro("Ocorreu um erro no servidor. Tente mais tarde.");
     } finally {
       setCarregando(false);
