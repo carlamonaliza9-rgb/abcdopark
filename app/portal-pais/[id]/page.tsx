@@ -6,7 +6,10 @@ import { useParams, useRouter } from "next/navigation";
 import { Calendar as CalendarIcon, Bell, Heart, Star } from "lucide-react";
 
 export default function DashboardAluno() {
-  const { id } = useParams(); // Captura o ID da URL
+  const params = useParams();
+  // Garante que o ID seja tratado corretamente como string
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  
   const router = useRouter();
   const [aluno, setAluno] = useState<any>(null);
   const [nomeResponsavel, setNomeResponsavel] = useState("");
@@ -14,9 +17,21 @@ export default function DashboardAluno() {
   const [programacoes, setProgramacoes] = useState<any[]>([]);
   const [equipe, setEquipe] = useState<any[]>([]);
   const [abaAniversario, setAbaAniversario] = useState<"turma" | "equipe">("turma");
+  
+  // Estados para a conexão com o Diário de Classe (Estrelas)
+  const [mediaGeral, setMediaGeral] = useState<number>(0);
+  const [criterios, setCriterios] = useState({
+    participacao: 0,
+    comportamento: 0,
+    atividades: 0,
+    socioemocional: 0
+  });
 
   useEffect(() => {
-    if (id) buscarDadosIniciais();
+    if (id) {
+      buscarDadosIniciais();
+      buscarMediaEstrelas();
+    }
   }, [id]);
 
   const getEventoStyle = (titulo: string) => {
@@ -45,14 +60,47 @@ export default function DashboardAluno() {
     return ((d.getUTCMonth() + 1) * 100) + d.getUTCDate();
   };
 
+  async function buscarMediaEstrelas() {
+    const { data: avaliacoes } = await supabase
+      .from("avaliacoes")
+      .select("participacao, comportamento, atividades, socioemocional")
+      .eq("aluno_id", id);
+
+    if (avaliacoes && avaliacoes.length > 0) {
+      let somaParticipacao = 0;
+      let somaComportamento = 0;
+      let somaAtividades = 0;
+      let somaSocioemocional = 0;
+
+      avaliacoes.forEach(a => {
+        somaParticipacao += (a.participacao || 0);
+        somaComportamento += (a.comportamento || 0);
+        somaAtividades += (a.atividades || 0);
+        somaSocioemocional += (a.socioemocional || 0);
+      });
+
+      const total = avaliacoes.length;
+      const medias = {
+        participacao: somaParticipacao / total,
+        comportamento: somaComportamento / total,
+        atividades: somaAtividades / total,
+        socioemocional: somaSocioemocional / total
+      };
+
+      setCriterios(medias);
+
+      // Média Geral baseada nos 4 critérios do diário
+      const final = (medias.participacao + medias.comportamento + medias.atividades + medias.socioemocional) / 4;
+      setMediaGeral(final);
+    }
+  }
+
   async function buscarDadosIniciais() {
-    // 1. Pega o usuário logado
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return router.push("/");
 
-    const emailLogado = user.email;
+    const emailLogado = user.email?.toLowerCase().trim();
 
-    // 2. Busca o aluno pelo ID da URL
     const { data: dadosAluno } = await supabase
       .from("alunos")
       .select("*")
@@ -60,33 +108,33 @@ export default function DashboardAluno() {
       .single();
 
     if (dadosAluno) {
-      // SEGURANÇA: Verifica se o e-mail logado é de um dos responsáveis deste aluno
-      const ehResponsavel = 
-        dadosAluno.email_responsavel === emailLogado || 
-        dadosAluno.email_responsavel_2 === emailLogado || 
-        dadosAluno.email_responsavel_3 === emailLogado;
+      // Ajuste de segurança para comparar e-mails sem erro de espaços ou maiúsculas
+      const email1 = dadosAluno.email_responsavel?.toLowerCase().trim();
+      const email2 = dadosAluno.email_responsavel_2?.toLowerCase().trim();
+      const email3 = dadosAluno.email_responsavel_3?.toLowerCase().trim();
 
-      // Se não for responsável, bloqueia o acesso
+      const ehResponsavel = 
+        email1 === emailLogado || 
+        email2 === emailLogado || 
+        email3 === emailLogado;
+
       if (!ehResponsavel) {
         console.error("Acesso negado: Este e-mail não é responsável por este aluno.");
-        return router.push("/");
+        return router.push("/dashboard");
       }
 
       setAluno(dadosAluno);
       
-      // Define o nome do responsável para a saudação
       let nomeCompletoResp = dadosAluno.responsavel;
-      if (dadosAluno.email_responsavel_2 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_2_nome;
-      if (dadosAluno.email_responsavel_3 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_3_nome;
+      if (email2 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_2_nome;
+      if (email3 === emailLogado) nomeCompletoResp = dadosAluno.responsavel_3_nome;
       
       setNomeResponsavel(nomeCompletoResp?.split(' ')[0] || "Responsável");
 
-      // Busca os colegas de turma
       const { data: c } = await supabase.from("alunos").select("nome, data_nascimento, foto_url").eq("turma", dadosAluno.turma);
       if (c) setColegas(c.sort((a, b) => obterPesoCronologico(a.data_nascimento) - obterPesoCronologico(b.data_nascimento)));
     }
 
-    // Busca programações e equipe
     const { data: p } = await supabase.from("eventos_calendario").select("*").order("data", { ascending: true });
     if (p) setProgramacoes(p);
     
@@ -95,7 +143,7 @@ export default function DashboardAluno() {
   }
 
   const formatarData = (d: string) => d ? d.split("-").reverse().slice(0, 2).join("/") : "";
-  const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < media ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
+  const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < Math.round(media) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
 
   if (!aluno) return <div className="p-10 text-center text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
 
@@ -120,14 +168,21 @@ export default function DashboardAluno() {
           </div>
           <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 text-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Média de Desempenho</p>
-            <div className="flex justify-center gap-1 mb-1">{renderEstrelas(5)}</div>
-            <p className="text-[8px] font-black text-indigo-500 uppercase italic mb-4">Excelente Aluno(a)!</p>
+            <div className="flex justify-center gap-1 mb-1">{renderEstrelas(mediaGeral)}</div>
+            <p className="text-[8px] font-black text-indigo-500 uppercase italic mb-4">
+              {mediaGeral >= 4.5 ? "Excelente Aluno(a)!" : mediaGeral >= 3.5 ? "Bom Desempenho!" : "Acompanhamento Necessário"}
+            </p>
             
             <div className="grid grid-cols-1 gap-1.5 pt-3 border-t border-slate-50">
-              {["Participação", "Comportamento", "Tarefas", "Pontualidade"].map((t) => (
-                <div key={t} className="flex items-center justify-between bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100/50">
-                  <span className="text-[8px] font-black text-slate-500 uppercase">{t}</span>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-sm shadow-green-100" />
+              {[
+                { label: "Participação", valor: criterios.participacao },
+                { label: "Comportamento", valor: criterios.comportamento },
+                { label: "Atividades", valor: criterios.atividades },
+                { label: "Socioemocional", valor: criterios.socioemocional }
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100/50">
+                  <span className="text-[8px] font-black text-slate-500 uppercase">{item.label}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full shadow-sm ${item.valor >= 3.5 ? 'bg-green-400 shadow-green-100' : item.valor >= 2.5 ? 'bg-yellow-400 shadow-yellow-100' : 'bg-red-400 shadow-red-100'}`} />
                 </div>
               ))}
             </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
-import { Star, Trophy, BookOpen, GraduationCap, CheckCircle2 } from "lucide-react";
+import { BookOpen, GraduationCap } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -89,26 +89,6 @@ export default function AvaliacoesPage() {
     doc.save(`Boletim_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const renderEstrelas = (media: number) => (
-    <div className="flex gap-1">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} size={14} className={i < media ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />
-      ))}
-    </div>
-  );
-
-  const TopicoDesempenho = ({ titulo, nota }: { titulo: string, nota: number }) => (
-    <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-      <div className="flex items-center gap-3">
-        <div className="bg-white p-2 rounded-xl shadow-sm text-indigo-500">
-          <CheckCircle2 size={16} />
-        </div>
-        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{titulo}</span>
-      </div>
-      {renderEstrelas(nota)}
-    </div>
-  );
-
   if (carregando) return <div className="p-10 text-center text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando avaliações...</div>;
 
   return (
@@ -119,30 +99,9 @@ export default function AvaliacoesPage() {
         <p className="text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-2 italic">Acompanhamento Pedagógico: <span className="text-indigo-600 font-black">{aluno?.nome}</span></p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 gap-8 items-start">
         
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-600"><Trophy size={20} /></div>
-              <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest">Avaliação Socioemocional</h2>
-            </div>
-            
-            <div className="space-y-3">
-              <TopicoDesempenho titulo="Participação" nota={5} />
-              <TopicoDesempenho titulo="Comportamento" nota={5} />
-              <TopicoDesempenho titulo="Tarefas" nota={4} />
-              <TopicoDesempenho titulo="Pontualidade" nota={5} />
-              <TopicoDesempenho titulo="Interação Social" nota={5} />
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-slate-50 text-center">
-               <p className="text-[10px] font-black text-indigo-500 uppercase italic">"Excelente progresso neste bimestre!"</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-8 bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><BookOpen size={20} /></div>

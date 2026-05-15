@@ -230,7 +230,11 @@ export default function FichaAlunoPage() {
               <LinhaInfo icone={Phone} label="Telefone" value={aluno.telefone} />
               <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel} />
 
-              <LinhaInfo icone={User} label="Responsável 2" value={aluno.responsavel_2_nome} />
+              <div className="my-6 border-t border-slate-100 relative">
+                <span className="absolute left-1/2 -top-2 -translate-x-1/2 bg-white px-4 text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Responsável 2</span>
+              </div>
+
+              <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel_2_nome} />
               <LinhaInfo icone={CreditCard} label="CPF" value={aluno.responsavel_2_cpf} />
               <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_2_profissao} />
               <LinhaInfo icone={Phone} label="Telefone" value={aluno.responsavel_2_telefone} />
