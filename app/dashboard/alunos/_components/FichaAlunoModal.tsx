@@ -108,9 +108,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   if (!aluno) return null;
 
   const contatos = [
-    { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
-    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
-    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.responsavel_3_cpf, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
+    { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
+    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
+    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.responsavel_3_cpf, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
   ];
 
   const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -184,6 +184,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                             <span style={{ fontSize: '9px', fontWeight: '800', color: contato.cor, backgroundColor: contato.bg, padding: '1px 6px', borderRadius: '4px' }}>{contato.tag}</span>
                         </div>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>{mWhatsApp(contato.whats)} • CPF: {mCPF(contato.cpf)}</span>
+                        {contato.profissao && <span style={{ fontSize: '11px', color: '#475569', fontWeight: '600' }}>💼 Profissão: {contato.profissao}</span>}
                       </div>
                       {contato.whats && (
                         <button onClick={() => abrirWhatsApp(contato.whats)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px', opacity: 0.8 }}>

@@ -43,6 +43,7 @@ export default function AlunosAdminPage() {
   const [cpfResponsavel, setCpfResponsavel] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [emailResponsavel, setEmailResponsavel] = useState("");
+  const [profissaoResponsavel, setProfissaoResponsavel] = useState(""); // Adicionado cirurgicamente
   
   // Responsável 2
   const [responsavel2, setResponsavel2] = useState("");
@@ -50,6 +51,7 @@ export default function AlunosAdminPage() {
   const [cpfResponsavel2, setCpfResponsavel2] = useState("");
   const [whatsapp2, setWhatsapp2] = useState("");
   const [emailResponsavel2, setEmailResponsavel2] = useState("");
+  const [profissaoResponsavel2, setProfissaoResponsavel2] = useState(""); // Adicionado cirurgicamente
 
   // Responsável 3
   const [responsavel3, setResponsavel3] = useState("");
@@ -129,10 +131,10 @@ export default function AlunosAdminPage() {
   const calcularIdade = (dataNasc: string) => {
     if (!dataNasc) return "--";
     const hoje = new Date();
-    const nascimento = new Date(dataNasc);
-    let idade = hoje.getFullYear() - nascimento.getFullYear();
-    const m = hoje.getMonth() - nascimento.getMonth();
-    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--;
+    const nacimiento = new Date(dataNasc);
+    let idade = hoje.getFullYear() - nacimiento.getFullYear();
+    const m = hoje.getMonth() - nacimiento.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nacimiento.getDate())) idade--;
     return `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
   };
 
@@ -160,7 +162,6 @@ export default function AlunosAdminPage() {
     return [...lista].sort((a, b) => {
       const indexA = ordemManual.indexOf(a.disciplina);
       const indexB = ordemManual.indexOf(b.disciplina);
-      // Itens não encontrados na lista de prioridade vão para o final
       return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
     });
   };
@@ -169,14 +170,12 @@ export default function AlunosAdminPage() {
   async function buscarBoletim(alunoId: string, ano: string = "2026") {
     setAnoBoletimAtivo(ano);
 
-    // 1. Buscar disciplinas obrigatórias da turma para este ano
     const { data: disciplinasPadrao } = await supabase
       .from('turma_disciplinas')
       .select('disciplina')
       .eq('nome_turma', turma)
       .eq('ano', ano);
 
-    // 2. Buscar disciplinas que o aluno já possui no banco
     const { data: notasAtuais } = await supabase
       .from('boletins')
       .select('*')
@@ -185,7 +184,6 @@ export default function AlunosAdminPage() {
 
     let listaParaExibir = notasAtuais || [];
 
-    // 3. Comparar e inserir disciplinas faltantes automaticamente
     if (disciplinasPadrao && disciplinasPadrao.length > 0) {
       const nomesExistentes = listaParaExibir.map(n => n.disciplina);
       const faltantes = disciplinasPadrao.filter(d => !nomesExistentes.includes(d.disciplina));
@@ -199,7 +197,6 @@ export default function AlunosAdminPage() {
 
         await supabase.from('boletins').insert(novasLinhas);
 
-        // Busca novamente os dados atualizados
         const { data: notasSincronizadas } = await supabase
           .from('boletins')
           .select('*')
@@ -210,7 +207,6 @@ export default function AlunosAdminPage() {
       }
     }
 
-    // Aplica a ordenação solicitada antes de atualizar o estado
     setNotas(aplicarOrdenacaoManual(listaParaExibir));
     setVerBoletim(true); 
     setVerHistorico(false);
@@ -344,7 +340,6 @@ export default function AlunosAdminPage() {
     autoTable(doc, {
       startY: 105,
       head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
-      // A tabela do PDF usará o estado 'notas' que já foi ordenado manualmente
       body: notas.map(n => [
         n.disciplina.toUpperCase(),
         n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
@@ -389,16 +384,56 @@ export default function AlunosAdminPage() {
     doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_2026.pdf`);
   }
 
-  // --- FUNÇÃO DE SALVAR COM CORREÇÃO DE PERSISTÊNCIA ---
+  // --- FUNÇÃO AUXILIAR PARA RECORTAR A FOTO BASEADO NO ZOOM ANTES DO UPLOAD ---
+  const processarRecorteImagem = (arquivo: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(arquivo);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        
+        // Define o tamanho padrão final da imagem quadrada na ficha do aluno (300x300 pixels)
+        const TAMANHO_ALVO = 300;
+        canvas.width = TAMANHO_ALVO;
+        canvas.height = TAMANHO_ALVO;
+
+        if (ctx) {
+          // Calcula o enquadramento com base na menor dimensão da imagem original (aspect ratio)
+          const menorDimensao = Math.min(img.width, img.height);
+          const sWidth = menorDimensao;
+          const sHeight = menorDimensao;
+          const sx = (img.width - sWidth) / 2;
+          const sy = (img.height - sHeight) / 2;
+
+          ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, TAMANHO_ALVO, TAMANHO_ALVO);
+        }
+        
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else resolve(arquivo);
+        }, "image/jpeg", 0.9);
+      };
+    });
+  };
+
+  // --- FUNÇÃO DE SALVAR COM CORREÇÃO DE PERSISTÊNCIA E SUPORTE A RECORTE ---
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
     setCarregando(true);
     try {
       let urlFinal = previewUrl;
+      
       if (arquivoFoto) {
-        const nomeArquivo = `${Date.now()}_${arquivoFoto.name}`;
-        const { data, error: uploadError } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
+        // Corta e ajusta a imagem no formato quadrado antes de enviar ao storage
+        const imagemRecortadaBlob = await processarRecorteImagem(arquivoFoto);
+        const nomeArquivo = `${Date.now()}_aluno_foto.jpg`;
+        
+        const { data, error: uploadError } = await supabase.storage
+          .from('fotos-alunos')
+          .upload(nomeArquivo, imagemRecortadaBlob, { contentType: 'image/jpeg' });
+          
         if (uploadError) throw uploadError;
         if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
@@ -408,8 +443,10 @@ export default function AlunosAdminPage() {
         cep, endereco, numero, bairro, cidade, estado,
         responsavel, parentesco_1: parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
         email_responsavel: emailResponsavel,
+        profissao_responsavel: profissaoResponsavel,
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         email_responsavel_2: emailResponsavel2,
+        profissao_responsavel2: profissaoResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         email_responsavel_3: emailResponsavel3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
@@ -467,13 +504,15 @@ export default function AlunosAdminPage() {
     setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setTurno("");
     setCep(""); setEndereco(""); setNumero(""); setBairro(""); setCidade(""); setEstado("");
     setResponsavel(""); setParentesco1("Mãe"); setCpfResponsavel(""); setWhatsapp(""); 
-    setEmailResponsavel("");
+    setEmailResponsavel(""); setProfissaoResponsavel("");
     setResponsavel2(""); setParentesco2("Pai"); setCpfResponsavel2(""); setWhatsapp2(""); 
-    setEmailResponsavel2("");
+    setEmailResponsavel2(""); setProfissaoResponsavel2("");
     setResponsavel3(""); setParentesco3(""); setWhatsapp3("");
     setEmailResponsavel3("");
     setValor(""); setVencimento(""); setDataNascimento(""); setTemAlergia(false); setAlergiaDescricao("");
-    setEAutista(false); setObservacoes(""); setArquivoFoto(null); setPreviewUrl(null);
+    setEAutista(false); setObservacoes(""); 
+    setArquivoFoto(null); 
+    setPreviewUrl(null);   
     setModoEdicao(true); setModalAberto(true);
   }
 
@@ -484,15 +523,18 @@ export default function AlunosAdminPage() {
     setResponsavel(aluno.responsavel); setParentesco1(aluno.parentesco_1 || "Mãe"); 
     setCpfResponsavel(aluno.cpf_responsavel || ""); setWhatsapp(aluno.whatsapp);
     setEmailResponsavel(aluno.email_responsavel || "");
+    setProfissaoResponsavel(aluno.profissao_responsavel || "");
     setResponsavel2(aluno.responsavel_2_nome || ""); setParentesco2(aluno.parentesco_2 || "Pai");
     setCpfResponsavel2(aluno.cpf_responsavel_2 || ""); setWhatsapp2(aluno.responsavel_2_contato || ""); 
     setEmailResponsavel2(aluno.email_responsavel_2 || "");
+    setProfissaoResponsavel2(aluno.profissao_responsavel2 || "");
     setResponsavel3(aluno.responsavel_3_nome || ""); setParentesco3(aluno.parentesco_3 || ""); 
     setWhatsapp3(aluno.responsavel_3_contato || "");
     setEmailResponsavel3(aluno.email_responsavel_3 || "");
     setValor(aluno.valor?.toString() || ""); setVencimento(aluno.vencimento || ""); setDataNascimento(aluno.data_nascimento || "");
     setTemAlergia(aluno.tem_alergia || false); setAlergiaDescricao(aluno.alergia_descricao || "");
     setEAutista(aluno.e_autista || false); setObservacoes(aluno.observacoes || ""); setPreviewUrl(aluno.foto_url);
+    setArquivoFoto(null); 
     setAnoBoletimAtivo("2026"); 
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
@@ -526,9 +568,9 @@ export default function AlunosAdminPage() {
             id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
             cep, endereco, numero, bairro, cidade, estado,
             responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, 
-            email_responsavel: emailResponsavel,
+            email_responsavel: emailResponsavel, profissao_responsavel: profissaoResponsavel,
             responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, 
-            email_responsavel_2: emailResponsavel2,
+            email_responsavel_2: emailResponsavel2, profissao_responsavel2: profissaoResponsavel2,
             responsavel3, parentesco3, whatsapp3, 
             email_responsavel_3: emailResponsavel3,
             valor, vencimento, data_nascimento: dataNascimento, 
@@ -549,7 +591,7 @@ export default function AlunosAdminPage() {
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+          form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
           setForm={(d: any) => { 
             if (d.nome !== undefined) setNome(d.nome);
             if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
@@ -569,11 +611,13 @@ export default function AlunosAdminPage() {
             if (d.whatsapp !== undefined) setWhatsapp(d.whatsapp);
             if (d.cpfResponsavel !== undefined) setCpfResponsavel(d.cpfResponsavel);
             if (d.emailResponsavel !== undefined) setEmailResponsavel(d.emailResponsavel);
+            if (d.profissaoResponsavel !== undefined) setProfissaoResponsavel(d.profissaoResponsavel);
             if (d.responsavel2 !== undefined) setResponsavel2(d.responsavel2);
             if (d.parentesco2 !== undefined) setParentesco2(d.parentesco2);
             if (d.whatsapp2 !== undefined) setWhatsapp2(d.whatsapp2);
             if (d.cpfResponsavel2 !== undefined) setCpfResponsavel2(d.cpfResponsavel2);
             if (d.emailResponsavel2 !== undefined) setEmailResponsavel2(d.emailResponsavel2);
+            if (d.profissaoResponsavel2 !== undefined) setProfissaoResponsavel2(d.profissaoResponsavel2);
             if (d.responsavel3 !== undefined) setResponsavel3(d.responsavel3);
             if (d.parentesco3 !== undefined) setParentesco3(d.parentesco3);
             if (d.whatsapp3 !== undefined) setWhatsapp3(d.whatsapp3);
@@ -582,8 +626,20 @@ export default function AlunosAdminPage() {
             if (d.temAlergia !== undefined) setTemAlergia(d.temAlergia);
             if (d.alergiaDescricao !== undefined) setAlergiaDescricao(d.alergiaDescricao);
             if (d.observacoes !== undefined) setObservacoes(d.observacoes);
+            if (d.foto_url !== undefined) setPreviewUrl(d.foto_url); // Integra a remoção de foto limpando a pré-visualização mestre
           }}
-          onTrocarFoto={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoFoto(file); setPreviewUrl(URL.createObjectURL(file)); } }}
+          onTrocarFoto={(e) => { 
+            if (!e.target.files) {
+              setArquivoFoto(null);
+              setPreviewUrl(null);
+              return;
+            }
+            const file = e.target.files?.[0]; 
+            if (file) { 
+              setArquivoFoto(file); 
+              setPreviewUrl(URL.createObjectURL(file)); 
+            } 
+          }}
           onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
         />
       )}

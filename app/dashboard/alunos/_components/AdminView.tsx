@@ -20,17 +20,23 @@ export function AdminView({
   nome,
   cpfAluno,
   turma,
+  turno, // Mantido
   responsavel,
   parentesco1,
   whatsapp,
   cpfResponsavel,
+  emailResponsavel, // Mantido
+  profissaoResponsavel, // Adicionado cirurgicamente para sincronização
   responsavel2,
   parentesco2,
   whatsapp2,
   cpfResponsavel2,
+  emailResponsavel2, // Mantido
+  profissaoResponsavel2, // Adicionado cirurgicamente para sincronização
   responsavel3,
   parentesco3,
   whatsapp3,
+  emailResponsavel3, // Mantido
   valor,
   vencimento,
   dataNascimento,
@@ -78,15 +84,18 @@ export function AdminView({
       {modalAberto && !modoEdicao && (
         <FichaAlunoModal 
           aluno={{
-            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, 
+            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
             responsavel, parentesco1: parentesco1, 
-            whatsapp, cpf_responsavel: cpfResponsavel, 
+            whatsapp, cpf_responsavel: cpfResponsavel, email_responsavel: emailResponsavel,
+            profissao_responsavel: profissaoResponsavel, // Repassado à Ficha
             responsavel2, parentesco2: parentesco2, 
-            whatsapp2, cpf_responsavel2: cpfResponsavel2, 
+            whatsapp2, cpf_responsavel2: cpfResponsavel2, email_responsavel_2: emailResponsavel2,
+            profissao_responsavel2: profissaoResponsavel2, // Repassado à Ficha
             responsavel3, parentesco3: parentesco3, 
-            whatsapp3, valor, vencimento, data_nascimento: dataNascimento, 
+            whatsapp3, email_responsavel_3: emailResponsavel3,
+            valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_autista: eAutista, foto_url: previewUrl
+            e_autista: eAutista, foto_url: previewUrl, observacoes
           }}
           verBoletim={verBoletim} 
           verHistorico={verHistorico} 
@@ -116,7 +125,7 @@ export function AdminView({
       {modalAberto && modoEdicao && (
         <FormAlunoModal 
           idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, responsavel3, parentesco3, whatsapp3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+          form={{nome, cpfAluno, dataNascimento, turma, turno, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
           setForm={setForm}
           onTrocarFoto={onTrocarFoto}
           onSalvar={onSalvar} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}

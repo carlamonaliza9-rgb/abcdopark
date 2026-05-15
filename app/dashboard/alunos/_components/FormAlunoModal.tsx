@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface FormAlunoModalProps {
   idEdicao: string | null;
   form: any;
@@ -15,6 +17,8 @@ interface FormAlunoModalProps {
 
 export function FormAlunoModal(props: FormAlunoModalProps) {
   const { idEdicao, form, setForm, previewUrl, carregando, mCPF, mWhatsApp, onTrocarFoto, onSalvar, onCancelar } = props;
+
+  const [zoomFoto, setZoomFoto] = useState(1);
 
   const listaTags = ["Mãe", "Pai", "Avó", "Avô", "Tio", "Tia", "Madrasta", "Padrasto", "Irmão", "Irmã", "Outro"];
 
@@ -46,18 +50,69 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
     }
   };
 
+  // --- FUNÇÃO PARA REMOVER A FOTO ---
+  const removerFotoAtual = () => {
+    if (confirm("Deseja realmente remover a foto deste aluno?")) {
+      setForm({ ...form, foto_url: null });
+      const inputElement = document.getElementById("upload-foto") as HTMLInputElement;
+      if (inputElement) inputElement.value = "";
+      
+      const eventoSimulado = { target: { files: null } } as any;
+      onTrocarFoto(eventoSimulado);
+      setZoomFoto(1);
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
       <div style={{ backgroundColor: 'white', padding: 'clamp(15px, 5vw, 32px)', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
         <form onSubmit={onSalvar} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <h2 style={{ textAlign: 'center', fontWeight: '800', color: '#1e293b' }}>{idEdicao ? "Editando Ficha" : "Novo Aluno"}</h2>
           
-          <label htmlFor="upload-foto" style={{ cursor: 'pointer', margin: '0 auto 10px' }}>
-            <div style={{ height: '100px', width: '100px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-              {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', fontWeight: 'bold' }}>FOTO</span>}
-            </div>
-          </label>
-          <input id="upload-foto" type="file" accept="image/*" onChange={onTrocarFoto} style={{ display: 'none' }} />
+          {/* SEÇÃO DA FOTO COM AJUSTE DE RECORTE/ZOOM E REMOÇÃO */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '0 auto 10px' }}>
+            <label htmlFor="upload-foto" style={{ cursor: 'pointer' }}>
+              <div style={{ height: '120px', width: '120px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
+                {previewUrl ? (
+                  <img 
+                    src={previewUrl} 
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                      transform: `scale(${zoomFoto})`,
+                      transition: 'transform 0.1s ease-out'
+                    }} 
+                  />
+                ) : (
+                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>FOTO</span>
+                )}
+              </div>
+            </label>
+            <input id="upload-foto" type="file" accept="image/*" onChange={onTrocarFoto} style={{ display: 'none' }} />
+            
+            {previewUrl && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', maxWidth: '160px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ajustar / Recortar</span>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="3" 
+                  step="0.1" 
+                  value={zoomFoto} 
+                  onChange={(e) => setZoomFoto(parseFloat(e.target.value))}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                />
+                <button 
+                  type="button" 
+                  onClick={removerFotoAtual}
+                  style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '10px', fontWeight: '800', cursor: 'pointer', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                >
+                  ❌ Remover Foto
+                </button>
+              </div>
+            )}
+          </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
             <input type="text" placeholder="Nome Completo" value={form?.nome || ""} onChange={(e)=>setForm({...form, nome: e.target.value})} required style={EstiloInput} />
@@ -87,7 +142,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             <input type="number" placeholder="Dia Vencimento" value={form?.vencimento || ""} onChange={(e)=>setForm({...form, vencimento: e.target.value})} style={EstiloInput} />
           </div>
 
-          {/* --- NOVA SEÇÃO: ENDEREÇO --- */}
+          {/* --- SEÇÃO: ENDEREÇO --- */}
           <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '15px', border: '1px solid #bbf7d0' }}>
             <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#15803d', marginBottom: '10px', marginTop: '0', textTransform: 'uppercase' }}>Endereço Residencial</p>
             
@@ -102,7 +157,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-              <input type="text" placeholder="Cidade" value={form?.cidade || ""} onChange={(e)=>setForm({...form, cidade: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Cidade" value={form?.cidade || ""} onChange={(e)=>setForm({...form, city: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               <input type="text" placeholder="UF" value={form?.estado || ""} onChange={(e)=>setForm({...form, estado: e.target.value})} maxLength={2} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', textAlign: 'center' }} />
             </div>
           </div>
@@ -110,6 +165,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
           <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
             <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', marginBottom: '10px', marginTop: '0', textTransform: 'uppercase' }}>Contatos e Responsáveis</p>
             
+            {/* RESPONSÁVEL 1 */}
             <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
               <select value={form?.parentesco1 || "Mãe"} onChange={(e)=>setForm({...form, parentesco1: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
                 {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
@@ -120,10 +176,12 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <input type="text" placeholder="WhatsApp" value={form?.whatsapp || ""} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-                <input type="email" placeholder="E-mail" value={form?.emailResponsavel || ""} onChange={(e)=>setForm({...form, emailResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="text" placeholder="Profissão do Responsável 1" value={form?.profissaoResponsavel || ""} onChange={(e)=>setForm({...form, profissaoResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
+              <input type="email" placeholder="E-mail" value={form?.emailResponsavel || ""} onChange={(e)=>setForm({...form, emailResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', width: '100%', marginTop: '8px' }} />
             </div>
 
+            {/* RESPONSÁVEL 2 */}
             <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
               <select value={form?.parentesco2 || "Pai"} onChange={(e)=>setForm({...form, parentesco2: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
                 {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
@@ -134,10 +192,12 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <input type="text" placeholder="WhatsApp" value={form?.whatsapp2 || ""} onChange={(e)=>setForm({...form, whatsapp2: mWhatsApp(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-                <input type="email" placeholder="E-mail" value={form?.emailResponsavel2 || ""} onChange={(e)=>setForm({...form, emailResponsavel2: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="text" placeholder="Profissão do Responsável 2" value={form?.profissaoResponsavel2 || ""} onChange={(e)=>setForm({...form, profissaoResponsavel2: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
+              <input type="email" placeholder="E-mail" value={form?.emailResponsavel2 || ""} onChange={(e)=>setForm({...form, emailResponsavel2: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', width: '100%', marginTop: '8px' }} />
             </div>
 
+            {/* RESPONSÁVEL 3 */}
             <div>
               <select value={form?.parentesco3 || ""} onChange={(e)=>setForm({...form, parentesco3: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
                 <option value="">Outro Responsável (Opcional)...</option>
@@ -168,7 +228,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             <input type="text" placeholder="Qual alergia?" value={form?.alergiaDescricao || ""} onChange={(e) => setForm({...form, alergiaDescricao: e.target.value})} required style={{ ...EstiloInput, width: '100%', border: '1px solid #fed7d7' }} /> 
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Observações Pedagógicas</label>
             <textarea 
               placeholder="Digite aqui as observações sobre o aluno..." 
