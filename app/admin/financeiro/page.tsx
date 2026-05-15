@@ -359,7 +359,7 @@ export default function FinanceiroAdminPage() {
         alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
         onPagamento={(a) => { setAlunoSelecionado(a); setTipoPagamento("mensalidade"); setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", multa: "" }); setModalPgtoAberto(true); }}
         onCobrar={(a) => {
-           const msg = `Olá! Lembrando da mensalidade de ${a.nome}...`;
+          const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
            window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
         }}
         onDesfazer={async (id) => { 
