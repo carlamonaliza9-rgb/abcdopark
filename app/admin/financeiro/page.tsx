@@ -23,6 +23,7 @@ export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userCargo, setUserCargo] = useState<string | null>(null);
 
   // --- ESTADOS DE CONFIGURAÇÃO E DADOS ---
   const [valorPadrao, setValorPadrao] = useState(550);
@@ -74,13 +75,15 @@ export default function FinanceiroAdminPage() {
       const emailAtual = user.email || "";
       setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
+      setUserCargo(perfil?.cargo || null);
 
-      const ehAdmin = 
+      const ehAutorizado = 
         emailAtual === 'carlamonaliza9@gmail.com' || 
         emailAtual === 'diretoria@abcdopark.com' || 
-        perfil?.cargo === 'Admin';
+        perfil?.cargo === 'Admin' ||
+        perfil?.cargo === 'Direção';
 
-      if (!ehAdmin) {
+      if (!ehAutorizado) {
         return router.push("/dashboard");
       }
       setVerificandoAcesso(false);
@@ -256,6 +259,10 @@ export default function FinanceiroAdminPage() {
 
   // --- FUNÇÕES DE AÇÃO ---
   async function confirmarPagamento() {
+    if (idPagamentoEdicao && userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
+      return alert("A direção não possui permissão para alterar ou editar lançamentos salvos.");
+    }
+
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
     const anoFiltro = mesFiltro.split('-')[0];
@@ -290,6 +297,10 @@ export default function FinanceiroAdminPage() {
   }
 
   async function salvarEvento() {
+    if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
+      return alert("A direção não possui permissão para estruturar ou alterar eventos.");
+    }
+
     if (!nomeEvento || !valorEvento || (!idEventoEdicao && alunosSelecionados.length === 0)) return alert("Preencha tudo.");
     const dados = { nome: nomeEvento, valor_unitario: parseFloat(valorEvento), total_alunos: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.total_alunos : alunosSelecionados.length, participantes: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.participantes : alunosSelecionados, arquivado: false };
     if (idEventoEdicao) await supabase.from('eventos_controle').update(dados).eq('id', idEventoEdicao);
@@ -298,6 +309,10 @@ export default function FinanceiroAdminPage() {
   }
 
   async function adicionarGasto() {
+    if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
+      return alert("A direção não possui permissão para registrar novas despesas.");
+    }
+
     await supabase.from('gastos').insert([{ descricao: descGasto, valor: parseFloat(valorGasto), data_gasto: dataGasto }]);
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
   }
@@ -311,8 +326,14 @@ export default function FinanceiroAdminPage() {
       
       <FinanceiroHeader 
         mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
-        onNovoEvento={() => { setIdEventoEdicao(null); setNomeEvento(""); setValorEvento(""); setAlunosSelecionados([]); setModalEventoAberto(true); }}
-        onRegistrarGasto={() => setModalGastoAberto(true)}
+        onNovoEvento={() => {
+          if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
+          setIdEventoEdicao(null); setNomeEvento(""); setValorEvento(""); setAlunosSelecionados([]); setModalEventoAberto(true);
+        }}
+        onRegistrarGasto={() => {
+          if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
+          setModalGastoAberto(true);
+        }}
         onZerarMes={() => {}} 
         valorPadrao={valorPadrao} setValorPadrao={setValorPadrao}
         editandoValor={editandoValor} setEditandoValor={setEditandoValor}
@@ -359,7 +380,10 @@ export default function FinanceiroAdminPage() {
       <GestaoEventos 
         eventosAtivos={eventosAtivos} eventoParaGerenciar={eventoParaGerenciar} setEventoParaGerenciar={setEventoParaGerenciar}
         alunos={alunos} historicoPagamentosEventos={historicoPagamentosEventos}
-        onEditarEvento={(ev) => { setIdEventoEdicao(ev.id); setNomeEvento(ev.nome); setValorEvento(ev.valor_unitario.toString()); setModalEventoAberto(true); }}
+        onEditarEvento={(ev) => {
+          if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
+          setIdEventoEdicao(ev.id); setNomeEvento(ev.nome); setValorEvento(ev.valor_unitario.toString()); setModalEventoAberto(true);
+        }}
         onExcluirEvento={async (id) => { 
           if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode excluir eventos.");
           if (prompt("Digite a Senha Mestra:") !== SENHA_MESTRA) return alert("Senha incorreta.");
@@ -371,6 +395,7 @@ export default function FinanceiroAdminPage() {
         }}
         onGerarPDF={() => {}}
         onAtualizarParticipante={async (alunoId, part) => {
+          if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
           const novos = part ? [...(eventoParaGerenciar.participantes || []), alunoId] : (eventoParaGerenciar.participantes || []).filter((id: string) => id !== alunoId);
           await supabase.from('eventos_controle').update({ participantes: novos, total_alunos: novos.length }).eq('id', eventoParaGerenciar.id);
           setEventoParaGerenciar({ ...eventoParaGerenciar, participantes: novos, total_alunos: novos.length });
