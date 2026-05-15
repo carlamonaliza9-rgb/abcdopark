@@ -446,7 +446,7 @@ export default function AlunosAdminPage() {
         profissao_responsavel: profissaoResponsavel,
         responsavel_2_nome: responsavel2, parentesco_2: parentesco2, responsavel_2_contato: whatsapp2, cpf_responsavel_2: cpfResponsavel2,
         email_responsavel_2: emailResponsavel2,
-        profissao_responsavel2: profissaoResponsavel2,
+        profissao_responsavel_2: profissaoResponsavel2,
         responsavel_3_nome: responsavel3, parentesco_3: parentesco3, responsavel_3_contato: whatsapp3,
         email_responsavel_3: emailResponsavel3,
         valor: valor ? parseFloat(valor.toString()) : null, vencimento, data_nascimento: dataNascimento,
@@ -465,7 +465,6 @@ export default function AlunosAdminPage() {
       setModalAberto(false); 
       setModoEdicao(false); 
       await buscarAlunos();
-      alert("Salvo com sucesso!");
     } catch (error: any) { 
       alert("Erro ao salvar: " + (error.message || "Ocorreu um erro inesperado.")); 
     } finally { 
