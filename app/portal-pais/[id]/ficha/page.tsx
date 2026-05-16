@@ -117,16 +117,16 @@ export default function FichaAlunoPage() {
     <div className="flex items-center justify-between py-4 border-b border-slate-50 last:border-0 group transition-all hover:bg-slate-50/50 px-2 rounded-lg gap-4">
       <div className="flex items-center gap-4">
         <div className="text-slate-300 group-hover:text-indigo-500 transition-colors flex-shrink-0">
-          <Icon size={16} strokeWidth={2.5} />
+          <Icon size={18} strokeWidth={2.5} />
         </div>
-        <span className="text-lg md:text-[9px] font-black text-slate-400 uppercase tracking-wider sm:tracking-widest">{label}</span>
+        <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider sm:tracking-widest">{label}</span>
       </div>
-      <span className="text-lg sm:text-xl md:text-xs font-bold text-slate-700 uppercase text-right break-words">{value || "---"}</span>
+      <span className="text-xl sm:text-2xl md:text-xs font-bold text-slate-700 uppercase text-right break-words">{value || "---"}</span>
     </div>
   );
 
-  if (carregando) return <div className="p-10 text-center text-lg sm:text-xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando prontuário...</div>;
-  if (!aluno) return <div className="p-10 text-center text-lg sm:text-xl md:text-[10px] font-black uppercase text-rose-400 font-bold">Registro não localizado.</div>;
+  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando prontuário...</div>;
+  if (!aluno) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-rose-400 font-bold">Registro não localizado.</div>;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-2 relative">
@@ -136,9 +136,9 @@ export default function FichaAlunoPage() {
           <div className="bg-white w-full max-w-2xl rounded-[3rem] p-6 sm:p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-3xl md:text-xl font-black text-slate-800 uppercase italic">Central de Documentos</h2>
-                <p className="text-lg md:text-[9px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1">
-                  <AlertCircle size={10} /> Arquivos em vermelho são obrigatórios
+                <h2 className="text-4xl md:text-xl font-black text-slate-800 uppercase italic">Central de Documentos</h2>
+                <p className="text-xl md:text-[9px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                  <AlertCircle size={12} /> Arquivos em vermelho são obrigatórios
                 </p>
               </div>
               <button onClick={() => setModalAberto(false)} className="p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-rose-500 transition-colors">
@@ -153,8 +153,8 @@ export default function FichaAlunoPage() {
                 return (
                   <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-slate-50 rounded-[1.8rem] border border-slate-100 hover:border-rose-200 transition-all group gap-4">
                     <div className="flex flex-col">
-                      <span className="text-lg sm:text-xl md:text-[10px] font-black text-rose-600 uppercase leading-tight">{doc}</span>
-                      <span className={`text-base sm:text-lg md:text-[8px] font-bold uppercase mt-1 ${docExistente ? 'text-green-500' : 'text-slate-400'}`}>
+                      <span className="text-xl sm:text-2xl md:text-[10px] font-black text-rose-600 uppercase leading-tight">{doc}</span>
+                      <span className={`text-lg sm:text-xl md:text-[8px] font-bold uppercase mt-1 ${docExistente ? 'text-green-500' : 'text-slate-400'}`}>
                         {docExistente ? `Status: ${docExistente.status}` : 'Pendente de envio'}
                       </span>
                     </div>
@@ -162,14 +162,14 @@ export default function FichaAlunoPage() {
                     <div className="flex items-center gap-2 self-end sm:self-auto">
                       {docExistente && (
                         <a href={docExistente.arquivo_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-base sm:text-lg md:text-[9px] uppercase tracking-wider bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-                          <Eye size={12} /> Visualizar
+                          <Eye size={14} /> Visualizar
                         </a>
                       )}
 
                       <label className="cursor-pointer">
                         <input type="file" className="hidden" onChange={(e) => handleUpload(doc, e)} disabled={enviando === doc} />
                         <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-base sm:text-lg md:text-[9px] uppercase tracking-wider transition-all ${enviando === doc ? 'bg-slate-200 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-100'}`}>
-                          {enviando === doc ? <Clock size={12} className="animate-spin" /> : <Upload size={12} />}
+                          {enviando === doc ? <Clock size={14} className="animate-spin" /> : <Upload size={14} />}
                           {enviando === doc ? 'Enviando...' : (docExistente ? 'Substituir' : 'Upload')}
                         </div>
                       </label>
@@ -192,7 +192,7 @@ export default function FichaAlunoPage() {
           
           {/* IDENTIFICAÇÃO */}
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50">
-            <h2 className="text-lg sm:text-xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Fingerprint size={14} /> Identificação do Aluno</h2>
+            <h2 className="text-xl sm:text-2xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Fingerprint size={16} /> Identificação do Aluno</h2>
             <div className="flex flex-col">
               <LinhaInfo icone={User} label="Nome Completo" value={aluno.nome} />
               <LinhaInfo icone={Calendar} label="Data de Nascimento" value={`${formatarData(aluno.data_nascimento)} • ${calcularIdade(aluno.data_nascimento)}`} />
@@ -202,7 +202,7 @@ export default function FichaAlunoPage() {
 
           {/* SAÚDE */}
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50">
-            <h2 className="text-lg sm:text-xl md:text-[11px] font-black text-rose-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Stethoscope size={14} /> Informações de Saúde</h2>
+            <h2 className="text-xl sm:text-2xl md:text-[11px] font-black text-rose-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Stethoscope size={16} /> Informações de Saúde</h2>
             <div className="flex flex-col">
               <LinhaInfo icone={Heart} label="Alergias Detectadas" value={aluno.alergias} />
               <LinhaInfo icone={AlertCircle} label="Restrições Alimentares" value={aluno.restricoes_alimentares} />
@@ -211,7 +211,7 @@ export default function FichaAlunoPage() {
 
           {/* ENDEREÇO */}
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50">
-            <h2 className="text-lg sm:text-xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><MapPin size={14} /> Localização de Residência</h2>
+            <h2 className="text-xl sm:text-2xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><MapPin size={16} /> Localização de Residência</h2>
             <div className="flex flex-col">
               <LinhaInfo icone={MapPin} label="Logradouro" value={aluno.endereco} />
               <LinhaInfo icone={MapPin} label="Número / Complemento" value={aluno.numero_endereco} />
@@ -222,7 +222,7 @@ export default function FichaAlunoPage() {
 
           {/* RESPONSÁVEIS */}
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50">
-            <h2 className="text-lg sm:text-xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Phone size={14} /> Responsáveis Legais</h2>
+            <h2 className="text-xl sm:text-2xl md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Phone size={16} /> Responsáveis Legais</h2>
             <div className="flex flex-col">
               <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel} />
               <LinhaInfo icone={CreditCard} label="CPF" value={aluno.cpf_responsavel} />
@@ -231,7 +231,7 @@ export default function FichaAlunoPage() {
               <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel} />
 
               <div className="my-6 border-t border-slate-100 relative">
-                <span className="absolute left-1/2 -top-2 -translate-x-1/2 bg-white px-4 text-base md:text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Responsável 2</span>
+                <span className="absolute left-1/2 -top-2 -translate-x-1/2 bg-white px-4 text-sm sm:text-base md:text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Responsável 2</span>
               </div>
 
               <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel_2_nome} />
@@ -247,7 +247,7 @@ export default function FichaAlunoPage() {
           <div className="bg-indigo-600 rounded-[2.5rem] p-6 sm:p-8 text-white shadow-2xl shadow-indigo-200 group transition-all hover:-translate-y-1">
             <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center mb-6"><FileText size={24} /></div>
             <h3 className="text-2xl md:text-lg font-black uppercase tracking-tight leading-tight mb-2 italic">Documentação</h3>
-            <p className="text-indigo-100 text-base sm:text-lg md:text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-8">Contratos, RG, CPF e declarações digitalizadas.</p>
+            <p className="text-indigo-100 text-lg sm:text-xl md:text-[10px] font-bold uppercase tracking-widest leading-relaxed mb-8">Contratos, RG, CPF e declarações digitalizadas.</p>
             <button onClick={() => setModalAberto(true)} className="w-full bg-white text-indigo-600 py-4 rounded-2xl font-black text-base sm:text-lg md:text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-95 transition-all">Abrir Documentação</button>
           </div>
           
