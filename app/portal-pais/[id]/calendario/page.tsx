@@ -44,6 +44,15 @@ export default function CalendarioPaisPage() {
 
   if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse">Carregando Calendário...</div>;
 
+  // Lógica de ordenação: Identifica o mês atual e joga os meses que já passaram para o final da lista
+  const mesAtualIndex = new Date().getMonth();
+  const mesesTransformados = meses.map((mesNome, originalIndex) => ({ mesNome, originalIndex }));
+  
+  const mesesOrdenados = [
+    ...mesesTransformados.filter(m => m.originalIndex >= mesAtualIndex),
+    ...mesesTransformados.filter(m => m.originalIndex < mesAtualIndex)
+  ];
+
   return (
     <div className="animate-in fade-in duration-500">
       <header className="mb-8 border-b border-slate-100 pb-8">
@@ -53,17 +62,20 @@ export default function CalendarioPaisPage() {
         </p>
       </header>
 
-      {/* GRID DE MESES */}
+      {/* GRID DE MESES: grid-cols-1 garante visualização "mês abaixo de mês" no celular */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {meses.map((mesNome, index) => (
-          <div key={index} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 flex flex-col h-full">
-            <h3 className="text-xl sm:text-2xl md:text-[10px] font-black text-indigo-600 border-b border-slate-50 pb-2 mb-3 uppercase tracking-widest">
-              {mesNome}
+        {mesesOrdenados.map(({ mesNome, originalIndex }) => (
+          <div key={originalIndex} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 flex flex-col h-full">
+            <h3 className="text-xl sm:text-2xl md:text-[10px] font-black text-indigo-600 border-b border-slate-50 pb-2 mb-3 uppercase tracking-widest flex items-center justify-between">
+              <span>{mesNome}</span>
+              {originalIndex < mesAtualIndex && (
+                <span className="text-xs text-slate-300 font-bold lowercase italic tracking-normal">(passado)</span>
+              )}
             </h3>
             
             <div className="flex flex-col gap-2">
-              {eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).length > 0 ? (
-                eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index).map((ev, i) => {
+              {eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === originalIndex).length > 0 ? (
+                eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === originalIndex).map((ev, i) => {
                   const estilo = getEventoStyle(ev.titulo);
                   return (
                     <div 
