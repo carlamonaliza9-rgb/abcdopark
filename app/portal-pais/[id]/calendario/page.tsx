@@ -62,8 +62,8 @@ export default function CalendarioPaisPage() {
         </p>
       </header>
 
-      {/* GRID DE MESES: grid-cols-1 garante visualização "mês abaixo de mês" no celular */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* GRID DE MESES: Modificado para md:grid-cols-2 garantindo uma única coluna vertical no celular */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {mesesOrdenados.map(({ mesNome, originalIndex }) => (
           <div key={originalIndex} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 flex flex-col h-full">
             <h3 className="text-xl sm:text-2xl md:text-[10px] font-black text-indigo-600 border-b border-slate-50 pb-2 mb-3 uppercase tracking-widest flex items-center justify-between">
