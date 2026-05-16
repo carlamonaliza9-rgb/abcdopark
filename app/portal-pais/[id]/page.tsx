@@ -63,29 +63,23 @@ export default function DashboardAluno() {
   async function buscarMediaEstrelas() {
     const { data: avaliacoes } = await supabase
       .from("avaliacoes")
-      .select("participacao, comportamento, activities:atividades, socioemocional")
-      .eq("aluno_id", id);
-
-    // Mapeamento mantendo suporte a nomenclatura interna original do seu banco
-    const { data: avaliacoesBrutas } = await supabase
-      .from("avaliacoes")
       .select("participacao, comportamento, atividades, socioemocional")
       .eq("aluno_id", id);
 
-    if (avaliacoesBrutas && avaliacoesBrutas.length > 0) {
+    if (avaliacoes && avaliacoes.length > 0) {
       let somaParticipacao = 0;
       let somaComportamento = 0;
       let somaAtividades = 0;
       let somaSocioemocional = 0;
 
-      avaliacoesBrutas.forEach(a => {
+      avaliacoes.forEach(a => {
         somaParticipacao += (a.participacao || 0);
         somaComportamento += (a.comportamento || 0);
         somaAtividades += (a.atividades || 0);
         somaSocioemocional += (a.socioemocional || 0);
       });
 
-      const total = avaliacoesBrutas.length;
+      const total = avaliacoes.length;
       const medias = {
         participacao: somaParticipacao / total,
         comportamento: somaComportamento / total,
@@ -151,13 +145,13 @@ export default function DashboardAluno() {
   const formatarData = (d: string) => d ? d.split("-").reverse().slice(0, 2).join("/") : "";
   const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < Math.round(media) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
 
-  if (!aluno) return <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
+  if (!aluno) return <div className="p-10 text-center text-base md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 px-4 md:px-0">
       <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-100 pb-8">
         <div>
-          <h1 className="text-2xl md:text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>
           <p className="text-slate-400 font-bold uppercase text-sm md:text-[9px] tracking-widest mt-1">Portal da Família • <span className="text-indigo-600">Acompanhando: {aluno.nome}</span></p>
         </div>
         <button onClick={() => router.push(`/portal-pais/${id}/calendario`)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold text-sm md:text-[10px] uppercase tracking-wider hover:bg-indigo-700 shadow-sm active:scale-95 w-full md:w-auto">
@@ -187,7 +181,7 @@ export default function DashboardAluno() {
                 { label: "Atividades", valor: criterios.atividades },
                 { label: "Socioemocional", valor: criterios.socioemocional }
               ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100/50">
+                <div key={item.label} className="flex items-center justify-between bg-slate-50 px-3 py-2.5 rounded-lg border border-slate-100/50">
                   <span className="text-sm md:text-[8px] font-black text-slate-500 uppercase tracking-wider">{item.label}</span>
                   <div className={`w-2 h-2 rounded-full shadow-sm ${item.valor >= 3.5 ? 'bg-green-400 shadow-green-100' : item.valor >= 2.5 ? 'bg-yellow-400 shadow-yellow-100' : 'bg-red-400 shadow-red-100'}`} />
                 </div>
@@ -207,8 +201,8 @@ export default function DashboardAluno() {
               const estilo = getEventoStyle(prog.titulo);
               return (
                 <div key={prog.id} className={`${estilo.bg} p-4 rounded-2xl border-l-4 ${estilo.border}`}>
-                  <p className={`font-black ${estilo.text} text-sm md:text-[8px] mb-1 uppercase tracking-widest`}>{formatarData(prog.data)}</p>
-                  <h3 className="font-bold text-slate-800 text-base md:text-[10px] uppercase">{prog.titulo}</h3>
+                  <p className={`font-black ${estilo.text} text-xs sm:text-sm md:text-[8px] mb-1 uppercase tracking-widest`}>{formatarData(prog.data)}</p>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base md:text-[10px] uppercase">{prog.titulo}</h3>
                 </div>
               );
             })}
@@ -223,8 +217,8 @@ export default function DashboardAluno() {
               <h2 className="text-base md:text-xs font-black text-slate-800 uppercase tracking-widest">Aniversários</h2>
             </div>
             <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
-              <button onClick={() => setAbaAniversario("turma")} className={`px-4 py-1.5 rounded-lg text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "turma" ? "bg-white shadow text-indigo-600" : "text-slate-400"}`}>Turma</button>
-              <button onClick={() => setAbaAniversario("equipe")} className={`px-4 py-1.5 rounded-lg text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "equipe" ? "bg-white shadow text-pink-600" : "text-slate-400"}`}>Equipe</button>
+              <button onClick={() => setAbaAniversario("turma")} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "turma" ? "bg-white shadow text-indigo-600" : "text-slate-400"}`}>Turma</button>
+              <button onClick={() => setAbaAniversario("equipe")} className={`px-4 py-1.5 rounded-lg text-xs sm:text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "equipe" ? "bg-white shadow text-pink-600" : "text-slate-400"}`}>Equipe</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 gap-2 content-start custom-scrollbar">
@@ -233,10 +227,10 @@ export default function DashboardAluno() {
                 <div className="w-10 h-10 rounded-full bg-white border border-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-300">{p.foto_url ? <img src={p.foto_url} className="w-full h-full object-cover" /> : p.nome[0]}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-slate-800 text-base md:text-[10px] uppercase truncate leading-none">{abaAniversario === "equipe" ? `Tio(a) ${p.nome.split(' ')[0]}` : p.nome.split(' ')[0]}</p>
-                    {abaAniversario === "turma" && <span className="text-sm md:text-[8px] font-black text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-md uppercase">{calcularIdade(p.data_nascimento)}</span>}
+                    <p className="font-black text-slate-800 text-sm sm:text-base md:text-[10px] uppercase truncate leading-none">{abaAniversario === "equipe" ? `Tio(a) ${p.nome.split(' ')[0]}` : p.nome.split(' ')[0]}</p>
+                    {abaAniversario === "turma" && <span className="text-xs sm:text-sm md:text-[8px] font-black text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-md uppercase">{calcularIdade(p.data_nascimento)}</span>}
                   </div>
-                  <p className="text-sm md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {formatarData(p.data_nascimento)}</p>
+                  <p className="text-xs sm:text-sm md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {formatarData(p.data_nascimento)}</p>
                 </div>
               </div>
             ))}
