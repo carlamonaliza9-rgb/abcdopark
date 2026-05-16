@@ -143,7 +143,7 @@ export default function DashboardAluno() {
   }
 
   const formatarData = (d: string) => d ? d.split("-").reverse().slice(0, 2).join("/") : "";
-  const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < Math.round(media) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
+  const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={16} className={i < Math.round(media) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
 
   if (!aluno) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
 
