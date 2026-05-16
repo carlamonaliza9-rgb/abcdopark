@@ -63,23 +63,29 @@ export default function DashboardAluno() {
   async function buscarMediaEstrelas() {
     const { data: avaliacoes } = await supabase
       .from("avaliacoes")
+      .select("participacao, comportamento, activities:atividades, socioemocional")
+      .eq("aluno_id", id);
+
+    // Mapeamento mantendo suporte a nomenclatura interna original do seu banco
+    const { data: avaliacoesBrutas } = await supabase
+      .from("avaliacoes")
       .select("participacao, comportamento, atividades, socioemocional")
       .eq("aluno_id", id);
 
-    if (avaliacoes && avaliacoes.length > 0) {
+    if (avaliacoesBrutas && avaliacoesBrutas.length > 0) {
       let somaParticipacao = 0;
       let somaComportamento = 0;
       let somaAtividades = 0;
       let somaSocioemocional = 0;
 
-      avaliacoes.forEach(a => {
+      avaliacoesBrutas.forEach(a => {
         somaParticipacao += (a.participacao || 0);
         somaComportamento += (a.comportamento || 0);
         somaAtividades += (a.atividades || 0);
         somaSocioemocional += (a.socioemocional || 0);
       });
 
-      const total = avaliacoes.length;
+      const total = avaliacoesBrutas.length;
       const medias = {
         participacao: somaParticipacao / total,
         comportamento: somaComportamento / total,
@@ -154,19 +160,20 @@ export default function DashboardAluno() {
           <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>
           <p className="text-slate-400 font-bold uppercase text-[9px] tracking-widest mt-1">Portal da Família • <span className="text-indigo-600">Acompanhando: {aluno.nome}</span></p>
         </div>
-        <button onClick={() => router.push(`/portal-pais/${id}/calendario`)} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-indigo-700 shadow-sm active:scale-95">
+        <button onClick={() => router.push(`/portal-pais/${id}/calendario`)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-indigo-700 shadow-sm active:scale-95 w-full md:w-auto">
           <CalendarIcon size={14} strokeWidth={3} /> Calendário Escolar
         </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-3 flex flex-col gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 md:gap-8">
+        {/* COLUNA ESQUERDA: PERFIL + MÉDIAS (SE EMPILHA LADO A LADO EM TABLETS/CELULARES DEITADOS) */}
+        <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col gap-6">
           <div className="bg-white p-3 rounded-[2rem] shadow-sm border border-slate-50">
             <div className="aspect-square w-full rounded-[1.5rem] overflow-hidden shadow-inner bg-slate-100">
               {aluno.foto_url ? <img src={aluno.foto_url} alt={aluno.nome} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-4xl">{aluno.nome[0]}</div>}
             </div>
           </div>
-          <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 text-center">
+          <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 text-center flex flex-col justify-center">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Média de Desempenho</p>
             <div className="flex justify-center gap-1 mb-1">{renderEstrelas(mediaGeral)}</div>
             <p className="text-[8px] font-black text-indigo-500 uppercase italic mb-4">
@@ -189,7 +196,8 @@ export default function DashboardAluno() {
           </div>
         </div>
 
-        <div className="lg:col-span-4 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col h-[520px]">
+        {/* PROXIMAS PROGRAMAÇÕES */}
+        <div className="md:col-span-1 lg:col-span-4 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col h-[450px] md:h-[520px]">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-indigo-50 p-3 rounded-xl text-xl">🗓️</div>
             <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest">Próximas Programações</h2>
@@ -207,13 +215,14 @@ export default function DashboardAluno() {
           </div>
         </div>
 
-        <div className="lg:col-span-5 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col h-[520px]">
-          <div className="flex justify-between items-center mb-6">
+        {/* ANIVERSÁRIOS */}
+        <div className="md:col-span-1 lg:col-span-5 bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50 flex flex-col h-[450px] md:h-[520px]">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="bg-pink-50 p-3 rounded-xl text-xl">🧁</div>
               <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest">Aniversários</h2>
             </div>
-            <div className="flex bg-slate-100 p-1 rounded-xl">
+            <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
               <button onClick={() => setAbaAniversario("turma")} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${abaAniversario === "turma" ? "bg-white shadow text-indigo-600" : "text-slate-400"}`}>Turma</button>
               <button onClick={() => setAbaAniversario("equipe")} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${abaAniversario === "equipe" ? "bg-white shadow text-pink-600" : "text-slate-400"}`}>Equipe</button>
             </div>
