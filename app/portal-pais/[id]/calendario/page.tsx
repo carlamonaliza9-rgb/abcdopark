@@ -42,13 +42,13 @@ export default function CalendarioPaisPage() {
     return d.getUTCDate();
   };
 
-  if (carregando) return <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse">Carregando Calendário...</div>;
+  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse">Carregando Calendário...</div>;
 
   return (
     <div className="animate-in fade-in duration-500">
       <header className="mb-8 border-b border-slate-100 pb-8">
         <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">Calendário Escolar</h1>
-        <p className="text-sm md:text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-1">
+        <p className="text-lg md:text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-1">
           Acompanhe as datas e eventos da ABC do Park
         </p>
       </header>
@@ -57,7 +57,7 @@ export default function CalendarioPaisPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {meses.map((mesNome, index) => (
           <div key={index} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 flex flex-col h-full">
-            <h3 className="text-base md:text-[10px] font-black text-indigo-600 border-b border-slate-50 pb-2 mb-3 uppercase tracking-widest">
+            <h3 className="text-xl sm:text-2xl md:text-[10px] font-black text-indigo-600 border-b border-slate-50 pb-2 mb-3 uppercase tracking-widest">
               {mesNome}
             </h3>
             
@@ -71,17 +71,17 @@ export default function CalendarioPaisPage() {
                       style={{ backgroundColor: estilo.bg, borderLeft: estilo.border }}
                       className="p-3 rounded-xl transition-all hover:scale-[1.02]"
                     >
-                      <span className="text-sm md:text-[8px] font-black block mb-0.5" style={{ color: estilo.color }}>
+                      <span className="text-lg md:text-[8px] font-black block mb-0.5" style={{ color: estilo.color }}>
                         DIA {extrairDiaUTC(ev.data)}
                       </span>
-                      <span className="text-base md:text-[10px] font-bold text-slate-700 leading-tight block uppercase">
+                      <span className="text-xl sm:text-2xl md:text-[10px] font-bold text-slate-700 leading-tight block uppercase">
                         {ev.titulo}
                       </span>
                     </div>
                   );
                 })
               ) : (
-                <p className="text-sm md:text-[9px] text-slate-300 font-bold uppercase italic mt-1">Sem eventos</p>
+                <p className="text-lg md:text-[9px] text-slate-300 font-bold uppercase italic mt-1">Sem eventos</p>
               )}
             </div>
           </div>

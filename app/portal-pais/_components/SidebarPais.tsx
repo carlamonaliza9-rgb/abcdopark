@@ -63,7 +63,7 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
         </button>
       </aside>
 
-      {/* VISUALIZAÇÃO PORTÁTIL (CELULAR/TABLET): Menu inferior moderno estilo aplicativo móvel */}
+      {/* VISUALIZAÇÃO PORTÁTIL (CELULAR/TABLET): Menu inferior moderno estilo aplicativo móvel com fontes ampliadas apenas no mobile */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-50 h-16 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
@@ -71,14 +71,14 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
             <Link
               key={item.name}
               href={item.path}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-xs md:text-[9px] font-black uppercase tracking-wider transition-all ${
                 isActive 
                 ? "text-indigo-600" 
                 : "text-slate-400 hover:text-indigo-600"
               }`}
             >
               <item.icon size={18} className={isActive ? "text-indigo-600" : "text-slate-400"} strokeWidth={isActive ? 3 : 2.5} />
-              <span className="text-[8px] font-black truncate">{item.name}</span>
+              <span className="text-xs md:text-[8px] font-black truncate">{item.name}</span>
             </Link>
           );
         })}
@@ -86,10 +86,10 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
         {/* Botão Sair integrado na navegação móvel */}
         <button 
           onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 transition-all"
+          className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-xs md:text-[9px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 transition-all"
         >
           <LogOut size={18} strokeWidth={2.5} />
-          <span className="text-[8px] font-black truncate">Sair</span>
+          <span className="text-xs md:text-[8px] font-black truncate">Sair</span>
         </button>
       </div>
     </>
