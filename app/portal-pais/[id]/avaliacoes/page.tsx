@@ -157,7 +157,7 @@ export default function AvaliacoesPage() {
                 ) : (
                   <tr>
                     <td colSpan={8} className="text-center py-10 text-xl sm:text-2xl md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Nenhum registro de nota localizado.
+                      Nenhum registro de nota localizado
                     </td>
                   </tr>
                 )}
@@ -169,8 +169,8 @@ export default function AvaliacoesPage() {
             <div className="flex items-center gap-4">
               <div className="bg-white/10 p-3 rounded-2xl"><GraduationCap size={24} /></div>
               <div className="text-left">
-                <p className="text-lg sm:text-xl md:text-[10px] font-black uppercase opacity-50 tracking-widest">Situação Acadêmica em Acompanhamento</p>
-                <p className="text-2xl md:text-sm font-black uppercase italic tracking-tight">Qualquer dúvida entre em contato com a secretaria</p>
+                <p className="text-lg sm:text-xl md:text-[10px] font-black uppercase opacity-50 tracking-widest">Situação Acadêmica</p>
+                <p className="text-2xl md:text-sm font-black uppercase italic tracking-tight">Em acompanhamento</p>
               </div>
             </div>
           </div>
