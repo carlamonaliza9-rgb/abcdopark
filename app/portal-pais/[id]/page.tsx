@@ -34,7 +34,7 @@ export default function DashboardAluno() {
     }
   }, [id]);
 
-  const getEventoStyle = (titulo: string) => {
+  const getEventStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
     return {
@@ -63,29 +63,23 @@ export default function DashboardAluno() {
   async function buscarMediaEstrelas() {
     const { data: avaliacoes } = await supabase
       .from("avaliacoes")
-      .select("participacao, comportamento, activities:atividades, socioemocional")
-      .eq("aluno_id", id);
-
-    // Mapeamento mantendo suporte a nomenclatura interna original do seu banco
-    const { data: avaliacoesBrutas } = await supabase
-      .from("avaliacoes")
       .select("participacao, comportamento, atividades, socioemocional")
       .eq("aluno_id", id);
 
-    if (avaliacoesBrutas && avaliacoesBrutas.length > 0) {
+    if (avaliacoes && avaliacoes.length > 0) {
       let somaParticipacao = 0;
       let somaComportamento = 0;
       let somaAtividades = 0;
       let somaSocioemocional = 0;
 
-      avaliacoesBrutas.forEach(a => {
+      avaliacoes.forEach(a => {
         somaParticipacao += (a.participacao || 0);
         somaComportamento += (a.comportamento || 0);
         somaAtividades += (a.atividades || 0);
         somaSocioemocional += (a.socioemocional || 0);
       });
 
-      const total = avaliacoesBrutas.length;
+      const total = avaliacoes.length;
       const medias = {
         participacao: somaParticipacao / total,
         comportamento: somaComportamento / total,
@@ -151,22 +145,22 @@ export default function DashboardAluno() {
   const formatarData = (d: string) => d ? d.split("-").reverse().slice(0, 2).join("/") : "";
   const renderEstrelas = (media: number) => Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} className={i < Math.round(media) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"} />);
 
-  if (!aluno) return <div className="p-10 text-center text-xs md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
+  if (!aluno) return <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Carregando painel...</div>;
 
   return (
     <div className="animate-in fade-in duration-500 pb-10 px-4 md:px-0">
       <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-100 pb-8">
         <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>
-          <p className="text-slate-400 font-bold uppercase text-xs md:text-[9px] tracking-widest mt-1">Portal da Família • <span className="text-indigo-600">Acompanhando: {aluno.nome}</span></p>
+          <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">Olá, {nomeResponsavel}! 👋</h1>
+          <p className="text-slate-400 font-bold uppercase text-sm md:text-[9px] tracking-widest mt-1">Portal da Família • <span className="text-indigo-600">Acompanhando: {aluno.nome}</span></p>
         </div>
-        <button onClick={() => router.push(`/portal-pais/${id}/calendario`)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold text-xs md:text-[10px] uppercase tracking-wider hover:bg-indigo-700 shadow-sm active:scale-95 w-full md:w-auto">
+        <button onClick={() => router.push(`/portal-pais/${id}/calendario`)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold text-sm md:text-[10px] uppercase tracking-wider hover:bg-indigo-700 shadow-sm active:scale-95 w-full md:w-auto">
           <CalendarIcon size={14} strokeWidth={3} /> Calendário Escolar
         </button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 md:gap-8">
-        {/* COLUNA ESQUERDA: PERFIL + MÉDIAS */}
+        {/* COLUNA ESQUERDA: PERFIL + MÉDIAS (SE EMPILHA LADO A LADO EM TABLETS/CELULARES DEITADOS) */}
         <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col gap-6">
           <div className="bg-white p-3 rounded-[2rem] shadow-sm border border-slate-50">
             <div className="aspect-square w-full rounded-[1.5rem] overflow-hidden shadow-inner bg-slate-100">
@@ -174,9 +168,9 @@ export default function DashboardAluno() {
             </div>
           </div>
           <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-50 text-center flex flex-col justify-center">
-            <p className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Média de Desempenho</p>
+            <p className="text-sm md:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Média de Desempenho</p>
             <div className="flex justify-center gap-1 mb-1">{renderEstrelas(mediaGeral)}</div>
-            <p className="text-xs md:text-[8px] font-black text-indigo-500 uppercase italic mb-4">
+            <p className="text-sm md:text-[8px] font-black text-indigo-500 uppercase italic mb-4">
               {mediaGeral >= 4.5 ? "Excelente Aluno(a)!" : mediaGeral >= 3.5 ? "Bom Desempenho!" : "Acompanhamento Necessário"}
             </p>
             
@@ -187,9 +181,9 @@ export default function DashboardAluno() {
                 { label: "Atividades", valor: criterios.atividades },
                 { label: "Socioemocional", valor: criterios.socioemocional }
               ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100/50">
-                  <span className="text-xs md:text-[8px] font-black text-slate-500 uppercase">{item.label}</span>
-                  <div className={`w-1.5 h-1.5 rounded-full shadow-sm ${item.valor >= 3.5 ? 'bg-green-400 shadow-green-100' : item.valor >= 2.5 ? 'bg-yellow-400 shadow-yellow-100' : 'bg-red-400 shadow-red-100'}`} />
+                <div key={item.label} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg border border-slate-100/50">
+                  <span className="text-sm md:text-[8px] font-black text-slate-500 uppercase tracking-wider">{item.label}</span>
+                  <div className={`w-2 h-2 rounded-full shadow-sm ${item.valor >= 3.5 ? 'bg-green-400 shadow-green-100' : item.valor >= 2.5 ? 'bg-yellow-400 shadow-yellow-100' : 'bg-red-400 shadow-red-100'}`} />
                 </div>
               ))}
             </div>
@@ -204,7 +198,7 @@ export default function DashboardAluno() {
           </div>
           <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
             {programacoes.map((prog) => {
-              const estilo = getEventoStyle(prog.titulo);
+              const estilo = getEventStyle(prog.titulo);
               return (
                 <div key={prog.id} className={`${estilo.bg} p-4 rounded-2xl border-l-4 ${estilo.border}`}>
                   <p className={`font-black ${estilo.text} text-xs md:text-[8px] mb-1 uppercase tracking-widest`}>{formatarData(prog.data)}</p>
@@ -222,9 +216,9 @@ export default function DashboardAluno() {
               <div className="bg-pink-50 p-3 rounded-xl text-xl">🧁</div>
               <h2 className="text-sm md:text-xs font-black text-slate-800 uppercase tracking-widest">Aniversários</h2>
             </div>
-            <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
-              <button onClick={() => setAbaAniversario("turma")} className={`px-4 py-1.5 rounded-lg text-xs md:text-[8px] font-black uppercase transition-all ${abaAniversario === "turma" ? "bg-white shadow text-indigo-600" : "text-slate-400"}`}>Turma</button>
-              <button onClick={() => setAbaAniversario("equipe")} className={`px-4 py-1.5 rounded-lg text-xs md:text-[8px] font-black uppercase transition-all ${abaAniversario === "equipe" ? "bg-white shadow text-pink-600" : "text-slate-400"}`}>Equipe</button>
+            <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:sm:self-auto">
+              <button onClick={() => setAbaAniversario("turma")} className={`px-4 py-1.5 rounded-lg text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "turma" ? "bg-white shadow text-indigo-600" : "text-slate-400"}`}>Turma</button>
+              <button onClick={() => setAbaAniversario("equipe")} className={`px-4 py-1.5 rounded-lg text-sm md:text-[8px] font-black uppercase transition-all ${abaAniversario === "equipe" ? "bg-white shadow text-pink-600" : "text-slate-400"}`}>Equipe</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 gap-2 content-start custom-scrollbar">
@@ -236,7 +230,7 @@ export default function DashboardAluno() {
                     <p className="font-black text-slate-800 text-sm md:text-[10px] uppercase truncate leading-none">{abaAniversario === "equipe" ? `Tio(a) ${p.nome.split(' ')[0]}` : p.nome.split(' ')[0]}</p>
                     {abaAniversario === "turma" && <span className="text-xs md:text-[8px] font-black text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-md uppercase">{calcularIdade(p.data_nascimento)}</span>}
                   </div>
-                  <p className="text-xs md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {formatarData(p.data_nascimento)}</p>
+                  <p className="text-xs sm:text-sm md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {formatarData(p.data_nascimento)}</p>
                 </div>
               </div>
             ))}
