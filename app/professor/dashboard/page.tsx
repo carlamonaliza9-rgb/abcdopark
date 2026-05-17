@@ -132,11 +132,32 @@ export default function DashboardProfessorPage() {
 
   useEffect(() => { carregarDados(); }, []);
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'perfis',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function atualizarPerfil() {
     if (!novoNomeInput.trim()) return alert("O nome não pode estar vazio.");
     try {
       const { error } = await supabase.auth.updateUser({ data: { nome: novoNomeInput } });
       if (error) throw error;
+      
+      // Registra a alteração de nome no Log de Auditoria
+      await registrarLog("EDIÇÃO", `Atualizou o próprio nome de exibição no perfil para: ${novoNomeInput}`);
+
       alert("Perfil atualizado com sucesso!");
       setNomeUsuario(novoNomeInput.split(' ')[0]);
       setNomeCompleto(novoNomeInput);
@@ -199,7 +220,7 @@ export default function DashboardProfessorPage() {
                 <div style={{ padding: '0 20px', marginTop: '15px' }}>
                   <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>
                     Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
-                    Que este novo ciclo seja repleto de paz, saúde, conquistas e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história todos os dias. Celebre muito, você merece o mundo!
+                    Que este novo ciclo seja repleto de paz, saúde, conquests e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história todos os dias. Celebre muito, você merece o mundo!
                   </p>
                   <p style={{ marginTop: '15px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Um abraço bem apertado da Família ABC DO PARK ❤️</p>
                 </div>
@@ -247,7 +268,7 @@ export default function DashboardProfessorPage() {
       </header>
 
       {/* CARDS PROFESSOR - OTIMIZAÇÃO DE ESPAÇO */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', marginBottom: '25px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px', marginBottom: '25px' }}>
         <div style={{ ...estiloCard, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 20px', textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '10px' }}>
             <h1 style={{ fontSize: '30px', fontWeight: '800', color: '#111827', margin: 0 }}>Olá, {nomeUsuario}! 👋</h1>
@@ -296,7 +317,7 @@ export default function DashboardProfessorPage() {
               return (
                 <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ textAlign: 'center', minWidth: '90px' }}>
                   <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: `2px solid ${corDestaque}` }}>
-                    {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: corDestaque }}>{pessoa.nome.charAt(0)}</div>}
+                    {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
                   </div>
                   <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>{pessoa.nome.split(' ')[0]}</p>
                   <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia}</p>

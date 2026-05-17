@@ -38,6 +38,23 @@ export default function ConsultaFrequenciaPage() {
     }
   }, [turmaSelecionada, mesFiltro]);
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'frequencias',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function buscarAlunosEFrequencia() {
     setCarregando(true);
     // Busca alunos da turma
@@ -57,6 +74,12 @@ export default function ConsultaFrequenciaPage() {
       .lte('data', `${mesFiltro}-31`);
 
     if (faltas) setFrequenciaMensal(faltas);
+
+    // Registra o log de consulta após carregar os dados na tela
+    if (listaAlunos && turmaSelecionada) {
+      await registrarLog("CONSULTA", `Consultou o relatório de histórico de frequência mensal da turma ${turmaSelecionada} para o período ${mesFiltro}`);
+    }
+
     setCarregando(false);
   }
 
@@ -67,7 +90,7 @@ export default function ConsultaFrequenciaPage() {
 
   return (
     <div style={{ padding: '32px 20px', maxWidth: '1200px', margin: '0 auto', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '32px' }}>
+      <header style={{ margin: '0 0 32px 0' }}>
         <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>Histórico de Frequência 📋</h1>
         <p style={{ color: '#64748b', marginTop: '5px' }}>Consulta mensal de faltas e presenças - {turmaSelecionada}</p>
         

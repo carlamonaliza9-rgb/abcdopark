@@ -30,6 +30,37 @@ export default function TurmasProfessorPage() {
     return `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
   };
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, tabela: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: tabela,
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
+  async function abrirFichaAluno(aluno: any) {
+    setAlunoSelecionado(aluno);
+    setModalFichaAberto(true);
+    await registrarLog("CONSULTA", "alunos", `Consultou a ficha individual do aluno: ${aluno.nome} (Turma: ${aluno.turma || 'Não definida'})`);
+  }
+
+  async function abrirAgendaTurma(minhaTurma: any, modo: 'registrar' | 'consultar') {
+    setTurmaParaAgenda(minhaTurma);
+    setModoAgenda(modo);
+    setModalAgendaAberto(true);
+    const acaoTexto = modo === 'registrar' ? 'Acessou o painel de registro' : 'Consultou o histórico';
+    await registrarLog("CONSULTA", "eventos_calendario", `${acaoTexto} da agenda da turma ${minhaTurma.nome}`);
+  }
+
   async function carregarDados() {
     setCarregando(true);
     const { data: authData } = await supabase.auth.getUser();
@@ -79,8 +110,8 @@ export default function TurmasProfessorPage() {
                 <p style={{ color: '#64748b', fontWeight: '600' }}>{todosAlunos.filter(a => a.turma === minhaTurma.nome).length} alunos matriculados</p>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => { setTurmaParaAgenda(minhaTurma); setModoAgenda('registrar'); setModalAgendaAberto(true); }} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📝 Registrar Agenda</button>
-                <button onClick={() => { setTurmaParaAgenda(minhaTurma); setModoAgenda('consultar'); setModalAgendaAberto(true); }} style={{ backgroundColor: 'white', color: '#2563eb', padding: '12px 24px', borderRadius: '15px', border: '2px solid #2563eb', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Consultar Agenda</button>
+                <button onClick={() => abrirAgendaTurma(minhaTurma, 'registrar')} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📝 Registrar Agenda</button>
+                <button onClick={() => abrirAgendaTurma(minhaTurma, 'consultar')} style={{ backgroundColor: 'white', color: '#2563eb', padding: '12px 24px', borderRadius: '15px', border: '2px solid #2563eb', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Consultar Agenda</button>
               </div>
             </div>
 
@@ -89,7 +120,7 @@ export default function TurmasProfessorPage() {
                 const paleta = [{ bg: '#ebf5ff', border: '#3b82f6', text: '#1e40af' }, { bg: '#f0fdf4', border: '#22c55e', text: '#166534' }, { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' }];
                 const cor = paleta[index % paleta.length];
                 return (
-                  <div key={aluno.id} onClick={() => { setAlunoSelecionado(aluno); setModalFichaAberto(true); }} style={{ backgroundColor: cor.bg, padding: '18px 25px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', borderLeft: `10px solid ${cor.border}` }}>
+                  <div key={aluno.id} onClick={() => abrirFichaAluno(aluno)} style={{ backgroundColor: cor.bg, padding: '18px 25px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', borderLeft: `10px solid ${cor.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                       <div style={{ width: '75px', height: '75px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
                         {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : "👤"}

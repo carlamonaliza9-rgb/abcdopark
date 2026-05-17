@@ -147,6 +147,23 @@ export default function DiarioClassePage() {
     return true;
   }
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'diario_classe',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function handleExcluirDiario() {
     const autorizado = await confirmarSeguranca();
     if (!autorizado) return;
@@ -155,6 +172,10 @@ export default function DiarioClassePage() {
       const ids = alunos.map(a => a.id);
       await supabase.from('frequencias').delete().in('aluno_id', ids).eq('data', dataLancamento);
       await supabase.from('avaliacoes').delete().in('aluno_id', ids).eq('data_avaliacao', dataLancamento);
+      
+      // Registra a exclusão do Diário de Classe no Log de Auditoria
+      await registrarLog("EXCLUSÃO", `Excluiu permanentemente os registros do diário de classe da turma ${turmaSelecionada} na data ${new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR')}`);
+
       setModalSeguranca(false);
       setSenhaConfirmacao("");
       carregarDadosSalvosDoDia();
@@ -197,6 +218,14 @@ export default function DiarioClassePage() {
           comentario: ""
         }, { onConflict: 'aluno_id, data_avaliacao' });
       }
+
+      // Registra o lançamento ou edição no Log de Auditoria
+      const acaoRealizada = acaoPendente === 'editar' ? "EDIÇÃO" : "INSERÇÃO";
+      await registrarLog(
+        acaoRealizada, 
+        `${acaoRealizada === "EDIÇÃO" ? "Editou" : "Registrou"} o diário de classe (frequência e parâmetros diários) da turma ${turmaSelecionada} na data ${new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR')}`
+      );
+
     } catch (error) { alert("Erro ao salvar lançamento."); } finally { setSalvando(false); }
   }
 
@@ -221,9 +250,9 @@ export default function DiarioClassePage() {
     return cores[turmaNome] || { border: "#e2e8f0", bg: "#ffffff", text: "#1e293b" };
   };
   const corAtual = obterCores(turmaSelecionada);
-  const parabensWhatsApp = (pessoa: any) => {
-    const msg = `Parabéns, ${pessoa.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso! 🎂🎈`;
-    window.open(`https://wa.me/55${pessoa.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+  const parabensWhatsApp = (persona: any) => {
+    const msg = `Parabéns, ${persona.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso! 🎂🎈`;
+    window.open(`https://wa.me/55${persona.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando diário...</div>;

@@ -132,6 +132,23 @@ export default function AvaliacoesProfessorPage() {
     setNotasLocais(prev => ({ ...prev, [alunoId]: valor.replace(',', '.') }));
   };
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'boletins',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function salvarNotas() {
     if (!disciplinaSelecionada) return alert("Selecione uma matéria.");
     setSalvando(true);
@@ -150,6 +167,14 @@ export default function AvaliacoesProfessorPage() {
           
         if (error) throw error;
       }
+      
+      // Registra a alteração de notas em lote no Log de Auditoria
+      const bimestreLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
+      await registrarLog(
+        "EDIÇÃO", 
+        `Lançou/Alterou notas da matéria ${disciplinaSelecionada} para a turma ${turmaSelecionada} (${bimestreLabel})`
+      );
+
       alert(`Notas de ${disciplinaSelecionada} salvas com sucesso!`);
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
