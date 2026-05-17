@@ -153,7 +153,7 @@ export default function AgendaPortalPaisPage() {
             {/* Input de Data */}
             <div className="flex flex-col min-w-[200px] border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
               <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <Calendar size={12} strokeWidth={2.5} /> Data da Atividade
+                <Calendar size={18} strokeWidth={2.5} /> Data da Atividade
               </span>
               <input 
                 type="date" 
