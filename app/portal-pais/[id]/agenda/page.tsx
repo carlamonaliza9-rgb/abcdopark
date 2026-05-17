@@ -97,10 +97,23 @@ export default function AgendaPortalPaisPage() {
   if (carregando) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>Carregando dados da família...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '25px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+    <div className="agenda-wrapper" style={{ width: '100%', padding: '25px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
+      {/* INJEÇÃO DE ESTILO RESPONSIVO PARA SMARTPHONES */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media (max-width: 767px) {
+          .agenda-wrapper { padding: '15px 12px' !important; }
+          .agenda-header h1 { font-size: 21px !important; }
+          .agenda-header p { font-size: 13px !important; }
+          .agenda-filtros { flex-direction: column !important; align-items: stretch !important; gap: 18px !important; padding: 16px !important; borderRadius: '18px' !important; }
+          .agenda-filtros input { width: 100% !important; box-sizing: border-box !important; }
+          .agenda-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .agenda-card { padding: 20px !important; borderRadius: '20px' !important; }
+        }
+      `}} />
+
       {/* Cabeçalho de Boas-Vindas */}
-      <header style={{ marginBottom: '30px' }}>
+      <header className="agenda-header" style={{ marginBottom: '30px' }}>
         <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#1e3a8a', margin: 0 }}>📝 Agenda Escolar Diária</h1>
         <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>Acompanhe os conteúdos ministrados e tarefas de casa da plataforma ABC DO PARK</p>
       </header>
@@ -115,7 +128,7 @@ export default function AgendaPortalPaisPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '25px' }}>
           
           {/* Barra de Filtros Dinâmicos (Filho + Data) */}
-          <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <div className="agenda-filtros" style={{ backgroundColor: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             
             {/* Seletor de Filho (SÓ APARECE SE TIVER MAIS DE 1) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -164,10 +177,10 @@ export default function AgendaPortalPaisPage() {
               <p style={{ color: '#94a3b8', fontSize: '14px', margin: '5px 0 0' }}>Não há anotações do professor nesta turma para a data selecionada.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            <div className="agenda-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
               
               {/* Bloco 1: O que foi feito em Sala */}
-              <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #2563eb' }}>
+              <div className="agenda-card" style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #2563eb' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                   <span style={{ fontSize: '22px' }}>🏫</span>
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>Conteúdo em Sala</h3>
@@ -178,7 +191,7 @@ export default function AgendaPortalPaisPage() {
               </div>
 
               {/* Bloco 2: Atividade de Casa */}
-              <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #8b5cf6' }}>
+              <div className="agenda-card" style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #8b5cf6' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                   <span style={{ fontSize: '22px' }}>🏡</span>
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>Atividade para Casa</h3>
