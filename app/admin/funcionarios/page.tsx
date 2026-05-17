@@ -81,6 +81,23 @@ export default function FuncionariosAdminPage() {
     }
   };
 
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'funcionarios',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function salvarFuncionario(e: React.FormEvent) {
     e.preventDefault();
     setCarregando(true);
@@ -88,24 +105,57 @@ export default function FuncionariosAdminPage() {
       let urlFinal = previewUrl;
       if (arquivoFoto) {
         const nomeArquivo = `func_${Date.now()}_${arquivoFoto.name}`;
-        const { data } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
-        if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
+        const { data: uploadData, error: uploadError } = await supabase.storage.from('fotos-alunos').upload(nomeArquivo, arquivoFoto);
+        
+        if (uploadError) throw uploadError;
+        if (uploadData) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
 
-      const dados = { nome, cpf, data_nascimento: dataNascimento, cargo, whatsapp, email, foto_url: urlFinal };
+      // Converte strings vazias em null para evitar quebras de restrição de tipo no PostgreSQL (especialmente a data)
+      const dados = { 
+        nome, 
+        cpf: cpf || null, 
+        data_nascimento: dataNascimento || null, 
+        cargo, 
+        whatsapp: whatsapp || null, 
+        email: email || null, 
+        foto_url: urlFinal 
+      };
 
-      if (idEdicao) await supabase.from('funcionarios').update(dados).eq('id', idEdicao);
-      else await supabase.from('funcionarios').insert([dados]);
+      const { error: dbError } = idEdicao 
+        ? await supabase.from('funcionarios').update(dados).eq('id', idEdicao)
+        : await supabase.from('funcionarios').insert([dados]);
 
-      setModalAberto(false); buscarFuncionarios(); limparFormulario();
-      alert("Funcionário salvo com sucesso!");
-    } catch (error) { alert("Erro ao salvar."); } finally { setCarregando(false); }
+      if (dbError) throw dbError;
+
+      // Registra a alteração no Log de Auditoria
+      if (idEdicao) {
+        await registrarLog("EDIÇÃO", `Editou os dados do colaborador: ${nome} (Cargo: ${cargo || 'Não definido'})`);
+      } else {
+        await registrarLog("INSERÇÃO", `Cadastrou um novo colaborador: ${nome} (Cargo: ${cargo || 'Não definido'})`);
+      }
+
+      setModalAberto(false); 
+      buscarFuncionarios(); 
+      limparFormulario();
+    } catch (error: any) { 
+      alert("Erro ao salvar: " + (error.message || "Erro desconhecido")); 
+    } finally { 
+      setCarregando(false); 
+    }
   }
 
   async function excluirFuncionario() {
     if (idEdicao && confirm("Deseja excluir este funcionário?")) {
-      await supabase.from('funcionarios').delete().eq('id', idEdicao);
-      setModalAberto(false); buscarFuncionarios();
+      const { error } = await supabase.from('funcionarios').delete().eq('id', idEdicao);
+      if (error) {
+        alert("Erro ao excluir.");
+      } else {
+        // Registra a exclusão no Log de Auditoria
+        await registrarLog("EXCLUSÃO", `Excluiu permanentemente o colaborador: ${nome}`);
+        setModalAberto(false); 
+        buscarFuncionarios();
+      }
     }
   }
 

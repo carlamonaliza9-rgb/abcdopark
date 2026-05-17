@@ -112,6 +112,11 @@ export default function DashboardLayout({
               <Link href="/admin/fechamento" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
                 🎓 Fechamento Letivo
               </Link>
+
+              {/* NOVO LINK DE AUDITORIA ADICIONADO EXCLUSIVAMENTE PARA ADMINISTRADORES */}
+              <Link href="/admin/logs" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                🛡️ Logs do Sistema
+              </Link>
             </>
           )}
         </nav>
