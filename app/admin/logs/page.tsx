@@ -180,7 +180,7 @@ export default function LogsAdminPage() {
 
               {/* Data e Hora com Segundos */}
               <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Data e Horário Exato (Com Segundos)</span>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Data e Horário Exato</span>
                 <p style={{ margin: 0, fontSize: '14px', color: '#334155', fontWeight: '500' }}>
                   📅 {new Date(logSelecionado.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Belem', hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </p>

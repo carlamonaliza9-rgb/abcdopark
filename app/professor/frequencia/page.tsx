@@ -75,9 +75,17 @@ export default function ConsultaFrequenciaPage() {
 
     if (faltas) setFrequenciaMensal(faltas);
 
-    // Registra o log de consulta após carregar os dados na tela
+    // Registra o log detalhado de consulta de relatório na tela de auditoria
     if (listaAlunos && turmaSelecionada) {
-      await registrarLog("CONSULTA", `Consultou o relatório de histórico de frequência mensal da turma ${turmaSelecionada} para o período ${mesFiltro}`);
+      const [ano, mes] = mesFiltro.split('-');
+      const nomeMesFormatado = new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+      
+      await registrarLog(
+        "CONSULTA", 
+        `🔍 Consultou o relatório de histórico de frequência mensal da turma ${turmaSelecionada}.\n` +
+        `• Período visualizado: ${nomeMesFormatado} (${mesFiltro})\n` +
+        `• Total de alunos listados na pauta: ${listaAlunos.length}`
+      );
     }
 
     setCarregando(false);

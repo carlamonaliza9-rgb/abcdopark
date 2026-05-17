@@ -32,6 +32,15 @@ export default function DiarioClassePage() {
     socioemocional: number
   }}>({});
 
+  // Estado interno para armazenar o snapshot original vindo do banco (Antes x Depois)
+  const [registrosOriginais, setRegistrosOriginais] = useState<{[key: string]: { 
+    presenca: boolean | null, 
+    participacao: number,
+    comportamento: number,
+    atividades: number,
+    socioemocional: number
+  }}>({});
+
   useEffect(() => {
     async function identificarProfessor() {
       setCarregando(true);
@@ -95,7 +104,7 @@ export default function DiarioClassePage() {
           }
         }
       } catch (err) {
-        console.error("Erro na identificação:", err);
+        console.error("Erro na identification:", err);
       } finally {
         setCarregando(false);
       }
@@ -137,6 +146,8 @@ export default function DiarioClassePage() {
       };
     });
     setRegistrosLocal(estadoInicial);
+    // Realiza um clone profundo independente para servir de comparador estático de alterações
+    setRegistrosOriginais(JSON.parse(JSON.stringify(estadoInicial)));
   }
 
   async function confirmarSeguranca() {
@@ -169,12 +180,30 @@ export default function DiarioClassePage() {
     if (!autorizado) return;
     setSalvando(true);
     try {
+      const dataFormatada = new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR');
+      const dadosPedagogicosRemovidos: string[] = [];
+
+      // Mapeia os dados atuais que serão limpos para auditoria detalhada de exclusão
+      alunos.forEach(aluno => {
+        const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0 };
+        const textoPresenca = reg.presenca === null ? "Sem pauta" : (reg.presenca ? "Presença (P)" : "Falta (F)");
+        dadosPedagogicosRemovidos.push(
+          `• ${aluno.nome}:\n` +
+          `  - Frequência: ${textoPresenca}\n` +
+          `  - Avaliação: [🎯 Participação: ${reg.participacao}★] [🤝 Comportamento: ${reg.comportamento}★] [📝 Atividades: ${reg.atividades}★] [🧠 Socioemocional: ${reg.socioemocional}★]`
+        );
+      });
+
+      const textoDetalhesExclusao = `🗑️ Excluiu permanentemente os registros do diário de classe da turma ${turmaSelecionada} na data ${dataFormatada}.\n` +
+                                    `• Histórico pedagógico removido do sistema:\n` + 
+                                    dadosPedagogicosRemovidos.join('\n');
+
       const ids = alunos.map(a => a.id);
       await supabase.from('frequencias').delete().in('aluno_id', ids).eq('data', dataLancamento);
       await supabase.from('avaliacoes').delete().in('aluno_id', ids).eq('data_avaliacao', dataLancamento);
       
-      // Registra a exclusão do Diário de Classe no Log de Auditoria
-      await registrarLog("EXCLUSÃO", `Excluiu permanentemente os registros do diário de classe da turma ${turmaSelecionada} na data ${new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR')}`);
+      // Envia o log completo de exclusão
+      await registrarLog("EXCLUSÃO", textoDetalhesExclusao);
 
       setModalSeguranca(false);
       setSenhaConfirmacao("");
@@ -201,9 +230,37 @@ export default function DiarioClassePage() {
   async function handleSalvarNovo() {
     setSalvando(true);
     try {
+      const mudancasFiltradas: string[] = [];
+      let possuiMudancaEfetiva = false;
+      const dataFormatada = new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR');
+
       for (const alunoId in registrosLocal) {
         const reg = registrosLocal[alunoId];
+        const orig = registrosOriginais[alunoId] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0 };
         const alunoInfo = alunos.find(a => a.id === Number(alunoId));
+
+        // Verificação comparativa de todos os campos pedagógicos do aluno
+        const mudouPresenca = reg.presenca !== orig.presenca;
+        const mudouParticipacao = reg.participacao !== orig.participacao;
+        const mudouComportamento = reg.comportamento !== orig.comportamento;
+        const mudouAtividades = reg.atividades !== orig.atividades;
+        const mudouSocioemocional = reg.socioemocional !== orig.socioemocional;
+
+        if (mudouPresenca || mudouParticipacao || mudouComportamento || mudouAtividades || mudouSocioemocional) {
+          possuiMudancaEfetiva = true;
+          const nomeAluno = alunoInfo?.nome || `ID ${alunoId}`;
+          const formatarP = (p: boolean | null) => p === null ? "(Sem pauta)" : (p ? "Presença (P)" : "Falta (F)");
+          
+          let logAluno = `• ${nomeAluno}:\n`;
+          if (mudouPresenca) logAluno += `  - Frequência: Antes: ${formatarP(orig.presenca)} ➔ Depois: ${formatarP(reg.presenca)}\n`;
+          if (mudouParticipacao) logAluno += `  - Participação: Antes: ${orig.participacao}★ ➔ Depois: ${reg.participacao}★\n`;
+          if (mudouComportamento) logAluno += `  - Comportamento: Antes: ${orig.comportamento}★ ➔ Depois: ${reg.comportamento}★\n`;
+          if (mudouAtividades) logAluno += `  - Atividades: Antes: ${orig.atividades}★ ➔ Depois: ${reg.atividades}★\n`;
+          if (mudouSocioemocional) logAluno += `  - Socioemocional: Antes: ${orig.socioemocional}★ ➔ Depois: ${reg.socioemocional}★\n`;
+          
+          mudancasFiltradas.push(logAluno.trimEnd());
+        }
+
         if (reg.presenca !== null) {
           await supabase.from('frequencias').upsert({ aluno_id: Number(alunoId), data: dataLancamento, presente: reg.presenca }, { onConflict: 'aluno_id, data' });
           if (reg.presenca === false && alunoInfo) await verificarFaltasEvasao(Number(alunoId), alunoInfo.nome);
@@ -219,12 +276,17 @@ export default function DiarioClassePage() {
         }, { onConflict: 'aluno_id, data_avaliacao' });
       }
 
-      // Registra o lançamento ou edição no Log de Auditoria
-      const acaoRealizada = acaoPendente === 'editar' ? "EDIÇÃO" : "INSERÇÃO";
-      await registrarLog(
-        acaoRealizada, 
-        `${acaoRealizada === "EDIÇÃO" ? "Editou" : "Registrou"} o diário de classe (frequência e parâmetros diários) da turma ${turmaSelecionada} na data ${new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR')}`
-      );
+      // Dispara a gravação do histórico apenas se houver diferença de Antes x Depois
+      if (possuiMudancaEfetiva) {
+        const tipoAcao = acaoPendente === 'editar' ? "EDIÇÃO" : "INSERÇÃO";
+        const textoRelatorio = `📒 Alterou/Registrou a pauta diária da turma ${turmaSelecionada} na data ${dataFormatada}:\n` + 
+                              mudancasFiltradas.join('\n');
+
+        await registrarLog(tipoAcao, textoRelatorio);
+      }
+
+      // Atualiza o snapshot original para sincronizar a memória com o banco de dados
+      setRegistrosOriginais(JSON.parse(JSON.stringify(registrosLocal)));
 
     } catch (error) { alert("Erro ao salvar lançamento."); } finally { setSalvando(false); }
   }
@@ -346,6 +408,7 @@ export default function DiarioClassePage() {
             <div style={{ fontSize: '60px', marginBottom: '20px' }}>⚠️</div>
             <h2 style={{ color: '#1e3a8a', fontWeight: '900', marginBottom: '15px' }}>Atenção Professor(a)!</h2>
             <p style={{ color: '#475569', fontSize: '16px', marginBottom: '25px' }}>O aluno <b>{alertaEvasao.nomeAluno}</b> faltou ontem e hoje.</p>
+            <p style={{ color: '#64748b', fontSize: '13px', marginTop: '5px' }}>Rastreamento preventivo ativo na unidade Belém.</p>
             <button onClick={() => setAlertaEvasao(null)} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', cursor: 'pointer' }}>Ciente</button>
           </div>
         </div>

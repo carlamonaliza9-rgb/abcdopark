@@ -20,6 +20,9 @@ export default function AvaliacoesProfessorPage() {
   
   const [alunos, setAlunos] = useState<any[]>([]);
   const [notasLocais, setNotasLocais] = useState<{ [key: string]: string }>({});
+  
+  // Estado para persistir e comparar os valores originais das notas (Antes x Depois)
+  const [notasOriginais, setNotasOriginais] = useState<{ [key: string]: string }>({});
 
   const colunasAvaliacao = [
     { id: "bimestre1", label: "1º Bimestre" },
@@ -99,6 +102,7 @@ export default function AvaliacoesProfessorPage() {
     } else {
       setAlunos([]);
       setNotasLocais({});
+      setNotasOriginais({});
     }
   }, [turmaSelecionada, disciplinaSelecionada, bimestreSelecionado]);
 
@@ -125,6 +129,7 @@ export default function AvaliacoesProfessorPage() {
         mapaNotas[String(aluno.id)] = valorNota !== null ? String(valorNota) : "";
       });
       setNotasLocais(mapaNotas);
+      setNotasOriginais({ ...mapaNotas }); // Salva cópia imutável para a checagem posterior
     }
   }
 
@@ -153,9 +158,25 @@ export default function AvaliacoesProfessorPage() {
     if (!disciplinaSelecionada) return alert("Selecione uma matéria.");
     setSalvando(true);
     try {
+      const mudancasOcorridas: string[] = [];
+      let temAlteracaoReal = false;
+
       for (const alunoId of Object.keys(notasLocais)) {
         const valorNota = notasLocais[alunoId] === "" ? null : parseFloat(notasLocais[alunoId]);
         
+        const valorAntigo = notasOriginais[alunoId] || "";
+        const valorNovo = notasLocais[alunoId] || "";
+
+        // Se o valor digitado mudou em relação ao banco, estruturamos a linha
+        if (valorAntigo !== valorNovo) {
+          temAlteracaoReal = true;
+          const nomeAluno = alunos.find(a => String(a.id) === alunoId)?.nome || `ID ${alunoId}`;
+          const exibicaoAntes = valorAntigo === "" ? "(Sem nota)" : valorAntigo;
+          const exibicaoDepois = valorNovo === "" ? "(Nota excluída)" : valorNovo;
+          
+          mudancasOcorridas.push(`• ${nomeAluno}:\n  Antes: ${exibicaoAntes} ➔ Depois: ${exibicaoDepois}`);
+        }
+
         const { error } = await supabase
           .from('boletins')
           .upsert({
@@ -168,14 +189,17 @@ export default function AvaliacoesProfessorPage() {
         if (error) throw error;
       }
       
-      // Registra a alteração de notas em lote no Log de Auditoria
-      const bimestreLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
-      await registrarLog(
-        "EDIÇÃO", 
-        `Lançou/Alterou notas da matéria ${disciplinaSelecionada} para a turma ${turmaSelecionada} (${bimestreLabel})`
-      );
+      // Só dispara o gatilho de gravação de log caso alguma nota tenha de fato mudado
+      if (temAlteracaoReal) {
+        const bimestreLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
+        const textoRelatorio = `📊 Alterou/Lançou a pauta de notas de ${disciplinaSelecionada} da turma ${turmaSelecionada} (${bimestreLabel}):\n` + 
+                              mudancasOcorridas.join('\n');
+
+        await registrarLog("EDIÇÃO", textoRelatorio);
+      }
 
       alert(`Notas de ${disciplinaSelecionada} salvas com sucesso!`);
+      setNotasOriginais({ ...notasLocais }); // Sincroniza o estado original com os novos dados salvos
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
     } finally {

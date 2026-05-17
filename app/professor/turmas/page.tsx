@@ -50,15 +50,32 @@ export default function TurmasProfessorPage() {
   async function abrirFichaAluno(aluno: any) {
     setAlunoSelecionado(aluno);
     setModalFichaAberto(true);
-    await registrarLog("CONSULTA", "alunos", `Consultou a ficha individual do aluno: ${aluno.nome} (Turma: ${aluno.turma || 'Não definida'})`);
+    
+    // Log de consulta altamente detalhado com quebra de linhas estruturada
+    await registrarLog(
+      "CONSULTA", 
+      "alunos", 
+      `🔍 Acessou a ficha cadastral pedagógica individual do estudante.\n` +
+      `• Aluno selecionado: ${aluno.nome}\n` +
+      `• Turma vinculada: ${aluno.turma || 'Não definida'}\n` +
+      `• Idade atual calculada: ${calcularIdade(aluno.data_nascimento)}`
+    );
   }
 
   async function abrirAgendaTurma(minhaTurma: any, modo: 'registrar' | 'consultar') {
     setTurmaParaAgenda(minhaTurma);
     setModoAgenda(modo);
     setModalAgendaAberto(true);
-    const acaoTexto = modo === 'registrar' ? 'Acessou o painel de registro' : 'Consultou o histórico';
-    await registrarLog("CONSULTA", "eventos_calendario", `${acaoTexto} da agenda da turma ${minhaTurma.nome}`);
+    
+    // Detalha no log de consulta qual foi o intuito da abertura do painel da agenda
+    const acaoTexto = modo === 'registrar' ? 'Abertura para inserção/novos lançamentos diários' : 'Abertura para leitura e consulta do histórico';
+    await registrarLog(
+      "CONSULTA", 
+      "eventos_calendario", 
+      `🔍 Entrou no painel interativo da Agenda Escolar da classe.\n` +
+      `• Turma selecionada: ${minhaTurma.nome}\n` +
+      `• Operação desejada: ${acaoTexto} (${modo.toUpperCase()})`
+    );
   }
 
   async function carregarDados() {

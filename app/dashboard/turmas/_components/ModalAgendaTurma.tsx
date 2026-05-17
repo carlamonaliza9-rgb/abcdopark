@@ -18,15 +18,46 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
   const [carregando, setCarregando] = useState(false);
   const [estaEditando, setEstaEditando] = useState(modo === 'registrar');
 
+  // Estado interno para rastrear as informações de Antes x Depois
+  const [valoresOriginais, setValoresOriginais] = useState({ conteudo: "", tarefa: "", existe: false });
+
+  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  async function registrarLog(acao: string, detalhes: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('logs_sistema').insert([{
+          usuario_email: user.email,
+          acao: acao,
+          tabela: 'agenda_escolar',
+          detalhes: detalhes
+        }]);
+      }
+    } catch (e) {
+      console.error("Erro ao gerar log de auditoria:", e);
+    }
+  }
+
   async function carregarRegistroDaData(data: string) {
     setCarregando(true);
     const { data: registro } = await supabase.from('agenda_escolar').select('*').eq('nome_turma', turma.nome).eq('data', data).single();
     if (registro) {
       setConteudoAula(registro.conteudo_aula || "");
       setTarefaCasa(registro.tarefa_casa || "");
+      setValoresOriginais({
+        conteudo: registro.conteudo_aula || "",
+        tarefa: registro.tarefa_casa || "",
+        existe: true
+      });
     } else {
       setConteudoAula(""); setTarefaCasa("");
+      setValoresOriginais({
+        conteudo: "",
+        tarefa: "",
+        existe: false
+      });
     }
+    carregando && setCarregando(false);
     setCarregando(false);
   }
 
@@ -38,6 +69,22 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
   async function handleSalvar() {
     if (!conteudoAula && !tarefaCasa) return alert("Preencha ao menos um campo.");
     setSalvando(true);
+
+    // Montagem detalhada do Antes x Depois estruturado
+    const acaoRealizada = valoresOriginais.existe ? "EDIÇÃO" : "INSERÇÃO";
+    const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString('pt-BR');
+    let textoDetalhes = "";
+
+    if (acaoRealizada === "INSERÇÃO") {
+      textoDetalhes = `📝 Realizou o novo registro da agenda diária para a turma ${turma.nome} na data ${dataFormatada}:\n` +
+                      `• O que foi realizado em sala: ${conteudoAula || "(Vazio)"}\n` +
+                      `• Atividade para casa: ${tarefaCasa || "(Vazio)"}`;
+    } else {
+      textoDetalhes = `📝 Alterou o registro da agenda diária para a turma ${turma.nome} na data ${dataFormatada}:\n` +
+                      `• O que foi realizado em sala:\n  Antes: ${valoresOriginais.conteudo || "(Vazio)"}\n  ➔ Depois: ${conteudoAula || "(Vazio)"}\n` +
+                      `• Atividade para casa:\n  Antes: ${valoresOriginais.tarefa || "(Vazio)"}\n  ➔ Depois: ${tarefaCasa || "(Vazio)"}`;
+    }
+
     const { error } = await supabase.from('agenda_escolar').upsert({
       nome_turma: turma.nome, data: dataSelecionada,
       conteudo_aula: conteudoAula, tarefa_casa: tarefaCasa,
@@ -46,9 +93,15 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
 
     if (error) alert("Erro ao salvar: " + error.message);
     else {
+      // Envia o relatório estruturado para o banco de logs
+      await registrarLog(acaoRealizada, textoDetalhes);
+
       alert("Agenda salva com sucesso! 📝");
       if (modo === 'registrar') onClose();
-      else setEstaEditando(false);
+      else {
+        setValoresOriginais({ conteudo: conteudoAula, tarefa: tarefaCasa, existe: true });
+        setEstaEditando(false);
+      }
     }
     setSalvando(false);
   }
@@ -60,6 +113,12 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
     if (senha === "1123") {
       const confirmou = confirm("Tem certeza que deseja apagar permanentemente a agenda deste dia?");
       if (confirmou) {
+        const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString('pt-BR');
+        const textoDetalhes = `🗑/🗑️ Excluiu permanentemente o registro da agenda diária da turma ${turma.nome} na data ${dataFormatada}.\n` +
+                              `• Conteúdo que foi removido:\n` +
+                              `  - Em sala: ${conteudoAula || "(Vazio)"}\n` +
+                              `  - Casa: ${tarefaCasa || "(Vazio)"}`;
+
         const { error } = await supabase
           .from('agenda_escolar')
           .delete()
@@ -69,10 +128,14 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
         if (error) {
           alert("Erro ao excluir: " + error.message);
         } else {
+          // Registra o log de exclusão com os dados que sumiram
+          await registrarLog("EXCLUSÃO", textoDetalhes);
+
           alert("Registro removido com sucesso!");
           // Limpa os campos após excluir
           setConteudoAula("");
           setTarefaCasa("");
+          setValoresOriginais({ conteudo: "", tarefa: "", existe: false });
           setEstaEditando(false);
         }
       }
