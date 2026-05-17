@@ -11,7 +11,8 @@ interface ModalAgendaTurmaProps {
 }
 
 export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: ModalAgendaTurmaProps) {
-  const [dataSelecionada, setDataSelecionada] = useState(new Date().toISOString().split('T')[0]);
+  // Ajustado para usar a data local correta (en-CA gera AAAA-MM-DD local), evitando o fuso UTC à noite
+  const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
   const [conteudoAula, setConteudoAula] = useState("");
   const [tarefaCasa, setTarefaCasa] = useState("");
   const [salvando, setSalvando] = useState(false);

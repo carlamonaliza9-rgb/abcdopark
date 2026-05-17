@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { Calendar, FileText, AlertCircle } from "lucide-react";
 
 export default function AgendaPortalPaisPage() {
   const router = useRouter();
@@ -74,7 +75,7 @@ export default function AgendaPortalPaisPage() {
 
   async function buscarAgendaDaTurma(nomeTurma: string, dataAlvo: string) {
     setCarregandoAgenda(true);
-    const { data: agenda, error } = await supabase
+    const { data: agenda } = await supabase
       .from('agenda_escolar')
       .select('*')
       .eq('nome_turma', nomeTurma)
@@ -94,109 +95,113 @@ export default function AgendaPortalPaisPage() {
     setCarregandoAgenda(false);
   }
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>Carregando dados da família...</div>;
+  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando pauta familiar...</div>;
 
   return (
-    <div className="agenda-wrapper" style={{ width: '100%', padding: '25px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-2 relative min-h-screen">
       
-      {/* INJEÇÃO DE ESTILO RESPONSIVO PARA SMARTPHONES */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 767px) {
-          .agenda-wrapper { padding: '15px 12px' !important; }
-          .agenda-header h1 { font-size: 21px !important; }
-          .agenda-header p { font-size: 13px !important; }
-          .agenda-filtros { flex-direction: column !important; align-items: stretch !important; gap: 18px !important; padding: 16px !important; borderRadius: '18px' !important; }
-          .agenda-filtros input { width: 100% !important; box-sizing: border-box !important; }
-          .agenda-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
-          .agenda-card { padding: 20px !important; borderRadius: '20px' !important; }
-        }
-      `}} />
-
-      {/* Cabeçalho de Boas-Vindas */}
-      <header className="agenda-header" style={{ marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#1e3a8a', margin: 0 }}>📝 Agenda Escolar Diária</h1>
-        <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>Acompanhe os conteúdos ministrados e tarefas de casa da plataforma ABC DO PARK</p>
+      {/* Cabeçalho */}
+      <header className="mb-10">
+        <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">📝 Agenda Escolar Diária</h1>
+        <div className="h-1 w-20 bg-indigo-600 mt-2 rounded-full"></div>
+        <p className="text-xl md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-3">Acompanhe os conteúdos ministrados e tarefas de casa da plataforma ABC DO PARK</p>
       </header>
 
       {meusFilhos.length === 0 ? (
-        <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '45px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9' }}>
-          <span style={{ fontSize: '40px' }}>🔍</span>
-          <h3 style={{ color: '#475569', marginTop: '15px' }}>Nenhum estudante vinculado</h3>
-          <p style={{ color: '#94a3b8', fontSize: '14px', margin: '5px 0 0' }}>Seu e-mail de acesso não foi localizado nos cadastros de nenhum aluno. Entre em contato com a coordenação.</p>
+        <div className="bg-white rounded-[2.5rem] p-8 text-center border border-slate-50 shadow-sm max-w-2xl mx-auto">
+          <span className="text-4xl block mb-4">🔍</span>
+          <h3 className="text-xl md:text-sm font-black text-slate-700 uppercase italic">Nenhum estudante vinculado</h3>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-wide mt-2">
+            Seu e-mail de acesso não foi localizado nos cadastros de nenhum aluno. Entre em contato com a coordenação.
+          </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '25px' }}>
+        <div className="flex flex-col gap-8 max-w-4xl">
           
           {/* Barra de Filtros Dinâmicos (Filho + Data) */}
-          <div className="agenda-filtros" style={{ backgroundColor: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6">
             
-            {/* Seletor de Filho (SÓ APARECE SE TIVER MAIS DE 1) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '45px', height: '45px', borderRadius: '50%', backgroundColor: '#eff6ff', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #2563eb' }}>
+            {/* Seletor de Filho / Nome */}
+            <div className="flex items-center gap-4 flex-1">
+              <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                 {alunoSelecionado?.foto_url ? (
-                  <img src={alunoSelecionado.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : <span style={{ fontSize: '18px' }}>🧒</span>}
+                  <img src={alunoSelecionado.foto_url} alt="Foto Aluno" className="w-14 h-14 object-cover" />
+                ) : <span className="text-2xl">🧒</span>}
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase' }}>Estudante</label>
+              <div className="flex-1 min-w-0">
+                <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider block">Estudante Matriculado</span>
                 {meusFilhos.length > 1 ? (
                   <select
                     value={alunoSelecionado?.id || ""}
                     onChange={(e) => setAlunoSelecionado(meusFilhos.find(f => f.id === Number(e.target.value)))}
-                    style={{ padding: '4px 0', fontSize: '16px', fontWeight: 'bold', color: '#1e293b', border: 'none', background: 'none', outline: 'none', cursor: 'pointer' }}
+                    className="w-full bg-transparent border-0 text-xl sm:text-2xl md:text-sm font-bold text-slate-700 uppercase p-0 focus:outline-none focus:ring-0 cursor-pointer mt-0.5"
                   >
-                    {meusFilhos.map(filho => <option key={filho.id} value={filho.id}>{filho.nome.split(' ')[0]} ({filho.turma})</option>)}
+                    {meusFilhos.map(filho => (
+                      <option key={filho.id} value={filho.id} className="text-slate-700 font-bold bg-white uppercase">
+                        {filho.nome.split(' ')[0]} ({filho.turma})
+                      </option>
+                    ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>
-                    {alunoSelecionado?.nome} <span style={{ color: '#2563eb', fontSize: '13px' }}>({alunoSelecionado?.turma})</span>
+                  <span className="text-xl sm:text-2xl md:text-sm font-bold text-slate-700 uppercase block truncate mt-0.5">
+                    {alunoSelecionado?.nome} <span className="text-indigo-600 font-black">({alunoSelecionado?.turma})</span>
                   </span>
                 )}
               </div>
             </div>
 
             {/* Input de Data */}
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: '160px' }}>
-              <label style={{ fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Data da Agenda</label>
+            <div className="flex flex-col min-w-[200px] border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
+              <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Calendar size={12} strokeWidth={2.5} /> Data da Atividade
+              </span>
               <input 
                 type="date" 
                 value={dataFiltro}
                 onChange={(e) => setDataFiltro(e.target.value)}
-                style={{ padding: '10px 14px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#1e3a8a', fontWeight: '600', fontSize: '14px', outline: 'none' }}
+                className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 font-bold text-sm outline-none focus:border-indigo-500 transition-colors uppercase"
               />
             </div>
           </div>
 
-          {/* Exibição dos Blocos de Conteúdo */}
+          {/* Exibição dos Blocos de Conteúdo: grid-cols-1 no celular e md:grid-cols-2 no computador */}
           {carregandoAgenda ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Buscando caderno virtual do dia...</div>
+            <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">
+              Buscando caderno virtual...
+            </div>
           ) : (!conteudoAula && !tarefaCasa) ? (
-            <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '50px', textAlign: 'center', border: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '42px' }}>🍃</span>
-              <h3 style={{ color: '#475569', marginTop: '15px', fontWeight: '700' }}>Nenhuma atividade registrada</h3>
-              <p style={{ color: '#94a3b8', fontSize: '14px', margin: '5px 0 0' }}>Não há anotações do professor nesta turma para a data selecionada.</p>
+            <div className="bg-white rounded-[2.5rem] p-8 text-center border border-slate-50 shadow-sm">
+              <span className="text-4xl block mb-4">🍃</span>
+              <h3 className="text-xl md:text-sm font-black text-slate-400 uppercase italic">Nenhuma anotação postada</h3>
+              <p className="text-xs font-bold text-slate-300 uppercase tracking-wide mt-2">
+                Não há registros do corpo docente para este dia.
+              </p>
             </div>
           ) : (
-            <div className="agenda-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Bloco 1: O que foi feito em Sala */}
-              <div className="agenda-card" style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #2563eb' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                  <span style={{ fontSize: '22px' }}>🏫</span>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>Conteúdo em Sala</h3>
+              <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50 group transition-all hover:bg-slate-50/50">
+                <div className="flex items-center gap-4 pb-4 border-b border-slate-50 mb-4">
+                  <div className="text-indigo-600 flex-shrink-0">
+                    <FileText size={18} strokeWidth={2.5} />
+                  </div>
+                  <span className="text-xl md:text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Conteúdo em Sala</span>
                 </div>
-                <p style={{ margin: 0, color: '#475569', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                <p className="text-xl sm:text-2xl md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
                   {conteudoAula || "Nenhum conteúdo listado para hoje."}
                 </p>
               </div>
 
               {/* Bloco 2: Atividade de Casa */}
-              <div className="agenda-card" style={{ backgroundColor: 'white', borderRadius: '24px', padding: '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.01)', border: '1px solid #f1f5f9', borderTop: '6px solid #8b5cf6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                  <span style={{ fontSize: '22px' }}>🏡</span>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>Atividade para Casa</h3>
+              <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50 group transition-all hover:bg-slate-50/50">
+                <div className="flex items-center gap-4 pb-4 border-b border-slate-50 mb-4">
+                  <div className="text-rose-600 flex-shrink-0">
+                    <AlertCircle size={18} strokeWidth={2.5} />
+                  </div>
+                  <span className="text-xl md:text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Atividade para Casa</span>
                 </div>
-                <p style={{ margin: 0, color: '#475569', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                <p className="text-xl sm:text-2xl md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
                   {tarefaCasa || "Nenhuma lição de casa registrada para hoje!"}
                 </p>
               </div>

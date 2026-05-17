@@ -23,7 +23,8 @@ export default function TurmasProfessorPage() {
   const calcularIdade = (dataNasc: string) => {
     if (!dataNasc) return "--";
     const hoje = new Date();
-    const nascimento = new Date(dataNasc);
+    // Adicionado "T12:00:00" para neutralizar o fuso horário UTC e evitar distorções na data local de Belém
+    const nascimento = new Date(dataNasc + "T12:00:00");
     let idade = hoje.getFullYear() - nascimento.getFullYear();
     const m = hoje.getMonth() - nascimento.getMonth();
     if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--;
@@ -137,7 +138,7 @@ export default function TurmasProfessorPage() {
                 const paleta = [{ bg: '#ebf5ff', border: '#3b82f6', text: '#1e40af' }, { bg: '#f0fdf4', border: '#22c55e', text: '#166534' }, { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' }];
                 const cor = paleta[index % paleta.length];
                 return (
-                  <div key={aluno.id} onClick={() => abrirFichaAluno(aluno)} style={{ backgroundColor: cor.bg, padding: '18px 25px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', borderLeft: `10px solid ${cor.border}` }}>
+                  <div key={aluno.id} onClick={() => abrirFichaAluno(aluno)} style={{ backgroundColor: cor.bg, padding: '18px 25px', borderRadius: '20px', display: 'flex', alignItems: 'center', strokeDasharray: '', justifyContent: 'space-between', cursor: 'pointer', borderLeft: `10px solid ${cor.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                       <div style={{ width: '75px', height: '75px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
                         {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : "👤"}
