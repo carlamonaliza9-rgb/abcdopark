@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, FileText, BarChart3, CreditCard, LogOut } from "lucide-react";
+import { Home, FileText, Calendar, BarChart3, CreditCard, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export function SidebarPais({ alunoId }: { alunoId: string }) {
@@ -13,6 +13,7 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
   const menuItems = [
     { name: "Home", icon: Home, path: `/portal-pais/${alunoId}` },
     { name: "Ficha", icon: FileText, path: `/portal-pais/${alunoId}/ficha` },
+    { name: "Agenda", icon: Calendar, path: `/portal-pais/${alunoId}/agenda` },
     { name: "Avaliações", icon: BarChart3, path: `/portal-pais/${alunoId}/avaliacoes` },
     { name: "Financeiro", icon: CreditCard, path: `/portal-pais/${alunoId}/financeiro` },
   ];
