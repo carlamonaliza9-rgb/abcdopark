@@ -13,6 +13,9 @@ export default function DashboardLayout({
 }) {
   const [ehAdmin, setEhAdmin] = useState(false);
   const [carregando, setCarregando] = useState(true);
+  
+  // --- CONTROLE DO MENU SANFONA DO FINANCEIRO ---
+  const [menuFinanceiroAberto, setMenuFinanceiroAberto] = useState(false);
 
   useEffect(() => {
     async function verificarAcesso() {
@@ -34,8 +37,13 @@ export default function DashboardLayout({
           setEhAdmin(true);
         }
       }
+      carregandoDados();
+    }
+    
+    function carregandoDados() {
       setCarregando(false);
     }
+    
     verificarAcesso();
   }, []);
 
@@ -59,7 +67,7 @@ export default function DashboardLayout({
           <p className="text-xs text-blue-600 mt-1 uppercase tracking-widest font-semibold">Gestão Escolar</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {/* Dashboard Geral */}
           <Link href="/dashboard" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
             📊 Dashboard
@@ -70,10 +78,6 @@ export default function DashboardLayout({
             <>
               <Link href="/admin/alunos" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
                 👨‍🎓 Alunos
-              </Link>
-              
-              <Link href="/admin/frequencia" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-                📊 Frequência Geral
               </Link>
             </>
           )}
@@ -101,19 +105,53 @@ export default function DashboardLayout({
                 👥 Funcionários
               </Link>
 
-              <Link href="/admin/financeiro" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-                💰 Financeiro
-              </Link>
-
-              <Link href="/admin/financeiro/contas-a-pagar" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-                💸 Contas a Pagar
-              </Link>
+              {/* MENU DROPDOWN REESTILIZADO COM SETA MÍNIMA */}
+              <div>
+                <button
+                  onClick={() => setMenuFinanceiroAberto(!menuFinanceiroAberto)}
+                  className="w-full flex justify-between items-center p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all text-left outline-none"
+                >
+                  <span>💰 Financeiro</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2.5}
+                    stroke="currentColor"
+                    className={`w-4 h-4 text-blue-900/60 transition-transform duration-200 ${menuFinanceiroAberto ? "rotate-180" : ""}`}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+                
+                {menuFinanceiroAberto && (
+                  <div className="pl-4 mt-1 space-y-1 bg-blue-900/5 rounded-lg py-1 border-l-2 border-blue-400">
+                    <Link href="/admin/financeiro" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      📊 Visão Geral
+                    </Link>
+                    <Link href="/admin/financeiro/mensalidades" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      🏫 Mensalidades
+                    </Link>
+                    <Link href="/admin/financeiro/vendas-taxas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      🛍️ Vendas & Taxas
+                    </Link>
+                    <Link href="/admin/financeiro/eventos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      🎟️ Eventos
+                    </Link>
+                    <Link href="/admin/financeiro/despesas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      💸 Despesas
+                    </Link>
+                    <Link href="/admin/financeiro/saldos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      👥 Saldos & Créditos
+                    </Link>
+                  </div>
+                )}
+              </div>
 
               <Link href="/admin/fechamento" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
                 🎓 Fechamento Letivo
               </Link>
 
-              {/* NOVO LINK DE AUDITORIA ADICIONADO EXCLUSIVAMENTE PARA ADMINISTRADORES */}
               <Link href="/admin/logs" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
                 🛡️ Logs do Sistema
               </Link>

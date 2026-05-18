@@ -39,10 +39,10 @@ export function ModalPagamento({
   onConfirmar,
   editando
 }: ModalPagamentoProps) {
-  // Estado local para controlar o ano de referência separadamente
+  // Mantém o seu controle de ano original
   const [anoReferencia, setAnoReferencia] = useState(new Date().getFullYear().toString());
 
-  // Lógica cirúrgica: Atualiza a descrição automaticamente para vincular Mês/Ano e evitar erros de soma
+  // Lógica original preservada: se for mensalidade, monta a identificação automaticamente
   useEffect(() => {
     if (aberto && tipoPagamento === "mensalidade") {
       setDescricaoOutro(`Mensalidade - ${mesReferencia}/${anoReferencia}`);
@@ -68,10 +68,13 @@ export function ModalPagamento({
 
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 10, fontWeight: 'bold' }}>CATEGORIA:</label>
+          {/* Menu de seleção atualizado com as novas pautas organizacionais */}
           <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd' }}>
-            <option value="mensalidade">Mensalidade</option>
-            <option value="evento">Evento</option>
-            <option value="outro">Outro</option>
+            <option value="mensalidade">🏫 Mensalidade Regular</option>
+            <option value="material">🎨 Taxa de Material Escolar</option>
+            <option value="livro">📘 Livros Didáticos</option>
+            <option value="uniforme">👕 Uniformes Escolares</option>
+            <option value="evento">🎟️ Projetos / Eventos Pedagógicos</option>
           </select>
         </div>
 
@@ -96,13 +99,14 @@ export function ModalPagamento({
         )}
 
         <div style={{ marginBottom: 15 }}>
-          <label style={{ fontSize: 10, fontWeight: 'bold' }}>IDENTIFICAÇÃO NO REGISTRO:</label>
+          <label style={{ fontSize: 10, fontWeight: 'bold' }}>IDENTIFICAÇÃO NO REGISTRO / OBSERVAÇÕES:</label>
           <input 
             type="text" 
-            placeholder="Ex: Mensalidade Junho/2026..." 
+            placeholder={tipoPagamento === 'mensalidade' ? "" : "Ex: Camisa Tam M, Livro de Ciências, etc."} 
             value={descricaoOutro} 
             onChange={(e) => setDescricaoOutro(e.target.value)} 
-            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', backgroundColor: tipoPagamento === 'mensalidade' ? '#f8fafc' : 'white' }} 
+            disabled={tipoPagamento === 'mensalidade'} // Trava apenas para mensalidades para garantir o padrão do banco
+            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', backgroundColor: tipoPagamento === 'mensalidade' ? '#f1f5f9' : 'white', color: tipoPagamento === 'mensalidade' ? '#64748b' : '#000' }} 
           />
         </div>
 

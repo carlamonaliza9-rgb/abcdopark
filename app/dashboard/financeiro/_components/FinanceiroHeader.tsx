@@ -55,7 +55,6 @@ export function FinanceiroHeader({
       
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <button onClick={onNovoEvento} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>🎟️ NOVO EVENTO</button>
-        <button onClick={onVendaUniforme} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>👕 UNIFORME</button>
         <button onClick={onRegistrarGasto} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#ef4444', color: 'white' }}>- GASTO</button>
         <button onClick={onZerarMes} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#374151', color: 'white' }}>🔄 ZERAR MÊS</button>
         
