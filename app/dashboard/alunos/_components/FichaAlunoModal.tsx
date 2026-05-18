@@ -10,7 +10,7 @@ interface FichaAlunoModalProps {
   notas: any[];
   historico: any[];
   ehVisitante: boolean;
-  userEmail?: string | null; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
+  userEmail?: string | null; 
   mCPF: (v: string) => string;
   mWhatsApp: (v: string) => string;
   onFechar: () => void;
@@ -24,8 +24,8 @@ interface FichaAlunoModalProps {
   onExcluirDisciplina: (id: string) => void;
   onGerarPDFBoletim: () => void;
   onGerarPDFHistorico: () => void;
-  onEditarPagamento?: (pagamento: any) => void; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
-  onExcluirPagamento?: (id: string) => void; // CIRURGIA: Tornado opcional (?) para destravar o Vercel
+  onEditarPagamento?: (pagamento: any) => void; 
+  onExcluirPagamento?: (id: string) => void; 
   calcularIdade: (data: string) => string;
 }
 
@@ -107,6 +107,11 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   if (!aluno) return null;
 
+  // Cálculo dinâmico das pendências acumuladas em lote ou avulsas no histórico do ano selecionado
+  const totalPendenteHistorico = historico
+    .filter(h => h.status === 'parcial' || h.status === 'pendente')
+    .reduce((acc, h) => acc + ((parseFloat(h.valor_total) || 0) - (parseFloat(h.valor_pago || 0))), 0);
+
   const contatos = [
     { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
     { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
@@ -140,6 +145,25 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
           {!verHistorico && !verBoletim ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              {/* BLOCO DE CONTA CORRENTE INTEGRADO (CRÉDITO RETIDO / DÉBITOS AVULSOS) */}
+              {(parseFloat(aluno.saldo_credito) > 0 || totalPendenteHistorico > 0) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '4px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ ...EstiloCard, backgroundColor: parseFloat(aluno.saldo_credito) > 0 ? '#f0fdf4' : '#fff', borderColor: parseFloat(aluno.saldo_credito) > 0 ? '#bbf7d0' : '#f1f5f9', textAlign: 'center', border: 'none' }}>
+                    <span style={{ ...EstiloLabel, color: parseFloat(aluno.saldo_credito) > 0 ? '#16a34a' : '#64748b' }}>💰 Crédito Acumulado</span>
+                    <p style={{ ...EstiloDado, color: parseFloat(aluno.saldo_credito) > 0 ? '#14532d' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
+                      {parseFloat(aluno.saldo_credito) > 0 ? `R$ ${parseFloat(aluno.saldo_credito).toFixed(2)}` : 'R$ 0,00'}
+                    </p>
+                  </div>
+                  <div style={{ ...EstiloCard, backgroundColor: totalPendenteHistorico > 0 ? '#fdf2f2' : '#fff', borderColor: totalPendenteHistorico > 0 ? '#fecaca' : '#f1f5f9', textAlign: 'center', border: 'none' }}>
+                    <span style={{ ...EstiloLabel, color: totalPendenteHistorico > 0 ? '#dc2626' : '#64748b' }}>⚠️ Restante Devedor</span>
+                    <p style={{ ...EstiloDado, color: totalPendenteHistorico > 0 ? '#991b1b' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
+                      {totalPendenteHistorico > 0 ? `R$ ${totalPendenteHistorico.toFixed(2)}` : 'R$ 0,00'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ ...EstiloCard, backgroundColor: '#fffbeb', borderColor: '#fef3c7', textAlign: 'center' }}>
                   <span style={{ ...EstiloLabel, color: '#b45309' }}>Média Pedagógica</span>
@@ -327,21 +351,40 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 {historico.length > 0 ? historico.map((h, i) => {
                   const forma = extrairFormaPagamento(h.detalhes_metodos);
                   const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
+                  
+                  // Lógica cromática e de amortização para a Conta Corrente do Histórico
+                  const devedorRestante = (parseFloat(h.valor_total) || 0) - (parseFloat(h.valor_pago || h.valor_total) || 0);
+                  const corStatus = h.status === 'pago' ? '#16a34a' : h.status === 'parcial' ? '#d97706' : '#dc2626';
+                  const bgStatus = h.status === 'pago' ? '#f0fdf4' : h.status === 'parcial' ? '#fffbeb' : '#fdf2f2';
 
                   return (
-                    <div key={i} style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={i} style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', borderRadius: '8px', marginBottom: '6px' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginRight: '10px' }}>
                           <span style={{ fontWeight: 'bold' }}>{new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                          <span style={{ color: '#10b981', fontWeight: 'bold' }}>R$ {h.valor_total?.toLocaleString('pt-BR')}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                          <p style={{ margin: 0, color: '#64748b', fontSize: '11px' }}>{h.descricao}</p>
-                          {forma && (
-                            <span style={{ fontSize: '9px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                              {forma}
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ color: '#16a34a', fontWeight: 'bold', display: 'block' }}>
+                              Efetivado: R$ {parseFloat(h.valor_pago || h.valor_total || 0).toFixed(2)}
                             </span>
-                          )}
+                            {devedorRestante > 0 && (
+                              <small style={{ color: '#dc2626', fontWeight: '700', fontSize: '10px' }}>
+                                Resta: R$ {devedorRestante.toFixed(2)}
+                              </small>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: '500' }}>{h.descricao}</p>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: corStatus, backgroundColor: bgStatus, padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                              {h.status || 'PAGO'}
+                            </span>
+                            {forma && (
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                {forma}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       
@@ -350,7 +393,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                           <button 
                             onClick={() => {
                               if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) {
-                                if (onEditarPagamento) onEditarPagamento(h); // CIRURGIA: Check de existência
+                                if (onEditarPagamento) onEditarPagamento(h); 
                               } else {
                                 alert("Senha incorreta.");
                               }
@@ -364,7 +407,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                             onClick={() => {
                               if (prompt("Digite a Senha Mestra para EXCLUIR:") === SENHA_MESTRA) {
                                 if(confirm("Deseja realmente excluir este registro permanentemente?")) {
-                                  if (onExcluirPagamento) onExcluirPagamento(h.id); // CIRURGIA: Check de existência
+                                  if (onExcluirPagamento) onExcluirPagamento(h.id); 
                                 }
                               } else {
                                 alert("Senha incorreta.");

@@ -6,18 +6,21 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Importação dos Componentes (Buscando da pasta original)
+// Importação dos Componentes de Layout
 import { FinanceiroHeader } from "@/app/dashboard/financeiro/_components/FinanceiroHeader";
 import { MetricasCard } from "@/app/dashboard/financeiro/_components/MetricasCard";
+import { PainelAuditoria } from "@/app/dashboard/financeiro/_components/PainelAuditoria";
 import { TabelaMensalidades } from "@/app/dashboard/financeiro/_components/TabelaMensalidades";
 import { BalancoResumo } from "@/app/dashboard/financeiro/_components/BalancoResumo";
 import { GestaoEventos } from "@/app/dashboard/financeiro/_components/GestaoEventos";
 
-// Importação dos Modais (Buscando da pasta original)
+// Importação dos Modais Modularizados
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 import { ModalGasto } from "@/app/dashboard/financeiro/_components/ModalGasto";
 import { ModalEvento } from "@/app/dashboard/financeiro/_components/ModalEvento";
 import { ModalListaGastos } from "@/app/dashboard/financeiro/_components/ModalListaGastos";
+import { ModalUniforme } from "@/app/dashboard/financeiro/_components/ModalUniforme";
+import { ModalTaxas } from "@/app/dashboard/financeiro/_components/ModalTaxas";
 
 export default function FinanceiroAdminPage() {
   const router = useRouter();
@@ -35,6 +38,9 @@ export default function FinanceiroAdminPage() {
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
   const [carregando, setCarregando] = useState(true);
+  
+  // --- ESTADO DE PRIVACIDADE VISUAL DAS MÉTRICAS ---
+  const [mostrarValores, setMostrarValores] = useState(false);
 
   // --- ESTADOS DE CONTROLE DE MODAIS ---
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
@@ -42,40 +48,10 @@ export default function FinanceiroAdminPage() {
   const [modalListaGastosAberto, setModalListaGastosAberto] = useState(false); 
   const [modalListaReceitasAberto, setModalListaReceitasAberto] = useState(false);
   const [modalEventoAberto, setModalEventoAberto] = useState(false);
-  
-  // --- ESTADOS PARA VENDA DE UNIFORME AVULSA ---
   const [modalUniformeAberto, setModalUniformeAberto] = useState(false);
-  const [alunoUniformeId, setAlunoUniformeId] = useState("");
-  const [dataVendaUniforme, setDataVendaUniforme] = useState(new Date().toLocaleDateString('en-CA'));
-  const [uniformesVenda, setUniformesVenda] = useState({
-    camisaPadrao: 0,
-    camisaEdFisica: 0,
-    calca: 0,
-    shortSaia: 0,
-    short: 0,
-    casaco: 0,
-  });
-  const [metodosUniforme, setMetodosUniforme] = useState({ pix: "", dinheiro: "", credito: "", debito: "" });
+  const [modalTaxasAberto, setModalTaxasAberto] = useState(false);
 
-  const precosUniformes = {
-    camisaPadrao: 60,
-    camisaEdFisica: 60,
-    calca: 80,
-    shortSaia: 60,
-    short: 60,
-    casaco: 130,
-  };
-
-  // Cálculo dinâmico do total da venda de uniformes
-  const totalVendaUniforme = 
-    (uniformesVenda.camisaPadrao * precosUniformes.camisaPadrao) +
-    (uniformesVenda.camisaEdFisica * precosUniformes.camisaEdFisica) +
-    (uniformesVenda.calca * precosUniformes.calca) +
-    (uniformesVenda.shortSaia * precosUniformes.shortSaia) +
-    (uniformesVenda.short * precosUniformes.short) +
-    (uniformesVenda.casaco * precosUniformes.casaco);
-  
-  // --- ESTADOS DE FORMULÁRIOS ---
+  // --- ESTADOS DE FORMULÁRIOS FINANCEIROS ---
   const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
@@ -135,19 +111,28 @@ export default function FinanceiroAdminPage() {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      // Busca pgtos (Fluxo de Caixa)
-      const { data: pgtosMes } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
-      if (pgtosMes) setListaReceitasDetalhada(pgtosMes);
+      // 1. Busca receitas consolidadas pagas dentro do mês corrente (Fluxo de Caixa)
+      const { data: pgtosMes = [] } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      
+      // 2. Busca TODAS as receitas que estão com status pendente ou parcial de forma atemporal (Garante visibilidade das dívidas avulsas)
+      const { data: pgtosPendentes = [] } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial']);
 
-      // Busca pgtos (Mês de Referência)
+      // 3. Busca pgtos (Mês de Referência) para validação correta do status da tabela de mensalidades
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
-      const { data: pgtosReferencia } = await supabase.from('historico_pagamentos')
+      const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
         .select('aluno_id')
         .eq('tipo', 'mensalidade')
         .like('descricao', `%${nomeMesReferencia}%${ano}%`);
 
-      const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
+      // Unifica as listas removendo duplicidades por ID para alimentar a listagem geral da página
+      const mapaPgtos = new Map();
+      (pgtosMes || []).forEach(p => mapaPgtos.set(p.id, p));
+      (pgtosPendentes || []).forEach(p => mapaPgtos.set(p.id, p));
+      const pgtosFiltrados = Array.from(mapaPgtos.values());
       
+      setListaReceitasDetalhada(pgtosFiltrados);
+
+      const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
       const { data: contasPagasMes } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
 
       const { data: todosPgtosEventos } = await supabase.from('historico_pagamentos').select('*').eq('tipo', 'evento');
@@ -164,29 +149,30 @@ export default function FinanceiroAdminPage() {
       }));
       setListaGastosDetalhada([...(gastosMes || []), ...contasFormatadas]);
 
-      let vPago = 0; let vGastos = 0;
-      let metodosResumo = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
+      // --- ENTRADAS EM MÍDIA (FLUXO DE CAIXA DO MÊS ATUAL) ---
+      const pgtosEfetuadosEsteMes = pgtosFiltrados.filter(p => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim);
+      const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
 
-      if (pgtosMes) {
-        vPago = pgtosMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_total) || 0), 0);
-        metodosResumo = pgtosMes.reduce((acc, curr) => {
-          const det = curr.detalhes_metodos || {};
-          acc.pix += parseFloat(det.pix || 0);
-          acc.dinheiro += parseFloat(det.dinheiro || 0);
-          acc.credito += parseFloat(det.credito || 0);
-          acc.debito += parseFloat(det.debito || 0);
-          return acc;
-        }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
-      }
+      // Correção ortográfica de indexador ("dinero" -> "dinheiro") para expurgar bugs no painel
+      const metodosResumo = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
+        const det = curr.detalhes_metodos || {};
+        acc.pix += parseFloat(det.pix || 0);
+        acc.dinheiro += parseFloat(det.dinheiro || 0);
+        acc.credito += parseFloat(det.credito || 0);
+        acc.debito += parseFloat(det.debito || 0);
+        return acc;
+      }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
       setResumoMetodos(metodosResumo);
       
+      let vGastos = 0;
       if (gastosMes) vGastos += gastosMes.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
       if (contasPagasMes) vGastos += contasPagasMes.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
 
       if (listaAlunos) {
         setAlunos(listaAlunos);
-        const idsPagosNestaReferencia = (pgtosReferencia || []).map(p => p.aluno_id);
+        const idsPagosNestaReferencia = (pgtosReferencia || []).map((p: any) => p.aluno_id);
 
+        // MANTER RIGOROSAMENTE A SUA ORDENAÇÃO ORIGINAL POR DATA DE VENCIMENTO / STATUS DE MENSALIDADE
         const ordenados = listaAlunos.map(aluno => {
           const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
           if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
@@ -194,9 +180,32 @@ export default function FinanceiroAdminPage() {
         }).sort((a, b) => (a.status === 'pago' ? 1 : 0) - (b.status === 'pago' ? 1 : 0) || (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0));
         
         setAlunos(ordenados);
-        const totalPrevisto = listaAlunos.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+        
+        // --- CÁLCULO DAS MÉTRICAS GLOBAIS INTEGRANDO AS TAXAS AVULSAS E EM LOTE ---
+        const mensalidadesPrevistas = listaAlunos.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+        
+        const stringFiltroMensalidade = `${nomeMesReferencia}/${ano}`;
+        const mensalidadesDesteMes = pgtosFiltrados.filter(p => p.tipo === 'mensalidade' && p.descricao.includes(stringFiltroMensalidade));
+        const vMensalidadesDesteMesPago = mensalidadesDesteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago) || 0), 0);
+        const vMensalidadesDesteMesPendente = Math.max(0, mensalidadesPrevistas - vMensalidadesDesteMesPago);
+
+        const todasPendenciasExtras = pgtosFiltrados.filter(p => p.status === 'pendente' || p.status === 'parcial');
+        const vExtrasPendente = todasPendenciasExtras.reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
+
+        // Consolidação dos Cards Financeiros
+        const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
+        const totalGeralPrevisto = vPago + totalPendenteCaixa;
+
         const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (parseFloat(curr.valor) || 0)), 0);
-        setMetricas({ total: totalPrevisto, pago: vPago, pendente: Math.max(0, totalPrevisto - vPago), descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
+        
+        setMetricas({ 
+          total: totalGeralPrevisto, 
+          pago: vPago, 
+          pendente: totalPendenteCaixa, 
+          descontos: totalDescontos, 
+          gastos: vGastos, 
+          lucro: vPago - vGastos 
+        });
       }
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
@@ -245,14 +254,14 @@ export default function FinanceiroAdminPage() {
 
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 15,
-      head: [['DATA', 'ALUNO / ORIGEM', 'DESCRIÇÃO', 'VALOR']],
+      head: [['DATA', 'ALUNO / ORIGEM', 'DESCRIÇÃO', 'VALOR EFETIVADO']],
       body: listaReceitasDetalhada.map(p => {
         const alunoNome = alunos.find(a => a.id === p.aluno_id)?.nome || "DIVERSOS / OUTRO";
         return [
-          new Date(p.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR'),
+          p.data_pagamento ? new Date(p.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--',
           alunoNome.toUpperCase(),
           p.descricao.toUpperCase(),
-          `R$ ${parseFloat(p.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          `R$ ${parseFloat(p.valor_pago || p.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         ];
       }),
       styles: { fontSize: 8 },
@@ -287,52 +296,7 @@ export default function FinanceiroAdminPage() {
     doc.save(`Fechamento_Tesouraria_${nomeMes}.pdf`);
   }
 
-  // --- REGISTRAR VENDA DE UNIFORME AVULSA ---
-  async function confirmarVendaUniforme() {
-    if (!alunoUniformeId) return alert("Selecione um aluno.");
-    if (totalVendaUniforme <= 0) return alert("Adicione pelo menos um item.");
-
-    const somaMetodos = Object.values(metodosUniforme).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    if (somaMetodos !== totalVendaUniforme) {
-      return alert(`O valor inserido nos métodos (R$ ${somaMetodos}) não bate com o total das roupas (R$ ${totalVendaUniforme}).`);
-    }
-
-    const itensComprados: string[] = [];
-    if (uniformesVenda.camisaPadrao > 0) itensComprados.push(`${uniformesVenda.camisaPadrao}x Camisa Padrão`);
-    if (uniformesVenda.camisaEdFisica > 0) itensComprados.push(`${uniformesVenda.camisaEdFisica}x Camisa Ed. Física`);
-    if (uniformesVenda.calca > 0) itensComprados.push(`${uniformesVenda.calca}x Calça`);
-    if (uniformesVenda.shortSaia > 0) itensComprados.push(`${uniformesVenda.shortSaia}x Short-Saia`);
-    if (uniformesVenda.short > 0) itensComprados.push(`${uniformesVenda.short}x Short`);
-    if (uniformesVenda.casaco > 0) itensComprados.push(`${uniformesVenda.casaco}x Casaco`);
-
-    const descricaoFinal = `Venda de Uniforme Avulsa: ${itensComprados.join(", ")}`;
-    const anoVenda = dataVendaUniforme.split("-")[0];
-
-    const { error } = await supabase.from('historico_pagamentos').insert([{
-      aluno_id: parseInt(alunoUniformeId),
-      tipo: 'uniforme',
-      descricao: descricaoFinal,
-      valor_total: totalVendaUniforme,
-      data_pagamento: dataVendaUniforme,
-      detalhes_metodos: metodosUniforme,
-      mes_referencia: `Avulso ${anoVenda}`
-    }]);
-
-    if (error) alert("Erro ao salvar: " + error.message);
-    else {
-      alert("Venda registrada com sucesso! 👕");
-      setModalUniformeAberto(false);
-      setUniformesVenda({ camisaPadrao: 0, camisaEdFisica: 0, calca: 0, shortSaia: 0, short: 0, casaco: 0 });
-      setMetodosUniforme({ pix: "", dinheiro: "", credito: "", debito: "" });
-      carregarDados();
-    }
-  }
-
-  const preencherTotalMetodo = (campo: string) => {
-    setMetodosUniforme({ pix: "", dinheiro: "", credito: "", debito: "", [campo]: totalVendaUniforme.toString() });
-  };
-
-  // --- FUNÇÕES DE AÇÃO ---
+  // --- AMORTIZAÇÃO E RECEBIMENTO UNIVERSAL ---
   async function confirmarPagamento() {
     if (idPagamentoEdicao && userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
       return alert("A direção não possui permissão para alterar ou editar lançamentos salvos.");
@@ -340,13 +304,69 @@ export default function FinanceiroAdminPage() {
 
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
+
+    const creditoUtilizado = parseFloat((pagamentosMetodos as any).credito || 0);
+    const saldoDisponivel = parseFloat(alunoSelecionado?.saldo_credito || 0);
+
+    if (creditoUtilizado > saldoDisponivel) {
+      return alert(`O aluno possui apenas R$ ${saldoDisponivel.toFixed(2)} de crédito disponível.`);
+    }
+
     const anoFiltro = mesFiltro.split('-')[0];
     const descRef = tipoPagamento === 'mensalidade' ? `Mensalidade - ${mesReferencia}/${anoFiltro}` : `Evento: ${eventoParaGerenciar?.nome}`;
-    const dados = { aluno_id: alunoSelecionado.id, tipo: tipoPagamento, descricao: descricaoOutro || descRef, valor_total: somaPaga, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
-    if (idPagamentoEdicao) await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
-    else await supabase.from('historico_pagamentos').insert([dados]);
-    if (tipoPagamento === "mensalidade") await supabase.from('alunos').update({ status: 'pago' }).eq('id', alunoSelecionado.id);
-    setModalPgtoAberto(false); carregarDados();
+    
+    let valorEsperado = 0;
+    if (tipoPagamento === 'mensalidade') {
+      valorEsperado = parseFloat(alunoSelecionado.valor) || valorPadrao;
+    } else if (tipoPagamento === 'evento') {
+      valorEsperado = parseFloat(eventoParaGerenciar?.valor_unitario) || 0;
+    } else if (idPagamentoEdicao) {
+      const existente = listaReceitasDetalhada.find(r => r.id === idPagamentoEdicao);
+      valorEsperado = parseFloat(existente?.valor_total) || 0;
+    }
+
+    let status = "pago";
+    let valorPagoFinal = somaPaga;
+    let creditoGerado = 0;
+
+    if (valorEsperado > 0) {
+      if (somaPaga > valorEsperado) {
+        status = "pago";
+        valorPagoFinal = valorEsperado;
+        creditoGerado = somaPaga - valorEsperado; 
+      } else if (somaPaga < valorEsperado) {
+        status = somaPaga === 0 ? "pendente" : "parcial";
+      }
+    }
+
+    const dados = { 
+      aluno_id: alunoSelecionado.id, 
+      tipo: tipoPagamento, 
+      descricao: descricaoOutro || descRef, 
+      valor_total: valorEsperado > 0 ? valorEsperado : somaPaga, 
+      valor_pago: valorPagoFinal,
+      status: status,
+      data_pagamento: dataPagamento, 
+      detalhes_metodos: pagamentosMetodos 
+    };
+
+    if (idPagamentoEdicao) {
+      await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
+    } else {
+      await supabase.from('historico_pagamentos').insert([dados]);
+    }
+
+    const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
+    if (novoSaldoCredito !== saldoDisponivel) {
+      await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
+    }
+
+    if (tipoPagamento === "mensalidade") {
+      await supabase.from('alunos').update({ status: status === 'pago' ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
+    }
+
+    setModalPgtoAberto(false); 
+    carregarDados();
   }
 
   async function handleExcluirGasto(id: string) {
@@ -392,15 +412,11 @@ export default function FinanceiroAdminPage() {
     setModalGastoAberto(false); setDescGasto(""); setValorGasto(""); carregarDados();
   }
 
-  if (verificandoAcesso || carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando dados financeiros administrativos...</div>;
-
-  // Filtro de Alunos declarado formalmente antes do retorno da interface
   const alunosFiltrados = alunos.filter(aluno => aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase()));
 
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
-      {/* Passado corretamente a propriedade onVendaUniforme exigida pela tipagem atualizada do componente */}
       <FinanceiroHeader 
         mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
         onNovoEvento={() => {
@@ -418,7 +434,13 @@ export default function FinanceiroAdminPage() {
         senhaMestra={SENHA_MESTRA}
       />
 
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        <button 
+          onClick={() => setModalTaxasAberto(true)}
+          style={{ padding: '12px 24px', borderRadius: '12px', backgroundColor: '#10b981', color: 'white', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+        >
+          📦 Gerar Taxas Anuais (Lote)
+        </button>
         <button 
           onClick={gerarRelatorioTesouraria}
           style={{ padding: '12px 24px', borderRadius: '12px', backgroundColor: '#1e3a8a', color: 'white', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
@@ -427,11 +449,31 @@ export default function FinanceiroAdminPage() {
         </button>
       </div>
 
-      <MetricasCard 
-        metricas={metricas} 
-        onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
-        onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
-      />
+      {/* RECURSO DE PRIVACIDADE: CARD DE MÉTRICAS COM DESFOQUE SELETIVO */}
+      <div style={{ position: 'relative', marginBottom: '25px' }}>
+        <div style={{ filter: mostrarValores ? 'none' : 'blur(8px)', transition: 'filter 0.3s ease', pointerEvents: mostrarValores ? 'auto' : 'none' }}>
+          <MetricasCard 
+            metricas={metricas} 
+            onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
+            onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
+          />
+        </div>
+        {!mostrarValores && (
+          <div 
+            onClick={() => setMostrarValores(true)}
+            style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(243, 244, 246, 0.3)', cursor: 'pointer', zIndex: 10, borderRadius: '20px' }}
+          >
+            <button 
+              style={{ padding: '12px 24px', backgroundColor: '#1e3a8a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(30, 58, 138, 0.3)' }}
+            >
+              👁️ Liberar Visualização do Mês
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* PAINEL COMPLEMENTAR MODULARIZADO (AUDITORIA DE CONTAS CORRENTES GLOBAL) */}
+      <PainelAuditoria alunos={alunos} listaReceitasDetalhada={listaReceitasDetalhada} />
 
       <TabelaMensalidades 
         alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
@@ -489,90 +531,10 @@ export default function FinanceiroAdminPage() {
         onExcluirPagamento={handleExcluirReceita}
       />
 
-      {/* MODAL: CADASTRO COMPLETO DE VENDA DE UNIFORME */}
-      {modalUniformeAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>🛍️ Nova Venda de Uniforme avulsa</h2>
-              <button onClick={() => setModalUniformeAberto(false)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>SELECIONAR ALUNO</label>
-                <select value={alunoUniformeId} onChange={(e) => setAlunoUniformeId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
-                  <option value="">Escolha um aluno...</option>
-                  {alunos.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>DATA DA COMPRA</label>
-                <input type="date" value={dataVendaUniforme} onChange={(e) => setDataVendaUniforme(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
-              </div>
-
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px' }}>QUANTIDADE DE ITENS</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
-                  {[
-                    { key: 'camisaPadrao', label: 'Camisa Padrão (R$45)' },
-                    { key: 'camisaEdFisica', label: 'Camisa Ed. Física (R$45)' },
-                    { key: 'calca', label: 'Calça (R$80)' },
-                    { key: 'shortSaia', label: 'Short-Saia (R$65)' },
-                    { key: 'short', label: 'Short (R$55)' },
-                    { key: 'casaco', label: 'Casaco (R$120)' },
-                  ].map((item) => (
-                    <div key={item.key} style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '5px' }}>{item.label}</span>
-                      <input 
-                        type="number" min="0" 
-                        value={(uniformesVenda as any)[item.key] || ""} 
-                        onChange={(e) => setUniformesVenda(prev => ({ ...prev, [item.key]: Math.max(0, parseInt(e.target.value) || 0) }))} 
-                        style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} 
-                        placeholder="0"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#eff6ff', padding: '15px', borderRadius: '12px', textAlign: 'center', margin: '5px 0' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e40af' }}>TOTAL DO UNIFORME</span>
-                <h3 style={{ fontSize: '24px', fontWeight: '900', color: '#1e3a8a', margin: '4px 0 0' }}>R$ {totalVendaUniforme.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-              </div>
-
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MÉTODO DE RECEBIMENTO</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
-                  {['pix', 'dinheiro', 'credito', 'debito'].map((metodo) => (
-                    <div key={metodo} style={{ position: 'relative' }}>
-                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', marginBottom: '3px' }}>{metodo}</label>
-                      <input 
-                        type="number" value={(metodosUniforme as any)[metodo] || ""} 
-                        onChange={(e) => setMetodosUniforme(prev => ({ ...prev, [metodo]: e.target.value }))} 
-                        style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px' }} 
-                        placeholder="0.00"
-                      />
-                      <button 
-                        onClick={() => preencherTotalMetodo(metodo)} 
-                        style={{ width: '100%', marginTop: '4px', border: 'none', background: '#f1f5f9', color: '#2563eb', fontSize: '9px', fontWeight: 'bold', padding: '3px', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Pagar Tudo
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '25px' }}>
-              <button onClick={() => setModalUniformeAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer' }}>CANCELAR</button>
-              <button onClick={confirmarVendaUniforme} style={{ flex: 2, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>CONFIRMAR VENDA 👕</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* CHAMADAS DOS MODAIS MODULARIZADOS COM CAMINHO GLOBAL DE PROJETO */}
+      <ModalUniforme aberto={modalUniformeAberto} onFechar={() => setModalUniformeAberto(false)} alunos={alunos} carregarDados={carregarDados} />
+      
+      <ModalTaxas aberto={modalTaxasAberto} onFechar={() => setModalTaxasAberto(false)} alunos={alunos} carregarDados={carregarDados} />
 
       <ModalPagamento 
         aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
