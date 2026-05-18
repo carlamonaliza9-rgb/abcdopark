@@ -21,14 +21,22 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
     short: 0,
     casaco: 0,
   });
-  const [metodosUniforme, setMetodosUniforme] = useState({ pix: "", dinheiro: "", credito: "", debito: "" });
+  
+  const [uniformesTamanhos, setUniformesTamanhos] = useState({
+    camisaPadrao: "4 anos",
+    camisaEdFisica: "4 anos",
+    calca: "4 anos",
+    shortSaia: "4 anos",
+    short: "4 anos",
+    casaco: "4 anos",
+  });
 
   const precosUniformes = {
     camisaPadrao: 60,
     camisaEdFisica: 60,
     calca: 80,
-    shortSaia: 65,
-    short: 55,
+    shortSaia: 60,
+    short: 60,
     casaco: 130,
   };
 
@@ -40,44 +48,19 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
     (uniformesVenda.short * precosUniformes.short) +
     (uniformesVenda.casaco * precosUniformes.casaco);
 
-  const preencherTotalMetodo = (campo: string) => {
-    setMetodosUniforme({ pix: "", dinheiro: "", credito: "", debito: "", [campo]: totalVendaUniforme.toString() });
-  };
-
   async function confirmarVendaUniforme() {
     if (!alunoUniformeId) return alert("Selecione um aluno.");
     if (totalVendaUniforme <= 0) return alert("Adicione pelo menos um item.");
 
-    const somaMetodos = Object.values(metodosUniforme).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     const alunoIdNum = parseInt(alunoUniformeId);
-    const alunoAtual = alunos.find(a => a.id === alunoIdNum);
-
-    const creditoUtilizado = parseFloat((metodosUniforme as any).credito || 0);
-    const saldoDisponivel = parseFloat(alunoAtual?.saldo_credito || 0);
-
-    if (creditoUtilizado > saldoDisponivel) {
-      return alert(`O aluno possui apenas R$ ${saldoDisponivel.toFixed(2)} de crédito disponível.`);
-    }
-
-    let status = "pago";
-    let valorPagoFinal = somaMetodos;
-    let creditoGerado = 0;
-
-    if (somaMetodos > totalVendaUniforme) {
-      status = "pago";
-      valorPagoFinal = totalVendaUniforme;
-      creditoGerado = somaMetodos - totalVendaUniforme; 
-    } else if (somaMetodos < totalVendaUniforme) {
-      status = somaMetodos === 0 ? "pendente" : "parcial";
-    }
 
     const itensComprados: string[] = [];
-    if (uniformesVenda.camisaPadrao > 0) itensComprados.push(`${uniformesVenda.camisaPadrao}x Camisa Padrão`);
-    if (uniformesVenda.camisaEdFisica > 0) itensComprados.push(`${uniformesVenda.camisaEdFisica}x Camisa Ed. Física`);
-    if (uniformesVenda.calca > 0) itensComprados.push(`${uniformesVenda.calca}x Calça`);
-    if (uniformesVenda.shortSaia > 0) itensComprados.push(`${uniformesVenda.shortSaia}x Short-Saia`);
-    if (uniformesVenda.short > 0) itensComprados.push(`${uniformesVenda.short}x Short`);
-    if (uniformesVenda.casaco > 0) itensComprados.push(`${uniformesVenda.casaco}x Casaco`);
+    if (uniformesVenda.camisaPadrao > 0) itensComprados.push(`${uniformesVenda.camisaPadrao}x Camisa Padrão (Tam: ${uniformesTamanhos.camisaPadrao})`);
+    if (uniformesVenda.camisaEdFisica > 0) itensComprados.push(`${uniformesVenda.camisaEdFisica}x Camisa Ed. Física (Tam: ${uniformesTamanhos.camisaEdFisica})`);
+    if (uniformesVenda.calca > 0) itensComprados.push(`${uniformesVenda.calca}x Calça (Tam: ${uniformesTamanhos.calca})`);
+    if (uniformesVenda.shortSaia > 0) itensComprados.push(`${uniformesVenda.shortSaia}x Short-Saia (Tam: ${uniformesTamanhos.shortSaia})`);
+    if (uniformesVenda.short > 0) itensComprados.push(`${uniformesVenda.short}x Short (Tam: ${uniformesTamanhos.short})`);
+    if (uniformesVenda.casaco > 0) itensComprados.push(`${uniformesVenda.casaco}x Casaco (Tam: ${uniformesTamanhos.casaco})`);
 
     const descricaoFinal = `Venda de Uniforme Avulsa: ${itensComprados.join(", ")}`;
     const _anoVenda = dataVendaUniforme.split("-")[0];
@@ -87,25 +70,20 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
       tipo: 'uniforme',
       descricao: descricaoFinal,
       valor_total: totalVendaUniforme,
-      valor_pago: valorPagoFinal,
-      status: status,
-      data_pagamento: status === 'pendente' ? null : dataVendaUniforme,
-      detalhes_metodos: metodosUniforme,
+      valor_pago: 0,
+      status: 'pendente',
+      data_pagamento: null,
+      detalhes_metodos: { pix: "", dinheiro: "", credito: "", debito: "", multa: "" },
       mes_referencia: `Avulso ${_anoVenda}`
     }]);
 
     if (error) {
       alert("Erro ao salvar venda: " + error.message);
     } else {
-      const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
-      if (novoSaldoCredito !== saldoDisponivel) {
-        await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoIdNum);
-      }
-      alert(status === 'pago' ? "Venda registrada com sucesso! 👕" : `Venda registrada! Saldo de R$ ${(totalVendaUniforme - valorPagoFinal).toFixed(2)} pendente na ficha do aluno.`);
+      alert(`Venda registrada! Débito de R$ ${totalVendaUniforme.toFixed(2)} inserido pendente na ficha do aluno.`);
       
-      // Reseta o modal
       setUniformesVenda({ camisaPadrao: 0, camisaEdFisica: 0, calca: 0, shortSaia: 0, short: 0, casaco: 0 });
-      setMetodosUniforme({ pix: "", dinheiro: "", credito: "", debito: "" });
+      setUniformesTamanhos({ camisaPadrao: "4 anos", camisaEdFisica: "4 anos", calca: "4 anos", shortSaia: "4 anos", short: "4 anos", casaco: "4 anos" });
       setAlunoUniformeId("");
       
       carregarDados();
@@ -117,7 +95,7 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>🛍️ Nova Venda de Uniforme avulsa</h2>
           <button onClick={onFechar} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
@@ -138,8 +116,10 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
           </div>
 
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px' }}>QUANTIDADE DE ITENS</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px' }}>QUANTIDADE E TAMANHOS</label>
+            
+            {/* Grid Redesenhado: minmax aumentado para 240px para organizar o fluxo horizontal */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
               {[
                 { key: 'camisaPadrao', label: 'Camisa Padrão (R$60)' },
                 { key: 'camisaEdFisica', label: 'Camisa Ed. Física (R$60)' },
@@ -148,46 +128,43 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
                 { key: 'short', label: 'Short (R$55)' },
                 { key: 'casaco', label: 'Casaco (R$130)' },
               ].map((item) => (
-                <div key={item.key} style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '5px' }}>{item.label}</span>
-                  <input 
-                    type="number" min="0" 
-                    value={(uniformesVenda as any)[item.key] || ""} 
-                    onChange={(e) => setUniformesVenda(prev => ({ ...prev, [item.key]: Math.max(0, parseInt(e.target.value) || 0) }))} 
-                    style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} 
-                    placeholder="0"
-                  />
+                <div key={item.key} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '8px' }}>{item.label}</span>
+                  
+                  {/* Container Lado a Lado (Tamanho e Quantidade na mesma linha) */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ flex: 1.3 }}>
+                      <select
+                        value={(uniformesTamanhos as any)[item.key]}
+                        onChange={(e) => setUniformesTamanhos(prev => ({ ...prev, [item.key]: e.target.value }))}
+                        style={{ width: '100%', padding: '7px 5px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold', backgroundColor: 'white', color: '#334155' }}
+                      >
+                        <option value="4 anos">4 anos</option>
+                        <option value="6 anos">6 anos</option>
+                        <option value="8 anos">8 anos</option>
+                        <option value="10 anos">10 anos</option>
+                        <option value="12 anos">12 anos</option>
+                      </select>
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        type="number" min="0" 
+                        value={(uniformesVenda as any)[item.key] || ""} 
+                        onChange={(e) => setUniformesVenda(prev => ({ ...prev, [item.key]: Math.max(0, parseInt(e.target.value) || 0) }))} 
+                        style={{ width: '100%', padding: '6px 5px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }} 
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ backgroundColor: '#eff6ff', padding: '15px', borderRadius: '12px', textAlign: 'center', margin: '5px 0' }}>
+          <div style={{ backgroundColor: '#eff6ff', padding: '15px', borderRadius: '12px', textAlign: 'center', margin: '10px 0 5px 0' }}>
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e40af' }}>TOTAL DO UNIFORME</span>
             <h3 style={{ fontSize: '24px', fontWeight: '900', color: '#1e3a8a', margin: '4px 0 0' }}>R$ {totalVendaUniforme.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          </div>
-
-          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>VALOR PAGO NO ATO (MÉTODO DE RECEBIMENTO)</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
-              {['pix', 'dinheiro', 'credito', 'debito'].map((metodo) => (
-                <div key={metodo} style={{ position: 'relative' }}>
-                  <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', marginBottom: '3px' }}>{metodo}</label>
-                  <input 
-                    type="number" value={(metodosUniforme as any)[metodo] || ""} 
-                    onChange={(e) => setMetodosUniforme(prev => ({ ...prev, [metodo]: e.target.value }))} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '13px' }} 
-                    placeholder="0.00"
-                  />
-                  <button 
-                    onClick={() => preencherTotalMetodo(metodo)} 
-                    style={{ width: '100%', marginTop: '4px', border: 'none', background: '#f1f5f9', color: '#2563eb', fontSize: '9px', fontWeight: 'bold', padding: '3px', borderRadius: '4px', cursor: 'pointer' }}
-                  >
-                    Pagar Tudo
-                  </button>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 

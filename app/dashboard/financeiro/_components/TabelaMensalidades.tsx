@@ -40,7 +40,9 @@ export function TabelaMensalidades({
           style={{ padding: '8px 15px', borderRadius: '10px', border: '1px solid #ddd', width: '250px' }} 
         />
       </div>
-      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+      
+      {/* ALTERAÇÃO: Removido maxHeight e overflowY para eliminar a rolagem interna do card */}
+      <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
             <tr style={{ fontSize: '12px', color: '#6b7280', borderBottom: '2px solid #f3f4f6' }}>

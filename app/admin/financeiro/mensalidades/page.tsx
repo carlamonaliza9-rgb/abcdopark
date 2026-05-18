@@ -73,11 +73,9 @@ export default function MensalidadesPage() {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      // Busca pgtos do fluxo do mês mais pendências do ledger atemporais
       const { data: pgtosMes = [] } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const { data: pgtosPendentes = [] } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial']);
 
-      // Busca pgtos específicos do mês de referência para compor os status visuais da tabela
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
       const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
         .select('aluno_id')
@@ -108,7 +106,7 @@ export default function MensalidadesPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
-  // --- MIGRADO: CONFIRMAÇÃO DE BAIXA COM LOGICA CONTA CORRENTE UNIVERSAL ---
+  // --- CONFIRMAÇÃO DE BAIXA COM LOGICA CONTA CORRENTE UNIVERSAL ---
   async function confirmarPagamento() {
     const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     if (somaPaga <= 0) return alert("Insira um valor.");
@@ -160,51 +158,57 @@ export default function MensalidadesPage() {
     carregarDados();
   }
 
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center">Carregando controle de mensalidades...</div>;
+  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando controle de mensalidades...</div>;
 
   const alunosFiltrados = alunos.filter(aluno => aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase()));
 
   return (
-    <div className="w-full bg-gray-50 min-h-screen">
-      <div className="mb-6 flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">🏫 Gestão de Mensalidades Regulares</h1>
-          <p className="text-sm text-gray-500 mt-1">Dar baixas operacionais, estornos e cobranças diretas da ABC DO PARK</p>
+    <div className="w-full bg-slate-50/50 min-h-screen p-6 md:p-8 font-sans antialiased text-slate-800">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
+        {/* Cabeçalho da Página */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">🏫 Gestão de Mensalidades Regulares</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Dar baixas operacionais, estornos e cobranças diretas da ABC DO PARK</p>
+          </div>
+          <div>
+            <input 
+              type="month" 
+              value={mesFiltro} 
+              onChange={(e) => setMesFiltro(e.target.value)} 
+              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm" 
+            />
+          </div>
         </div>
-        <div>
-          <input 
-            type="month" 
-            value={mesFiltro} 
-            onChange={(e) => setMesFiltro(e.target.value)} 
-            className="p-3 bg-gray-100 rounded-xl font-bold border-none text-blue-900 outline-none" 
-          />
-        </div>
-      </div>
 
-      <TabelaMensalidades 
-        alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
-        onPagamento={(a) => { 
-          setAlunoSelecionado(a); 
-          setTipoPagamento("mensalidade"); 
-          setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", multa: "" }); 
-          setModalPgtoAberto(true); 
-        }}
-        onCobrar={(a) => {
-          const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
-          window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-        }}
-        onDesfazer={async (id) => { 
-          if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
-          if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-          if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno e retornará para pendente.")) { 
-            const [ano, mes] = mesFiltro.split('-');
-            const nomeMesRef = mesesAno[parseInt(mes) - 1];
-            await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id); 
-            await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
-            carregarDados(); 
-          } 
-        }}
-      />
+        {/* Tabela Chamada Diretamente */}
+        <TabelaMensalidades 
+          alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
+          onPagamento={(a) => { 
+            setAlunoSelecionado(a); 
+            setTipoPagamento("mensalidade"); 
+            setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", multa: "" }); 
+            setModalPgtoAberto(true); 
+          }}
+          onCobrar={(a) => {
+            const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
+            window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+          }}
+          onDesfazer={async (id) => { 
+            if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
+            if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+            if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno e retornará para pendente.")) { 
+              const [ano, mes] = mesFiltro.split('-');
+              const nomeMesRef = mesesAno[parseInt(mes) - 1];
+              await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id); 
+              await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
+              carregarDados(); 
+            } 
+          }}
+        />
+
+      </div>
 
       <ModalPagamento 
         aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}

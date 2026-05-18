@@ -160,18 +160,16 @@ export default function FinanceiroAdminPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
-  // --- EMISSOR DE PDF DETALHADO REESTILIZADO POR CORES ---
+  // --- EMISSOR DE PDF DETALHADO POR CORES SÓLIDAS ---
   function gerarRelatorioTesouraria() {
     const doc = new jsPDF();
     const [ano, mesNum] = mesFiltro.split('-');
     const nomeMes = mesesAno[parseInt(mesNum) - 1];
     const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
 
-    // Cabeçalho Oficial Institucional
     try { doc.addImage(logoUrl, "PNG", 15, 10, 25, 25); } catch (e) {}
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
-    doc.setTextColor(30, 58, 138);
     doc.text("BALANÇO FINANCEIRO MENSAL", 105, 20, { align: "center" });
     doc.setFontSize(12);
     doc.text(`ESCOLA ABC DO PARK - ${nomeMes.toUpperCase()} / ${ano}`, 105, 28, { align: "center" });
@@ -180,7 +178,6 @@ export default function FinanceiroAdminPage() {
     doc.setTextColor(100, 116, 139);
     doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}, ${new Date().toLocaleTimeString('pt-BR')}`, 195, 33, { align: "right" });
 
-    // 1. Tabela Resumo do Período
     autoTable(doc, {
       startY: 40,
       head: [['RESUMO DO PERÍODO', 'VALOR ACUMULADO']],
@@ -195,17 +192,15 @@ export default function FinanceiroAdminPage() {
       columnStyles: { 0: { halign: 'left' } }
     });
 
-    // Filtros de datas estritos do mês corrente para detalhamento
     const dataInicio = `${ano}-${mesNum}-01`;
     const ultimoDiaObjeto = new Date(parseInt(ano), parseInt(mesNum), 0);
     const dataFim = `${ano}-${mesNum}-${String(ultimoDiaObjeto.getDate()).padStart(2, '0')}`;
     const pgtosEfetuadosEsteMes = listaReceitasDetalhada.filter(p => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim);
 
-    // 2. Tabela Detalhada de Entradas (VERDE)
     let finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(16, 124, 65); // Título em Verde Operacional
+    doc.setTextColor(16, 124, 65); 
     doc.text("1. RELAÇÃO DE ENTRADAS (DETALHADO)", 15, finalY);
 
     const rowsEntradas = pgtosEfetuadosEsteMes.map(r => {
@@ -220,18 +215,17 @@ export default function FinanceiroAdminPage() {
       head: [['DATA', 'ALUNO/ORIGEM', 'DESCRIÇÃO', 'VALOR']],
       body: rowsEntradas,
       theme: 'grid',
-      headStyles: { fillColor: [16, 124, 65], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, // Cabeçalho Verde
+      headStyles: { fillColor: [16, 124, 65], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
       styles: { fontSize: 8, textColor: [51, 65, 85] },
       columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'left', cellWidth: 55 }, 2: { halign: 'left' }, 3: { halign: 'right', cellWidth: 28 } }
     });
 
-    // 3. Tabela Detalhada de Saídas (VERMELHO)
     finalY = (doc as any).lastAutoTable.finalY + 10;
     if (finalY > 260) { doc.addPage(); finalY = 20; }
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(220, 38, 38); // Título em Vermelho de Alerta
+    doc.setTextColor(220, 38, 38); 
     doc.text("2. RELAÇÃO DE SAÍDAS (DETALHADO)", 15, finalY);
 
     const rowsSaidas = listaGastosDetalhada.map(g => {
@@ -245,12 +239,11 @@ export default function FinanceiroAdminPage() {
       head: [['DATA', 'DESCRIÇÃO DA DESPESA', 'VALOR']],
       body: rowsSaidas,
       theme: 'grid',
-      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, // Cabeçalho Vermelho
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
       styles: { fontSize: 8, textColor: [51, 65, 85] },
       columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 28 } }
     });
 
-    // Linhas de Validação e Assinaturas Finais
     finalY = (doc as any).lastAutoTable.finalY + 22;
     if (finalY > 250) { doc.addPage(); finalY = 35; }
     
@@ -283,47 +276,56 @@ export default function FinanceiroAdminPage() {
     }
   }
 
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-500">Carregando painel financeiro global...</div>;
+  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando painel financeiro global...</div>;
 
   return (
-    <div className="w-full p-6 bg-slate-50 min-h-screen font-sans text-slate-800">
-      
-      <FinanceiroHeader 
-        mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
-        onNovoEvento={() => router.push("/admin/financeiro/eventos")}
-        onRegistrarGasto={() => router.push("/admin/financeiro/despesas")}
-        onVendaUniforme={() => router.push("/admin/financeiro/vendas-taxas")}
-        onZerarMes={() => {}} 
-        valorPadrao={valorPadrao} setValorPadrao={setValorPadrao}
-        editandoValor={editandoValor} setEditandoValor={setEditandoValor}
-        senhaMestra={SENHA_MESTRA}
-      />
+    // Removido estilos embutidos e envelopado em uma Grid semântica com espaçamento profissional do Tailwind
+    <div className="w-full min-h-screen bg-slate-50/50 p-6 md:p-8 font-sans antialiased text-slate-800">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* Bloco 1: Header de Filtros */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <FinanceiroHeader 
+            mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
+            onNovoEvento={() => router.push("/admin/financeiro/eventos")}
+            onRegistrarGasto={() => router.push("/admin/financeiro/despesas")}
+            onVendaUniforme={() => router.push("/admin/financeiro/vendas-taxas")}
+            onZerarMes={() => {}} 
+            valorPadrao={valorPadrao} setValorPadrao={setValorPadrao}
+            editandoValor={editandoValor} setEditandoValor={setEditandoValor}
+            senhaMestra={SENHA_MESTRA}
+          />
+        </div>
 
-      <div className="mb-6 flex justify-end">
-        <button 
-          onClick={gerarRelatorioTesouraria}
-          className="px-5 py-2.5 bg-slate-700 text-white font-bold text-sm rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center gap-2 border border-slate-600/30"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-          </svg>
-          Gerar Relatório Balanço Consolidado (PDF)
-        </button>
+        {/* Bloco 2: Barra de Ações Secundárias Reestilizada (Estilo SimplesVet) */}
+        <div className="flex justify-end">
+          <button 
+            onClick={gerarRelatorioTesouraria}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition-all border border-slate-950/20 tracking-wide uppercase"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-slate-300">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+            Gerar Relatório Balanço Consolidado (PDF)
+          </button>
+        </div>
+
+        {/* Bloco 3: Grid de Informações Financeiras */}
+        <div className="space-y-6">
+          <MetricasCard 
+            metricas={metricas} 
+            onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
+            onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
+          />
+          
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
+          </div>
+        </div>
+
       </div>
 
-      {/* PAINEL CENTRAL DE MÉTRICAS */}
-      <div className="mb-6">
-        <MetricasCard 
-          metricas={metricas} 
-          onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
-          onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
-        />
-      </div>
-
-      {/* BALANÇO E RESUMO DE MÍDIAS DE RECEBIMENTO */}
-      <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
-
-      {/* MODAIS DE CONVENIÊNCIA PARA CONSULTA DE HISTÓRICOS */}
+      {/* MODAIS DE CONVENIÊNCIA */}
       <ModalListaGastos 
         aberto={modalListaGastosAberto} onFechar={() => setModalListaGastosAberto(false)}
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada} onExcluir={handleExcluirGasto}
@@ -350,7 +352,6 @@ export default function FinanceiroAdminPage() {
         })}
         onExcluir={handleExcluirReceita}
       />
-
     </div>
   );
 }

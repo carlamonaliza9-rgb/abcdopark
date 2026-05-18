@@ -173,7 +173,7 @@ export default function VendasTaxasPage() {
   // ================= CÁLCULOS DO NOVO GRÁFICO DE UNIFORMES (ANUAL 2026) =================
   let totalPecasAno = 0;
   let camisasVendidas = 0;
-  let inferioresVendidos = 0; // Calça, Short, Saia
+  let inferioresVendidos = 0; 
   let casacosVendidos = 0;
 
   historicoUniformes.forEach(item => {
@@ -197,7 +197,6 @@ export default function VendasTaxasPage() {
     }
   });
 
-  // Normalização para tamanho máximo visual das barras (Evita quebras de layout)
   const maxPecas = Math.max(camisasVendidas, inferioresVendidos, casacosVendidos, 10);
   const hCamisas = (camisasVendidas / maxPecas) * 100;
   const hInferiores = (inferioresVendidos / maxPecas) * 100;
@@ -215,22 +214,18 @@ export default function VendasTaxasPage() {
 
       {/* Painel Central de Ações */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        
-        {/* Bloco de Uniformes com o novo gráfico analítico anual */}
+        {/* Bloco de Uniformes */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
             <div className="h-12 w-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-xl mb-4">👕</div>
             <h3 className="text-lg font-bold text-gray-900">Venda de Uniformes Avulsos</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">Emita faturamentos de camisas, casacos e calças escolares diretamente na ficha corrente do aluno selecionado.</p>
             
-            {/* GRÁFICO VISUAIS DE UNIFORMES VENDIDOS NO ANO */}
             <div className="space-y-3 border-t border-gray-100 pt-4 mb-6">
               <div className="flex justify-between items-center text-xs font-bold text-purple-950 mb-1">
                 <span>📊 Peças Saídas (Letivo 2026)</span>
                 <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md">{totalPecasAno} un. vendidas</span>
               </div>
-
-              {/* Linha: Camisas */}
               <div>
                 <div className="flex justify-between text-[11px] font-semibold text-gray-600 mb-0.5">
                   <span>👕 Camisas (Padrão / Ed. Física)</span>
@@ -240,8 +235,6 @@ export default function VendasTaxasPage() {
                   <div className="bg-purple-500 h-full transition-all duration-500" style={{ width: `${hCamisas}%` }}></div>
                 </div>
               </div>
-
-              {/* Linha: Peças Inferiores */}
               <div>
                 <div className="flex justify-between text-[11px] font-semibold text-gray-600 mb-0.5">
                   <span>👖 Inferiores (Calças / Shorts / Saias)</span>
@@ -251,8 +244,6 @@ export default function VendasTaxasPage() {
                   <div className="bg-fuchsia-500 h-full transition-all duration-500" style={{ width: `${hInferiores}%` }}></div>
                 </div>
               </div>
-
-              {/* Linha: Casacos */}
               <div>
                 <div className="flex justify-between text-[11px] font-semibold text-gray-600 mb-0.5">
                   <span>🧥 Casacos de Inverno</span>
@@ -279,9 +270,7 @@ export default function VendasTaxasPage() {
             <h3 className="text-lg font-bold text-gray-900">Faturamento Geral em Lote</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">Insira cobranças anuais automáticas de Livros Didáticos e Taxas de Materiais para todos os alunos filtrados por segmento de ensino.</p>
             
-            {/* GRÁFICOS VISUAIS DE PROGRESSO DE ARRECADAÇÃO */}
             <div className="space-y-4 border-t border-gray-100 pt-4 mb-6">
-              {/* Progresso: Taxa de Material */}
               <div>
                 <div className="flex justify-between items-center text-xs font-bold text-gray-700 mb-1">
                   <span>🎨 Taxa de Material</span>
@@ -295,8 +284,6 @@ export default function VendasTaxasPage() {
                   <span className="text-red-500 font-bold">{faltamMaterial} em aberto</span>
                 </div>
               </div>
-
-              {/* Progresso: Livros Didáticos */}
               <div>
                 <div className="flex justify-between items-center text-xs font-bold text-gray-700 mb-1">
                   <span>📘 Livros Didáticos</span>
@@ -344,19 +331,55 @@ export default function VendasTaxasPage() {
                   const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Aluno Não Encontrado";
                   return (
                     <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                      {/* Data da venda dinâmica baseada em created_at caso esteja pendente */}
                       <td className="p-4 text-gray-500 font-medium">
-                        {item.data_pagamento ? new Date(item.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--'}
+                        {item.data_pagamento 
+                          ? new Date(item.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') 
+                          : (item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '--')}
                       </td>
                       <td className="p-4 font-bold text-gray-900 uppercase">{nomeAluno}</td>
-                      <td className="p-4 text-gray-600">{item.descricao}</td>
-                      <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded-md text-xs font-bold ${
-                          item.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : item.status === 'parcial' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'
-                        }`}>
-                          {item.status.toUpperCase()}
-                        </span>
+                      
+                      {/* AJUSTE SOLICITADO: Limpeza do prefixo para mostrar apenas itens e tamanhos na tabela */}
+                      <td className="p-4 text-gray-600">
+                        {item.descricao?.replace("Venda de Uniforme Avulsa: ", "")}
                       </td>
+                      
+                      <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
+                      
+                      {/* Status pendente/parcial clicável para abrir baixa rápida */}
+                      <td className="p-4 text-center">
+                        {item.status !== 'pago' ? (
+                          <button
+                            onClick={() => {
+                              if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
+                                return alert("A direção não possui permissão para alterar lançamentos salvos.");
+                              }
+                              const aluno = alunos.find(a => a.id === item.aluno_id);
+                              setAlunoSelecionado(aluno);
+                              setIdPagamentoEdicao(item.id);
+                              setTipoPagamento(item.tipo);
+                              setDescricaoOutro(item.descricao);
+                              setDataPagamento(new Date().toISOString().split('T')[0]); 
+                              setMesReferencia(item.mes_referencia || "");
+                              
+                              const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
+                              setPagamentosMetodos({ pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
+                              setModalPgtoAberto(true);
+                            }}
+                            title="Clique para dar baixa / adicionar pagamento"
+                            className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer hover:opacity-80 transition-opacity active:scale-95 ${
+                              item.status === 'parcial' ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-red-50 text-red-700 border border-red-200/40'
+                            }`}
+                          >
+                            {item.status.toUpperCase()}
+                          </button>
+                        ) : (
+                          <span className="px-2 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700">
+                            {item.status.toUpperCase()}
+                          </span>
+                        )}
+                      </td>
+                      
                       <td className="p-4 text-center space-x-2">
                         <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️ Editar</button>
                         <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-red-100">🗑️ Eliminar</button>
