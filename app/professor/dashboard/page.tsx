@@ -98,12 +98,14 @@ export default function DashboardProfessorPage() {
         if (quemFezHoje.length > 0) {
           setAniversariantesHoje(quemFezHoje);
           if (typeof window !== 'undefined') {
-            const sessionId = sessionData.session?.access_token.slice(-15) || 'default';
-            const notifKey = `bday_session_${hojeString}_${sessionId}`;
-            const exibicoes = parseInt(sessionStorage.getItem(notifKey) || '0');
+            // Ajustado para usar localStorage e travar o limite máximo em 2 exibições diárias locais
+            const hojeStringLocal = hoje.toLocaleDateString('en-CA');
+            const notifKey = `bday_alerta_${hojeStringLocal}`;
+            const exibicoes = parseInt(localStorage.getItem(notifKey) || '0');
+            
             if (exibicoes < 2) {
               setModalBdayAberto(true);
-              sessionStorage.setItem(notifKey, (exibicoes + 1).toString());
+              localStorage.setItem(notifKey, (exibicoes + 1).toString());
             }
           }
         }
@@ -169,9 +171,9 @@ export default function DashboardProfessorPage() {
   const formatarDataLocal = (dataString: string) => { const d = new Date(dataString + "T12:00:00"); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }); };
   const extrairDiaUTC = (dataString: string) => { const d = new Date(dataString + "T12:00:00"); return d.getUTCDate(); };
 
-  const parabensWhatsApp = (pessoa: any) => {
-    const msg = `Parabéns, ${pessoa.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! 🎂🎈`;
-    window.open(`https://wa.me/55${pessoa.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+  const parabensWhatsApp = (persona: any) => {
+    const msg = `Parabéns, ${persona.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! 🎂🎈`;
+    window.open(`https://wa.me/55${persona.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const getEventoStyle = (titulo: string) => {
@@ -311,15 +313,15 @@ export default function DashboardProfessorPage() {
         <div style={estiloCard}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}</h2>
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(pessoa => {
-              const dia = extrairDiaUTC(pessoa.data_nascimento);
-              const corDestaque = pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb';
+            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
+              const dia = extrairDiaUTC(persona.data_nascimento);
+              const corDestaque = persona.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb';
               return (
-                <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ textAlign: 'center', minWidth: '90px' }}>
+                <div key={`${persona.tipo}-${persona.id}`} style={{ textAlign: 'center', minWidth: '90px' }}>
                   <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: `2px solid ${corDestaque}` }}>
-                    {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
+                    {persona.foto_url ? <img src={persona.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{persona.nome.charAt(0)}</div>}
                   </div>
-                  <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>{pessoa.nome.split(' ')[0]}</p>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>{persona.nome.split(' ')[0]}</p>
                   <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia}</p>
                 </div>
               );

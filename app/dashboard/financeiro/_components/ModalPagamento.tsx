@@ -111,7 +111,7 @@ export function ModalPagamento({
           <div><label style={{ fontSize: 10 }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, dinheiro: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
           <div><label style={{ fontSize: 10 }}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
           <div><label style={{ fontSize: 10 }}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, debito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
-          <div style={{ gridColumn: 'span 2' }}><label style={{ fontSize: 10, color: 'red', fontWeight: 'bold' }}>Multa:</label><input type="number" value={pagamentosMetodos.multa} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid red', borderRadius: 8 }} /></div>
+          <div style={{ gridColumn: 'span 2' }}><label style={{ fontSize: 10, color: 'red', fontWeight: 'bold' }}>Multa/Juros:</label><input type="number" value={pagamentosMetodos.multa} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid red', borderRadius: 8 }} /></div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
