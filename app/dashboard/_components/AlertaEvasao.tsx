@@ -9,8 +9,8 @@ export function AlertaEvasao() {
   const visivelRef = useRef(false); // Referência para evitar contagem duplicada
 
   async function verificarAlertasEvasao() {
-    // Pegamos a data de hoje no formato YYYY-MM-DD para bater com o banco
-    const hoje = new Date().toISOString().split('T')[0];
+    // Ajustado para capturar a data local de Belém (AAAA-MM-DD), evitando o erro do fuso UTC à noite
+    const hoje = new Date().toLocaleDateString('en-CA');
     
     const { data, error } = await supabase
       .from('historico_pedagogico')
@@ -27,14 +27,15 @@ export function AlertaEvasao() {
       setAlertas(data);
       
       if (typeof window !== 'undefined') {
+        // Substituído sessionStorage por localStorage para travar o limite em 2x ao dia globalmente
         const storageKey = `alerta_evasao_${hoje}`;
-        const exibicoes = parseInt(sessionStorage.getItem(storageKey) || '0');
+        const exibicoes = parseInt(localStorage.getItem(storageKey) || '0');
         
         // Só exibe e conta se não estiver visível no momento e se não bateu o limite de 2
         if (!visivelRef.current && exibicoes < 2) {
           setVisivel(true);
           visivelRef.current = true;
-          sessionStorage.setItem(storageKey, (exibicoes + 1).toString());
+          localStorage.setItem(storageKey, (exibicoes + 1).toString());
         }
       }
     } else {

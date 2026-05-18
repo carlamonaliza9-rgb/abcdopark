@@ -5,6 +5,7 @@ interface FinanceiroHeaderProps {
   setMesFiltro: (val: string) => void;
   onNovoEvento: () => void;
   onRegistrarGasto: () => void;
+  onVendaUniforme: () => void;
   onZerarMes: () => void;
   valorPadrao: number;
   setValorPadrao: (val: number) => void;
@@ -18,6 +19,7 @@ export function FinanceiroHeader({
   setMesFiltro,
   onNovoEvento,
   onRegistrarGasto,
+  onVendaUniforme,
   onZerarMes,
   valorPadrao,
   setValorPadrao,
@@ -53,7 +55,7 @@ export function FinanceiroHeader({
       
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <button onClick={onNovoEvento} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>🎟️ NOVO EVENTO</button>
-        <button onClick={() => window.print()} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#2563eb', color: 'white' }}>📄 PDF</button>
+        <button onClick={onVendaUniforme} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>👕 UNIFORME</button>
         <button onClick={onRegistrarGasto} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#ef4444', color: 'white' }}>- GASTO</button>
         <button onClick={onZerarMes} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#374151', color: 'white' }}>🔄 ZERAR MÊS</button>
         
