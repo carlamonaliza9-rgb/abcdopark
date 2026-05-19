@@ -18,6 +18,7 @@ export default function MensalidadesPage() {
   const [valorPadrao, setValorPadrao] = useState(550);
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [filtroNome, setFiltroNome] = useState(""); 
+  const [filtroTurma, setFiltroTurma] = useState(""); // Estado de controle do filtro por turma
   const [alunos, setAlunos] = useState<any[]>([]);
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -71,6 +72,7 @@ export default function MensalidadesPage() {
       const ultimoDiaObjeto = new Date(parseInt(ano), parseInt(mes), 0);
       const dataFim = `${ano}-${mes}-${String(ultimoDiaObjeto.getDate()).padStart(2, '0')}`;
 
+      const { data: { user } } = await supabase.auth.getUser();
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
       const { data: pgtosMes = [] } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
@@ -160,29 +162,50 @@ export default function MensalidadesPage() {
 
   if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando controle de mensalidades...</div>;
 
-  const alunosFiltrados = alunos.filter(aluno => aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase()));
+  // Extração automática de todas as turmas ativas cadastradas no banco de dados
+  const listaTurmasUnicas = Array.from(new Set(alunos.map(aluno => aluno.turma).filter(Boolean))).sort();
+
+  // Filtragem combinada hierárquica por Nome E por Turma
+  const alunosFiltrados = alunos.filter(aluno => {
+    const correspondeNome = aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase());
+    const correspondeTurma = filtroTurma === "" || aluno.turma === filtroTurma;
+    return correspondeNome && correspondeTurma;
+  });
 
   return (
     <div className="w-full bg-slate-50/50 min-h-screen p-6 md:p-8 font-sans antialiased text-slate-800">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Cabeçalho da Página */}
+        {/* Cabeçalho da Página Reestruturado com os Filtros Lado a Lado */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-xl font-bold text-slate-900">🏫 Gestão de Mensalidades Regulares</h1>
             <p className="text-xs text-slate-500 mt-0.5">Dar baixas operacionais, estornos e cobranças diretas da ABC DO PARK</p>
           </div>
-          <div>
+          
+          {/* Alinhamento Cirúrgico: Filtro de Turma inserido ao lado do seletor de Mês/Ano */}
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <select
+              value={filtroTurma}
+              onChange={(e) => setFiltroTurma(e.target.value)}
+              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-44"
+            >
+              <option value="">Todas as Turmas</option>
+              {listaTurmasUnicas.map(turma => (
+                <option key={turma} value={turma}>{turma.toUpperCase()}</option>
+              ))}
+            </select>
+
             <input 
               type="month" 
               value={mesFiltro} 
               onChange={(e) => setMesFiltro(e.target.value)} 
-              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm" 
+              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-auto" 
             />
           </div>
         </div>
 
-        {/* Tabela Chamada Diretamente */}
+        {/* Componente de Listagem chamado com o array filtrado por Nome e Turma */}
         <TabelaMensalidades 
           alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
           onPagamento={(a) => { 
