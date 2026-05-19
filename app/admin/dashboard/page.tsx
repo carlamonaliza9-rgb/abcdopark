@@ -30,6 +30,16 @@ export default function DashboardAdminPage() {
   const [arquivoImagem, setArquivoImagem] = useState<File | null>(null);
   const [previewImagem, setPreviewImagem] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
+  
+  // Teclado Blindado (Hexadecimal) para evitar quebra de encoding
+  const [mostrarEmojis, setMostrarEmojis] = useState(false);
+  const emojisWhatsApp = {
+    Rostos: [0x1F600, 0x1F602, 0x1F923, 0x1F60A, 0x1F60D, 0x1F970, 0x1F60E, 0x1F62D, 0x1F621, 0x1F97A, 0x1F637, 0x1F927, 0x1F922, 0x1F607, 0x1F914, 0x1F910],
+    Gestos: [0x1F44D, 0x1F44E, 0x1F44F, 0x1F64C, 0x1F91D, 0x1F64F, 0x1F4AA, 0x1F44C, 0x1F44B, 0x1F447, 0x1F449, 0x1F448, 0x1F90C, 0x1F90F, 0x1F91E, 0x1F91F],
+    Escola: [0x1F3EB, 0x1F4DA, 0x1F4D6, 0x1F4DD, 0x1F392, 0x1F68C, 0x1F393, 0x1F3A8, 0x1F3C0, 0x1F34E, 0x1F96A, 0x1F4BB, 0x1F52C, 0x1F9E0, 0x1F4A1, 0x1F58C],
+    Avisos: [0x1F4E2, 0x1F4E3, 0x1F6A8, 0x2757, 0x2753, 0x2705, 0x274C, 0x1F4C5, 0x23F0, 0x1F389, 0x1F388, 0x1F4CC, 0x1F4CD, 0x1F514, 0x1F3C6, 0x1F3AF]
+  };
+  const [categoriaEmoji, setCategoriaEmoji] = useState<keyof typeof emojisWhatsApp>('Rostos');
 
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false);
   const [eventos, setEventos] = useState<any[]>([]);
@@ -196,21 +206,33 @@ export default function DashboardAdminPage() {
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setArrastando(false); const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith("image/")) { setArquivoImagem(file); setPreviewImagem(URL.createObjectURL(file)); } };
 
   const enviarAvisoWhatsApp = () => {
-    const textoFinal = `📢 *AVISO ABC DO PARK*\n\n${mensagemAviso}`;
+    // Código seguro do emoji de megafone
+    const iconeAviso = String.fromCodePoint(0x1F4E2); 
+    const textoFinal = `${iconeAviso} *AVISO ABC DO PARK*\n\n${mensagemAviso}`;
+    
+    // Substituído wa.me pela API direta do WhatsApp para não quebrar a codificação da URL
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoFinal)}`;
+    
     navigator.clipboard.writeText(textoFinal);
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoFinal)}`, '_blank');
-    setModalAvisoAberto(false); setMensagemAviso(""); setPreviewImagem(null);
+    window.open(url, '_blank');
+    setModalAvisoAberto(false); 
+    setMensagemAviso(""); 
+    setPreviewImagem(null); 
+    setMostrarEmojis(false);
   };
 
   const parabensWhatsApp = (persona: any) => {
-    const msg = `Parabéns, ${persona.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! 🎂🎈`;
-    window.open(`https://wa.me/55${persona.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    // Códigos seguros: 🎉 (0x1F389), 🎂 (0x1F382), 🎈 (0x1F388)
+    const msg = `Parabéns, ${persona.nome.split(' ')[0]}! ${String.fromCodePoint(0x1F389)} A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! ${String.fromCodePoint(0x1F382)}${String.fromCodePoint(0x1F388)}`;
+    
+    const url = `https://api.whatsapp.com/send?phone=55${persona.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
   };
 
   const getEventoStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
-    return { bg: isEspecial ? "#f5f3ff" : "#f9fafb", border: isEspecial ? "4px solid #8b5cf6" : "4px solid #2563eb", color: isEspecial ? "#6d28d9" : "#2563eb" };
+    return { bg: isEspecial ? "#f5f3ff" : "#f9fafb", border: isEspecial ? "4px solid #a90cd0" : "4px solid #2563eb", color: isEspecial ? "#6d28d9" : "#2563eb" };
   };
 
   const estiloBotaoAcao = { padding: '12px 20px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' as 'bold', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(37, 99, 235, 0.1)' };
@@ -242,8 +264,8 @@ export default function DashboardAdminPage() {
       {modalBdayAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', textAlign: 'center' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%)', padding: '40px 20px', color: 'white' }}>
-              <span style={{ fontSize: '50px' }}>🎂</span>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #a90cd0 100%)', padding: '40px 20px', color: 'white' }}>
+              <span style={{ fontSize: '50px' }}>{String.fromCodePoint(0x1F382)}</span>
               <h2 style={{ fontSize: '24px', fontWeight: '800', marginTop: '10px' }}>
                 {aniversariantesHoje.some(p => p.email === userEmail) 
                   ? `Parabéns, ${nomeUsuario}! ✨` 
@@ -252,7 +274,7 @@ export default function DashboardAdminPage() {
               {aniversariantesHoje.some(p => p.email === userEmail) ? (
                 <div style={{ padding: '0 20px', marginTop: '15px' }}>
                   <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>
-                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
+                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! {String.fromCodePoint(0x1F388)}<br/><br/>
                     Que este novo ciclo seja repleto de paz, saúde, conquistas e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história todos os dias. Celebre muito, você merece o mundo!
                   </p>
                   <p style={{ marginTop: '15px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Um abraço bem apertado da Família ABC DO PARK ❤️</p>
@@ -275,7 +297,7 @@ export default function DashboardAdminPage() {
                         <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
                           {ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}
                         </h4>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: ehVoce ? '#2563eb' : (pessoa.tipo === 'funcionario' ? '#8b5cf6' : '#64748b') }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: ehVoce ? '#2563eb' : (pessoa.tipo === 'funcionario' ? '#a90cd0' : '#64748b') }}>
                           {ehVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
                         </span>
                       </div>
@@ -334,7 +356,6 @@ export default function DashboardAdminPage() {
           </div>
         </div>
         
-        {/* A CORREÇÃO: Removi o height: 100% e adicionei o alignSelf: 'start' para o card não esticar artificialmente */}
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignSelf: 'start' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             🚀 Próximas Programações
@@ -360,14 +381,14 @@ export default function DashboardAdminPage() {
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
             {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
               const dia = extrairDiaUTC(persona.data_nascimento);
-              const corDestaque = persona.tipo === 'funcionario' ? '#8b5cf6' : '#2563eb';
+              const corDestaque = persona.tipo === 'funcionario' ? '#a90cd0' : '#2563eb';
               return (
                 <div key={`${persona.tipo}-${persona.id}`} style={{ textAlign: 'center', minWidth: '90px' }}>
                   <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', overflow: 'hidden', border: `2px solid ${corDestaque}` }}>
                     {persona.foto_url ? <img src={persona.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: corDestaque }}>{persona.nome.charAt(0)}</div>}
                   </div>
                   <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>{persona.nome.split(' ')[0]}</p>
-                  <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia} {persona.tipo === 'funcionario' && "⭐"}</p>
+                  <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia} {persona.tipo === 'funcionario'}</p>
                 </div>
               );
             }) : <p style={{ color: '#9ca3af', fontSize: '14px' }}>Nenhum aniversário este mês.</p>}
@@ -435,7 +456,7 @@ export default function DashboardAdminPage() {
         </div>
       )}
 
-      {/* MODAL AVISO */}
+      {/* MODAL AVISO COM EMOJIS */}
       {modalAvisoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px' }}>
@@ -444,9 +465,66 @@ export default function DashboardAdminPage() {
               {previewImagem ? <img src={previewImagem} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <><span style={{ fontSize: '30px' }}>🖼️</span><p style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px' }}>Arraste a imagem ou clique aqui</p></>}
               <input type="file" id="input-imagem" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoImagem(file); setPreviewImagem(URL.createObjectURL(file)); } }} />
             </div>
-            <textarea value={mensagemAviso} onChange={(e) => setMensagemAviso(e.target.value)} placeholder="Digite o texto do comunicado..." style={{ width: '100%', height: '100px', padding: '15px', borderRadius: '15px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: '14px', outline: 'none', resize: 'none', marginBottom: '20px' }} />
+            
+            {/* Contêiner Relativo para Textarea e Emojis */}
+            <div style={{ position: 'relative', marginBottom: '20px' }}>
+              <textarea 
+                value={mensagemAviso} 
+                onChange={(e) => setMensagemAviso(e.target.value)} 
+                placeholder="Digite o texto do comunicado..." 
+                style={{ width: '100%', height: '120px', padding: '15px', paddingBottom: '40px', borderRadius: '15px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: '14px', outline: 'none', resize: 'none' }} 
+              />
+              
+              {/* Botão de abrir Emojis c/ Hexadecimal Seguro */}
+              <button 
+                onClick={() => setMostrarEmojis(!mostrarEmojis)}
+                style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', padding: '5px', borderRadius: '50%' }}
+                title="Inserir Emoji"
+              >
+                {String.fromCodePoint(0x1F600)}
+              </button>
+
+              {/* Popover de Emojis */}
+              {mostrarEmojis && (
+                <div style={{ position: 'absolute', bottom: '45px', right: '0', backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '15px', padding: '15px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', width: '280px', zIndex: 10 }}>
+                  
+                  {/* Categorias */}
+                  <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px' }}>
+                    {(Object.keys(emojisWhatsApp) as Array<keyof typeof emojisWhatsApp>).map(cat => (
+                      <button 
+                        key={cat} 
+                        onClick={() => setCategoriaEmoji(cat)} 
+                        style={{ flex: 1, background: categoriaEmoji === cat ? '#eff6ff' : 'transparent', border: 'none', fontSize: '11px', fontWeight: 'bold', color: categoriaEmoji === cat ? '#2563eb' : '#6b7280', padding: '4px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Grade de Emojis convertidos de Hexadecimal */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                    {emojisWhatsApp[categoriaEmoji].map(code => {
+                      const emojiSeguro = String.fromCodePoint(code);
+                      return (
+                        <button
+                          key={code}
+                          onClick={() => {
+                            setMensagemAviso(prev => prev + emojiSeguro);
+                            setMostrarEmojis(false);
+                          }}
+                          style={{ background: '#f8fafc', border: 'none', fontSize: '20px', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          {emojiSeguro}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setModalAvisoAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e5e7eb', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => { setModalAvisoAberto(false); setMostrarEmojis(false); }} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e5e7eb', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
               <button onClick={enviarAvisoWhatsApp} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Abrir WhatsApp</button>
             </div>
           </div>
