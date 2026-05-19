@@ -21,6 +21,10 @@ export default function VendasTaxasPage() {
   const [historicoUniformes, setHistoricoUniformes] = useState<any[]>([]);
   const [historicoTaxas, setHistoricoTaxas] = useState<any[]>([]);
 
+  // --- NOVOS ESTADOS PARA BARRAS DE PESQUISA INDEPENDENTES ---
+  const [buscaUniforme, setBuscaUniforme] = useState("");
+  const [buscaTaxa, setBuscaTaxa] = useState("");
+
   // --- ESTADOS DE CONTROLE DE MODAIS ---
   const [modalUniformeAberto, setModalUniformeAberto] = useState(false);
   const [modalTaxasAberto, setModalTaxasAberto] = useState(false);
@@ -202,6 +206,17 @@ export default function VendasTaxasPage() {
   const hInferiores = (inferioresVendidos / maxPecas) * 100;
   const hCasacos = (casacosVendidos / maxPecas) * 100;
 
+  // --- APLICAÇÃO DOS FILTROS DE PESQUISA POR NOME DOS ALUNOS ---
+  const uniformesFiltrados = historicoUniformes.filter(item => {
+    const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
+    return nomeAluno.toLowerCase().includes(buscaUniforme.toLowerCase());
+  });
+
+  const taxasFiltradas = historicoTaxas.filter(item => {
+    const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
+    return nomeAluno.toLowerCase().includes(buscaTaxa.toLowerCase());
+  });
+
   if (verificandoAcesso || carregando) return <div className="p-10 text-center">Carregando controle de vendas e taxas...</div>;
 
   return (
@@ -310,8 +325,16 @@ export default function VendasTaxasPage() {
 
       {/* ================= RESUMO 1: HISTÓRICO DE UNIFORMES ================= */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div className="p-5 border-b border-gray-100 bg-purple-50/30">
+        {/* AJUSTE: Adicionada a barra de pesquisa ao lado do título */}
+        <div className="p-5 border-b border-gray-100 bg-purple-50/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="font-bold text-purple-950 text-sm uppercase tracking-wider">🛒 Histórico de Venda de Uniformes</h3>
+          <input
+            type="text"
+            placeholder="🔍 Buscar aluno neste histórico..."
+            value={buscaUniforme}
+            onChange={(e) => setBuscaUniforme(e.target.value)}
+            className="px-3 py-1.5 bg-white border border-purple-200/60 rounded-xl text-xs font-medium text-gray-700 outline-none w-full sm:w-64 shadow-inner"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -326,27 +349,21 @@ export default function VendasTaxasPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-              {historicoUniformes.length > 0 ? (
-                historicoUniformes.map((item) => {
+              {uniformesFiltrados.length > 0 ? (
+                uniformesFiltrados.map((item) => {
                   const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Aluno Não Encontrado";
                   return (
                     <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                      {/* Data da venda dinâmica baseada em created_at caso esteja pendente */}
                       <td className="p-4 text-gray-500 font-medium">
                         {item.data_pagamento 
                           ? new Date(item.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') 
                           : (item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '--')}
                       </td>
                       <td className="p-4 font-bold text-gray-900 uppercase">{nomeAluno}</td>
-                      
-                      {/* AJUSTE SOLICITADO: Limpeza do prefixo para mostrar apenas itens e tamanhos na tabela */}
                       <td className="p-4 text-gray-600">
                         {item.descricao?.replace("Venda de Uniforme Avulsa: ", "")}
                       </td>
-                      
                       <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
-                      
-                      {/* Status pendente/parcial clicável para abrir baixa rápida */}
                       <td className="p-4 text-center">
                         {item.status !== 'pago' ? (
                           <button
@@ -363,10 +380,97 @@ export default function VendasTaxasPage() {
                               setMesReferencia(item.mes_referencia || "");
                               
                               const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
-                              setPagamentosMetodos({ pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
+                              setPagamentosMetodos({ pix: restante.toString(), dinero: "", credito: "", debito: "", multa: "" } as any);
                               setModalPgtoAberto(true);
                             }}
                             title="Clique para dar baixa / adicionar pagamento"
+                            className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer hover:opacity-80 transition-opacity active:scale-95 ${
+                              item.status === 'parcial' ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-red-50 text-red-700 border border-red-200/40'
+                            }`}
+                          >
+                            {item.status.toUpperCase()}
+                          </button>
+                        ) : (
+                          <span className="px-2 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700">
+                            {item.status.toUpperCase()}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center space-x-2">
+                        <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️ Editar</button>
+                        <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-red-100">🗑️ Eliminar</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">Nenhuma venda de uniforme encontrada.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ================= RESUMO 2: HISTÓRICO DE TAXAS ANUAIS ================= */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+        {/* AJUSTE: Adicionada a barra de pesquisa ao lado do título */}
+        <div className="p-5 border-b border-gray-100 bg-emerald-50/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h3 className="font-bold text-emerald-950 text-sm uppercase tracking-wider">📦 Histórico de Lançamento de Taxas Letivas</h3>
+          <input
+            type="text"
+            placeholder="🔍 Buscar aluno neste histórico..."
+            value={buscaTaxa}
+            onChange={(e) => setBuscaTaxa(e.target.value)}
+            className="px-3 py-1.5 bg-white border border-emerald-200/60 rounded-xl text-xs font-medium text-gray-700 outline-none w-full sm:w-64 shadow-inner"
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wider">
+                <th className="p-4">Período</th>
+                <th className="p-4">Aluno</th>
+                <th className="p-4">Tipo de Obrigação</th>
+                <th className="p-4 text-right">Valor Faturado</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {taxasFiltradas.length > 0 ? (
+                taxasFiltradas.map((item) => {
+                  const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Aluno Não Encontrado";
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-4 text-gray-500 font-bold">{item.mes_referencia}</td>
+                      <td className="p-4 font-bold text-gray-900 uppercase">{nomeAluno}</td>
+                      <td className="p-4 text-gray-600 uppercase font-semibold">
+                        {item.tipo === 'livro' ? '📘 Livros Didáticos' : '🎨 Material Escolar Anual'}
+                      </td>
+                      <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
+                      
+                      {/* AJUSTE SOLICITADO: Status pendente/parcial de taxas letivas se tornou CLICÁVEL para adicionar pagamento rápido */}
+                      <td className="p-4 text-center">
+                        {item.status !== 'pago' ? (
+                          <button
+                            onClick={() => {
+                              if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
+                                return alert("A direção não possui permissão para alterar lançamentos salvos.");
+                              }
+                              const aluno = alunos.find(a => a.id === item.aluno_id);
+                              setAlunoSelecionado(aluno);
+                              setIdPagamentoEdicao(item.id);
+                              setTipoPagamento(item.tipo);
+                              setDescricaoOutro(item.descricao);
+                              setDataPagamento(new Date().toISOString().split('T')[0]); 
+                              setMesReferencia(item.mes_referencia || "");
+                              
+                              // Calcula o saldo devedor restante e insere de forma automática
+                              const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
+                              setPagamentosMetodos({ pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
+                              setModalPgtoAberto(true);
+                            }}
+                            title="Clique para dar baixa / adicionar pagamento rápido"
                             className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer hover:opacity-80 transition-opacity active:scale-95 ${
                               item.status === 'parcial' ? 'bg-amber-50 text-amber-700 border border-amber-200/40' : 'bg-red-50 text-red-700 border border-red-200/40'
                             }`}
@@ -388,58 +492,7 @@ export default function VendasTaxasPage() {
                   );
                 })
               ) : (
-                <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">Nenhuma venda de uniforme registada.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ================= RESUMO 2: HISTÓRICO DE TAXAS ANUAIS ================= */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div className="p-5 border-b border-gray-100 bg-emerald-50/30">
-          <h3 className="font-bold text-emerald-950 text-sm uppercase tracking-wider">📦 Histórico de Lançamento de Taxas Letivas</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wider">
-                <th className="p-4">Período</th>
-                <th className="p-4">Aluno</th>
-                <th className="p-4">Tipo de Obrigação</th>
-                <th className="p-4 text-right">Valor Faturado</th>
-                <th className="p-4 text-center">Status</th>
-                <th className="p-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {historicoTaxas.length > 0 ? (
-                historicoTaxas.map((item) => {
-                  const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Aluno Não Encontrado";
-                  return (
-                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4 text-gray-500 font-bold">{item.mes_referencia}</td>
-                      <td className="p-4 font-bold text-gray-900 uppercase">{nomeAluno}</td>
-                      <td className="p-4 text-gray-600 uppercase font-semibold">
-                        {item.tipo === 'livro' ? '📘 Livros Didáticos' : '🎨 Material Escolar Anual'}
-                      </td>
-                      <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded-md text-xs font-bold ${
-                          item.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : item.status === 'parcial' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'
-                        }`}>
-                          {item.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center space-x-2">
-                        <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️ Editar</button>
-                        <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-red-100">🗑️ Eliminar</button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">Nenhum faturamento em lote registado.</td></tr>
+                <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">Nenhum faturamento de taxa encontrado.</td></tr>
               )}
             </tbody>
           </table>
