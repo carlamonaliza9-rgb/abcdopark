@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-// Componentes importados da pasta original
+// Componentes importados da pasta original do dashboard
 import { FormularioConta } from "@/app/dashboard/financeiro/contas-a-pagar/_components/FormularioConta";
 import { ModalEdicaoConta } from "@/app/dashboard/financeiro/contas-a-pagar/_components/ModalEdicaoConta";
 import { ModalExclusaoConta } from "@/app/dashboard/financeiro/contas-a-pagar/_components/ModalExclusaoConta";
@@ -136,7 +136,6 @@ export default function ContasAPagarAdminPage() {
     carregarContas();
   }
 
-  // ATUALIZAÇÃO FINAL: Sem alerta e com suporte a File | null para evitar erros no VS Code
   async function registrarPagamento(file: File | null, dataPgto: string) {
     setSalvandoPgto(true);
     try {
@@ -160,7 +159,6 @@ export default function ContasAPagarAdminPage() {
 
       if (dbError) throw dbError;
       
-      // O Alerta de sucesso foi removido daqui para salvar silenciosamente
       setContaParaPagar(null);
       carregarContas();
     } catch (err: any) {
@@ -184,7 +182,7 @@ export default function ContasAPagarAdminPage() {
     return { texto: "A Vencer", corFundo: "#fef3c7", corTexto: "#92400e" }; 
   }
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center' }}>Validando acesso financeiro...</div>;
+  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center', color: '#111827', fontWeight: 'bold', fontFamily: 'sans-serif' }}>Validando acesso financeiro...</div>;
 
   return (
     <div style={{ padding: '40px', backgroundColor: '#f9fafb', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -195,8 +193,8 @@ export default function ContasAPagarAdminPage() {
 
       <FormularioConta onSalvar={adicionarConta} />
 
-      <section>
-        <h3 style={{ marginBottom: '20px', fontSize: '18px' }}>Histórico de Lançamentos</h3>
+      <section style={{ marginTop: '40px' }}>
+        <h3 style={{ marginBottom: '20px', fontSize: '18px', color: '#111827', fontWeight: '700' }}>Histórico de Lançamentos</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {carregando ? <p>Carregando contas...</p> : contas.map(conta => {
             const status = obterStatus(conta);
@@ -238,6 +236,7 @@ export default function ContasAPagarAdminPage() {
                     )}
                   </div>
                   
+                  {/* CORREÇÃO AQUI: sketchbook. removido com sucesso */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '1px solid #e5e7eb', paddingLeft: '15px' }}>
                     <button onClick={() => abrirEdicao(conta)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }} title="Editar Conta">✏️</button>
                     <button onClick={() => confirmarExclusao(conta)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }} title="Excluir Conta">🗑️</button>

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-export default function FinanceiroRedirector() {
+export default function ContasAPagarRedirector() {
   const router = useRouter();
 
   useEffect(() => {
@@ -20,14 +20,14 @@ export default function FinanceiroRedirector() {
         perfil?.cargo === 'Admin';
 
       if (ehAdmin) {
-        router.push("/admin/financeiro");
+        // Redireciona de forma exata para a nova estrutura de pastas
+        router.push("/admin/financeiro/contas-a-pagar");
       } else {
-        // Professores e outros funcionários não acessam o financeiro geral
         router.push("/dashboard");
       }
     }
     verificarAcesso();
   }, [router]);
 
-  return <div style={{ padding: '50px', textAlign: 'center', color: '#111827', fontWeight: 'bold' }}>Acessando o cofre da escola...</div>;
+  return <div style={{ padding: '50px', textAlign: 'center', color: '#111827', fontWeight: 'bold', fontFamily: 'sans-serif' }}>Validando contas pendentes...</div>;
 }
