@@ -53,7 +53,7 @@ export function ModalPagamento({
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px' }}>
+      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', width: '95%', maxWidth: '500px', maxHeight: '95vh', overflowY: 'auto' }}>
         <h2 style={{ textAlign: 'center', marginBottom: 15 }}>{aluno?.nome}</h2>
         
         <div style={{ marginBottom: 15 }}>
@@ -68,7 +68,6 @@ export function ModalPagamento({
 
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 10, fontWeight: 'bold' }}>CATEGORIA:</label>
-          {/* Menu de seleção atualizado com as novas pautas organizacionais */}
           <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd' }}>
             <option value="mensalidade">🏫 Mensalidade Regular</option>
             <option value="material">🎨 Taxa de Material Escolar</option>
@@ -105,17 +104,91 @@ export function ModalPagamento({
             placeholder={tipoPagamento === 'mensalidade' ? "" : "Ex: Camisa Tam M, Livro de Ciências, etc."} 
             value={descricaoOutro} 
             onChange={(e) => setDescricaoOutro(e.target.value)} 
-            disabled={tipoPagamento === 'mensalidade'} // Trava apenas para mensalidades para garantir o padrão do banco
+            disabled={tipoPagamento === 'mensalidade'} 
             style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', backgroundColor: tipoPagamento === 'mensalidade' ? '#f1f5f9' : 'white', color: tipoPagamento === 'mensalidade' ? '#64748b' : '#000' }} 
           />
         </div>
 
+        {/* MÉTODOS DE PAGAMENTO CONDICIONAIS VIA GRADE DE ENTRADAS */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-          <div><label style={{ fontSize: 10 }}>Pix:</label><input type="number" value={pagamentosMetodos.pix} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
-          <div><label style={{ fontSize: 10 }}>Dinheiro:</label><input type="number" value={pagamentosMetodos.dinheiro} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, dinheiro: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
-          <div><label style={{ fontSize: 10 }}>Cartão Crédito:</label><input type="number" value={pagamentosMetodos.credito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
-          <div><label style={{ fontSize: 10 }}>Cartão Débito:</label><input type="number" value={pagamentosMetodos.debito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, debito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} /></div>
-          <div style={{ gridColumn: 'span 2' }}><label style={{ fontSize: 10, color: 'red', fontWeight: 'bold' }}>Multa/Juros:</label><input type="number" value={pagamentosMetodos.multa} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid red', borderRadius: 8 }} /></div>
+          
+          {tipoPagamento === "livro" ? (
+            /* CONDICIONAL: Renderiza exclusivamente as opções da Editora quando a categoria for Livros */
+            <>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 'bold', color: '#1e3a8a' }}>Pix Editora:</label>
+                <input type="number" value={pagamentosMetodos.pix_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix_editora: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #cbd5e1', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 'bold', color: '#1e3a8a' }}>Dinheiro:</label>
+                <input type="number" value={pagamentosMetodos.dinheiro} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, dinheiro: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 'bold', color: '#1e3a8a' }}>Crédito Editora:</label>
+                <input type="number" value={pagamentosMetodos.credito_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito_editora: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #cbd5e1', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 'bold', color: '#1e3a8a' }}>Débito Editora:</label>
+                <input type="number" value={pagamentosMetodos.debito_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, debito_editora: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #cbd5e1', borderRadius: 8 }} />
+              </div>
+            </>
+          ) : (
+            /* PADRÃO: Renderiza os métodos comuns para todas as outras categorias de recebimento */
+            <>
+              <div>
+                <label style={{ fontSize: 10 }}>Pix:</label>
+                <input type="number" value={pagamentosMetodos.pix} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10 }}>Dinheiro:</label>
+                <input type="number" value={pagamentosMetodos.dinheiro} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, dinheiro: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10 }}>Cartão Crédito:</label>
+                <input type="number" value={pagamentosMetodos.credito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10 }}>Cartão Débito:</label>
+                <input type="number" value={pagamentosMetodos.debito} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, debito: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 8 }} />
+              </div>
+            </>
+          )}
+
+          {/* ADICIONADO: Seletor de Parcelamento de Cartão de Crédito (Geral) */}
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ fontSize: 10, fontWeight: 'bold', color: '#475569' }}>PARCELAMENTO (CARTÃO DE CRÉDITO):</label>
+            <select 
+              value={pagamentosMetodos.parcelas || "1"} 
+              onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} 
+              style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 'semibold', backgroundColor: 'white' }}
+            >
+              <option value="1">À vista (1x)</option>
+              <option value="2">2x sem juros</option>
+              <option value="3">3x sem juros</option>
+              <option value="4">4x sem juros</option>
+              <option value="5">5x sem juros</option>
+              <option value="6">6x sem juros</option>
+              <option value="7">7x sem juros</option>
+              <option value="8">8x sem juros</option>
+              <option value="9">9x sem juros</option>
+              <option value="10">10x sem juros</option>
+              <option value="11">11x sem juros</option>
+              <option value="12">12x sem juros</option>
+            </select>
+          </div>
+
+          {/* ADICIONADO: Opção de Desconto Aplicado (Geral) */}
+          <div>
+            <label style={{ fontSize: 10, color: '#2563eb', fontWeight: 'bold' }}>Desconto (R$):</label>
+            <input type="number" value={pagamentosMetodos.desconto || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, desconto: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid #2563eb', borderRadius: 8 }} placeholder="0.00" />
+          </div>
+
+          {/* Campo de Multa/Juros Preservado */}
+          <div>
+            <label style={{ fontSize: 10, color: 'red', fontWeight: 'bold' }}>Multa/Juros (R$):</label>
+            <input type="number" value={pagamentosMetodos.multa} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} style={{ width: '100%', padding: 8, border: '1px solid red', borderRadius: 8 }} />
+          </div>
+
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>

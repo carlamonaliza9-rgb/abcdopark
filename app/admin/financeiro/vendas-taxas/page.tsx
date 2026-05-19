@@ -36,7 +36,20 @@ export default function VendasTaxasPage() {
   const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
   const [tipoPagamento, setTipoPagamento] = useState("uniforme");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+  
+  // PROTOCOLO ATUALIZADO: Inicialização do estado contendo as novas pautas financeiras de livros, parcelas e descontos
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ 
+    pix: "", 
+    dinheiro: "", 
+    credito: "", 
+    debito: "", 
+    multa: "",
+    pix_editora: "",
+    credito_editora: "",
+    debito_editora: "",
+    parcelas: "1",
+    desconto: ""
+  });
   const [mesReferencia, setMesReferencia] = useState("");
 
   const SENHA_MESTRA = "1234";
@@ -110,27 +123,44 @@ export default function VendasTaxasPage() {
     setDescricaoOutro(pgto.descricao);
     setDataPagamento(pgto.data_pagamento || new Date().toISOString().split('T')[0]);
     setMesReferencia(pgto.mes_referencia || "");
-    setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    
+    // Mapeia os dados existentes ou injeta o objeto com a nova estrutura limpa
+    setPagamentosMetodos(pgto.detalhes_metodos || { 
+      pix: "", dinheiro: "", credito: "", debito: "", multa: "",
+      pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: ""
+    });
     setModalPgtoAberto(true);
   }
 
   // --- AÇÃO: SALVAR ALTERAÇÃO DO LANÇAMENTO ---
   async function confirmarPagamento() {
-    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    if (somaPaga <= 0) return alert("Insira um valor válido de recebimento.");
+    // Soma todos os métodos de entrada de capital, incluindo os novos campos da editora
+    const somaPaga = 
+      (parseFloat(pagamentosMetodos.pix) || 0) +
+      (parseFloat(pagamentosMetodos.dinheiro) || 0) +
+      (parseFloat(pagamentosMetodos.credito) || 0) +
+      (parseFloat(pagamentosMetodos.debito) || 0) +
+      (parseFloat(pagamentosMetodos.pix_editora) || 0) +
+      (parseFloat(pagamentosMetodos.credito_editora) || 0) +
+      (parseFloat(pagamentosMetodos.debito_editora) || 0);
+
+    const descontoAplicado = parseFloat(pagamentosMetodos.desconto) || 0;
 
     try {
       const { data: original } = await supabase.from('historico_pagamentos').select('valor_total').eq('id', idPagamentoEdicao).single();
-      const valorEsperado = original?.valor_total || somaPaga;
+      const valorOriginalDivida = original?.valor_total || somaPaga;
+      
+      // Nova regra de negócio: O valor esperado diminui se houver desconto geral em linha
+      const valorEsperadoComDesconto = Math.max(0, valorOriginalDivida - descontoAplicado);
 
       let status = "pago";
-      if (somaPaga < valorEsperado) {
+      if (somaPaga < valorEsperadoComDesconto) {
         status = somaPaga === 0 ? "pendente" : "parcial";
       }
 
       const dadosAtualizados = {
         descricao: descricaoOutro,
-        valor_pago: somaPaga > valorEsperado ? valorEsperado : somaPaga,
+        valor_pago: somaPaga > valorEsperadoComDesconto ? valorEsperadoComDesconto : somaPaga,
         status: status,
         data_pagamento: dataPagamento,
         detalhes_metodos: pagamentosMetodos,
@@ -325,7 +355,6 @@ export default function VendasTaxasPage() {
 
       {/* ================= RESUMO 1: HISTÓRICO DE UNIFORMES ================= */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        {/* AJUSTE: Adicionada a barra de pesquisa ao lado do título */}
         <div className="p-5 border-b border-gray-100 bg-purple-50/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="font-bold text-purple-950 text-sm uppercase tracking-wider">🛒 Histórico de Venda de Uniformes</h3>
           <input
@@ -380,7 +409,12 @@ export default function VendasTaxasPage() {
                               setMesReferencia(item.mes_referencia || "");
                               
                               const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
-                              setPagamentosMetodos({ pix: restante.toString(), dinero: "", credito: "", debito: "", multa: "" } as any);
+                              
+                              // Inicialização estrita com as novas chaves zeradas no recebimento rápido
+                              setPagamentosMetodos({ 
+                                pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "",
+                                pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: ""
+                              });
                               setModalPgtoAberto(true);
                             }}
                             title="Clique para dar baixa / adicionar pagamento"
@@ -413,7 +447,6 @@ export default function VendasTaxasPage() {
 
       {/* ================= RESUMO 2: HISTÓRICO DE TAXAS ANUAIS ================= */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        {/* AJUSTE: Adicionada a barra de pesquisa ao lado do título */}
         <div className="p-5 border-b border-gray-100 bg-emerald-50/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="font-bold text-emerald-950 text-sm uppercase tracking-wider">📦 Histórico de Lançamento de Taxas Letivas</h3>
           <input
@@ -448,8 +481,6 @@ export default function VendasTaxasPage() {
                         {item.tipo === 'livro' ? '📘 Livros Didáticos' : '🎨 Material Escolar Anual'}
                       </td>
                       <td className="p-4 text-right font-black text-gray-900">R$ {parseFloat(item.valor_total).toFixed(2)}</td>
-                      
-                      {/* AJUSTE SOLICITADO: Status pendente/parcial de taxas letivas se tornou CLICÁVEL para adicionar pagamento rápido */}
                       <td className="p-4 text-center">
                         {item.status !== 'pago' ? (
                           <button
@@ -465,9 +496,21 @@ export default function VendasTaxasPage() {
                               setDataPagamento(new Date().toISOString().split('T')[0]); 
                               setMesReferencia(item.mes_referencia || "");
                               
-                              // Calcula o saldo devedor restante e insere de forma automática
                               const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
-                              setPagamentosMetodos({ pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "" });
+                              
+                              // Inicialização estrita inteligente para taxas de livros ou materiais
+                              setPagamentosMetodos({ 
+                                pix: item.tipo === 'livro' ? "" : restante.toString(), 
+                                dinheiro: "", 
+                                credito: "", 
+                                debito: "", 
+                                multa: "",
+                                pix_editora: item.tipo === 'livro' ? restante.toString() : "", 
+                                credito_editora: "", 
+                                debito_editora: "", 
+                                parcelas: "1", 
+                                desconto: ""
+                              });
                               setModalPgtoAberto(true);
                             }}
                             title="Clique para dar baixa / adicionar pagamento rápido"
@@ -483,7 +526,6 @@ export default function VendasTaxasPage() {
                           </span>
                         )}
                       </td>
-                      
                       <td className="p-4 text-center space-x-2">
                         <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️ Editar</button>
                         <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-red-100">🗑️ Eliminar</button>
