@@ -76,9 +76,27 @@ export default function DashboardAdminPage() {
       if (alunos) {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
+        const anoAtual = hoje.getUTCFullYear();
         const diaAtual = hoje.getDate();
         const hojeString = hoje.toISOString().split('T')[0];
-        const futuros = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString).slice(0, 4) : [];
+
+        const eventosFuturos = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString) : [];
+
+        let eventosParaMostrar = eventosFuturos.filter(ev => {
+          const d = new Date(ev.data + "T12:00:00");
+          return d.getUTCMonth() === mesAtual && d.getUTCFullYear() === anoAtual;
+        });
+
+        if (eventosParaMostrar.length === 0 && eventosFuturos.length > 0) {
+          const dataProximo = new Date(eventosFuturos[0].data + "T12:00:00");
+          const proxMes = dataProximo.getUTCMonth();
+          const proxAno = dataProximo.getUTCFullYear();
+          
+          eventosParaMostrar = eventosFuturos.filter(ev => {
+            const d = new Date(ev.data + "T12:00:00");
+            return d.getUTCMonth() === proxMes && d.getUTCFullYear() === proxAno;
+          });
+        }
 
         const bdayAlunos = alunos
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
@@ -96,7 +114,6 @@ export default function DashboardAdminPage() {
         if (quemFezHoje.length > 0) {
           setAniversariantesHoje(quemFezHoje);
           if (typeof window !== 'undefined') {
-            // Ajustado para usar localStorage e travar o limite máximo em 2 exibições diárias
             const hojeStringLocal = hoje.toLocaleDateString('en-CA');
             const notifKey = `bday_alerta_${hojeStringLocal}`;
             const exibicoes = parseInt(localStorage.getItem(notifKey) || '0');
@@ -119,7 +136,7 @@ export default function DashboardAdminPage() {
           }, {}),
           aniversariantes: listaAniversariantes,
           alertasSaude: listaSaude,
-          proximosEventos: futuros
+          proximosEventos: eventosParaMostrar
         });
       }
       if (listaEventos) setEventos(listaEventos);
@@ -137,7 +154,7 @@ export default function DashboardAdminPage() {
     try {
       const { error } = await supabase.auth.updateUser({ data: { nome: novoNomeInput } });
       if (error) throw error;
-      alert("Perfil updated com sucesso!");
+      alert("Perfil atualizado com sucesso!");
       setNomeUsuario(novoNomeInput.split(' ')[0]);
       setNomeCompleto(novoNomeInput);
       setModalConfigAberto(false);
@@ -301,7 +318,7 @@ export default function DashboardAdminPage() {
           </div>
           <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937' }}>Alunos por Turma</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
               {Object.entries(dados.porTurma).map(([nome, qtd]) => (
                 <div key={nome}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '6px' }}>
@@ -316,9 +333,13 @@ export default function DashboardAdminPage() {
             </div>
           </div>
         </div>
-        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px' }}>🚀 Próximas Programações</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        
+        {/* A CORREÇÃO: Removi o height: 100% e adicionei o alignSelf: 'start' para o card não esticar artificialmente */}
+        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignSelf: 'start' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            🚀 Próximas Programações
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '350px', paddingRight: '5px' }}>
             {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => {
               const estilo = getEventoStyle(ev.titulo);
               return (

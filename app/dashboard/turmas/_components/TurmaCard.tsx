@@ -5,7 +5,7 @@ interface TurmaCardProps {
   ehAdmin: boolean;
   onAbrirTurma: (turma: any) => void;
   onEditarProfessor: (e: React.MouseEvent, nomeTurma: string) => void;
-  onGerenciarMaterias: (e: React.MouseEvent, nomeTurma: string) => void; // Prop necessária para limpar o erro
+  onGerenciarMaterias: (e: React.MouseEvent, nomeTurma: string) => void;
   onAbrirUploadHorario: (e: React.MouseEvent, turma: any) => void;
   onAbrirAgenda: (e: React.MouseEvent, turma: any) => void;
 }
@@ -19,19 +19,22 @@ export function TurmaCard({
   onAbrirUploadHorario, 
   onAbrirAgenda 
 }: TurmaCardProps) {
-  // Lógica para decidir o que exibir no campo de professores fixos
-  const exibirProfessoresFixos = () => {
-    if (!turma.profFixo1 && !turma.profFixo2) return "Não definido";
-    if (turma.profFixo1 && !turma.profFixo2) return turma.profFixo1;
-    if (!turma.profFixo1 && turma.profFixo2) return turma.profFixo2;
-    return `${turma.profFixo1} / ${turma.profFixo2}`;
-  };
 
-  // Lógica para professores especialistas
-  const temEspecialistas = turma.profEspec1 || turma.profEspec2;
-  const exibirEspecialistas = () => {
-    const lista = [turma.profEspec1, turma.profEspec2].filter(p => p !== "" && p !== null);
-    return lista.join(" / ");
+  const listaEspecialistas = [turma.profEspec1, turma.profEspec2].filter(p => p !== "" && p !== null);
+
+  // Estilo de bloco para o nome do professor (Fundo branco translúcido)
+  const styleBlocoNome = {
+    background: 'rgba(255, 255, 255, 0.6)',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    border: '1px solid rgba(255, 255, 255, 0.8)',
+    fontSize: '11px',
+    color: '#334155',
+    fontWeight: '700',
+    textAlign: 'left' as const,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
   };
 
   return (
@@ -45,117 +48,60 @@ export function TurmaCard({
         textAlign: 'center', 
         cursor: 'pointer', 
         position: 'relative', 
-        boxShadow: '0 4px 6px rgba(0,0,0,0.02)' 
+        boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '360px',
+        transition: 'all 0.2s ease-in-out'
       }}
+      className="hover:shadow-lg"
     >
-      <div style={{ fontSize: '45px', marginBottom: '10px' }}>{turma.icone || '🏫'}</div>
-      <h3 style={{ fontSize: '22px', fontWeight: '800', color: turma.texto || '#111827' }}>{turma.nome}</h3>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', margin: '15px 0' }}>
-          {ehAdmin ? (
-            <>
-              <button 
-                onClick={(e) => onEditarProfessor(e, turma.nome)} 
-                style={{ 
-                  fontSize: '11px', 
-                  color: turma.texto, 
-                  background: 'white', 
-                  border: `1px solid ${turma.borda}`, 
-                  padding: '10px', 
-                  borderRadius: '12px', 
-                  fontWeight: '600', 
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    👤 {exibirProfessoresFixos()}
-                  </span>
-                  <span style={{ fontSize: '10px' }}>✏️</span>
-                </div>
-                
-                {temEspecialistas && (
-                  <div style={{ 
-                    fontSize: '10px', 
-                    opacity: 0.7, 
-                    borderTop: `1px solid ${turma.borda}44`, 
-                    marginTop: '4px', 
-                    paddingTop: '6px',
-                    color: '#4b5563'
-                  }}>
-                    ⭐ {exibirEspecialistas()}
-                  </div>
-                )}
-              </button>
+      <div>
+        {/* Cabeçalho */}
+        <div style={{ fontSize: '45px', marginBottom: '8px' }}>{turma.icone || '🏫'}</div>
+        <h3 style={{ fontSize: '20px', fontWeight: '800', color: turma.texto || '#111827', margin: '0 0 10px 0' }}>
+          {turma.nome}
+        </h3>
+        
+        <div style={{ backgroundColor: 'white', padding: '5px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'inline-block', marginBottom: '15px', border: '1px solid #f1f5f9' }}>
+          👥 {turma.totalAlunos || 0} Alunos
+        </div>
 
-              {/* BOTÃO DE GESTÃO DE MATÉRIAS */}
-              <button 
-                onClick={(e) => onGerenciarMaterias(e, turma.nome)} 
-                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
-              >
-                📚 Grade de Matérias
-              </button>
-
-              <button 
-                onClick={(e) => onAbrirUploadHorario(e, turma)} 
-                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
-              >
-                📅 {turma.horario_url ? "Trocar Horário" : "Definir Horário"}
-              </button>
-
-              <button 
-                onClick={(e) => onAbrirAgenda(e, turma)} 
-                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
-              >
-                📝 Agenda Escolar
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ 
-                fontSize: '11px', 
-                color: turma.texto, 
-                background: 'rgba(255,255,255,0.5)', 
-                border: `1px solid ${turma.borda}`, 
-                padding: '10px', 
-                borderRadius: '12px', 
-                fontWeight: '600',
-                textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span>👤 {exibirProfessoresFixos()}</span>
-                
-                {temEspecialistas && (
-                  <div style={{ 
-                    fontSize: '10px', 
-                    opacity: 0.8, 
-                    borderTop: `1px solid ${turma.borda}44`, 
-                    marginTop: '4px', 
-                    paddingTop: '6px' 
-                  }}>
-                    ⭐ {exibirEspecialistas()}
-                  </div>
-                )}
-              </div>
-
-              <button 
-                onClick={(e) => onAbrirAgenda(e, turma)} 
-                style={{ fontSize: '12px', color: turma.texto, background: 'white', border: `1px solid ${turma.borda}`, padding: '6px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '2px' }}
-              >
-                📝 Agenda Escolar
-              </button>
-            </>
+        {/* Blocos de Professores Individuais */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {!turma.profFixo1 && !turma.profFixo2 && (
+            <div style={{ ...styleBlocoNome, justifyContent: 'center', color: '#94a3b8' }}>👤 Regência: Não definido</div>
           )}
+          
+          {turma.profFixo1 && (
+            <div style={styleBlocoNome}><span>👤</span> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Regência: {turma.profFixo1}</span></div>
+          )}
+          
+          {turma.profFixo2 && (
+            <div style={styleBlocoNome}><span>👥</span> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Auxiliar: {turma.profFixo2}</span></div>
+          )}
+          
+          {listaEspecialistas.map((especialista, idx) => (
+            <div key={idx} style={{ ...styleBlocoNome, borderStyle: 'dashed' }}>
+              <span>⭐</span> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Esp: {especialista}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div style={{ backgroundColor: 'white', padding: '8px 15px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold', color: '#4b5563' }}>
-        👥 {turma.totalAlunos || 0} Alunos
+      {/* Rodapé: Botões de ícones alinhados à direita */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.3)', paddingTop: '12px', marginTop: '15px' }}>
+        {ehAdmin ? (
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={(e) => { e.stopPropagation(); onEditarProfessor(e, turma.nome); }} title="Vincular Professores" style={{ padding: '7px 10px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>👨‍🏫</button>
+            <button onClick={(e) => { e.stopPropagation(); onGerenciarMaterias(e, turma.nome); }} title="Grade de Matérias" style={{ padding: '7px 10px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>📚</button>
+            <button onClick={(e) => { e.stopPropagation(); onAbrirUploadHorario(e, turma); }} title="Quadro de Horários" style={{ padding: '7px 10px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>📅</button>
+            <button onClick={(e) => { e.stopPropagation(); onAbrirAgenda(e, turma); }} title="Agenda Escolar" style={{ padding: '7px 10px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>📝</button>
+          </div>
+        ) : (
+          <button onClick={(e) => { e.stopPropagation(); onAbrirAgenda(e, turma); }} style={{ padding: '6px 12px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>📝 Ver Agenda</button>
+        )}
       </div>
     </div>
   );
