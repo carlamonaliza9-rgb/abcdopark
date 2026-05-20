@@ -169,8 +169,7 @@ export default function VendasTaxasPage() {
 
       const { error } = await supabase.from('historico_pagamentos').update(dadosAtualizados).eq('id', idPagamentoEdicao);
       if (error) throw error;
-
-      alert("Lançamento retificado com sucesso!");
+  
       setModalPgtoAberto(false);
       carregarDados();
     } catch (e: any) {
