@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+// Importamos o Modal de Pagamento para ser a Frente de Caixa na ficha do aluno
+import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 
 interface FichaAlunoModalProps {
   aluno: any;
@@ -42,19 +44,26 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const [mediaEstrelas, setMediaEstrelas] = useState(0);
   const [percentualPresenca, setPercentualPresenca] = useState(100);
   
-  // Estados para Dívida e Crédito
   const [totalPendenteGeral, setTotalPendenteGeral] = useState(0);
   const [listaPendenciasGerais, setListaPendenciasGerais] = useState<any[]>([]);
   const [verDividasGlobais, setVerDividasGlobais] = useState(false);
   const [verCreditoGlobal, setVerCreditoGlobal] = useState(false);
 
-  // Estados de Edição do Crédito
+  const [idRenegociacao, setIdRenegociacao] = useState<string | null>(null);
+  const [formRenegociacao, setFormRenegociacao] = useState({ parcelas: "2", vencimentoInicial: new Date().toISOString().split('T')[0] });
+
   const [saldoCreditoVisivel, setSaldoCreditoVisivel] = useState(0);
   const [editandoCredito, setEditandoCredito] = useState(false);
   const [novoValorCredito, setNovoValorCredito] = useState("");
 
   const [anoSelecionado, setAnoSelecionado] = useState("2026");
   const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("2026");
+
+  // --- ESTADOS DO PDV INLINE (FRENTE DE CAIXA) ---
+  const [modalPDVAberto, setModalPDVAberto] = useState(false);
+  const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
+  const [tipoPagamentoPDV, setTipoPagamentoPDV] = useState("pdv");
+  const [pagamentosMetodosPDV, setPagamentosMetodosPDV] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "" });
   
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -69,10 +78,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   async function buscarDadosAdicionais() {
     const { data: avs } = await supabase.from('avaliacoes').select('participacao, comportamento, atividades, socioemocional').eq('aluno_id', aluno.id);
     if (avs && avs.length > 0) {
-      const somaDasMediasDiarias = avs.reduce((acc: number, curr: any) => {
-        const mediaDoDia = ((curr.participacao || 0) + (curr.comportamento || 0) + (curr.atividades || 0) + (curr.socioemocional || 0)) / 4;
-        return acc + mediaDoDia;
-      }, 0);
+      const somaDasMediasDiarias = avs.reduce((acc: number, curr: any) => acc + ((curr.participacao || 0) + (curr.comportamento || 0) + (curr.atividades || 0) + (curr.socioemocional || 0)) / 4, 0);
       setMediaEstrelas(somaDasMediasDiarias / avs.length);
     }
 
@@ -82,15 +88,12 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
       setPercentualPresenca((presentes / freqs.length) * 100);
     }
 
-    const { data: historicoCompleto } = await supabase
-      .from('historico_pagamentos')
-      .select('*')
-      .eq('aluno_id', aluno.id)
-      .order('data_pagamento', { ascending: false });
+    const { data: historicoCompleto } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', aluno.id).order('data_pagamento', { ascending: false });
     
     if (historicoCompleto) {
       let dividaCalculada = 0;
       let listaDívida = [];
+      
 
       const pendenciasRegistradas = historicoCompleto.filter(h => h.status === 'pendente' || h.status === 'parcial');
       pendenciasRegistradas.forEach(pend => {
@@ -105,7 +108,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
       const diaAtual = dataAtual.getDate();
       const anoAtual = dataAtual.getFullYear().toString();
       const diaVencimentoAluno = parseInt(aluno.vencimento) || 5;
-
       const valorMensalidadeBase = parseFloat(aluno.valor) || 0;
 
       if (valorMensalidadeBase > 0) {
@@ -113,17 +115,20 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           const nomeMes = mesesAno[i];
           if (i === mesAtualNum && diaAtual <= diaVencimentoAluno) continue;
 
-          const jaPagou = historicoCompleto.some(h => 
-            h.tipo === 'mensalidade' && 
-            h.status === 'pago' && 
-            h.mes_referencia === nomeMes && 
-            (h.descricao || "").includes(anoAtual)
+          // CORREÇÃO DO FALSO-POSITIVO: Validação case-insensitive blindada
+          const jaExisteNoBanco = historicoCompleto.some(h => 
+            (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
+            h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
+            (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) &&
+            h.status !== 'cancelado' && h.status !== 'estornado'
           );
 
-          if (!jaPagou) {
+          if (!jaExisteNoBanco) {
             dividaCalculada += valorMensalidadeBase;
             listaDívida.push({
+              id: `temp_${nomeMes}`,
               descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`,
+              mes_referencia: nomeMes,
               valor_total: valorMensalidadeBase,
               valor_pago: 0,
               data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
@@ -139,32 +144,111 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
   }
 
-  // FUNÇÕES DE GERENCIAMENTO DE CRÉDITO DIRETO NA FICHA
+  // --- LÓGICA DE FRENTE DE CAIXA (PDV) ---
+  async function handleConfirmarPDV(dividasSelecionadas: any[]) {
+    const somaPaga = Object.values(pagamentosMetodosPDV).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    const valorMulta = parseFloat(pagamentosMetodosPDV.multa || "0");
+    const valorDesconto = parseFloat(pagamentosMetodosPDV.desconto || "0");
+    const creditoUtilizado = parseFloat(pagamentosMetodosPDV.credito_aluno || "0");
+    
+    const valorPagoFinal = somaPaga + valorMulta - valorDesconto;
+    const totalDividas = dividasSelecionadas.reduce((acc, d) => acc + ((parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0)), 0);
+
+    if (valorPagoFinal < totalDividas) {
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Por favor, desmarque alguma do carrinho.");
+    }
+
+    if (creditoUtilizado > saldoCreditoVisivel) {
+      return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
+    }
+
+    // Processa a quitação das selecionadas
+    for (const div of dividasSelecionadas) {
+      if (div.id.startsWith('temp_')) {
+        // Gera a nova mensalidade como paga
+        await supabase.from('historico_pagamentos').insert({
+          aluno_id: aluno.id,
+          tipo: 'mensalidade',
+          descricao: div.descricao,
+          mes_referencia: div.mes_referencia,
+          valor_total: div.valor_total,
+          valor_pago: div.valor_total,
+          status: 'pago',
+          data_pagamento: dataPagamentoPDV,
+          detalhes_metodos: pagamentosMetodosPDV
+        });
+      } else {
+        // Atualiza a dívida real existente
+        await supabase.from('historico_pagamentos').update({ 
+          status: 'pago', 
+          valor_pago: div.valor_total,
+          data_pagamento: dataPagamentoPDV,
+          detalhes_metodos: pagamentosMetodosPDV 
+        }).eq('id', div.id);
+      }
+    }
+
+    // Lógica de Crédito: Abatimento e Troco
+    const troco = valorPagoFinal - totalDividas;
+    const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + troco;
+
+    if (novoSaldoCredito !== saldoCreditoVisivel) {
+      await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', aluno.id);
+    }
+
+    setModalPDVAberto(false);
+    buscarDadosAdicionais();
+    alert("Pagamento recebido e baixas aplicadas com sucesso!");
+  }
+
+  // --- LÓGICA DE DIVISÃO/RENEGOCIAÇÃO ---
+  async function confirmarRenegociacao(pendenciaOriginal: any) {
+    const qtdParcelas = parseInt(formRenegociacao.parcelas);
+    if (qtdParcelas < 1) return alert("Número de parcelas inválido.");
+
+    const valorDevedor = (parseFloat(pendenciaOriginal.valor_total) || 0) - (parseFloat(pendenciaOriginal.valor_pago) || 0);
+    const valorPorParcela = valorDevedor / qtdParcelas;
+    const mesRef = pendenciaOriginal.mes_referencia || "";
+
+    const inserts = [];
+    for (let i = 0; i < qtdParcelas; i++) {
+      const dataVenc = new Date(formRenegociacao.vencimentoInicial);
+      dataVenc.setMonth(dataVenc.getMonth() + i);
+
+      inserts.push({
+        aluno_id: aluno.id,
+        tipo: 'acordo',
+        descricao: `Acordo ${i + 1}/${qtdParcelas} (${pendenciaOriginal.descricao})`,
+        mes_referencia: mesRef, 
+        valor_total: valorPorParcela,
+        valor_pago: 0,
+        status: 'pendente',
+        data_pagamento: dataVenc.toISOString().split('T')[0],
+        detalhes_metodos: {}
+      });
+    }
+
+    await supabase.from('historico_pagamentos').insert(inserts);
+
+    if (!pendenciaOriginal.atraso_automatico) {
+      await supabase.from('historico_pagamentos').update({ status: 'renegociado' }).eq('id', pendenciaOriginal.id);
+    }
+
+    setIdRenegociacao(null);
+    buscarDadosAdicionais(); 
+  }
+
   async function handleSalvarCredito() {
     const valorConvertido = parseFloat(novoValorCredito.replace(',', '.')) || 0;
     const { error } = await supabase.from('alunos').update({ saldo_credito: valorConvertido }).eq('id', aluno.id);
-    
-    if (error) {
-      alert("Erro ao atualizar o crédito.");
-      return;
-    }
-    
-    setSaldoCreditoVisivel(valorConvertido);
-    setEditandoCredito(false);
+    if (!error) { setSaldoCreditoVisivel(valorConvertido); setEditandoCredito(false); }
   }
 
   async function handleZerarCredito() {
     if (prompt("Digite a Senha Mestra para ZERAR o crédito:") === SENHA_MESTRA) {
       const { error } = await supabase.from('alunos').update({ saldo_credito: 0 }).eq('id', aluno.id);
-      if (error) {
-        alert("Erro ao zerar o crédito.");
-        return;
-      }
-      setSaldoCreditoVisivel(0);
-      setVerCreditoGlobal(false); // Fecha a tela pois não há mais crédito
-    } else {
-      alert("Senha incorreta.");
-    }
+      if (!error) { setSaldoCreditoVisivel(0); setVerCreditoGlobal(false); }
+    } else alert("Senha incorreta.");
   }
 
   const abrirWhatsApp = (numero: any) => {
@@ -218,40 +302,70 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
             <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '12px', backgroundColor: '#eff6ff', padding: '2px 10px', borderRadius: '10px' }}>{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
           </div>
 
-          {/* TELA DE DÍVIDAS DETALHADA */}
+          {/* TELA DE DÍVIDAS DETALHADA COM RENEGOCIAÇÃO E BOTÃO PDV */}
           {verDividasGlobais ? (
             <div style={{ width: '100%', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: 0, color: '#dc2626' }}>⚠️ Detalhamento da Dívida</h3>
-                <button onClick={() => setVerDividasGlobais(false)} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
+                <button onClick={() => { setVerDividasGlobais(false); setIdRenegociacao(null); }} style={{ border: 'none', background: 'none', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>VOLTAR</button>
               </div>
 
               <div style={{ backgroundColor: '#fdf2f2', border: '1px solid #fecaca', padding: '15px', borderRadius: '12px', textAlign: 'center', marginBottom: '20px' }}>
                 <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 'bold', textTransform: 'uppercase' }}>Valor Total em Aberto</span>
                 <p style={{ margin: 0, color: '#991b1b', fontSize: '22px', fontWeight: '900' }}>R$ {totalPendenteGeral.toFixed(2)}</p>
+                
+                {/* BOTÃO QUE ABRE O CAIXA PDV */}
+                {!ehVisitante && (
+                  <button 
+                    onClick={() => setModalPDVAberto(true)}
+                    style={{ marginTop: '10px', backgroundColor: '#10b981', color: 'white', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', margin: '10px auto 0 auto' }}
+                  >
+                    💰 RECEBER DÍVIDAS
+                  </button>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '5px' }}>
                 {listaPendenciasGerais.length > 0 ? listaPendenciasGerais.map((pend, i) => {
                   const valorTotal = parseFloat(pend.valor_total) || 0;
                   const valorPago = parseFloat(pend.valor_pago) || 0;
                   const restante = valorTotal - valorPago;
+                  const renegociandoEste = idRenegociacao === pend.id;
 
                   return (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #fecaca' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e293b' }}>{pend.descricao}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>Venc: {new Date(pend.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                          <span style={{ fontSize: '9px', fontWeight: '800', color: pend.atraso_automatico ? '#dc2626' : '#d97706', backgroundColor: pend.atraso_automatico ? '#fee2e2' : '#fef3c7', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                            {pend.atraso_automatico ? 'NÃO PAGO' : pend.status}
-                          </span>
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', padding: '12px', backgroundColor: renegociandoEste ? '#fffbeb' : '#fff', borderRadius: '12px', border: `1px solid ${renegociandoEste ? '#fcd34d' : '#fecaca'}`, transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e293b' }}>{pend.descricao}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>Venc: {new Date(pend.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: pend.atraso_automatico ? '#dc2626' : '#d97706', backgroundColor: pend.atraso_automatico ? '#fee2e2' : '#fef3c7', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                              {pend.atraso_automatico ? 'NÃO PAGO' : pend.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '900', color: '#dc2626', display: 'block' }}>R$ {restante.toFixed(2)}</span>
+                          {!renegociandoEste && <button onClick={() => setIdRenegociacao(pend.id)} style={{ marginTop: '4px', background: 'none', border: '1px solid #d97706', color: '#b45309', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer' }}>🔄 DIVIDIR</button>}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '14px', fontWeight: '900', color: '#dc2626', display: 'block' }}>R$ {restante.toFixed(2)}</span>
-                        {!pend.atraso_automatico && valorPago > 0 && <span style={{ fontSize: '10px', color: '#64748b' }}>Pago: R$ {valorPago.toFixed(2)}</span>}
-                      </div>
+
+                      {renegociandoEste && (
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #fcd34d', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '9px', fontWeight: 'bold', color: '#92400e' }}>PARCELAS:</label>
+                            <input type="number" value={formRenegociacao.parcelas} onChange={(e) => setFormRenegociacao({...formRenegociacao, parcelas: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d', fontSize: '11px' }} />
+                          </div>
+                          <div style={{ flex: 2 }}>
+                            <label style={{ fontSize: '9px', fontWeight: 'bold', color: '#92400e' }}>1º VENCIMENTO:</label>
+                            <input type="date" value={formRenegociacao.vencimentoInicial} onChange={(e) => setFormRenegociacao({...formRenegociacao, vencimentoInicial: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #fcd34d', fontSize: '11px' }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button onClick={() => setIdRenegociacao(null)} style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>X</button>
+                            <button onClick={() => confirmarRenegociacao(pend)} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', backgroundColor: '#d97706', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>OK</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 }) : <p style={{ textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Nenhuma pendência encontrada.</p>}
@@ -298,7 +412,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                           onClick={handleZerarCredito} 
                           style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}
                         >
-                          🗑️ Zerar Crédito
+                          🗑️ Zerar
                         </button>
                       </div>
                     )}
@@ -311,24 +425,23 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           ) : !verHistorico && !verBoletim ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
-              {/* BLOCO GLOBAL DE CONTA CORRENTE (CRÉDITO E DÍVIDA CLICÁVEIS) */}
+              {/* BLOCO GLOBAL DE CONTA CORRENTE */}
               {(saldoCreditoVisivel > 0 || totalPendenteGeral > 0) && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '4px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                   
-                  {/* CRÉDITO CLICÁVEL */}
                   <div 
                     onClick={() => { if(saldoCreditoVisivel > 0) setVerCreditoGlobal(true); }}
                     style={{ ...EstiloCard, backgroundColor: saldoCreditoVisivel > 0 ? '#f0fdf4' : '#fff', borderColor: saldoCreditoVisivel > 0 ? '#bbf7d0' : '#f1f5f9', textAlign: 'center', border: 'none', cursor: saldoCreditoVisivel > 0 ? 'pointer' : 'default', transition: 'transform 0.1s' }}
                     onMouseOver={(e) => { if(saldoCreditoVisivel > 0) e.currentTarget.style.transform = 'scale(1.02)'; }}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
-                    <span style={{ ...EstiloLabel, color: saldoCreditoVisivel > 0 ? '#16a34a' : '#64748b' }}>💰 Crédito</span>
+                    <span style={{ ...EstiloLabel, color: saldoCreditoVisivel > 0 ? '#16a34a' : '#64748b' }}>💰 Crédito da Casa</span>
                     <p style={{ ...EstiloDado, color: saldoCreditoVisivel > 0 ? '#14532d' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
                       {saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}
                     </p>
+                    {saldoCreditoVisivel > 0 && <span style={{ fontSize: '9px', color: '#16a34a', marginTop: '4px', display: 'block', fontWeight: 'bold' }}>Ver detalhes ➔</span>}
                   </div>
 
-                  {/* DÍVIDA CLICÁVEL */}
                   <div 
                     onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }}
                     style={{ ...EstiloCard, backgroundColor: totalPendenteGeral > 0 ? '#fdf2f2' : '#fff', borderColor: totalPendenteGeral > 0 ? '#fecaca' : '#f1f5f9', textAlign: 'center', border: 'none', cursor: totalPendenteGeral > 0 ? 'pointer' : 'default', transition: 'transform 0.1s' }}
@@ -339,6 +452,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                     <p style={{ ...EstiloDado, color: totalPendenteGeral > 0 ? '#991b1b' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
                       {totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}
                     </p>
+                    {totalPendenteGeral > 0 && <span style={{ fontSize: '9px', color: '#dc2626', marginTop: '4px', display: 'block', fontWeight: 'bold' }}>Ver detalhes ➔</span>}
                   </div>
                 </div>
               )}
@@ -430,7 +544,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
-          // BOLETIM
+          // BOLETIM COMPLETO 
           ) : verBoletim ? (
             <div style={{ width: '100%', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
@@ -506,7 +620,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
             </div>
 
-          // HISTÓRICO DE PAGAMENTOS (EXTRATO)
+          // HISTÓRICO DE PAGAMENTOS E EXTRATO COMPLETO
           ) : (
             <div style={{ width: '100%', marginTop: '20px' }}>
               
@@ -531,7 +645,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px', borderRadius: '10px', textAlign: 'center' }}>
+                <div 
+                  onClick={() => { if(saldoCreditoVisivel > 0) setVerCreditoGlobal(true); }}
+                  style={{ backgroundColor: saldoCreditoVisivel > 0 ? '#f0fdf4' : '#f8fafc', border: `1px solid ${saldoCreditoVisivel > 0 ? '#bbf7d0' : '#e2e8f0'}`, padding: '10px', borderRadius: '10px', textAlign: 'center', cursor: saldoCreditoVisivel > 0 ? 'pointer' : 'default' }}
+                >
                   <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Crédito Atual</span>
                   <p style={{ margin: 0, color: '#14532d', fontSize: '14px', fontWeight: '900' }}>
                     {saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}
@@ -603,6 +720,19 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           </div>
         </div>
       </div>
+
+      {/* RENDERIZAÇÃO DO MODAL DE CAIXA (PDV) POR CIMA DA FICHA */}
+      <ModalPagamento 
+        aberto={modalPDVAberto} onFechar={() => setModalPDVAberto(false)}
+        aluno={aluno} dataPagamento={dataPagamentoPDV} setDataPagamento={setDataPagamentoPDV}
+        tipoPagamento={tipoPagamentoPDV} setTipoPagamento={setTipoPagamentoPDV}
+        mesReferencia={""} setMesReferencia={() => {}} mesesAno={mesesAno}
+        descricaoOutro={""} setDescricaoOutro={() => {}}
+        pagamentosMetodos={pagamentosMetodosPDV} setPagamentosMetodos={setPagamentosMetodosPDV}
+        editando={false} onConfirmar={() => {}}
+        dividasAbertas={listaPendenciasGerais}
+        onConfirmarPDV={handleConfirmarPDV}
+      />
     </div>
   );
 }
