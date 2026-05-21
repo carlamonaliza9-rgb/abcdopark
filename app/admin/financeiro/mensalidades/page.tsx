@@ -17,8 +17,8 @@ export default function MensalidadesPage() {
   // --- ESTADOS DE CONFIGURAÇÃO E DADOS ---
   const [valorPadrao, setValorPadrao] = useState(550);
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
-  const [filtroNome, setFiltroNome] = useState(""); 
-  const [filtroTurma, setFiltroTurma] = useState(""); // Estado de controle do filtro por turma
+  const [filtroNome, setFiltroNome] = useState("");
+  const [filtroTurma, setFiltroTurma] = useState(""); 
   const [alunos, setAlunos] = useState<any[]>([]);
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -28,16 +28,15 @@ export default function MensalidadesPage() {
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
 
   // --- ESTADOS DE FORMULÁRIO FINANCEIRO ---
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
+  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]);
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" });
   const [mesReferencia, setMesReferencia] = useState(["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][new Date().getMonth()]);
 
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-  // --- TRAVA DE SEGURANÇA ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -48,9 +47,9 @@ export default function MensalidadesPage() {
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       setUserCargo(perfil?.cargo || null);
 
-      const ehAutorizado = 
-        emailAtual === 'carlamonaliza9@gmail.com' || 
-        emailAtual === 'diretoria@abcdopark.com' || 
+      const ehAutorizado =
+        emailAtual === 'carlamonaliza9@gmail.com' ||
+        emailAtual === 'diretoria@abcdopark.com' ||
         perfil?.cargo === 'Admin' ||
         perfil?.cargo === 'Direção';
 
@@ -67,32 +66,24 @@ export default function MensalidadesPage() {
     try {
       const hoje = new Date();
       const [ano, mes] = mesFiltro.split('-');
-      const dataInicio = `${ano}-${mes}-01`;
       
-      const ultimoDiaObjeto = new Date(parseInt(ano), parseInt(mes), 0);
-      const dataFim = `${ano}-${mes}-${String(ultimoDiaObjeto.getDate()).padStart(2, '0')}`;
+      const dataInicioAno = `${ano}-01-01`;
+      const dataFimAno = `${ano}-12-31`;
 
       const { data: { user } } = await supabase.auth.getUser();
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      const { data: pgtosMes = [] } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
-      const { data: pgtosPendentes = [] } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial']);
+      const { data: pgtosAno } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicioAno).lte('data_pagamento', dataFimAno);
+      
+      const pgtosAnoSeguro = pgtosAno || [];
+      setListaReceitasDetalhada(pgtosAnoSeguro);
 
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
-      const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
-        .select('aluno_id')
-        .eq('tipo', 'mensalidade')
-        .like('descricao', `%${nomeMesReferencia}%${ano}%`);
-
-      const mapaPgtos = new Map();
-      (pgtosMes || []).forEach(p => mapaPgtos.set(p.id, p));
-      (pgtosPendentes || []).forEach(p => mapaPgtos.set(p.id, p));
-      setListaReceitasDetalhada(Array.from(mapaPgtos.values()));
+      const pgtosDesteMes = pgtosAnoSeguro.filter((p: any) => p.tipo === 'mensalidade' && (p.descricao || '').includes(nomeMesReferencia));
 
       if (listaAlunos) {
-        const idsPagosNestaReferencia = (pgtosReferencia || []).map((p: any) => p.aluno_id);
+        const idsPagosNestaReferencia = pgtosDesteMes.filter((p: any) => p.status === 'pago').map((p: any) => p.aluno_id);
 
-        // PRESERVAÇÃO INTEGRAL DA ORDENAÇÃO ORIGINAL POR VENCIMENTO / STATUS
         const ordenados = listaAlunos.map(aluno => {
           const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
           if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
@@ -108,12 +99,51 @@ export default function MensalidadesPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
-  // --- CONFIRMAÇÃO DE BAIXA COM LOGICA CONTA CORRENTE UNIVERSAL ---
   async function confirmarPagamento() {
-    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    if (somaPaga <= 0) return alert("Insira um valor.");
+    // --- LÓGICA 1: GERAÇÃO DE ACORDO EM LOOP ---
+    if (tipoPagamento === "acordo") {
+      const qtdParcelas = parseInt((pagamentosMetodos as any).acordo_qtd_parcelas || "0");
+      const valorParcela = parseFloat((pagamentosMetodos as any).acordo_valor_parcela || "0");
+      const dataPrimeiroVencimento = (pagamentosMetodos as any).acordo_data_vencimento || dataPagamento;
 
-    const creditoUtilizado = parseFloat((pagamentosMetodos as any).credito || 0);
+      if (qtdParcelas <= 0 || valorParcela <= 0) {
+        return alert("Por favor, preencha o número de parcelas e o valor de cada uma para gerar o acordo.");
+      }
+
+      const parcelasParaInserir = [];
+      for (let i = 0; i < qtdParcelas; i++) {
+        const dataVenc = new Date(dataPrimeiroVencimento);
+        dataVenc.setMonth(dataVenc.getMonth() + i);
+
+        parcelasParaInserir.push({
+          aluno_id: alunoSelecionado.id,
+          tipo: 'acordo',
+          descricao: `Acordo Financeiro - Parcela ${i + 1}/${qtdParcelas}`,
+          valor_total: valorParcela,
+          valor_pago: 0,
+          status: 'pendente',
+          data_pagamento: dataVenc.toISOString().split('T')[0],
+          detalhes_metodos: {}
+        });
+      }
+
+      await supabase.from('historico_pagamentos').insert(parcelasParaInserir);
+      await supabase.from('alunos').update({ status: 'pendente' }).eq('id', alunoSelecionado.id);
+      
+      setModalPgtoAberto(false);
+      carregarDados();
+      return alert(`Acordo gerado com sucesso! ${qtdParcelas} parcelas foram adicionadas à Dívida Ativa do aluno.`);
+    }
+
+    // --- LÓGICA 2: PAGAMENTO NORMAL COM MULTA E DESCONTO ---
+    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    const valorMulta = parseFloat(pagamentosMetodos.multa || "0");
+    const valorDesconto = parseFloat(pagamentosMetodos.desconto || "0");
+    const valorPagoFinal = somaPaga + valorMulta - valorDesconto;
+
+    if (valorPagoFinal <= 0) return alert("Insira um valor.");
+
+    const creditoUtilizado = parseFloat((pagamentosMetodos as any).credito_aluno || 0);
     const saldoDisponivel = parseFloat(alunoSelecionado?.saldo_credito || 0);
 
     if (creditoUtilizado > saldoDisponivel) {
@@ -121,69 +151,67 @@ export default function MensalidadesPage() {
     }
 
     const anoFiltro = mesFiltro.split('-')[0];
-    const descRef = `Mensalidade - ${mesReferencia}/${anoFiltro}`;
-    const valorEsperado = parseFloat(alunoSelecionado.valor) || valorPadrao;
-
+    const valorEsperadoBase = parseFloat(alunoSelecionado.valor) || valorPadrao;
+    const valorEsperadoComMulta = valorEsperadoBase + valorMulta;
+    
     let status = "pago";
-    let valorPagoFinal = somaPaga;
     let creditoGerado = 0;
 
-    if (somaPaga > valorEsperado) {
+    if (valorPagoFinal > valorEsperadoComMulta) {
       status = "pago";
-      valorPagoFinal = valorEsperado;
-      creditoGerado = somaPaga - valorEsperado; 
-    } else if (somaPaga < valorEsperado) {
-      status = somaPaga === 0 ? "pendente" : "parcial";
+      creditoGerado = valorPagoFinal - valorEsperadoComMulta;
+    } else if (valorPagoFinal < valorEsperadoComMulta) {
+      status = valorPagoFinal === 0 ? "pendente" : "parcial";
     }
 
-    const dados = { 
-      aluno_id: alunoSelecionado.id, 
-      tipo: "mensalidade", 
-      descricao: descricaoOutro || descRef, 
-      valor_total: valorEsperado, 
-      valor_pago: valorPagoFinal,
+    const descRef = `Mensalidade - ${mesReferencia}/${anoFiltro}`;
+    
+    const dados = {
+      aluno_id: alunoSelecionado.id,
+      tipo: tipoPagamento,
+      descricao: descricaoOutro || descRef,
+      mes_referencia: tipoPagamento === "mensalidade" ? mesReferencia : null,
+      valor_total: valorEsperadoComMulta,
+      valor_pago: valorPagoFinal > valorEsperadoComMulta ? valorEsperadoComMulta : valorPagoFinal,
       status: status,
-      data_pagamento: dataPagamento, 
-      detalhes_metodos: pagamentosMetodos 
+      data_pagamento: dataPagamento,
+      detalhes_metodos: pagamentosMetodos
     };
 
     await supabase.from('historico_pagamentos').insert([dados]);
-
+    await supabase.from('alunos').update({ status: status === 'pago' ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
+    
     const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
     if (novoSaldoCredito !== saldoDisponivel) {
       await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
     }
 
-    await supabase.from('alunos').update({ status: status === 'pago' ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
-
-    setModalPgtoAberto(false); 
+    setModalPgtoAberto(false);
     carregarDados();
   }
 
   if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando controle de mensalidades...</div>;
 
-  // Extração automática de todas as turmas ativas cadastradas no banco de dados
   const listaTurmasUnicas = Array.from(new Set(alunos.map(aluno => aluno.turma).filter(Boolean))).sort();
 
-  // Filtragem combinada hierárquica por Nome E por Turma
   const alunosFiltrados = alunos.filter(aluno => {
     const correspondeNome = aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase());
     const correspondeTurma = filtroTurma === "" || aluno.turma === filtroTurma;
     return correspondeNome && correspondeTurma;
   });
 
+  const historicoAlunoSelecionado = alunoSelecionado ? listaReceitasDetalhada.filter(h => h.aluno_id === alunoSelecionado.id) : [];
+
   return (
     <div className="w-full bg-slate-50/50 min-h-screen p-6 md:p-8 font-sans antialiased text-slate-800">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Cabeçalho da Página Reestruturado com os Filtros Lado a Lado */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-xl font-bold text-slate-900">🏫 Gestão de Mensalidades Regulares</h1>
             <p className="text-xs text-slate-500 mt-0.5">Dar baixas operacionais, estornos e cobranças diretas da ABC DO PARK</p>
           </div>
           
-          {/* Alinhamento Cirúrgico: Filtro de Turma inserido ao lado do seletor de Mês/Ano */}
           <div className="flex items-center gap-3 w-full md:w-auto">
             <select
               value={filtroTurma}
@@ -196,44 +224,43 @@ export default function MensalidadesPage() {
               ))}
             </select>
 
-            <input 
-              type="month" 
-              value={mesFiltro} 
-              onChange={(e) => setMesFiltro(e.target.value)} 
-              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-auto" 
+            <input
+              type="month"
+              value={mesFiltro}
+              onChange={(e) => setMesFiltro(e.target.value)}
+              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-auto"
             />
           </div>
         </div>
 
-        {/* Componente de Listagem chamado com o array filtrado por Nome e Turma */}
-        <TabelaMensalidades 
+        <TabelaMensalidades
           alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
-          onPagamento={(a) => { 
-            setAlunoSelecionado(a); 
-            setTipoPagamento("mensalidade"); 
-            setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", multa: "" }); 
-            setModalPgtoAberto(true); 
+          onPagamento={(a) => {
+            setAlunoSelecionado(a);
+            setTipoPagamento("mensalidade");
+            setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" });
+            setModalPgtoAberto(true);
           }}
           onCobrar={(a) => {
             const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
             window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
           }}
-          onDesfazer={async (id) => { 
+          onDesfazer={async (id) => {
             if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
             if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-            if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno e retornará para pendente.")) { 
+            if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno e retornará para pendente.")) {
               const [ano, mes] = mesFiltro.split('-');
               const nomeMesRef = mesesAno[parseInt(mes) - 1];
-              await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id); 
+              await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id);
               await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
-              carregarDados(); 
-            } 
+              carregarDados();
+            }
           }}
         />
 
       </div>
 
-      <ModalPagamento 
+      <ModalPagamento
         aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
         aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
         tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
@@ -241,6 +268,7 @@ export default function MensalidadesPage() {
         descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
         pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
         onConfirmar={confirmarPagamento} editando={false}
+        historicoGeral={historicoAlunoSelecionado}
       />
     </div>
   );

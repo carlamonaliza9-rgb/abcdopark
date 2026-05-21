@@ -43,7 +43,7 @@ export default function AlunosAdminPage() {
   const [cpfResponsavel, setCpfResponsavel] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [emailResponsavel, setEmailResponsavel] = useState("");
-  const [profissaoResponsavel, setProfissaoResponsavel] = useState(""); // Adicionado cirurgicamente
+  const [profissaoResponsavel, setProfissaoResponsavel] = useState(""); 
   
   // Responsável 2
   const [responsavel2, setResponsavel2] = useState("");
@@ -51,7 +51,7 @@ export default function AlunosAdminPage() {
   const [cpfResponsavel2, setCpfResponsavel2] = useState("");
   const [whatsapp2, setWhatsapp2] = useState("");
   const [emailResponsavel2, setEmailResponsavel2] = useState("");
-  const [profissaoResponsavel2, setProfissaoResponsavel2] = useState(""); // Adicionado cirurgicamente
+  const [profissaoResponsavel2, setProfissaoResponsavel2] = useState(""); 
 
   // Responsável 3
   const [responsavel3, setResponsavel3] = useState("");
@@ -156,7 +156,6 @@ export default function AlunosAdminPage() {
     aluno.nome?.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // --- FUNÇÃO AUXILIAR DE ORDENAÇÃO MANUAL (PORTUGUÊS NO TOPO) ---
   const aplicarOrdenacaoManual = (lista: any[]) => {
     const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
     return [...lista].sort((a, b) => {
@@ -166,7 +165,6 @@ export default function AlunosAdminPage() {
     });
   };
 
-  // --- FUNÇÃO DE BUSCA E SINCRONIZAÇÃO AUTOMÁTICA DE DISCIPLINAS ---
   async function buscarBoletim(alunoId: string, ano: string = "2026") {
     setAnoBoletimAtivo(ano);
 
@@ -255,16 +253,38 @@ export default function AlunosAdminPage() {
     }
   }
 
+  // --- FILTRO INTELIGENTE EM REGRAS DE NEGÓCIO ---
   async function buscarHistoricoPagamento(alunoId: string, ano: string = "2026") {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('historico_pagamentos')
       .select('*')
       .eq('aluno_id', alunoId)
-      .gte('data_pagamento', `${ano}-01-01`)
-      .lte('data_pagamento', `${ano}-12-31`)
       .order('data_pagamento', { ascending: false });
-    if (data) setHistorico(data);
-    setVerHistorico(true); setVerBoletim(false);
+
+    if (error) {
+      console.error("Erro ao buscar histórico:", error.message);
+      return;
+    }
+
+    if (data) {
+      const historicoFiltrado = data.filter((h: any) => {
+        const ref = h.mes_referencia ? h.mes_referencia.toLowerCase() : "";
+        const desc = h.descricao ? h.descricao.toLowerCase() : "";
+        const dataPgto = h.data_pagamento || "";
+
+        if (ref.includes(ano)) return true;
+        if (desc.includes(ano)) return true;
+        if (!h.mes_referencia && dataPgto.startsWith(ano)) return true;
+
+        return false;
+      });
+      setHistorico(historicoFiltrado);
+    } else {
+      setHistorico([]);
+    }
+
+    setVerHistorico(true); 
+    setVerBoletim(false);
   }
 
   function gerarPDFHistorico() {
@@ -384,7 +404,6 @@ export default function AlunosAdminPage() {
     doc.save(`Boletim_${nome.replace(/\s+/g, '_')}_2026.pdf`);
   }
 
-  // --- FUNÇÃO AUXILIAR PARA RECORTAR A FOTO BASEADO NO ZOOM ANTES DO UPLOAD ---
   const processarRecorteImagem = (arquivo: File): Promise<Blob> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -393,13 +412,11 @@ export default function AlunosAdminPage() {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         
-        // Define o tamanho padrão final da imagem quadrada na ficha do aluno (300x300 pixels)
         const TAMANHO_ALVO = 300;
         canvas.width = TAMANHO_ALVO;
         canvas.height = TAMANHO_ALVO;
 
         if (ctx) {
-          // Calcula o enquadramento com base na menor dimensão da imagem original (aspect ratio)
           const menorDimensao = Math.min(img.width, img.height);
           const sWidth = menorDimensao;
           const sHeight = menorDimensao;
@@ -417,7 +434,6 @@ export default function AlunosAdminPage() {
     });
   };
 
-  // --- FUNÇÃO DE SALVAR COM CORREÇÃO DE PERSISTÊNCIA E SUPORTE A RECORTE ---
   async function salvarAluno(e: React.FormEvent) {
     e.preventDefault();
     if (ehVisitante) return;
@@ -426,7 +442,6 @@ export default function AlunosAdminPage() {
       let urlFinal = previewUrl;
       
       if (arquivoFoto) {
-        // Corta e ajusta a imagem no formato quadrado antes de enviar ao storage
         const imagemRecortadaBlob = await processarRecorteImagem(arquivoFoto);
         const nomeArquivo = `${Date.now()}_aluno_foto.jpg`;
         
@@ -472,7 +487,6 @@ export default function AlunosAdminPage() {
     }
   }
 
-  // --- NOVAS FUNÇÕES: GERENCIAR PAGAMENTOS DO HISTÓRICO ---
   async function handleExcluirPagamento(idPgto: string) {
     const { data: pgto } = await supabase.from('historico_pagamentos').select('*').eq('id', idPgto).single();
     if (pgto?.tipo === 'mensalidade') {
@@ -574,7 +588,8 @@ export default function AlunosAdminPage() {
             email_responsavel_3: emailResponsavel3,
             valor, vencimento, data_nascimento: dataNascimento, 
             tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_artista: eAutista, foto_url: previewUrl, observacoes
+            e_artista: eAutista, foto_url: previewUrl, observacoes,
+            saldo_credito: alunos.find(a => a.id === idEdicao)?.saldo_credito || 0
           }}
           verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
@@ -625,7 +640,7 @@ export default function AlunosAdminPage() {
             if (d.temAlergia !== undefined) setTemAlergia(d.temAlergia);
             if (d.alergiaDescricao !== undefined) setAlergiaDescricao(d.alergiaDescricao);
             if (d.observacoes !== undefined) setObservacoes(d.observacoes);
-            if (d.foto_url !== undefined) setPreviewUrl(d.foto_url); // Integra a remoção de foto limpando a pré-visualização mestre
+            if (d.foto_url !== undefined) setPreviewUrl(d.foto_url);
           }}
           onTrocarFoto={(e) => { 
             if (!e.target.files) {
@@ -643,15 +658,25 @@ export default function AlunosAdminPage() {
         />
       )}
 
-      {/* MODAL PARA EDITAR PAGAMENTO DO HISTÓRICO */}
+      {/* MODAL PARA EDITAR PAGAMENTO DO HISTÓRICO - AGORA RECEBE historicoGeral */}
       <ModalPagamento 
-        aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
-        aluno={{ nome }} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
-        tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
-        mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno}
-        descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
-        pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
-        onConfirmar={handleSalvarPgtoEditado} editando={true}
+        aberto={modalPgtoAberto} 
+        onFechar={() => setModalPgtoAberto(false)}
+        aluno={{ nome }} 
+        dataPagamento={dataPagamento} 
+        setDataPagamento={setDataPagamento}
+        tipoPagamento={tipoPagamento} 
+        setTipoPagamento={setTipoPagamento}
+        mesReferencia={mesReferencia} 
+        setMesReferencia={setMesReferencia} 
+        mesesAno={mesesAno}
+        descricaoOutro={descricaoOutro} 
+        setDescricaoOutro={setDescricaoOutro}
+        pagamentosMetodos={pagamentosMetodos} 
+        setPagamentosMetodos={setPagamentosMetodos}
+        onConfirmar={handleSalvarPgtoEditado} 
+        editando={true}
+        historicoGeral={historico} 
       />
     </div>
   );
