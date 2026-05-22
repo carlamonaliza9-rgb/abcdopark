@@ -207,132 +207,196 @@ export default function AvaliacoesProfessorPage() {
     }
   }
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando sistema de notas...</div>;
+  if (carregando) return <div className="p-10 text-center font-medium text-slate-500">Carregando sistema de notas...</div>;
 
   return (
-    <div style={{ padding: '30px', maxWidth: '800px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1e3a8a' }}>Lançamento de Notas</h1>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>
-          {ehAdmin ? "Painel Administrativo" : `Professor(a): ${userEmail}`}
-        </p>
+    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+      <div className="max-w-4xl mx-auto space-y-6">
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '20px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px' }}>
+        {/* CABEÇALHO RESPONSIVO */}
+        <header className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-6">
+          <div>
+            <h1 className="text-2xl font-bold text-blue-900">Lançamento de Notas</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {ehAdmin ? "Painel Administrativo" : `Professor(a): ${userEmail}`}
+            </p>
+          </div>
           
-          {/* Seletor de Turma visível para Admin ou Especialistas (mais de 1 turma) */}
-          {(ehAdmin || listaTurmas.length > 1) ? (
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>SELECIONE A TURMA</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            
+            {/* Seletor de Turma */}
+            {(ehAdmin || listaTurmas.length > 1) ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">Selecione a Turma</label>
+                <select 
+                  value={turmaSelecionada} 
+                  onChange={(e) => setTurmaSelecionada(e.target.value)}
+                  className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none"
+                >
+                  <option value="">Escolha uma turma...</option>
+                  {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">Sua Turma</label>
+                <div className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-blue-900 flex items-center h-[46px]">
+                  {turmaSelecionada || "Nenhuma turma vinculada"}
+                </div>
+              </div>
+            )}
+
+            {/* Seletor de Matéria */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Matéria</label>
               <select 
-                value={turmaSelecionada} 
-                onChange={(e) => setTurmaSelecionada(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: '600' }}
+                value={disciplinaSelecionada} 
+                onChange={(e) => setDisciplinaSelecionada(e.target.value)}
+                disabled={disciplinas.length === 0}
+                className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none disabled:bg-slate-100"
               >
-                <option value="">Escolha uma turma...</option>
-                {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
+                {disciplinas.length > 0 ? (
+                  disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
+                ) : (
+                  <option value="">Sem matérias cadastradas</option>
+                )}
               </select>
             </div>
-          ) : (
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>TURMA</label>
-              <div style={{ padding: '10px', backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: '800', color: '#1e3a8a' }}>
-                {turmaSelecionada || "Nenhuma turma vinculada"}
-              </div>
+
+            {/* Seletor de Bimestre */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Período de Avaliação</label>
+              <select 
+                value={bimestreSelecionado} 
+                onChange={(e) => setBimestreSelecionado(e.target.value)}
+                className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none"
+              >
+                {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
+              </select>
             </div>
-          )}
-
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>MATÉRIA</label>
-            <select 
-              value={disciplinaSelecionada} 
-              onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-              disabled={disciplinas.length === 0}
-              style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: '600' }}
-            >
-              {disciplinas.length > 0 ? (
-                disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
-              ) : (
-                <option value="">Nenhuma matéria cadastrada</option>
-              )}
-            </select>
           </div>
+        </header>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>BIMESTRE</label>
-            <select 
-              value={bimestreSelecionado} 
-              onChange={(e) => setBimestreSelecionado(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: '600' }}
-            >
-              {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
-            </select>
-          </div>
-        </div>
-      </header>
+        {turmaSelecionada && disciplinas.length > 0 ? (
+          <>
+            {/* RENDERIZAÇÃO RESPONSIVA: Cards no Mobile, Tabela no Desktop */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 md:p-0">
+              
+              {/* VISÃO DESKTOP (TABELA) - Oculta em celulares */}
+              <div className="hidden md:block w-full overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Aluno</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-32">Nota</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {alunos.map((aluno) => {
+                      const notaAtualStr = notasLocais[String(aluno.id)] || "";
+                      const notaNum = parseFloat(notaAtualStr);
+                      const isVermelha = !isNaN(notaNum) && notaNum < 7;
+                      
+                      return (
+                        <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 text-sm font-bold text-slate-800 flex items-center gap-3">
+                            {/* Opcional: Avatar do Aluno */}
+                            {aluno.foto_url ? (
+                              <img src={aluno.foto_url} alt="" className="w-8 h-8 rounded-full object-cover bg-slate-200" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
+                                {aluno.nome.charAt(0)}
+                              </div>
+                            )}
+                            {aluno.nome}
+                          </td>
+                          <td className="p-4 text-center">
+                            <input 
+                              type="text"
+                              value={notaAtualStr}
+                              onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
+                              placeholder="0.0"
+                              className={`w-20 p-2 text-center rounded-lg border-2 font-black text-sm outline-none transition-colors ${
+                                isVermelha 
+                                  ? 'border-red-200 bg-red-50 text-red-600 focus:border-red-400' 
+                                  : 'border-slate-200 bg-white text-blue-600 focus:border-blue-400'
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-      {turmaSelecionada && disciplinas.length > 0 ? (
-        <>
-          <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8fafc' }}>
-                  <th style={{ padding: '15px', textAlign: 'left', fontSize: '12px', color: '#64748b' }}>ALUNO</th>
-                  <th style={{ padding: '15px', textAlign: 'center', fontSize: '12px', color: '#64748b', width: '100px' }}>NOTA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alunos.map((aluno) => (
-                  <tr key={aluno.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 15px', fontWeight: '600', color: '#334155' }}>{aluno.nome}</td>
-                    <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+              {/* VISÃO MOBILE (CARDS) - Oculta no Desktop */}
+              <div className="md:hidden flex flex-col gap-3">
+                <div className="flex justify-between items-center mb-2 px-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase">Lista de Alunos</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase text-center w-[70px]">Nota</span>
+                </div>
+                {alunos.map((aluno) => {
+                  const notaAtualStr = notasLocais[String(aluno.id)] || "";
+                  const notaNum = parseFloat(notaAtualStr);
+                  const isVermelha = !isNaN(notaNum) && notaNum < 7;
+                  
+                  return (
+                    <div key={aluno.id} className="flex justify-between items-center p-4 bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-center gap-3 pr-2">
+                        {aluno.foto_url ? (
+                          <img src={aluno.foto_url} alt="" className="w-10 h-10 rounded-full object-cover bg-slate-200 border-2 border-white shadow-sm" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold">
+                            {aluno.nome.charAt(0)}
+                          </div>
+                        )}
+                        <span className="text-sm font-bold text-slate-800 leading-tight">{aluno.nome}</span>
+                      </div>
+                      
                       <input 
                         type="text"
-                        value={notasLocais[String(aluno.id)] || ""}
+                        inputMode="decimal"
+                        value={notaAtualStr}
                         onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                        placeholder="0.0"
-                        style={{ 
-                          width: '60px', 
-                          padding: '8px', 
-                          textAlign: 'center', 
-                          borderRadius: '8px', 
-                          border: '1px solid #e2e8f0', 
-                          fontWeight: '800',
-                          color: parseFloat(notasLocais[String(aluno.id)]) < 7 ? '#ef4444' : '#2563eb'
-                        }}
+                        placeholder="--"
+                        className={`w-[70px] h-[46px] p-2 text-center rounded-xl border-2 font-black text-lg outline-none transition-colors shrink-0 shadow-inner ${
+                          isVermelha 
+                            ? 'border-red-200 bg-red-50 text-red-600 focus:border-red-400 focus:bg-white' 
+                            : 'border-slate-200 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
+                        }`}
                       />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-          <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button 
-              onClick={salvarNotas}
-              disabled={salvando}
-              style={{ 
-                backgroundColor: '#2563eb', 
-                color: 'white', 
-                padding: '12px 30px', 
-                borderRadius: '12px', 
-                border: 'none', 
-                fontWeight: '700', 
-                cursor: 'pointer',
-                opacity: salvando ? 0.6 : 1
-              }}
-            >
-              {salvando ? "Gravando..." : "Salvar Notas"}
-            </button>
+            {/* BOTÃO SALVAR FIXO/FLUTUANTE NO MOBILE OU NORMAL NO DESKTOP */}
+            <div className="mt-6 flex justify-end pb-8">
+              <button 
+                onClick={salvarNotas}
+                disabled={salvando}
+                className={`w-full md:w-auto px-8 py-4 rounded-xl font-bold text-white shadow-md transition-all active:scale-95 ${
+                  salvando ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {salvando ? "Gravando Pauta..." : "Gravar e Salvar Notas"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="bg-white p-10 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-3xl mb-4">📋</div>
+            <h3 className="text-lg font-bold text-slate-700">Aguardando Lançamento</h3>
+            <p className="text-sm text-slate-500 mt-2 max-w-sm">
+              {!turmaSelecionada 
+                ? "Por favor, selecione uma turma e uma matéria no painel acima para abrir a pauta de alunos." 
+                : "Esta turma ainda não possui matérias cadastradas na Grade Anual."}
+            </p>
           </div>
-        </>
-      ) : (
-        <div style={{ textAlign: 'center', padding: '50px', backgroundColor: '#f8fafc', borderRadius: '20px', color: '#64748b' }}>
-          {!turmaSelecionada 
-            ? "Selecione uma turma para começar o lançamento." 
-            : "Esta turma ainda não possui matérias cadastradas na Grade de Matérias."}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
