@@ -74,12 +74,10 @@ export function SidebarProfessor() {
         </button>
       </aside>
 
-      {/* ========================================================= */}
-      {/* VISUALIZAÇÃO MOBILE (Celular/Tablet): Bottom Bar App-Like */}
-      {/* ========================================================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-[9999] h-20 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+           {/* VISUALIZAÇÃO PORTÁTIL (CELULAR/TABLET): Menu ampliado (h-20) com fontes e ícones muito maiores para o celular */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-50 h-20 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         {menuItems.map((item) => {
-          const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
+          const isActive = pathname === item.path;
           return (
             <Link
               key={item.name}
