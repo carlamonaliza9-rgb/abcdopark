@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase"; // Importação corrigida (não use createClient dentro do componente)
 
 export default function ConsultaFrequenciaPage() {
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -10,23 +10,28 @@ export default function ConsultaFrequenciaPage() {
   const [frequenciaMensal, setFrequenciaMensal] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     async function identificarProfessor() {
       setCarregando(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: turmaData } = await supabase
-          .from('turmas_info') 
-          .select('nome_turma')
-          .eq('email_prof_fixo_1', user.email)
-          .maybeSingle();
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Correção: Agora busca o e-mail do professor em qualquer uma das 4 colunas de vinculação
+          const { data: turmaData } = await supabase
+            .from('turmas_info') 
+            .select('nome_turma')
+            .or(`email_prof_fixo_1.eq.${user.email},email_prof_fixo_2.eq.${user.email},email_prof_especifico_1.eq.${user.email},email_prof_especifico_2.eq.${user.email}`)
+            .maybeSingle();
 
-        if (turmaData) setTurmaSelecionada(turmaData.nome_turma);
+          if (turmaData) {
+            setTurmaSelecionada(turmaData.nome_turma);
+          }
+        }
+      } catch (err) {
+        console.error("Erro na identificação:", err);
+      } finally {
+        // Correção Crítica: Garante que o loading vai parar mesmo se o professor não tiver turma
+        setCarregando(false);
       }
     }
     identificarProfessor();
@@ -38,7 +43,6 @@ export default function ConsultaFrequenciaPage() {
     }
   }, [turmaSelecionada, mesFiltro]);
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -57,117 +61,184 @@ export default function ConsultaFrequenciaPage() {
 
   async function buscarAlunosEFrequencia() {
     setCarregando(true);
-    // Busca alunos da turma
-    const { data: listaAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome')
-      .eq('turma', turmaSelecionada)
-      .order('nome', { ascending: true });
+    try {
+      const { data: listaAlunos } = await supabase
+        .from('alunos')
+        .select('id, nome, foto_url')
+        .eq('turma', turmaSelecionada)
+        .order('nome', { ascending: true });
 
-    if (listaAlunos) setAlunos(listaAlunos);
+      if (listaAlunos) setAlunos(listaAlunos);
 
-    // Busca frequências do mês selecionado
-    const { data: faltas } = await supabase
-      .from('frequencias')
-      .select('*')
-      .gte('data', `${mesFiltro}-01`)
-      .lte('data', `${mesFiltro}-31`);
+      const { data: faltas } = await supabase
+        .from('frequencias')
+        .select('*')
+        .gte('data', `${mesFiltro}-01`)
+        .lte('data', `${mesFiltro}-31`);
 
-    if (faltas) setFrequenciaMensal(faltas);
+      if (faltas) setFrequenciaMensal(faltas);
 
-    // Registra o log detalhado de consulta de relatório na tela de auditoria
-    if (listaAlunos && turmaSelecionada) {
-      const [ano, mes] = mesFiltro.split('-');
-      const nomeMesFormatado = new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-      
-      await registrarLog(
-        "CONSULTA", 
-        `🔍 Consultou o relatório de histórico de frequência mensal da turma ${turmaSelecionada}.\n` +
-        `• Período visualizado: ${nomeMesFormatado} (${mesFiltro})\n` +
-        `• Total de alunos listados na pauta: ${listaAlunos.length}`
-      );
+      if (listaAlunos && turmaSelecionada) {
+        const [ano, mes] = mesFiltro.split('-');
+        const nomeMesFormatado = new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+        
+        await registrarLog(
+          "CONSULTA", 
+          `🔍 Consultou o relatório de histórico de frequência mensal da turma ${turmaSelecionada}.\n` +
+          `• Período visualizado: ${nomeMesFormatado} (${mesFiltro})\n` +
+          `• Total de alunos listados na pauta: ${listaAlunos.length}`
+        );
+      }
+    } catch (err) {
+      console.error("Erro ao buscar histórico:", err);
+    } finally {
+      setCarregando(false);
     }
-
-    setCarregando(false);
   }
 
-  const diasNoMes = new Date(parseInt(mesFiltro.split('-')[0]), parseInt(mesFiltro.split('-')[1]), 0).getDate();
-  const nomeMes = new Date(mesFiltro + "-01").toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+  // Cálculos de data seguros à prova de NaN
+  const [anoFiltro, mesNum] = mesFiltro.split('-').map(Number);
+  const diasNoMes = new Date(anoFiltro, mesNum, 0).getDate();
+  const nomeMes = new Date(anoFiltro, mesNum - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
-  if (carregando && alunos.length === 0) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando histórico de presenças...</div>;
+  if (carregando && alunos.length === 0) {
+    return <div className="p-10 text-center text-slate-400 font-black uppercase tracking-widest animate-pulse">Buscando pauta...</div>;
+  }
 
   return (
-    <div style={{ padding: '32px 20px', maxWidth: '1200px', margin: '0 auto', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <header style={{ margin: '0 0 32px 0' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>Histórico de Frequência 📋</h1>
-        <p style={{ color: '#64748b', marginTop: '5px' }}>Consulta mensal de faltas e presenças - {turmaSelecionada}</p>
+    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans pb-24">
+      
+      <header className="mb-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black text-blue-900 uppercase tracking-tighter italic">Frequência 📋</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Turma Vinculada: {turmaSelecionada || "Nenhuma"}</p>
+        </div>
         
-        <div style={{ marginTop: '20px', display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 'bold', color: '#475569', fontSize: '14px' }}>Selecionar Mês:</label>
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selecionar Mês</label>
           <input 
             type="month" 
             value={mesFiltro} 
             onChange={(e) => setMesFiltro(e.target.value)} 
-            style={{ padding: '10px', borderRadius: '12px', border: '2px solid #e2e8f0', fontWeight: '600', color: '#1e3a8a', outline: 'none' }}
+            className="p-3 rounded-xl border border-slate-200 text-sm font-bold text-blue-900 outline-none focus:border-blue-400 transition-colors bg-slate-50"
           />
         </div>
       </header>
 
-      <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, color: '#1e3a8a', fontWeight: '800', textTransform: 'capitalize' }}>{nomeMes}</h3>
-            <div style={{ display: 'flex', gap: '15px', fontSize: '12px', fontWeight: 'bold' }}>
-                <span style={{ color: '#22c55e' }}>● Presença (P)</span>
-                <span style={{ color: '#ef4444' }}>● Falta (F)</span>
+      {turmaSelecionada && alunos.length > 0 ? (
+        <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <h3 className="text-xl font-black text-blue-900 capitalize italic">{nomeMes} {anoFiltro}</h3>
+            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest">
+              <span className="text-green-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span> Presença (P)</span>
+              <span className="text-red-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Falta (F)</span>
             </div>
-        </div>
+          </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: '12px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', position: 'sticky', left: 0, zIndex: 10, minWidth: '150px' }}>Aluno</th>
-              {[...Array(diasNoMes)].map((_, i) => (
-                <th key={i} style={{ padding: '5px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', textAlign: 'center', width: '25px' }}>{i + 1}</th>
-              ))}
-              <th style={{ padding: '10px', border: '1px solid #e2e8f0', backgroundColor: '#eff6ff', color: '#1e3a8a', textAlign: 'center' }}>Total Faltas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {alunos.map(aluno => {
-              let totalFaltas = 0;
-              return (
-                <tr key={aluno.id}>
-                  <td style={{ padding: '12px', border: '1px solid #e2e8f0', fontWeight: '700', color: '#334155', backgroundColor: 'white', position: 'sticky', left: 0, zIndex: 5 }}>
-                    {aluno.nome.split(' ')[0]} {aluno.nome.split(' ').slice(-1)}
-                  </td>
-                  {[...Array(diasNoMes)].map((_, i) => {
-                    const dia = (i + 1).toString().padStart(2, '0');
-                    const reg = frequenciaMensal.find(f => f.aluno_id === aluno.id && f.data === `${mesFiltro}-${dia}`);
-                    
-                    if (reg && reg.presente === false) totalFaltas++;
-
-                    return (
-                      <td key={i} style={{ border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: reg ? (reg.presente ? '#22c55e' : '#ef4444') : '#d1d5db' }}>
-                        {reg ? (reg.presente ? 'P' : 'F') : '-'}
-                      </td>
-                    );
-                  })}
-                  <td style={{ border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '800', color: totalFaltas > 3 ? '#ef4444' : '#64748b', backgroundColor: '#f8fafc' }}>
-                    {totalFaltas}
-                  </td>
+          {/* ======================= */}
+          {/* VISUALIZAÇÃO DESKTOP    */}
+          {/* ======================= */}
+          <div className="hidden md:block overflow-x-auto custom-scrollbar pb-4">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr>
+                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 sticky left-0 bg-white z-10 w-48 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">Aluno</th>
+                  {[...Array(diasNoMes)].map((_, i) => (
+                    <th key={i} className="p-2 text-[10px] font-black text-slate-400 text-center border-b border-slate-100 min-w-[30px]">{i + 1}</th>
+                  ))}
+                  <th className="p-4 text-[10px] font-black text-blue-600 uppercase tracking-widest border-b border-slate-100 text-center bg-blue-50/30">Faltas</th>
                 </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {alunos.map(aluno => {
+                  let totalFaltas = 0;
+                  return (
+                    <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 font-bold text-slate-700 text-xs sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                        {aluno.nome.split(' ')[0]} {aluno.nome.split(' ').slice(-1)}
+                      </td>
+                      {[...Array(diasNoMes)].map((_, i) => {
+                        const dia = (i + 1).toString().padStart(2, '0');
+                        const reg = frequenciaMensal.find(f => f.aluno_id === aluno.id && f.data === `${mesFiltro}-${dia}`);
+                        
+                        if (reg && reg.presente === false) totalFaltas++;
+
+                        return (
+                          <td key={i} className={`p-2 text-center text-[10px] font-black ${reg ? (reg.presente ? 'text-green-500' : 'text-red-500') : 'text-slate-200'}`}>
+                            {reg ? (reg.presente ? 'P' : 'F') : '-'}
+                          </td>
+                        );
+                      })}
+                      <td className={`p-4 text-center font-black bg-blue-50/30 ${totalFaltas > 3 ? 'text-red-500' : 'text-slate-600'}`}>
+                        {totalFaltas}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ======================= */}
+          {/* VISUALIZAÇÃO MOBILE     */}
+          {/* ======================= */}
+          <div className="md:hidden space-y-4">
+            {alunos.map(aluno => {
+              const faltasTotais = frequenciaMensal.filter(f => f.aluno_id === aluno.id && f.presente === false).length;
+              return (
+                <div key={aluno.id} className="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 border border-slate-200">
+                      {aluno.foto_url ? (
+                        <img src={aluno.foto_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="font-black text-slate-400 text-xs">{aluno.nome.charAt(0)}</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 leading-tight">{aluno.nome}</span>
+                  </div>
+                  <div className="text-right flex flex-col items-end">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Faltas</span>
+                    <span className={`text-xl font-black ${faltasTotais > 3 ? 'text-red-500' : 'text-slate-700'}`}>{faltasTotais}</span>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-      
-      <button 
-        onClick={() => window.print()} 
-        style={{ marginTop: '30px', padding: '12px 24px', borderRadius: '12px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-      >
-        🖨️ Imprimir Relatório
-      </button>
+          </div>
+
+          {/* Botão de Impressão (Desktop apenas) */}
+          <div className="hidden md:flex mt-8 justify-end">
+            <button 
+              onClick={() => window.print()} 
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95"
+            >
+              🖨️ Imprimir Relatório
+            </button>
+          </div>
+
+        </div>
+      ) : (
+        <div className="bg-white p-10 rounded-[2.5rem] border border-slate-50 shadow-sm text-center">
+          <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest">
+            {!turmaSelecionada ? "Aguardando vinculação de turma." : "Nenhum aluno encontrado."}
+          </p>
+        </div>
+      )}
+
+      {/* Adicionando estilo global para a barra de rolagem (Tailwind hide-scrollbar custom) */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @media print {
+          @page { size: landscape; margin: 1cm; }
+          body * { visibility: hidden; }
+          table, table * { visibility: visible; }
+          table { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}} />
     </div>
   );
 }
