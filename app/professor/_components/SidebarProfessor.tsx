@@ -101,7 +101,7 @@ export function SidebarProfessor() {
           onClick={handleLogout}
           className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-base sm:text-lg font-black uppercase tracking-wider text-rose-400 hover:text-rose-600 transition-all"
         >
-          <LogOut size={26} strokeWidth={2.5} />
+          <LogOut size={30} strokeWidth={2.5} />
           <span className="text-xs sm:text-sm font-black truncate">Sair</span>
         </button>
       </div>
