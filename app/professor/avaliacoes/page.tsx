@@ -207,196 +207,174 @@ export default function AvaliacoesProfessorPage() {
     }
   }
 
-  if (carregando) return <div className="p-10 text-center font-medium text-slate-500">Carregando sistema de notas...</div>;
+  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando pauta...</div>;
 
   return (
-    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-4 md:max-w-4xl md:mx-auto md:p-8 font-sans">
+      <header className="mb-10">
+        <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">Lançamento de Notas</h1>
+        <div className="h-1 w-20 bg-indigo-600 mt-2 rounded-full mb-2"></div>
+        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+          {ehAdmin ? "Painel Administrativo" : `Professor(a): ${userEmail}`}
+        </p>
         
-        {/* CABEÇALHO RESPONSIVO */}
-        <header className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-6">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-900">Lançamento de Notas</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {ehAdmin ? "Painel Administrativo" : `Professor(a): ${userEmail}`}
-            </p>
-          </div>
+        {/* Painel de Filtros (Responsivo) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            
-            {/* Seletor de Turma */}
-            {(ehAdmin || listaTurmas.length > 1) ? (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase">Selecione a Turma</label>
-                <select 
-                  value={turmaSelecionada} 
-                  onChange={(e) => setTurmaSelecionada(e.target.value)}
-                  className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none"
-                >
-                  <option value="">Escolha uma turma...</option>
-                  {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase">Sua Turma</label>
-                <div className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-blue-900 flex items-center h-[46px]">
-                  {turmaSelecionada || "Nenhuma turma vinculada"}
-                </div>
-              </div>
-            )}
-
-            {/* Seletor de Matéria */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Matéria</label>
+          {/* Seletor de Turma */}
+          {(ehAdmin || listaTurmas.length > 1) ? (
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selecione a Turma</label>
               <select 
-                value={disciplinaSelecionada} 
-                onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-                disabled={disciplinas.length === 0}
-                className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none disabled:bg-slate-100"
+                value={turmaSelecionada} 
+                onChange={(e) => setTurmaSelecionada(e.target.value)}
+                className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors"
               >
-                {disciplinas.length > 0 ? (
-                  disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
-                ) : (
-                  <option value="">Sem matérias cadastradas</option>
-                )}
+                <option value="">Escolha uma turma...</option>
+                {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-
-            {/* Seletor de Bimestre */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Período de Avaliação</label>
-              <select 
-                value={bimestreSelecionado} 
-                onChange={(e) => setBimestreSelecionado(e.target.value)}
-                className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold text-slate-700 outline-none"
-              >
-                {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
-              </select>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Turma Vinculada</label>
+              <div className="w-full px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100 font-black text-indigo-700">
+                {turmaSelecionada || "Nenhuma turma"}
+              </div>
             </div>
+          )}
+
+          {/* Seletor de Matéria */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Matéria</label>
+            <select 
+              value={disciplinaSelecionada} 
+              onChange={(e) => setDisciplinaSelecionada(e.target.value)}
+              disabled={disciplinas.length === 0}
+              className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors disabled:opacity-50"
+            >
+              {disciplinas.length > 0 ? (
+                disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
+              ) : (
+                <option value="">Sem matérias</option>
+              )}
+            </select>
           </div>
-        </header>
 
-        {turmaSelecionada && disciplinas.length > 0 ? (
-          <>
-            {/* RENDERIZAÇÃO RESPONSIVA: Cards no Mobile, Tabela no Desktop */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 md:p-0">
-              
-              {/* VISÃO DESKTOP (TABELA) - Oculta em celulares */}
-              <div className="hidden md:block w-full overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Aluno</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-32">Nota</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {alunos.map((aluno) => {
-                      const notaAtualStr = notasLocais[String(aluno.id)] || "";
-                      const notaNum = parseFloat(notaAtualStr);
-                      const isVermelha = !isNaN(notaNum) && notaNum < 7;
-                      
-                      return (
-                        <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="p-4 text-sm font-bold text-slate-800 flex items-center gap-3">
-                            {/* Opcional: Avatar do Aluno */}
-                            {aluno.foto_url ? (
-                              <img src={aluno.foto_url} alt="" className="w-8 h-8 rounded-full object-cover bg-slate-200" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
-                                {aluno.nome.charAt(0)}
-                              </div>
-                            )}
-                            {aluno.nome}
-                          </td>
-                          <td className="p-4 text-center">
-                            <input 
-                              type="text"
-                              value={notaAtualStr}
-                              onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                              placeholder="0.0"
-                              className={`w-20 p-2 text-center rounded-lg border-2 font-black text-sm outline-none transition-colors ${
-                                isVermelha 
-                                  ? 'border-red-200 bg-red-50 text-red-600 focus:border-red-400' 
-                                  : 'border-slate-200 bg-white text-blue-600 focus:border-blue-400'
-                              }`}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          {/* Seletor de Bimestre */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bimestre</label>
+            <select 
+              value={bimestreSelecionado} 
+              onChange={(e) => setBimestreSelecionado(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors"
+            >
+              {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </header>
 
-              {/* VISÃO MOBILE (CARDS) - Oculta no Desktop */}
-              <div className="md:hidden flex flex-col gap-3">
-                <div className="flex justify-between items-center mb-2 px-1">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Lista de Alunos</span>
-                  <span className="text-xs font-bold text-slate-500 uppercase text-center w-[70px]">Nota</span>
-                </div>
+      {turmaSelecionada && disciplinas.length > 0 ? (
+        <>
+          {/* ======================= */}
+          {/* VISUALIZAÇÃO DESKTOP    */}
+          {/* Mantém a tabela clássica */}
+          {/* ======================= */}
+          <div className="hidden md:block bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="pb-4 text-xs font-black text-slate-400 uppercase tracking-widest">Aluno</th>
+                  <th className="pb-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-32">Nota</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
                 {alunos.map((aluno) => {
                   const notaAtualStr = notasLocais[String(aluno.id)] || "";
-                  const notaNum = parseFloat(notaAtualStr);
-                  const isVermelha = !isNaN(notaNum) && notaNum < 7;
+                  const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
                   
                   return (
-                    <div key={aluno.id} className="flex justify-between items-center p-4 bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-                      <div className="flex items-center gap-3 pr-2">
-                        {aluno.foto_url ? (
-                          <img src={aluno.foto_url} alt="" className="w-10 h-10 rounded-full object-cover bg-slate-200 border-2 border-white shadow-sm" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold">
-                            {aluno.nome.charAt(0)}
-                          </div>
-                        )}
-                        <span className="text-sm font-bold text-slate-800 leading-tight">{aluno.nome}</span>
-                      </div>
-                      
-                      <input 
-                        type="text"
-                        inputMode="decimal"
-                        value={notaAtualStr}
-                        onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                        placeholder="--"
-                        className={`w-[70px] h-[46px] p-2 text-center rounded-xl border-2 font-black text-lg outline-none transition-colors shrink-0 shadow-inner ${
-                          isVermelha 
-                            ? 'border-red-200 bg-red-50 text-red-600 focus:border-red-400 focus:bg-white' 
-                            : 'border-slate-200 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
-                        }`}
-                      />
-                    </div>
+                    <tr key={aluno.id} className="group hover:bg-slate-50/50 transition-colors">
+                      <td className="py-4 font-bold text-slate-700">{aluno.nome}</td>
+                      <td className="py-4 text-center">
+                        <input 
+                          type="text"
+                          value={notaAtualStr}
+                          onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
+                          placeholder="0.0"
+                          className={`w-20 p-2 text-center rounded-xl border-2 font-black outline-none transition-colors ${
+                            isVermelha 
+                              ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
+                              : 'border-slate-100 bg-slate-50 text-indigo-600 focus:border-indigo-400 focus:bg-white'
+                          }`}
+                        />
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* BOTÃO SALVAR FIXO/FLUTUANTE NO MOBILE OU NORMAL NO DESKTOP */}
-            <div className="mt-6 flex justify-end pb-8">
-              <button 
-                onClick={salvarNotas}
-                disabled={salvando}
-                className={`w-full md:w-auto px-8 py-4 rounded-xl font-bold text-white shadow-md transition-all active:scale-95 ${
-                  salvando ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {salvando ? "Gravando Pauta..." : "Gravar e Salvar Notas"}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="bg-white p-10 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center">
-            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-3xl mb-4">📋</div>
-            <h3 className="text-lg font-bold text-slate-700">Aguardando Lançamento</h3>
-            <p className="text-sm text-slate-500 mt-2 max-w-sm">
-              {!turmaSelecionada 
-                ? "Por favor, selecione uma turma e uma matéria no painel acima para abrir a pauta de alunos." 
-                : "Esta turma ainda não possui matérias cadastradas na Grade Anual."}
-            </p>
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+
+          {/* ======================= */}
+          {/* VISUALIZAÇÃO MOBILE     */}
+          {/* Estilo App/Portal Pais  */}
+          {/* ======================= */}
+          <div className="md:hidden space-y-4">
+            {alunos.map((aluno) => {
+              const notaAtualStr = notasLocais[String(aluno.id)] || "";
+              const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
+              
+              return (
+                <div key={aluno.id} className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-50 flex items-center justify-between gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Aluno</span>
+                    <span className="text-sm font-bold text-slate-700 leading-tight">{aluno.nome}</span>
+                  </div>
+                  
+                  <div className="flex-shrink-0">
+                    <input 
+                      type="text"
+                      inputMode="decimal"
+                      value={notaAtualStr}
+                      onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
+                      placeholder="--"
+                      className={`w-16 h-12 text-center rounded-[1rem] border-2 font-black text-lg outline-none transition-all shadow-inner ${
+                        isVermelha 
+                          ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 focus:bg-white' 
+                          : 'border-slate-100 bg-slate-50 text-indigo-600 focus:border-indigo-400 focus:bg-white'
+                      }`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* BOTÃO SALVAR (Responsivo) */}
+          <div className="mt-8 flex justify-end">
+            <button 
+              onClick={salvarNotas}
+              disabled={salvando}
+              className={`w-full md:w-auto px-8 py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${
+                salvando 
+                  ? 'bg-indigo-300 text-indigo-50 cursor-not-allowed shadow-none' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+              }`}
+            >
+              {salvando ? "Sincronizando..." : "Salvar Pauta"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="bg-white rounded-[2.5rem] p-10 text-center border border-slate-50 shadow-sm mt-8">
+          <p className="text-lg md:text-[10px] font-black uppercase text-slate-300 tracking-widest">
+            {!turmaSelecionada 
+              ? "Selecione a turma para visualizar a pauta." 
+              : "Sem matérias cadastradas para esta turma."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
