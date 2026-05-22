@@ -137,9 +137,9 @@ export default function ConsultaFrequenciaPage() {
           </div>
 
           {/* ======================= */}
-          {/* VISUALIZAÇÃO DESKTOP    */}
+          {/* VISUALIZAÇÃO UNIVERSAL (Tabela Clássica com Scroll Horizontal) */}
           {/* ======================= */}
-          <div className="hidden md:block overflow-x-auto custom-scrollbar pb-4">
+          <div className="w-full overflow-x-auto custom-scrollbar pb-4">
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr>
@@ -180,35 +180,8 @@ export default function ConsultaFrequenciaPage() {
             </table>
           </div>
 
-          {/* ======================= */}
-          {/* VISUALIZAÇÃO MOBILE     */}
-          {/* ======================= */}
-          <div className="md:hidden space-y-4">
-            {alunos.map(aluno => {
-              const faltasTotais = frequenciaMensal.filter(f => f.aluno_id === aluno.id && f.presente === false).length;
-              return (
-                <div key={aluno.id} className="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 border border-slate-200">
-                      {aluno.foto_url ? (
-                        <img src={aluno.foto_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="font-black text-slate-400 text-xs">{aluno.nome.charAt(0)}</span>
-                      )}
-                    </div>
-                    <span className="text-sm font-bold text-slate-700 leading-tight">{aluno.nome}</span>
-                  </div>
-                  <div className="text-right flex flex-col items-end">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Faltas</span>
-                    <span className={`text-xl font-black ${faltasTotais > 3 ? 'text-red-500' : 'text-slate-700'}`}>{faltasTotais}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Botão de Impressão (Desktop apenas) */}
-          <div className="hidden md:flex mt-8 justify-end">
+          {/* Botão de Impressão */}
+          <div className="flex mt-8 justify-end">
             <button 
               onClick={() => window.print()} 
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95"
