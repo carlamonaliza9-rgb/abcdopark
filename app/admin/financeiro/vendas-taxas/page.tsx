@@ -30,6 +30,14 @@ export default function VendasTaxasPage() {
   const [modalTaxasAberto, setModalTaxasAberto] = useState(false);
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
 
+  // --- ESTADOS: AÇÕES EM LOTE E TAXA AVULSA ---
+  const [taxasSelecionadas, setTaxasSelecionadas] = useState<string[]>([]);
+  const [modalEdicaoLoteAberto, setModalEdicaoLoteAberto] = useState(false);
+  const [dadosEdicaoLote, setDadosEdicaoLote] = useState({ valor_total: "", data_pagamento: "" });
+  
+  const [modalTaxaAvulsaAberto, setModalTaxaAvulsaAberto] = useState(false);
+  const [taxaAvulsa, setTaxaAvulsa] = useState({ aluno_id: "", tipo: "material", valor_total: "", data_pagamento: new Date().toISOString().split('T')[0], mes_referencia: "Anual" });
+
   // --- ESTADOS PARA EDIÇÃO DE LANÇAMENTOS ---
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
@@ -37,7 +45,7 @@ export default function VendasTaxasPage() {
   const [tipoPagamento, setTipoPagamento] = useState("uniforme");
   const [descricaoOutro, setDescricaoOutro] = useState("");
   
-  // PROTOCOLO ATUALIZADO: Inicialização do estado contendo as novas pautas financeiras de livros, parcelas e descontos
+  // PROTOCOLO FINANCEIRO
   const [pagamentosMetodos, setPagamentosMetodos] = useState({ 
     pix: "", 
     dinheiro: "", 
@@ -55,7 +63,6 @@ export default function VendasTaxasPage() {
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-  // --- TRAVA DE SEGURANÇA ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -83,17 +90,15 @@ export default function VendasTaxasPage() {
   async function carregarDados() {
     setCarregando(true);
     try {
-      const { data: listaAlunos } = await supabase.from('alunos').select('*');
+      const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome');
       if (listaAlunos) setAlunos(listaAlunos);
 
-      // Carrega os históricos da tabela global de lançamentos
       const { data: pgtosExtra } = await supabase
         .from('historico_pagamentos')
         .select('*')
         .in('tipo', ['uniforme', 'livro', 'material']);
 
       if (pgtosExtra) {
-        // Ordena por data mais recente primeiro
         pgtosExtra.sort((a, b) => new Date(b.created_at || b.data_pagamento).getTime() - new Date(a.created_at || a.data_pagamento).getTime());
         
         setHistoricoUniformes(pgtosExtra.filter(p => p.tipo === 'uniforme'));
@@ -103,6 +108,7 @@ export default function VendasTaxasPage() {
       console.error("Erro ao carregar dados operacionais:", err);
     } finally {
       setCarregando(false);
+      setTaxasSelecionadas([]); 
     }
   }
 
@@ -110,7 +116,6 @@ export default function VendasTaxasPage() {
     if (!verificandoAcesso) carregarDados(); 
   }, [verificandoAcesso]);
 
-  // --- AÇÃO: ABRIR MODAL DE EDIÇÃO CONFIGURADO ---
   function handleIniciarEdicao(pgto: any) {
     if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
       return alert("A direção não possui permissão para alterar lançamentos salvos.");
@@ -124,7 +129,6 @@ export default function VendasTaxasPage() {
     setDataPagamento(pgto.data_pagamento || new Date().toISOString().split('T')[0]);
     setMesReferencia(pgto.mes_referencia || "");
     
-    // Mapeia os dados existentes ou injeta o objeto com a nova estrutura limpa
     setPagamentosMetodos(pgto.detalhes_metodos || { 
       pix: "", dinheiro: "", credito: "", debito: "", multa: "",
       pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: ""
@@ -132,9 +136,7 @@ export default function VendasTaxasPage() {
     setModalPgtoAberto(true);
   }
 
-  // --- AÇÃO: SALVAR ALTERAÇÃO DO LANÇAMENTO ---
   async function confirmarPagamento() {
-    // Soma todos os métodos de entrada de capital, incluindo os novos campos da editora
     const somaPaga = 
       (parseFloat(pagamentosMetodos.pix) || 0) +
       (parseFloat(pagamentosMetodos.dinheiro) || 0) +
@@ -150,7 +152,6 @@ export default function VendasTaxasPage() {
       const { data: original } = await supabase.from('historico_pagamentos').select('valor_total').eq('id', idPagamentoEdicao).single();
       const valorOriginalDivida = original?.valor_total || somaPaga;
       
-      // Nova regra de negócio: O valor esperado diminui se houver desconto geral em linha
       const valorEsperadoComDesconto = Math.max(0, valorOriginalDivida - descontoAplicado);
 
       let status = "pago";
@@ -177,7 +178,6 @@ export default function VendasTaxasPage() {
     }
   }
 
-  // --- AÇÃO: EXCLUSÃO PROTEGIDA ---
   async function handleExcluirRegistro(id: string) {
     if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para remover faturamentos.");
     
@@ -190,6 +190,111 @@ export default function VendasTaxasPage() {
     } else {
       alert("Senha incorreta.");
     }
+  }
+
+  // --- REMOVER TODO O LOTE DA GERAÇÃO DE UMA VEZ SÓ ---
+  async function handleExcluirLoteCompleto(item: any) {
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para remover lotes inteiros.");
+    
+    if (prompt(`ATENÇÃO: Você vai deletar essa cobrança de TODOS os alunos que a receberam juntos.\n\nDigite a Senha Mestra para deletar o LOTE INTEIRO:`) === SENHA_MESTRA) {
+      if (confirm(`Confirmar exclusão definitiva do lote: "${item.descricao}"?\n\nIsso apagará essa taxa de TODOS os alunos simultaneamente!`)) {
+        try {
+          const { error } = await supabase
+            .from('historico_pagamentos')
+            .delete()
+            .eq('tipo', item.tipo)
+            .eq('mes_referencia', item.mes_referencia)
+            .eq('descricao', item.descricao);
+
+          if (error) throw error;
+          
+          alert("Todo o lote foi removido com sucesso!");
+          carregarDados();
+        } catch (e: any) {
+          alert("Erro ao remover o lote completo: " + e.message);
+        }
+      }
+    } else {
+      alert("Senha incorreta.");
+    }
+  }
+
+  // ================= FUNÇÕES DE SELEÇÃO DE CHECKBOXES EM LOTE =================
+  const taxasFiltradas = historicoTaxas.filter(item => {
+    const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
+    return nomeAluno.toLowerCase().includes(buscaTaxa.toLowerCase());
+  });
+
+  const toggleSelecaoTaxa = (id: string) => {
+    setTaxasSelecionadas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllTaxas = () => {
+    if (taxasSelecionadas.length === taxasFiltradas.length && taxasFiltradas.length > 0) {
+      setTaxasSelecionadas([]);
+    } else {
+      setTaxasSelecionadas(taxasFiltradas.map(t => t.id));
+    }
+  };
+
+  async function handleExcluirLoteSelecionado() {
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para exclusão em lote.");
+    if (prompt("Senha Mestra para EXCLUIR SELECIONADOS:") === SENHA_MESTRA) {
+      if (confirm(`Tem certeza que deseja excluir as ${taxasSelecionadas.length} cobranças marcadas?`)) {
+        try {
+          const { error } = await supabase.from('historico_pagamentos').delete().in('id', taxasSelecionadas);
+          if (error) throw error;
+          alert("Itens selecionados excluídos!");
+          carregarDados();
+        } catch (e: any) { alert("Erro ao excluir lote: " + e.message); }
+      }
+    } else { alert("Senha incorreta."); }
+  }
+
+  async function handleEditarLote() {
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para edição em lote.");
+    if (prompt("Senha Mestra para EDITAR LOTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    
+    const updates: any = {};
+    if (dadosEdicaoLote.valor_total) updates.valor_total = parseFloat(dadosEdicaoLote.valor_total);
+    if (dadosEdicaoLote.data_pagamento) updates.data_pagamento = dadosEdicaoLote.data_pagamento;
+
+    if (Object.keys(updates).length > 0) {
+      try {
+        const { error } = await supabase.from('historico_pagamentos').update(updates).in('id', taxasSelecionadas);
+        if (error) throw error;
+        alert("Cobranças atualizadas com sucesso!");
+        setModalEdicaoLoteAberto(false);
+        carregarDados();
+      } catch (e: any) { alert("Erro ao editar lote: " + e.message); }
+    } else {
+      alert("Nenhum dado informado para alteração.");
+    }
+  }
+
+  async function handleLancarTaxaAvulsa() {
+    if (!taxaAvulsa.aluno_id || !taxaAvulsa.valor_total) return alert("Por favor, selecione o aluno e informe o valor.");
+    
+    try {
+      const insertData = {
+        aluno_id: taxaAvulsa.aluno_id,
+        tipo: taxaAvulsa.tipo,
+        descricao: taxaAvulsa.tipo === 'livro' ? 'Livros Didáticos (Matrícula)' : 'Taxa de Material Escolar (Matrícula)',
+        valor_total: parseFloat(taxaAvulsa.valor_total),
+        valor_pago: 0,
+        status: 'pendente',
+        data_pagamento: taxaAvulsa.data_pagamento,
+        mes_referencia: taxaAvulsa.mes_referencia,
+        detalhes_metodos: {}
+      };
+
+      const { error } = await supabase.from('historico_pagamentos').insert([insertData]);
+      if (error) throw error;
+      
+      alert("Taxa avulsa lançada com sucesso!");
+      setModalTaxaAvulsaAberto(false);
+      carregarDados();
+    } catch (e: any) { alert("Erro ao lançar taxa: " + e.message); }
   }
 
   // ================= CÁLCULOS DOS GRÁFICOS ANALÍTICOS DE TAXAS =================
@@ -235,30 +340,21 @@ export default function VendasTaxasPage() {
   const hInferiores = (inferioresVendidos / maxPecas) * 100;
   const hCasacos = (casacosVendidos / maxPecas) * 100;
 
-  // --- APLICAÇÃO DOS FILTROS DE PESQUISA POR NOME DOS ALUNOS ---
   const uniformesFiltrados = historicoUniformes.filter(item => {
     const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
     return nomeAluno.toLowerCase().includes(buscaUniforme.toLowerCase());
   });
 
-  const taxasFiltradas = historicoTaxas.filter(item => {
-    const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
-    return nomeAluno.toLowerCase().includes(buscaTaxa.toLowerCase());
-  });
-
   if (verificandoAcesso || carregando) return <div className="p-10 text-center">Carregando controle de vendas e taxas...</div>;
 
   return (
-    <div className="w-full bg-gray-50 min-h-screen">
-      {/* Cabeçalho */}
+    <div className="w-full bg-gray-50 min-h-screen relative">
       <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-2xl font-bold text-gray-900">🛍️ Vendas de Uniformes & Taxas Anuais</h1>
         <p className="text-sm text-gray-500 mt-1">Gerenciamento centralizado de faturamentos extras, apostilas e vestuário escolar</p>
       </div>
 
-      {/* Painel Central de Ações */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Bloco de Uniformes */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
             <div className="h-12 w-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-xl mb-4">👕</div>
@@ -307,10 +403,14 @@ export default function VendasTaxasPage() {
           </button>
         </div>
 
-        {/* Bloco de Taxas Didáticas */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
-            <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl mb-4">📦</div>
+            <div className="flex justify-between items-start">
+              <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl mb-4">📦</div>
+              <button onClick={() => setModalTaxaAvulsaAberto(true)} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                + Lançar para 1 Aluno (Matrícula)
+              </button>
+            </div>
             <h3 className="text-lg font-bold text-gray-900">Faturamento Geral em Lote</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">Insira cobranças anuais automáticas de Livros Didáticos e Taxas de Materiais para todos os alunos filtrados por segmento de ensino.</p>
             
@@ -347,7 +447,7 @@ export default function VendasTaxasPage() {
             onClick={() => setModalTaxasAberto(true)}
             className="w-full p-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition-all"
           >
-            Gerar Cobranças em Lote
+            Gerar Cobranças em Lote Geral
           </button>
         </div>
       </div>
@@ -409,7 +509,6 @@ export default function VendasTaxasPage() {
                               
                               const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
                               
-                              // Inicialização estrita com as novas chaves zeradas no recebimento rápido
                               setPagamentosMetodos({ 
                                 pix: restante.toString(), dinheiro: "", credito: "", debito: "", multa: "",
                                 pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: ""
@@ -445,7 +544,23 @@ export default function VendasTaxasPage() {
       </div>
 
       {/* ================= RESUMO 2: HISTÓRICO DE TAXAS ANUAIS ================= */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8 relative">
+        {/* BARRA DE AÇÕES EM LOTE (CHECKBOXES SELECIONADOS) */}
+        {taxasSelecionadas.length > 0 && (
+          <div className="absolute top-0 left-0 w-full h-full bg-emerald-50/95 backdrop-blur-sm z-10 flex items-center justify-center p-6 animate-in fade-in duration-200">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl border border-emerald-200 flex flex-col items-center gap-4 max-w-md w-full">
+              <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl">📦</div>
+              <h3 className="font-bold text-emerald-900 text-lg">{taxasSelecionadas.length} taxas selecionadas</h3>
+              <p className="text-sm text-gray-500 text-center mb-2">Você pode alterar o vencimento/valor destas cobranças simultaneamente, ou excluí-las de forma definitiva do sistema.</p>
+              <div className="flex gap-3 w-full">
+                <button onClick={() => setTaxasSelecionadas([])} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">CANCELAR</button>
+                <button onClick={() => setModalEdicaoLoteAberto(true)} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm">✏️ EDITAR</button>
+                <button onClick={handleExcluirLoteSelecionado} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-sm">🗑️ EXCLUIR</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="p-5 border-b border-gray-100 bg-emerald-50/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="font-bold text-emerald-950 text-sm uppercase tracking-wider">📦 Histórico de Lançamento de Taxas Letivas</h3>
           <input
@@ -460,7 +575,15 @@ export default function VendasTaxasPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wider">
-                <th className="p-4">Período</th>
+                <th className="p-4 w-10 text-center">
+                  <input 
+                    type="checkbox" 
+                    onChange={toggleSelectAllTaxas} 
+                    checked={taxasSelecionadas.length === taxasFiltradas.length && taxasFiltradas.length > 0} 
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                  />
+                </th>
+                <th className="p-4">Período / Venc.</th>
                 <th className="p-4">Aluno</th>
                 <th className="p-4">Tipo de Obrigação</th>
                 <th className="p-4 text-right">Valor Faturado</th>
@@ -472,9 +595,21 @@ export default function VendasTaxasPage() {
               {taxasFiltradas.length > 0 ? (
                 taxasFiltradas.map((item) => {
                   const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Aluno Não Encontrado";
+                  const isChecked = taxasSelecionadas.includes(item.id);
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4 text-gray-500 font-bold">{item.mes_referencia}</td>
+                    <tr key={item.id} className={`hover:bg-gray-50/50 transition-colors ${isChecked ? 'bg-emerald-50/40' : ''}`}>
+                      <td className="p-4 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleSelecaoTaxa(item.id)} 
+                          className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-4 text-gray-500 font-bold">
+                        {item.mes_referencia} <br/>
+                        <span className="text-xs text-gray-400 font-normal">{new Date(item.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                      </td>
                       <td className="p-4 font-bold text-gray-900 uppercase">{nomeAluno}</td>
                       <td className="p-4 text-gray-600 uppercase font-semibold">
                         {item.tipo === 'livro' ? '📘 Livros Didáticos' : '🎨 Material Escolar Anual'}
@@ -497,7 +632,6 @@ export default function VendasTaxasPage() {
                               
                               const restante = (parseFloat(item.valor_total) || 0) - (parseFloat(item.valor_pago) || 0);
                               
-                              // Inicialização estrita inteligente para taxas de livros ou materiais
                               setPagamentosMetodos({ 
                                 pix: item.tipo === 'livro' ? "" : restante.toString(), 
                                 dinheiro: "", 
@@ -525,22 +659,24 @@ export default function VendasTaxasPage() {
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-center space-x-2">
-                        <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️ Editar</button>
-                        <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-red-100">🗑️ Eliminar</button>
+                      <td className="p-4 text-center space-x-1.5 flex items-center justify-center">
+                        <button onClick={() => handleIniciarEdicao(item)} className="text-xs bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg font-bold hover:bg-blue-100">✏️</button>
+                        <button onClick={() => handleExcluirRegistro(item.id)} className="text-xs bg-red-50 text-red-600 px-2 py-1.5 rounded-lg font-bold hover:bg-red-100" title="Excluir apenas deste aluno">🗑️</button>
+                        {/* OPÇÃO DE EXCLUIR TODO O LOTE DE UMA VEZ SÓ */}
+                        <button onClick={() => handleExcluirLoteCompleto(item)} className="text-xs bg-orange-50 text-orange-700 px-2 py-1.5 rounded-lg font-bold hover:bg-orange-100" title="💥 DELETAR LOTE INTEIRO (Apaga de todos os alunos de uma vez)">💥 Lote</button>
                       </td>
                     </tr>
                   );
                 })
               ) : (
-                <tr><td colSpan={6} className="p-6 text-center text-gray-400 italic">Nenhum faturamento de taxa encontrado.</td></tr>
+                <tr><td colSpan={7} className="p-6 text-center text-gray-400 italic">Nenhum faturamento de taxa encontrado.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* MODAL GLOBAL DE RECEBIMENTO ADAPTADO PARA ATUALIZAÇÕES */}
+      {/* MODAL GLOBAL DE RECEBIMENTO */}
       <ModalPagamento 
         aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
         aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
@@ -554,6 +690,109 @@ export default function VendasTaxasPage() {
       {/* MODAIS COMPLEMENTARES DE EMISSÃO */}
       <ModalUniforme aberto={modalUniformeAberto} onFechar={() => setModalUniformeAberto(false)} alunos={alunos} carregarDados={carregarDados} />
       <ModalTaxas aberto={modalTaxasAberto} onFechar={() => setModalTaxasAberto(false)} alunos={alunos} carregarDados={carregarDados} />
+
+      {/* ================= MODAL INLINE: EDIÇÃO EM LOTE ================= */}
+      {modalEdicaoLoteAberto && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl">
+            <h2 className="text-center font-bold text-gray-900 mb-6 text-xl">✏️ Editar Lote ({taxasSelecionadas.length} Itens)</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">Novo Valor Faturado (R$):</label>
+                <input 
+                  type="number" 
+                  placeholder="Deixe em branco para manter original"
+                  value={dadosEdicaoLote.valor_total} 
+                  onChange={(e) => setDadosEdicaoLote({...dadosEdicaoLote, valor_total: e.target.value})} 
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">Nova Data de Vencimento:</label>
+                <input 
+                  type="date" 
+                  value={dadosEdicaoLote.data_pagamento} 
+                  onChange={(e) => setDadosEdicaoLote({...dadosEdicaoLote, data_pagamento: e.target.value})} 
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold text-gray-700"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setModalEdicaoLoteAberto(false)} className="flex-1 p-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50">CANCELAR</button>
+              <button onClick={handleEditarLote} className="flex-1 p-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-sm">SALVAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL INLINE: LANÇAMENTO AVULSO (1 ALUNO) ================= */}
+      {modalTaxaAvulsaAberto && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl">
+            <h2 className="text-center font-bold text-emerald-900 mb-6 text-xl">📦 Lançar Taxa (Aluno Avulso)</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">Selecione o Aluno (Matrícula Tardia):</label>
+                <select 
+                  value={taxaAvulsa.aluno_id} 
+                  onChange={(e) => setTaxaAvulsa({...taxaAvulsa, aluno_id: e.target.value})}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold text-gray-800 outline-none"
+                >
+                  <option value="">Selecione na lista...</option>
+                  {alunos.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Tipo de Taxa:</label>
+                  <select 
+                    value={taxaAvulsa.tipo} 
+                    onChange={(e) => setTaxaAvulsa({...taxaAvulsa, tipo: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold text-gray-800 outline-none"
+                  >
+                    <option value="material">🎨 Material</option>
+                    <option value="livro">📘 Livros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Período / Ano:</label>
+                  <input 
+                    type="text" 
+                    value={taxaAvulsa.mes_referencia} 
+                    onChange={(e) => setTaxaAvulsa({...taxaAvulsa, mes_referencia: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold text-gray-800"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Valor Faturado (R$):</label>
+                  <input 
+                    type="number" 
+                    value={taxaAvulsa.valor_total} 
+                    onChange={(e) => setTaxaAvulsa({...taxaAvulsa, valor_total: e.target.value})}
+                    placeholder="0.00"
+                    className="w-full p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl mt-1 text-sm font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Data Vencimento:</label>
+                  <input 
+                    type="date" 
+                    value={taxaAvulsa.data_pagamento} 
+                    onChange={(e) => setTaxaAvulsa({...taxaAvulsa, data_pagamento: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mt-1 text-sm font-bold text-gray-800"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setModalTaxaAvulsaAberto(false)} className="flex-1 p-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50">CANCELAR</button>
+              <button onClick={handleLancarTaxaAvulsa} className="flex-1 p-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-sm">LANÇAR TAXA</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -435,11 +435,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                     onMouseOver={(e) => { if(saldoCreditoVisivel > 0) e.currentTarget.style.transform = 'scale(1.02)'; }}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
-                    <span style={{ ...EstiloLabel, color: saldoCreditoVisivel > 0 ? '#16a34a' : '#64748b' }}>💰 Crédito da Casa</span>
+                    <span style={{ ...EstiloLabel, color: saldoCreditoVisivel > 0 ? '#16a34a' : '#64748b' }}>💰 Crédito</span>
                     <p style={{ ...EstiloDado, color: saldoCreditoVisivel > 0 ? '#14532d' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
                       {saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}
                     </p>
-                    {saldoCreditoVisivel > 0 && <span style={{ fontSize: '9px', color: '#16a34a', marginTop: '4px', display: 'block', fontWeight: 'bold' }}>Ver detalhes ➔</span>}
                   </div>
 
                   <div 
@@ -448,11 +447,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                     onMouseOver={(e) => { if(totalPendenteGeral > 0) e.currentTarget.style.transform = 'scale(1.02)'; }}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
-                    <span style={{ ...EstiloLabel, color: totalPendenteGeral > 0 ? '#dc2626' : '#64748b' }}>⚠️ Dívida Ativa</span>
+                    <span style={{ ...EstiloLabel, color: totalPendenteGeral > 0 ? '#dc2626' : '#64748b' }}>⚠️ Dívida</span>
                     <p style={{ ...EstiloDado, color: totalPendenteGeral > 0 ? '#991b1b' : '#1e293b', fontSize: '15px', fontWeight: '800' }}>
                       {totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}
                     </p>
-                    {totalPendenteGeral > 0 && <span style={{ fontSize: '9px', color: '#dc2626', marginTop: '4px', display: 'block', fontWeight: 'bold' }}>Ver detalhes ➔</span>}
                   </div>
                 </div>
               )}
