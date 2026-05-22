@@ -113,59 +113,129 @@ export default function TurmasProfessorPage() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando suas turmas...</div>;
+  if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Carregando turma...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '30px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      {turmas.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '50px', color: '#64748b' }}>Você ainda não está vinculado a nenhuma turma.</div>
-      ) : (
-        turmas.map(minhaTurma => (
-          <div key={minhaTurma.nome} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '30px', border: '1px solid #f1f5f9', marginBottom: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
-              <div>
-                <h1 style={{ fontSize: '32px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>🏫 {minhaTurma.nome}</h1>
-                <p style={{ color: '#64748b', fontWeight: '600' }}>{todosAlunos.filter(a => a.turma === minhaTurma.nome).length} alunos matriculados</p>
-              </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => abrirAgendaTurma(minhaTurma, 'registrar')} style={{ backgroundColor: '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📝 Registrar Agenda</button>
-                <button onClick={() => abrirAgendaTurma(minhaTurma, 'consultar')} style={{ backgroundColor: 'white', color: '#2563eb', padding: '12px 24px', borderRadius: '15px', border: '2px solid #2563eb', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Consultar Agenda</button>
-              </div>
-            </div>
+    <div className="w-full min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans pb-24 md:pb-8 animate-in fade-in duration-500">
+      <div className="max-w-5xl mx-auto space-y-8">
+        
+        {turmas.length === 0 ? (
+          <div className="bg-white p-10 rounded-[2.5rem] border border-slate-50 shadow-sm text-center">
+            <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest">
+              Você ainda não está vinculado a nenhuma turma no momento.
+            </p>
+          </div>
+        ) : (
+          turmas.map(minhaTurma => {
+            const alunosTurma = todosAlunos.filter(a => a.turma === minhaTurma.nome).sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            return (
+              <div key={minhaTurma.nome} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-50">
+                
+                {/* Header da Turma */}
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 mb-8 border-b border-slate-100 pb-8">
+                  <div className="flex flex-col">
+                    <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 italic flex items-center gap-3">
+                      🏫 {minhaTurma.nome}
+                    </h1>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">
+                      {alunosTurma.length} alunos matriculados
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <button 
+                      onClick={() => abrirAgendaTurma(minhaTurma, 'registrar')} 
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                    >
+                      <span>📝</span> Registrar Agenda
+                    </button>
+                    <button 
+                      onClick={() => abrirAgendaTurma(minhaTurma, 'consultar')} 
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white text-indigo-600 border-2 border-indigo-100 px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:border-indigo-200 transition-all active:scale-95 shadow-sm"
+                    >
+                      <span>🔍</span> Consultar Histórico
+                    </button>
+                  </div>
+                </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {todosAlunos.filter(a => a.turma === minhaTurma.nome).sort((a, b) => a.nome.localeCompare(b.nome)).map((aluno, index) => {
-                const paleta = [{ bg: '#ebf5ff', border: '#3b82f6', text: '#1e40af' }, { bg: '#f0fdf4', border: '#22c55e', text: '#166534' }, { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' }];
-                const cor = paleta[index % paleta.length];
-                return (
-                  <div key={aluno.id} onClick={() => abrirFichaAluno(aluno)} style={{ backgroundColor: cor.bg, padding: '18px 25px', borderRadius: '20px', display: 'flex', alignItems: 'center', strokeDasharray: '', justifyContent: 'space-between', cursor: 'pointer', borderLeft: `10px solid ${cor.border}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <div style={{ width: '75px', height: '75px', borderRadius: '14px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: `1px solid ${cor.border}` }}>
-                        {aluno.foto_url ? <img src={aluno.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : "👤"}
-                      </div>
-                      <div>
-                        <p style={{ fontWeight: '900', color: cor.text, fontSize: '18px', margin: 0 }}>{aluno.nome}</p>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: cor.text }}>{calcularIdade(aluno.data_nascimento)}</span>
-                          {aluno.tem_alergia && <span style={{ fontSize: '10px', backgroundColor: '#fee2e2', color: '#b91c1c', padding: '3px 10px', borderRadius: '8px', fontWeight: '800' }}>⚠️ ALERGIA</span>}
+                {/* Lista de Alunos (Cards) */}
+                <div className="flex flex-col gap-4">
+                  {alunosTurma.map((aluno, index) => {
+                    // Paleta Cíclica Traduzida para o Tailwind
+                    const classesPaleta = [
+                      "bg-blue-50 border-blue-500 text-blue-900 hover:border-blue-400 hover:shadow-blue-100",
+                      "bg-emerald-50 border-emerald-500 text-emerald-900 hover:border-emerald-400 hover:shadow-emerald-100",
+                      "bg-rose-50 border-rose-500 text-rose-900 hover:border-rose-400 hover:shadow-rose-100"
+                    ];
+                    const corSelecionada = classesPaleta[index % classesPaleta.length];
+
+                    return (
+                      <div 
+                        key={aluno.id} 
+                        onClick={() => abrirFichaAluno(aluno)} 
+                        className={`p-5 md:p-6 rounded-[2rem] flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer border-l-8 transition-all hover:-translate-y-0.5 hover:shadow-lg ${corSelecionada} gap-4`}
+                      >
+                        <div className="flex items-center gap-4 md:gap-6">
+                          {/* Avatar */}
+                          <div className="w-16 h-16 shrink-0 rounded-[1.2rem] bg-white flex items-center justify-center overflow-hidden border border-white shadow-sm">
+                            {aluno.foto_url ? (
+                              <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <span className="text-2xl font-black opacity-50">👤</span>
+                            )}
+                          </div>
+                          
+                          {/* Info */}
+                          <div className="flex flex-col justify-center">
+                            <p className="font-black text-base md:text-lg m-0 leading-tight line-clamp-1">{aluno.nome}</p>
+                            <div className="flex items-center flex-wrap gap-2 mt-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                                {calcularIdade(aluno.data_nascimento)}
+                              </span>
+                              {aluno.tem_alergia && (
+                                <span className="text-[8px] md:text-[9px] bg-red-100 text-red-600 px-3 py-1 rounded-lg font-black uppercase tracking-widest shadow-sm">
+                                  ⚠️ Alerta de Saúde
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botão de Ação Visual */}
+                        <div className="self-end sm:self-auto flex items-center gap-2 opacity-60">
+                          <span className="text-[9px] font-black uppercase tracking-[0.2em] hidden md:block">Acessar Ficha</span>
+                          <span className="text-xl">➔</span>
                         </div>
                       </div>
-                    </div>
-                    <span style={{ fontSize: '11px', color: cor.text, fontWeight: '900' }}>VER FICHA ➔</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))
-      )}
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
 
-      {modalFichaAberto && (
-        <ModalFichaAlunoTurma aluno={alunoSelecionado} ehAdmin={false} onClose={() => setModalFichaAberto(false)} calcularIdade={calcularIdade} />
-      )}
-      {modalAgendaAberto && (
-        <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={false} onClose={() => setModalAgendaAberto(false)} />
-      )}
+        {/* Modais */}
+        {modalFichaAberto && (
+          <ModalFichaAlunoTurma 
+            aluno={alunoSelecionado} 
+            ehAdmin={false} 
+            onClose={() => setModalFichaAberto(false)} 
+            calcularIdade={calcularIdade} 
+          />
+        )}
+        
+        {modalAgendaAberto && (
+          <ModalAgendaTurma 
+            turma={turmaParaAgenda} 
+            userEmail={userEmail} 
+            modo={modoAgenda} 
+            ehAdmin={false} 
+            onClose={() => setModalAgendaAberto(false)} 
+          />
+        )}
+      </div>
     </div>
   );
 }
