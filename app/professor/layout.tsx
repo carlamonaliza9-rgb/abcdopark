@@ -145,34 +145,37 @@ export default function DashboardLayout({
       </main>
 
       {/* ========================================================= */}
-      {/* VISUALIZAÇÃO MOBILE: Bottom Bar App-Like */}
+      {/* VISUALIZAÇÃO MOBILE (CELULAR/TABLET): Bottom Bar App-Like */}
+      {/* Exatamente o mesmo estilo espaçado e sem scroll do Portal dos Pais */}
       {/* ========================================================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-2 flex items-center z-[9999] h-[85px] shadow-[0_-4px_25px_rgba(0,0,0,0.06)] overflow-x-auto flex-nowrap hide-scrollbar gap-2">
-        {menuItems.map((item) => {
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-[9999] h-[85px] shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+        
+        {/* Renderiza APENAS os itens principais no celular para não quebrar a tela (se for Admin, esconde alguns) */}
+        {menuItems.slice(0, ehAdmin ? 4 : 5).map((item) => {
           const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <Link
               key={item.name}
               href={item.path}
-              className={`flex flex-col items-center justify-center gap-1 min-w-[72px] px-2 py-2 rounded-2xl transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl transition-all ${
                 isActive 
-                ? "text-blue-600 bg-blue-50/50" 
-                : "text-slate-400 hover:text-blue-600 hover:bg-slate-50"
+                ? "text-blue-600" 
+                : "text-slate-400 hover:text-blue-600"
               }`}
             >
-              <item.icon size={24} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[9px] font-black uppercase tracking-wider truncate w-full text-center">{item.name}</span>
+              <item.icon size={26} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 3 : 2.5} />
+              <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1">{item.name}</span>
             </Link>
           );
         })}
         
-        {/* Botão Sair Mobile */}
+        {/* Botão Sair Mobile Integrado */}
         <button 
           onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 min-w-[72px] px-2 py-2 rounded-2xl text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+          className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-rose-400 hover:text-rose-600 transition-all"
         >
-          <LogOut size={24} strokeWidth={2.5} />
-          <span className="text-[9px] font-black uppercase tracking-wider truncate w-full text-center">Sair</span>
+          <LogOut size={26} strokeWidth={2.5} />
+          <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1">Sair</span>
         </button>
       </div>
 
