@@ -60,229 +60,128 @@ export async function gerarDocumentoCodes(turmas: any[], alunos: any[], boletins
     doc.line(18, 58, 277, 58);
 
 
-    // --- CAIXA DE INFORMAÇÕES DA ESCOLA ABC DO PARK ---
-
-    doc.setDrawColor(0); // Borda preta
-
-    doc.setLineWidth(0.3);
-
-    doc.rect(14, 61, 269, 13); 
-
-    
-
-    doc.setFontSize(9);
-
-    doc.text("NOME DO ESTABELECIMENTO: ESCOLA ABC DO PARK", 16, 66);
-
-    doc.text(`MUNICÍPIO: BELÉM - PA`, 230, 66);
-
-    doc.text(`ENSINO: FUNDAMENTAL (1º AO 5º ANO)`, 16, 72);
-
-    doc.text(`TURMA: ${turma.nome_turma.toUpperCase()}`, 130, 72);
-
-    doc.text(`ANO LETIVO: ${new Date().getFullYear()}`, 230, 72);
-
-
-
-    // --- PREPARAÇÃO DOS ALUNOS E NOTAS (TABELA BOLETINS) ---
-
-    const alunosDaTurma = alunos
-
-      .filter(a => a.turma === turma.nome_turma)
-
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-
-
-
-    const tableRows = alunosDaTurma.map((aluno, i) => {
-
-      // Filtra as notas (boletins) exclusivamente deste aluno
-
-      const notasAluno = boletins.filter(n => n.aluno_id === aluno.id);
-
-
-
-      // Função inteligente para buscar a nota pela palavra-chave da matéria
-
-      const getMediaFinal = (keyword: string) => {
-
-        const notaObj = notasAluno.find(n => n.materia && n.materia.toLowerCase().includes(keyword.toLowerCase()));
-
-        return notaObj && notaObj.media ? parseFloat(notaObj.media).toFixed(1).replace('.', ',') : "-";
-
-      };
-
-
-
-      // Mapeamento idêntico ao modelo Base SEDUC de disciplinas
-
-      const port = getMediaFinal("portug");
-
-      const mat = getMediaFinal("mat");
-
-      const hist = getMediaFinal("hist");
-
-      const geo = getMediaFinal("geo");
-
-      const cien = getMediaFinal("ciên");
-
-      const arte = getMediaFinal("arte");
-
-      const ing = getMediaFinal("ing");
-
-
-      // LÓGICA DE APROVAÇÃO (Média >= 7.0)
-
-      const notasValidas = [port, mat, hist, geo, cien, arte, ing]
-
-        .filter(n => n !== "-")
-
-        .map(n => parseFloat(n.replace(',', '.')));
-
-
-
-      let situacao = "S/ DADOS";
-
-      if (notasValidas.length > 0) {
-
-        // Verifica se a média de todas as disciplinas juntas atinge o mínimo (Modifique o 7.0 se a escola usar 7.0)
-
-        const mediaGeralAluno = notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length;
-
-        situacao = mediaGeralAluno >= 7.0 ? "APROVADO" : "REPROVADO";
-
-      }
-
-
-
-      return [
-
-        (i + 1).toString().padStart(2, '0'),
-
-        aluno.nome.toUpperCase(),
-
-        port, mat, hist, geo, cien, arte, ing,
-
-        situacao
-
-      ];
-
-    });
-
-
-
-    // --- DESENHO DA TABELA DE NOTAS ---
-
-    autoTable(doc, {
-
-      startY: 77,
-
-      head: [
-
-        [
-
-          { content: 'Nº', styles: { halign: 'center', valign: 'middle' } },
-
-          { content: 'NOME DO ALUNO', styles: { halign: 'left', valign: 'middle' } },
-
-          { content: 'LÍNG.\nPORT.', styles: { halign: 'center' } },
-
-          { content: 'MAT.', styles: { halign: 'center' } },
-
-          { content: 'HIST.', styles: { halign: 'center' } },
-
-          { content: 'GEO.', styles: { halign: 'center' } },
-
-          { content: 'CIÊN.', styles: { halign: 'center' } },
-
-          { content: 'ARTE', styles: { halign: 'center' } },
-
-          { content: 'LÍNG.\nING.', styles: { halign: 'center' } },
-
-          { content: 'SITUAÇÃO\nFINAL', styles: { halign: 'center', valign: 'middle' } }
-
-        ]
-
-      ],
-
-      body: tableRows,
-
-      theme: 'grid',
-
-      styles: {
-
-        font: 'helvetica',
-
-        fontSize: 8.5,
-
-        cellPadding: 1.5,
-
-        textColor: [0, 0, 0], // Preto Oficial
-
-        lineColor: [0, 0, 0],
-
-        lineWidth: 0.1,
-
-      },
-
-      headStyles: {
-
-        fillColor: [230, 230, 230], // Cinza Claro (Sem cor)
-
-        textColor: [0, 0, 0],
-
-        fontStyle: 'bold',
-
-        halign: 'center'
-
-      },
-
-      columnStyles: {
-
-        0: { cellWidth: 8, halign: 'center' },
-
-        1: { cellWidth: 95 }, // Nome do aluno com maior espaço
-
-        // Demais colunas se ajustam automaticamente
-
-        11: { cellWidth: 25, halign: 'center', fontStyle: 'bold' } // Situação Final em destaque
-
-      }
-
-    });
-
-
-
-    // --- ASSINATURAS OFICIAIS NO RODAPÉ ---
-
-    const finalY = (doc as any).lastAutoTable.finalY + 25;
-
-    
-
-    // Evita que as assinaturas quebrem página sozinhas
-
-    if (finalY < 185) {
-
-      doc.setDrawColor(0);
-
-      doc.line(40, finalY, 120, finalY);
-
-      doc.setFontSize(8);
-
-      doc.text("SECRETÁRIO(A) ESCOLAR", 80, finalY + 4, { align: "center" });
-
-
-
-      doc.line(170, finalY, 250, finalY);
-
-      doc.text("DIRETOR(A) / COORDENAÇÃO", 210, finalY + 4, { align: "center" });
-
-    }
-
-  });
-
-
-
-  return doc;
-
+    // --- CAIXA DE INFORMAÇÕES DA ESCOLA ABC DO PARK ---
+    doc.setDrawColor(0); // Borda preta
+    doc.setLineWidth(0.3);
+    doc.rect(14, 61, 269, 13); 
+
+    doc.setFontSize(9);
+    doc.text("NOME DO ESTABELECIMENTO: ESCOLA ABC DO PARK", 16, 66);
+    doc.text(`MUNICÍPIO: BELÉM - PA`, 230, 66);
+    doc.text(`ENSINO: FUNDAMENTAL (1º AO 5º ANO)`, 16, 72);
+    doc.text(`TURMA: ${turma.nome_turma.toUpperCase()}`, 130, 72);
+    doc.text(`ANO LETIVO: ${new Date().getFullYear()}`, 230, 72);
+
+
+    // --- PREPARAÇÃO DOS ALUNOS E NOTAS (TABELA BOLETINS) ---
+    const alunosDaTurma = alunos
+      .filter(a => a.turma === turma.nome_turma)
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    const tableRows = alunosDaTurma.map((aluno, i) => {
+      // Filtra as notas (boletins) exclusivamente deste aluno
+      const notasAluno = boletins.filter(n => n.aluno_id === aluno.id);
+
+      // Função inteligente para buscar a nota pela palavra-chave da matéria
+      const getMediaFinal = (keyword: string) => {
+        const notaObj = notasAluno.find(n => n.materia && n.materia.toLowerCase().includes(keyword.toLowerCase()));
+        return notaObj && notaObj.media ? parseFloat(notaObj.media).toFixed(1).replace('.', ',') : "-";
+      };
+
+      // Mapeamento idêntico ao modelo Base SEDUC de disciplinas
+      const port = getMediaFinal("portug");
+      const mat = getMediaFinal("mat");
+      const hist = getMediaFinal("hist");
+      const geo = getMediaFinal("geo");
+      const cien = getMediaFinal("ciên");
+      const arte = getMediaFinal("arte");
+      const ing = getMediaFinal("ing");
+
+      // LÓGICA DE APROVAÇÃO (Média >= 7.0)
+      const notasValidas = [port, mat, hist, geo, cien, arte, ing]
+        .filter(n => n !== "-")
+        .map(n => parseFloat(n.replace(',', '.')));
+
+      let situacao = "S/ DADOS";
+      if (notasValidas.length > 0) {
+        // Verifica se a média de todas as disciplinas juntas atinge o mínimo (Modifique o 7.0 se a escola usar 7.0)
+        const mediaGeralAluno = notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length;
+        situacao = mediaGeralAluno >= 7.0 ? "APROVADO" : "REPROVADO";
+      }
+
+      return [
+        (i + 1).toString().padStart(2, '0'),
+        aluno.nome.toUpperCase(),
+        port, mat, hist, geo, cien, arte, ing,
+        situacao
+      ];
+    });
+
+
+    // --- DESENHO DA TABELA DE NOTAS ---
+    autoTable(doc, {
+      startY: 77,
+      head: [
+        [
+          { content: 'Nº', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'NOME DO ALUNO', styles: { halign: 'left', valign: 'middle' } },
+          { content: 'PORT.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'MAT.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'HIST.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'GEO.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'CIÊN.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'ARTE', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'ING.', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'SITUAÇÃO\nFINAL', styles: { halign: 'center', valign: 'middle' } }
+        ]
+      ],
+      body: tableRows,
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 8.5,
+        cellPadding: 1.5,
+        textColor: [0, 0, 0], // Preto Oficial
+        lineColor: [0, 0, 0],
+        lineWidth: 0.1,
+      },
+      headStyles: {
+        fillColor: [230, 230, 230], // Cinza Claro (Sem cor)
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 95 }, // Nome do aluno com maior espaço
+        // Demais colunas se ajustam automaticamente
+        11: { cellWidth: 25, halign: 'center', fontStyle: 'bold' } // Situação Final em destaque
+      }
+    });
+
+
+    // --- ASSINATURAS OFICIAIS NO RODAPÉ ---
+    const finalY = (doc as any).lastAutoTable.finalY + 25;
+    
+    // Evita que as assinaturas quebrem página sozinhas
+    if (finalY < 185) {
+      doc.setDrawColor(0);
+      doc.line(40, finalY, 120, finalY);
+      doc.setFontSize(8);
+      doc.text("SECRETÁRIO(A) ESCOLAR", 80, finalY + 4, { align: "center" });
+
+      doc.line(170, finalY, 250, finalY);
+
+      // --- INSERÇÃO DO CARIMBO SUELLEN ACIMA DA LINHA DE ASSINATURA DA DIREÇÃO ---
+      try {
+        doc.addImage(carimboSuellen, "PNG", 190, finalY - 22, 40, 20);
+      } catch (e) {
+        console.warn("Erro ao carregar o carimbo Suellen no PDF:", e);
+      }
+
+      doc.text("DIRETOR(A) / COORDENAÇÃO", 210, finalY + 4, { align: "center" });
+    }
+  });
+
+  return doc;
 }
