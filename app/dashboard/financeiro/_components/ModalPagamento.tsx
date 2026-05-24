@@ -20,8 +20,8 @@ interface ModalPagamentoProps {
   onConfirmar: () => void;
   editando: boolean;
   historicoGeral?: any[]; 
-  dividasAbertas?: any[]; // NOVO: Recebe as dívidas para o PDV
-  onConfirmarPDV?: (dividasSelecionadas: any[]) => void; // NOVO: Confirma o carrinho
+  dividasAbertas?: any[];
+  onConfirmarPDV?: (dividasSelecionadas: any[]) => void;
 }
 
 export function ModalPagamento({
@@ -73,28 +73,23 @@ export function ModalPagamento({
       }
       
       if (!disponiveis.includes(mesReferencia) && disponiveis.length > 0) {
-        if (mesReferencia !== disponiveis[0]) {
-          setMesReferencia(disponiveis[0]);
-        }
+        if (mesReferencia !== disponiveis[0]) setMesReferencia(disponiveis[0]);
       }
     } else {
       if (mesesDisponiveis.length !== 12) setMesesDisponiveis(mesesAno);
     }
   }, [aberto, anoReferencia, tipoPagamento, editando, mesReferencia, mesesAno, historicoGeral, mesesDisponiveis, setMesReferencia]);
 
-  // Limpa o carrinho ao abrir/fechar
   useEffect(() => {
     if (aberto) setItensCarrinho([]);
   }, [aberto]);
 
   if (!aberto) return null;
 
-  // Lógica de Renderização Condicional Rigorosa para Cartões
   const valorCartaoCredito = parseFloat(pagamentosMetodos.cartao_credito ?? pagamentosMetodos.credito) || 0;
   const valorCartaoCreditoEditora = parseFloat(pagamentosMetodos.cartao_credito_editora) || 0;
   const temValorNoCredito = valorCartaoCredito > 0 || valorCartaoCreditoEditora > 0;
 
-  // Calcula total do carrinho PDV
   const dividasSelecionadasObjetos = dividasAbertas.filter(d => itensCarrinho.includes(d.id));
   const valorTotalCarrinho = dividasSelecionadasObjetos.reduce((acc, d) => acc + ((parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0)), 0);
 
@@ -115,162 +110,245 @@ export function ModalPagamento({
     }
   };
 
+  const btnDesativado = tipoPagamento === 'mensalidade' && mesesDisponiveis.length === 0;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '550px', maxHeight: '95vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: 20, color: '#0f172a', fontWeight: '800' }}>{aluno?.nome}</h2>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95">
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: 15 }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Fluxo de Caixa (Data):</label>
-            <input 
-              type="date" 
-              value={dataPagamento} 
-              onChange={(e) => setDataPagamento(e.target.value)} 
-              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', marginTop: '4px' }} 
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Categoria:</label>
-            <select value={tipoPagamento} onChange={(e) => setTipoPagamento(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', marginTop: '4px' }}>
-              {dividasAbertas.length > 0 && <option value="pdv">🛒 Quitar Múltiplas Dívidas (PDV)</option>}
-              <option value="mensalidade">🏫 Mensalidade Regular</option>
-              <option value="material">🎨 Taxa de Material Escolar</option>
-              <option value="livro">📘 Livros Didáticos</option>
-              <option value="uniforme">👕 Uniformes Escolares</option>
-              <option value="evento">🎟️ Projetos / Eventos</option>
-            </select>
-          </div>
+        {/* Cabeçalho do Modal */}
+        <div className="p-6 border-b border-slate-100 flex-shrink-0 text-center">
+          <h2 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tighter italic m-0">
+            {aluno?.nome || "Lançamento"}
+          </h2>
         </div>
 
-        {/* TELA EXCLUSIVA DO CARRINHO PDV (SIMPLESVET STYLE) */}
-        {tipoPagamento === "pdv" ? (
-          <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '12px', fontWeight: '800', color: '#334155', marginBottom: '10px' }}>SELECIONE AS DÍVIDAS PARA BAIXA:</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
-              {dividasAbertas.map(d => {
-                const restante = (parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0);
-                return (
-                  <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #cbd5e1', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={itensCarrinho.includes(d.id)} 
-                      onChange={() => handleToggleCarrinho(d.id)} 
-                      style={{ transform: 'scale(1.2)', accentColor: '#10b981' }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}>{d.descricao}</span>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>Restante: R$ {restante.toFixed(2)}</span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: '15px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1', textAlign: 'right' }}>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>TOTAL SELECIONADO:</span>
-              <span style={{ fontSize: '18px', fontWeight: '900', color: '#10b981', display: 'block' }}>R$ {valorTotalCarrinho.toFixed(2)}</span>
-            </div>
-          </div>
-        ) : (
-          <>
-            {tipoPagamento === "mensalidade" && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '15px' }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Mês de Referência:</label>
-                  <select value={mesReferencia} onChange={(e) => setMesReferencia(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
-                    {mesesDisponiveis.length > 0 ? (
-                      mesesDisponiveis.map(m => (<option key={m} value={m}>{m}</option>))
-                    ) : (
-                      <option value="" disabled>Todos os meses quitados</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Ano Letivo:</label>
-                  <select value={anoReferencia} onChange={(e) => setAnoReferencia(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
-                    <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Observações:</label>
+        {/* Corpo Rolável do Modal */}
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Fluxo de Caixa (Data)</label>
               <input 
-                type="text" 
-                placeholder={tipoPagamento === 'mensalidade' ? "" : "Ex: Camisa Tam M, Livro de Ciências, etc."} 
-                value={descricaoOutro} 
-                onChange={(e) => setDescricaoOutro(e.target.value)} 
-                disabled={tipoPagamento === 'mensalidade'} 
-                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: tipoPagamento === 'mensalidade' ? '#f1f5f9' : 'white', color: tipoPagamento === 'mensalidade' ? '#94a3b8' : '#0f172a', marginTop: '4px' }} 
+                type="date" 
+                value={dataPagamento} 
+                onChange={(e) => setDataPagamento(e.target.value)} 
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-slate-700 outline-none focus:border-indigo-400" 
               />
             </div>
-          </>
-        )}
-
-        <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '13px', fontWeight: '800', color: '#334155', marginBottom: '15px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>DISTRIBUIÇÃO DOS VALORES RECEBIDOS (R$)</h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div><label style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Pix:</label><input type="number" value={pagamentosMetodos.pix || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '4px' }} /></div>
-            <div><label style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Dinheiro em Espécie:</label><input type="number" value={pagamentosMetodos.dinheiro || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, dinheiro: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '4px' }} /></div>
-            <div><label style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Cartão de Crédito:</label><input type="number" value={pagamentosMetodos.cartao_credito ?? pagamentosMetodos.credito ?? ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, cartao_credito: e.target.value, credito: undefined })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '4px' }} /></div>
-            <div><label style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Cartão de Débito:</label><input type="number" value={pagamentosMetodos.cartao_debito ?? pagamentosMetodos.debito ?? ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, cartao_debito: e.target.value, debito: undefined })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '4px' }} /></div>
-            <div><label style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>Boleto Bancário:</label><input type="number" value={pagamentosMetodos.boleto || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, boleto: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', marginTop: '4px' }} /></div>
-            
-            <div style={{ backgroundColor: '#f0fdf4', padding: '8px', borderRadius: '10px', border: '1px dashed #22c55e' }}>
-              <label style={{ fontSize: 11, fontWeight: '800', color: '#16a34a' }}>Abater do Crédito:</label>
-              <input type="number" value={pagamentosMetodos.credito_aluno || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito_aluno: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #bbf7d0', borderRadius: '8px', marginTop: '4px' }} />
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Categoria</label>
+              <select 
+                value={tipoPagamento} 
+                onChange={(e) => setTipoPagamento(e.target.value)} 
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-slate-700 outline-none focus:border-indigo-400"
+              >
+                {dividasAbertas.length > 0 && <option value="pdv">🛒 Quitar Múltiplas (PDV)</option>}
+                <option value="mensalidade">🏫 Mensalidade Regular</option>
+                <option value="material">🎨 Taxa de Material Escolar</option>
+                <option value="livro">📘 Livros Didáticos</option>
+                <option value="uniforme">👕 Uniformes Escolares</option>
+                <option value="evento">🎟️ Projetos / Eventos</option>
+              </select>
             </div>
-            
-            {tipoPagamento === "livro" && (
-              <>
-                <div style={{ gridColumn: 'span 2', height: '1px', backgroundColor: '#cbd5e1', margin: '5px 0' }}></div>
-                <div><label style={{ fontSize: 11, fontWeight: '700', color: '#1e3a8a' }}>Pix Editora:</label><input type="number" value={pagamentosMetodos.pix_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, pix_editora: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #93c5fd', borderRadius: '8px', marginTop: '4px' }} /></div>
-                <div><label style={{ fontSize: 11, fontWeight: '700', color: '#1e3a8a' }}>Crédito Editora:</label><input type="number" value={pagamentosMetodos.cartao_credito_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, cartao_credito_editora: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #93c5fd', borderRadius: '8px', marginTop: '4px' }} /></div>
-                <div><label style={{ fontSize: 11, fontWeight: '700', color: '#1e3a8a' }}>Débito Editora:</label><input type="number" value={pagamentosMetodos.cartao_debito_editora || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, cartao_debito_editora: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #93c5fd', borderRadius: '8px', marginTop: '4px' }} /></div>
-              </>
-            )}
+          </div>
 
-            {temValorNoCredito && (
-              <div style={{ gridColumn: 'span 2', backgroundColor: '#e0f2fe', padding: '12px', borderRadius: '12px', marginTop: '5px' }}>
-                <label style={{ fontSize: 11, fontWeight: '800', color: '#0369a1' }}>PARCELAMENTO (CARTÃO DE CRÉDITO):</label>
-                <select value={pagamentosMetodos.parcelas || "1"} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #bae6fd', fontSize: 12, fontWeight: 'bold', backgroundColor: 'white', marginTop: '6px' }}>
-                  <option value="1">À vista (1x)</option>
-                  {[2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x sem juros</option>)}
-                </select>
+          {/* TELA EXCLUSIVA DO CARRINHO PDV */}
+          {tipoPagamento === "pdv" ? (
+            <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-200">
+              <h3 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Selecione as Dívidas:</h3>
+              <div className="flex flex-col gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                {dividasAbertas.map(d => {
+                  const restante = (parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0);
+                  const isChecked = itensCarrinho.includes(d.id);
+                  return (
+                    <label key={d.id} className={`flex items-center gap-4 p-4 bg-white rounded-2xl border transition-all cursor-pointer ${isChecked ? 'border-emerald-500 shadow-sm' : 'border-slate-200 hover:border-indigo-300'}`}>
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked} 
+                        onChange={() => handleToggleCarrinho(d.id)} 
+                        className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <span className="block text-sm font-bold text-slate-800 leading-tight">{d.descricao}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Restante: R$ {restante.toFixed(2)}</span>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
-            )}
-
-            <div style={{ gridColumn: 'span 2', height: '1px', backgroundColor: '#cbd5e1', margin: '5px 0' }}></div>
-            <div>
-              <label style={{ fontSize: 11, color: '#2563eb', fontWeight: '800' }}>Desconto Aplicado:</label>
-              <input type="number" value={pagamentosMetodos.desconto || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, desconto: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #2563eb', borderRadius: '8px', marginTop: '4px' }} placeholder="0.00" />
+              <div className="mt-4 pt-4 border-t-2 border-dashed border-slate-200 flex justify-between items-center">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Selecionado:</span>
+                <span className="text-2xl font-black text-emerald-500">R$ {valorTotalCarrinho.toFixed(2)}</span>
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#dc2626', fontWeight: '800' }}>Multa/Juros Aplicado:</label>
-              <input type="number" value={pagamentosMetodos.multa || ""} onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid #dc2626', borderRadius: '8px', marginTop: '4px' }} placeholder="0.00" />
+          ) : (
+            <>
+              {tipoPagamento === "mensalidade" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Mês de Referência</label>
+                    <select 
+                      value={mesReferencia} 
+                      onChange={(e) => setMesReferencia(e.target.value)} 
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white font-bold text-slate-700 outline-none focus:border-indigo-400"
+                    >
+                      {mesesDisponiveis.length > 0 ? (
+                        mesesDisponiveis.map(m => (<option key={m} value={m}>{m}</option>))
+                      ) : (
+                        <option value="" disabled>Todos os meses quitados</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Ano Letivo</label>
+                    <select 
+                      value={anoReferencia} 
+                      onChange={(e) => setAnoReferencia(e.target.value)} 
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white font-bold text-slate-700 outline-none focus:border-indigo-400"
+                    >
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Observações</label>
+                <input 
+                  type="text" 
+                  placeholder={tipoPagamento === 'mensalidade' ? "" : "Ex: Camisa Tam M, etc."} 
+                  value={descricaoOutro} 
+                  onChange={(e) => setDescricaoOutro(e.target.value)} 
+                  disabled={tipoPagamento === 'mensalidade'} 
+                  className={`w-full px-4 py-3 rounded-2xl border font-bold outline-none transition-colors ${
+                    tipoPagamento === 'mensalidade' 
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' 
+                    : 'bg-white border-slate-200 text-slate-700 focus:border-indigo-400'
+                  }`}
+                />
+              </div>
+            </>
+          )}
+
+          {/* SESSÃO DE DISTRIBUIÇÃO FINANCEIRA */}
+          <div className="bg-slate-50 p-5 md:p-6 rounded-[2rem] border border-slate-200">
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] mb-4 pb-4 border-b border-slate-200">Valores Recebidos (R$)</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Inputs Padrões */}
+              {[
+                { label: "Pix", key: "pix" },
+                { label: "Dinheiro (Espécie)", key: "dinheiro" },
+                { label: "Cartão de Crédito", key: "cartao_credito", alt: "credito" },
+                { label: "Cartão de Débito", key: "cartao_debito", alt: "debito" },
+                { label: "Boleto Bancário", key: "boleto" }
+              ].map(metodo => (
+                <div key={metodo.key}>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">{metodo.label}</label>
+                  <input 
+                    type="number" 
+                    placeholder="0.00"
+                    value={pagamentosMetodos[metodo.key] ?? pagamentosMetodos[metodo.alt || ""] ?? ""} 
+                    onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value, ...(metodo.alt && { [metodo.alt]: undefined }) })} 
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 outline-none focus:border-indigo-400 transition-colors"
+                  />
+                </div>
+              ))}
+
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-dashed border-emerald-300">
+                <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Abater do Crédito</label>
+                <input 
+                  type="number" 
+                  placeholder="0.00"
+                  value={pagamentosMetodos.credito_aluno || ""} 
+                  onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito_aluno: e.target.value })} 
+                  className="w-full px-4 py-2.5 rounded-lg border border-emerald-200 bg-white font-bold text-emerald-900 outline-none focus:border-emerald-400" 
+                />
+              </div>
+
+              {tipoPagamento === "livro" && (
+                <>
+                  <div className="col-span-1 sm:col-span-2 h-px bg-slate-200 my-2"></div>
+                  {[
+                    { label: "Pix Editora", key: "pix_editora" },
+                    { label: "Crédito Editora", key: "cartao_credito_editora" },
+                    { label: "Débito Editora", key: "cartao_debito_editora" }
+                  ].map(metodo => (
+                    <div key={metodo.key}>
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">{metodo.label}</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={pagamentosMetodos[metodo.key] || ""} 
+                        onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value })} 
+                        className="w-full px-4 py-2.5 rounded-xl border border-indigo-200 bg-white font-bold text-indigo-900 outline-none focus:border-indigo-400" 
+                      />
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* SELETOR DE PARCELAS CONDICIONAL */}
+              {temValorNoCredito && (
+                <div className="col-span-1 sm:col-span-2 bg-blue-50/70 p-4 rounded-2xl border border-blue-200 mt-2">
+                  <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block mb-2">Parcelamento (Cartão de Crédito)</label>
+                  <select 
+                    value={pagamentosMetodos.parcelas || "1"} 
+                    onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} 
+                    className="w-full px-4 py-3 rounded-xl border border-blue-300 bg-white font-black text-blue-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="1">À vista (1x)</option>
+                    {[2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x no cartão</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div className="col-span-1 sm:col-span-2 h-px bg-slate-200 my-2"></div>
+              
+              {/* Desconto e Multa */}
+              <div>
+                <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Desconto Aplicado</label>
+                <input 
+                  type="number" placeholder="0.00" value={pagamentosMetodos.desconto || ""} 
+                  onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, desconto: e.target.value })} 
+                  className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-white font-bold text-blue-900 outline-none focus:border-blue-400" 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Multa / Juros</label>
+                <input 
+                  type="number" placeholder="0.00" value={pagamentosMetodos.multa || ""} 
+                  onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} 
+                  className="w-full px-4 py-2.5 rounded-xl border border-red-200 bg-white font-bold text-red-900 outline-none focus:border-red-400" 
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={onFechar} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: '800', color: '#475569', backgroundColor: 'white' }}>CANCELAR</button>
+        {/* Rodapé Fixo do Modal */}
+        <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-4 shrink-0 bg-white rounded-b-[2.5rem]">
+          <button 
+            onClick={onFechar} 
+            className="w-full sm:w-1/2 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all text-xs"
+          >
+            Cancelar
+          </button>
           <button 
             onClick={confirmarAcao} 
-            disabled={tipoPagamento === 'mensalidade' && mesesDisponiveis.length === 0}
-            style={{ 
-              flex: 1, padding: '14px', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', border: 'none',
-              backgroundColor: (tipoPagamento === 'mensalidade' && mesesDisponiveis.length === 0) ? '#cbd5e1' : '#10b981', 
-              color: 'white' 
-            }}
+            disabled={btnDesativado}
+            className={`w-full sm:w-1/2 py-4 rounded-2xl text-white font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs ${
+              btnDesativado ? 'bg-slate-300 shadow-none cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'
+            }`}
           >
-            {tipoPagamento === 'pdv' ? "QUITAR SELECIONADAS" : editando ? "ATUALIZAR" : (tipoPagamento === 'mensalidade' && mesesDisponiveis.length === 0) ? "ANO QUITADO" : "CONFIRMAR"}
+            {tipoPagamento === 'pdv' ? "Quitar Selecionadas" : editando ? "Atualizar" : btnDesativado ? "Ano Quitado" : "Confirmar Recebimento"}
           </button>
         </div>
+
       </div>
     </div>
   );

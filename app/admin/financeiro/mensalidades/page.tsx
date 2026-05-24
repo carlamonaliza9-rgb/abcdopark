@@ -31,7 +31,12 @@ export default function MensalidadesPage() {
   const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]);
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" });
+  
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ 
+    pix: "", dinheiro: "", credito: "", debito: "", boleto: "", 
+    multa: "", desconto: "", parcelas: "1", credito_aluno: "",
+    acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" 
+  });
   const [mesReferencia, setMesReferencia] = useState(["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][new Date().getMonth()]);
 
   const SENHA_MESTRA = "1234";
@@ -53,9 +58,7 @@ export default function MensalidadesPage() {
         perfil?.cargo === 'Admin' ||
         perfil?.cargo === 'Direção';
 
-      if (!ehAutorizado) {
-        return router.push("/dashboard");
-      }
+      if (!ehAutorizado) return router.push("/dashboard");
       setVerificandoAcesso(false);
     }
     verificarAcesso();
@@ -70,23 +73,34 @@ export default function MensalidadesPage() {
       const dataInicioAno = `${ano}-01-01`;
       const dataFimAno = `${ano}-12-31`;
 
-      const { data: { user } } = await supabase.auth.getUser();
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
-      
       const { data: pgtosAno } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicioAno).lte('data_pagamento', dataFimAno);
       
       const pgtosAnoSeguro = pgtosAno || [];
       setListaReceitasDetalhada(pgtosAnoSeguro);
 
+      // NOVIDADE: Capta mensalidades E acordos que vencem neste mês exato
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
-      const pgtosDesteMes = pgtosAnoSeguro.filter((p: any) => p.tipo === 'mensalidade' && (p.descricao || '').includes(nomeMesReferencia));
+      const dataInicioMes = `${ano}-${mes}-01`;
+      const dataFimMes = `${ano}-${mes}-31`;
+
+      const pgtosDesteMes = pgtosAnoSeguro.filter((p: any) => {
+        const ehMensalidade = p.tipo === 'mensalidade' && (p.descricao || '').includes(nomeMesReferencia);
+        const ehAcordoNesteMes = p.tipo === 'acordo' && p.data_pagamento >= dataInicioMes && p.data_pagamento <= dataFimMes;
+        return ehMensalidade || ehAcordoNesteMes;
+      });
 
       if (listaAlunos) {
         const idsPagosNestaReferencia = pgtosDesteMes.filter((p: any) => p.status === 'pago').map((p: any) => p.aluno_id);
+        const idsComPendenciaRef = pgtosDesteMes.filter((p: any) => p.status !== 'pago').map((p: any) => p.aluno_id);
 
         const ordenados = listaAlunos.map(aluno => {
-          const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
-          if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
+          // Se tiver um acordo pendente ou mensalidade parcial, mantém como pendente/atrasado
+          if (idsComPendenciaRef.includes(aluno.id)) {
+            return { ...aluno, status: hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? 'atrasado' : 'pendente' };
+          }
+          if (idsPagosNestaReferencia.includes(aluno.id)) return { ...aluno, status: 'pago' };
+
           return hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? { ...aluno, status: 'atrasado' } : { ...aluno, status: 'pendente' };
         }).sort((a, b) => (a.status === 'pago' ? 1 : 0) - (b.status === 'pago' ? 1 : 0) || (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0));
         
@@ -99,16 +113,16 @@ export default function MensalidadesPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
+  // ================= LÓGICA DE MULTA, PARCELAMENTO E ACORDOS (ERP PADRÃO) =================
   async function confirmarPagamento() {
+    
     // --- LÓGICA 1: GERAÇÃO DE ACORDO EM LOOP ---
     if (tipoPagamento === "acordo") {
-      const qtdParcelas = parseInt((pagamentosMetodos as any).acordo_qtd_parcelas || "0");
-      const valorParcela = parseFloat((pagamentosMetodos as any).acordo_valor_parcela || "0");
-      const dataPrimeiroVencimento = (pagamentosMetodos as any).acordo_data_vencimento || dataPagamento;
+      const qtdParcelas = parseInt(pagamentosMetodos.acordo_qtd_parcelas || "0");
+      const valorParcela = parseFloat(pagamentosMetodos.acordo_valor_parcela || "0");
+      const dataPrimeiroVencimento = pagamentosMetodos.acordo_data_vencimento || dataPagamento;
 
-      if (qtdParcelas <= 0 || valorParcela <= 0) {
-        return alert("Por favor, preencha o número de parcelas e o valor de cada uma para gerar o acordo.");
-      }
+      if (qtdParcelas <= 0 || valorParcela <= 0) return alert("Preencha parcelas e valor do acordo.");
 
       const parcelasParaInserir = [];
       for (let i = 0; i < qtdParcelas; i++) {
@@ -132,65 +146,112 @@ export default function MensalidadesPage() {
       
       setModalPgtoAberto(false);
       carregarDados();
-      return alert(`Acordo gerado com sucesso! ${qtdParcelas} parcelas foram adicionadas à Dívida Ativa do aluno.`);
+      return alert(`Acordo gerado: ${qtdParcelas} parcelas na Dívida Ativa.`);
     }
 
-    // --- LÓGICA 2: PAGAMENTO NORMAL COM MULTA E DESCONTO ---
-    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    // --- LÓGICA 2: RECEBIMENTO DE VALOR CORRIGIDO ---
+    const valoresRecebidos = [ pagamentosMetodos.pix, pagamentosMetodos.dinheiro, pagamentosMetodos.credito, pagamentosMetodos.debito, pagamentosMetodos.boleto ];
+    const somaPaga = valoresRecebidos.reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    
     const valorMulta = parseFloat(pagamentosMetodos.multa || "0");
     const valorDesconto = parseFloat(pagamentosMetodos.desconto || "0");
-    const valorPagoFinal = somaPaga + valorMulta - valorDesconto;
+    const creditoUtilizado = parseFloat(pagamentosMetodos.credito_aluno || "0");
+    
+    const valorPagoFinal = somaPaga + creditoUtilizado; 
 
-    if (valorPagoFinal <= 0) return alert("Insira um valor.");
+    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
 
-    const creditoUtilizado = parseFloat((pagamentosMetodos as any).credito_aluno || 0);
     const saldoDisponivel = parseFloat(alunoSelecionado?.saldo_credito || 0);
+    if (creditoUtilizado > saldoDisponivel) return alert(`Saldo de crédito insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
 
-    if (creditoUtilizado > saldoDisponivel) {
-      return alert(`O aluno possui apenas R$ ${saldoDisponivel.toFixed(2)} de crédito disponível.`);
-    }
-
-    const anoFiltro = mesFiltro.split('-')[0];
     const valorEsperadoBase = parseFloat(alunoSelecionado.valor) || valorPadrao;
-    const valorEsperadoComMulta = valorEsperadoBase + valorMulta;
+    const dividaReal = Math.max(0, (valorEsperadoBase + valorMulta) - valorDesconto);
     
     let status = "pago";
     let creditoGerado = 0;
 
-    if (valorPagoFinal > valorEsperadoComMulta) {
+    if (valorPagoFinal > dividaReal) {
       status = "pago";
-      creditoGerado = valorPagoFinal - valorEsperadoComMulta;
-    } else if (valorPagoFinal < valorEsperadoComMulta) {
+      creditoGerado = valorPagoFinal - dividaReal; 
+    } else if (valorPagoFinal < dividaReal) {
       status = valorPagoFinal === 0 ? "pendente" : "parcial";
     }
 
-    const descRef = `Mensalidade - ${mesReferencia}/${anoFiltro}`;
+    const descRef = `Mensalidade - ${mesReferencia}/${mesFiltro.split('-')[0]}`;
+    const [anoRef, mesRef] = mesFiltro.split('-');
     
-    const dados = {
+    // NOVIDADE: Verifica se o aluno tem uma parcela de acordo vencendo neste mês filtrado
+    const acordoPendenteDesteMes = listaReceitasDetalhada.find(h => 
+      h.aluno_id === alunoSelecionado.id && 
+      h.tipo === 'acordo' && 
+      h.status !== 'pago' &&
+      h.data_pagamento >= `${anoRef}-${mesRef}-01` &&
+      h.data_pagamento <= `${anoRef}-${mesRef}-31`
+    );
+
+    const dadosPadrao = {
       aluno_id: alunoSelecionado.id,
       tipo: tipoPagamento,
       descricao: descricaoOutro || descRef,
       mes_referencia: tipoPagamento === "mensalidade" ? mesReferencia : null,
-      valor_total: valorEsperadoComMulta,
-      valor_pago: valorPagoFinal > valorEsperadoComMulta ? valorEsperadoComMulta : valorPagoFinal,
+      valor_total: dividaReal,
+      valor_pago: valorPagoFinal > dividaReal ? dividaReal : valorPagoFinal,
       status: status,
       data_pagamento: dataPagamento,
       detalhes_metodos: pagamentosMetodos
     };
 
-    await supabase.from('historico_pagamentos').insert([dados]);
+    if (acordoPendenteDesteMes) {
+      // Se houver acordo para este mês, ATUALIZA a parcela do acordo em vez de gerar mensalidade duplicada
+      await supabase.from('historico_pagamentos').update({
+        valor_pago: valorPagoFinal > dividaReal ? dividaReal : valorPagoFinal,
+        status: status,
+        data_pagamento: dataPagamento,
+        detalhes_metodos: pagamentosMetodos
+      }).eq('id', acordoPendenteDesteMes.id);
+    } else {
+      // Comportamento normal: insere a mensalidade
+      await supabase.from('historico_pagamentos').insert([dadosPadrao]);
+    }
+    
     await supabase.from('alunos').update({ status: status === 'pago' ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
     
-    const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
-    if (novoSaldoCredito !== saldoDisponivel) {
+    if (creditoGerado > 0 || creditoUtilizado > 0) {
+      const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
       await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
+    }
+
+    // 3. Geração de Previsões da Maquininha
+    const valorCreditoEscola = parseFloat(pagamentosMetodos.credito) || 0;
+    const parcelas = parseInt(pagamentosMetodos.parcelas) || 1;
+
+    if (valorCreditoEscola > 0 && parcelas > 1 && status === "pago") {
+      const valorPorParcela = parseFloat((valorCreditoEscola / parcelas).toFixed(2));
+      const previsoes = [];
+
+      for (let i = 1; i <= parcelas; i++) {
+        const dataVencimento = new Date(dataPagamento);
+        dataVencimento.setMonth(dataVencimento.getMonth() + i);
+
+        previsoes.push({
+          aluno_id: alunoSelecionado.id,
+          tipo: 'previsao_cartao',
+          descricao: `Previsão Cartão (${i}/${parcelas}) - ${descRef}`,
+          valor_total: valorPorParcela,
+          valor_pago: 0,
+          status: 'pendente',
+          data_pagamento: dataVencimento.toISOString().split('T')[0],
+          detalhes_metodos: {}
+        });
+      }
+      await supabase.from('historico_pagamentos').insert(previsoes);
     }
 
     setModalPgtoAberto(false);
     carregarDados();
   }
 
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando controle de mensalidades...</div>;
+  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Sincronizando mensalidades...</div>;
 
   const listaTurmasUnicas = Array.from(new Set(alunos.map(aluno => aluno.turma).filter(Boolean))).sort();
 
@@ -203,24 +264,25 @@ export default function MensalidadesPage() {
   const historicoAlunoSelecionado = alunoSelecionado ? listaReceitasDetalhada.filter(h => h.aluno_id === alunoSelecionado.id) : [];
 
   return (
-    <div className="w-full bg-slate-50/50 min-h-screen p-6 md:p-8 font-sans antialiased text-slate-800">
+    <div className="w-full bg-slate-50 min-h-screen p-4 md:p-8 font-sans antialiased text-slate-800 pb-24 md:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* Header Reestilizado */}
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">🏫 Gestão de Mensalidades Regulares</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Dar baixas operacionais, estornos e cobranças diretas da ABC DO PARK</p>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter italic">🏫 Mensalidades & Acordos</h1>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Gestão de Recebimentos e Baixas Operacionais</p>
           </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             <select
               value={filtroTurma}
               onChange={(e) => setFiltroTurma(e.target.value)}
-              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-44"
+              className="w-full sm:w-auto px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-xs uppercase tracking-wider"
             >
               <option value="">Todas as Turmas</option>
               {listaTurmasUnicas.map(turma => (
-                <option key={turma} value={turma}>{turma.toUpperCase()}</option>
+                <option key={turma} value={turma as string}>{(turma as string).toUpperCase()}</option>
               ))}
             </select>
 
@@ -228,35 +290,42 @@ export default function MensalidadesPage() {
               type="month"
               value={mesFiltro}
               onChange={(e) => setMesFiltro(e.target.value)}
-              className="p-3 bg-slate-100 rounded-xl font-bold border-none text-slate-700 outline-none cursor-pointer text-sm w-full md:w-auto"
+              className="w-full sm:w-auto px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-sm"
             />
           </div>
         </div>
 
-        <TabelaMensalidades
-          alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
-          onPagamento={(a) => {
-            setAlunoSelecionado(a);
-            setTipoPagamento("mensalidade");
-            setPagamentosMetodos({ pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" });
-            setModalPgtoAberto(true);
-          }}
-          onCobrar={(a) => {
-            const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
-            window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-          }}
-          onDesfazer={async (id) => {
-            if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
-            if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-            if(confirm("Desfazer mensalidade? O registro sumirá da ficha do aluno e retornará para pendente.")) {
-              const [ano, mes] = mesFiltro.split('-');
-              const nomeMesRef = mesesAno[parseInt(mes) - 1];
-              await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id);
-              await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
-              carregarDados();
-            }
-          }}
-        />
+        {/* Tabela de Mensalidades */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+          <TabelaMensalidades
+            alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
+            onPagamento={(a) => {
+              setAlunoSelecionado(a);
+              setTipoPagamento("mensalidade");
+              setPagamentosMetodos({ 
+                pix: (a.valor || valorPadrao).toString(), dinheiro: "", credito: "", debito: "", boleto: "", 
+                multa: "", desconto: "", parcelas: "1", credito_aluno: "",
+                acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" 
+              });
+              setModalPgtoAberto(true);
+            }}
+            onCobrar={(a) => {
+              const msg = `Olá! Passando para lembrar que a obrigação financeira de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
+              window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+            }}
+            onDesfazer={async (id) => {
+              if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
+              if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+              if(confirm("Desfazer recebimento? O registro sumirá do fechamento do dia.")) {
+                const [ano, mes] = mesFiltro.split('-');
+                const nomeMesRef = mesesAno[parseInt(mes) - 1];
+                await supabase.from('alunos').update({ status: 'pendente' }).eq('id', id);
+                await supabase.from('historico_pagamentos').delete().eq('aluno_id', id).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
+                carregarDados();
+              }
+            }}
+          />
+        </div>
 
       </div>
 
