@@ -141,10 +141,15 @@ export default function DashboardLayout({
                     <Link href="/admin/financeiro/despesas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       💸 Despesas
                     </Link>
-                    {/* RESTAURAÇÃO: Rota de Contas a Pagar inserida no submenu */}
                     <Link href="/admin/financeiro/contas-a-pagar" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       ⏳ Contas a Pagar
                     </Link>
+                    
+                    {/* NOVO LINK ADICIONADO AQUI */}
+                    <Link href="/admin/financeiro/acordos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      🤝 Acordos & Dívidas
+                    </Link>
+
                     <Link href="/admin/financeiro/saldos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       👥 Saldos & Créditos
                     </Link>
