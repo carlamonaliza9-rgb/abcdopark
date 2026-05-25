@@ -25,7 +25,8 @@ export async function gerarDocumentoCodes(turmas: any[], alunos: any[], boletins
 
   // URLs Oficiais de Imagem (Substitua o domínio base pelo seu caso necessário)
   const logoSeduc = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/seduc.png";
-  const carimboSuellen = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/carimbos/Carimbo%20Suellen.png";
+  const carimboSuellen = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Suellen.png";
+  const carimboSandra = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/Carimbo%20Sandra.png"; // NOVO CARIMBO
 
   turmasFiltradas.forEach((turma, index) => {
     // Adiciona uma nova página para cada turma
@@ -161,20 +162,30 @@ export async function gerarDocumentoCodes(turmas: any[], alunos: any[], boletins
 
 
     // --- ASSINATURAS OFICIAIS NO RODAPÉ ---
+    const posRodape = 270;
     const finalY = (doc as any).lastAutoTable.finalY + 25;
     
     // Evita que as assinaturas quebrem página sozinhas
     if (finalY < 185) {
       doc.setDrawColor(0);
+      
+      // LINHA E CARIMBO DA SECRETÁRIA
       doc.line(40, finalY, 120, finalY);
+
+      try {
+        doc.addImage(carimboSandra, "PNG", 55, finalY - 24, 50, 25);
+      } catch (e) {
+        console.warn("Erro ao carregar o carimbo Sandra no PDF:", e);
+      }
+
       doc.setFontSize(8);
       doc.text("SECRETÁRIO(A) ESCOLAR", 80, finalY + 4, { align: "center" });
 
+      // LINHA E CARIMBO DA DIREÇÃO
       doc.line(170, finalY, 250, finalY);
 
-      // --- INSERÇÃO DO CARIMBO SUELLEN ACIMA DA LINHA DE ASSINATURA DA DIREÇÃO ---
       try {
-        doc.addImage(carimboSuellen, "PNG", 190, finalY - 22, 40, 20);
+        doc.addImage(carimboSuellen, "PNG", 185, finalY - 24, 50, 25);
       } catch (e) {
         console.warn("Erro ao carregar o carimbo Suellen no PDF:", e);
       }
