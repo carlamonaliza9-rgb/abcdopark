@@ -87,7 +87,7 @@ export function ModalPagamento({
   if (!aberto) return null;
 
   const valorCartaoCredito = parseFloat(pagamentosMetodos.cartao_credito ?? pagamentosMetodos.credito) || 0;
-  const valorCartaoCreditoEditora = parseFloat(pagamentosMetodos.cartao_credito_editora) || 0;
+  const valorCartaoCreditoEditora = parseFloat(pagamentosMetodos.cartao_credito_editora ?? pagamentosMetodos.credito_editora) || 0;
   const temValorNoCredito = valorCartaoCredito > 0 || valorCartaoCreditoEditora > 0;
 
   const dividasSelecionadasObjetos = dividasAbertas.filter(d => itensCarrinho.includes(d.id));
@@ -275,17 +275,17 @@ export function ModalPagamento({
                   <div className="col-span-1 sm:col-span-2 h-px bg-slate-200 my-2"></div>
                   {[
                     { label: "Pix Editora", key: "pix_editora" },
-                    { label: "Crédito Editora", key: "cartao_credito_editora" },
-                    { label: "Débito Editora", key: "cartao_debito_editora" }
+                    { label: "Crédito Editora", key: "cartao_credito_editora", alt: "credito_editora" },
+                    { label: "Débito Editora", key: "cartao_debito_editora", alt: "debito_editora" }
                   ].map(metodo => (
                     <div key={metodo.key}>
                       <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">{metodo.label}</label>
                       <input 
                         type="number" 
                         placeholder="0.00"
-                        value={pagamentosMetodos[metodo.key] || ""} 
-                        onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value })} 
-                        className="w-full px-4 py-2.5 rounded-xl border border-indigo-200 bg-white font-bold text-indigo-900 outline-none focus:border-indigo-400" 
+                        value={pagamentosMetodos[metodo.key] ?? pagamentosMetodos[metodo.alt || ""] ?? ""} 
+                        onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value, ...(metodo.alt && { [metodo.alt]: undefined }) })} 
+                        className="w-full px-4 py-2.5 rounded-xl border border-indigo-200 bg-white font-bold text-indigo-900 outline-none focus:border-indigo-400 transition-colors" 
                       />
                     </div>
                   ))}

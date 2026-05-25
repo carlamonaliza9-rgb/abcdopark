@@ -124,8 +124,8 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
                 { key: 'camisaPadrao', label: 'Camisa Padrão (R$60)' },
                 { key: 'camisaEdFisica', label: 'Camisa Ed. Física (R$60)' },
                 { key: 'calca', label: 'Calça (R$80)' },
-                { key: 'shortSaia', label: 'Short-Saia (R$65)' },
-                { key: 'short', label: 'Short (R$55)' },
+                { key: 'shortSaia', label: 'Short-Saia (R$60)' },
+                { key: 'short', label: 'Short (R$60)' },
                 { key: 'casaco', label: 'Casaco (R$130)' },
               ].map((item) => (
                 <div key={item.key} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
