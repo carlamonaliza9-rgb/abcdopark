@@ -144,35 +144,34 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
   }
 
-  // --- LÓGICA DE FRENTE DE CAIXA (PDV) ---
+  // --- LÓGICA DE FRENTE DE CAIXA (PDV) CORRIGIDA ---
   async function handleConfirmarPDV(dividasSelecionadas: any[]) {
-    // 1. HIGIENIZADOR DE VALORES FINANCEIROS
-    const clean = (val: any) => {
-      if (!val || val === "") return 0;
-      return parseFloat(String(val).replace(/\./g, '').replace(',', '.'));
-    };
+    // 1. LIMPEZA SEGURA DE VALORES (EVITA BUG DOS 6 MIL)
+    const clean = (val: any) => parseFloat(String(val).replace(/\./g, '').replace(',', '.') || "0") || 0;
 
-    const somaPaga = Object.values(pagamentosMetodosPDV).reduce((acc, val) => acc + clean(val), 0);
+    const somaDinheiro = clean(pagamentosMetodosPDV.pix) + clean(pagamentosMetodosPDV.dinheiro) + clean(pagamentosMetodosPDV.credito) + clean(pagamentosMetodosPDV.debito) + clean(pagamentosMetodosPDV.boleto);
     const valorMulta = clean(pagamentosMetodosPDV.multa);
     const valorDesconto = clean(pagamentosMetodosPDV.desconto);
     const creditoUtilizado = clean(pagamentosMetodosPDV.credito_aluno);
     
-    const valorPagoFinal = somaPaga + valorMulta - valorDesconto;
-    const totalDividas = dividasSelecionadas.reduce((acc, d) => acc + (clean(d.valor_total) - clean(d.valor_pago)), 0);
+    // A soma final que realmente entra no caixa é dinheiro + o que foi abatido do crédito
+    const valorPagoFinal = somaDinheiro + creditoUtilizado; 
+    
+    // A soma das dívidas deve considerar multas e descontos
+    const totalDividasBruto = dividasSelecionadas.reduce((acc, d) => acc + (clean(d.valor_total) - clean(d.valor_pago)), 0);
+    const totalDividasAjustado = totalDividasBruto + valorMulta - valorDesconto;
 
-    // Ajuste de margem de erro para comparações de floats
-    if (valorPagoFinal + 0.01 < totalDividas) {
-      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Por favor, desmarque alguma do carrinho.");
+    if (valorPagoFinal + 0.01 < totalDividasAjustado) {
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
     }
 
     if (creditoUtilizado > saldoCreditoVisivel) {
-      return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
+      return alert("O aluno não possui crédito suficiente para abater.");
     }
 
     // Processa a quitação das selecionadas blindado contra falha de tipagem
     for (const div of dividasSelecionadas) {
       if (String(div.id || "").startsWith('temp_')) {
-        // Gera a nova mensalidade como paga
         await supabase.from('historico_pagamentos').insert({
           aluno_id: aluno.id,
           tipo: 'mensalidade',
@@ -185,7 +184,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           detalhes_metodos: pagamentosMetodosPDV
         });
       } else {
-        // Atualiza a dívida real existente
         await supabase.from('historico_pagamentos').update({ 
           status: 'pago', 
           valor_pago: div.valor_total,
@@ -196,11 +194,12 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
 
     // Lógica de Crédito: Abatimento e Troco
-    const troco = valorPagoFinal - totalDividas;
-    const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + troco;
+    const troco = valorPagoFinal - totalDividasAjustado;
+    const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + (troco > 0 ? troco : 0);
 
     if (novoSaldoCredito !== saldoCreditoVisivel) {
       await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', aluno.id);
+      setSaldoCreditoVisivel(novoSaldoCredito);
     }
 
     setModalPDVAberto(false);
@@ -280,8 +279,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   const contatos = [
     { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "#db2777", bg: "#fdf2f8" },
-    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.responsavel_2_cpf || aluno.cpf_responsavel2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
-    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.responsavel_3_cpf, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
+    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
+    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.cpf_responsavel_3, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
   ];
 
   const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -379,7 +378,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
-          // TELA DE CRÉDITO DETALHADA COM EDIÇÃO
           ) : verCreditoGlobal ? (
             <div style={{ width: '100%', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -428,7 +426,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
-          // TELA PRINCIPAL (FICHA)
           ) : !verHistorico && !verBoletim ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
@@ -549,7 +546,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
-          // BOLETIM COMPLETO 
           ) : verBoletim ? (
             <div style={{ width: '100%', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
@@ -625,10 +621,8 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                 </div>
             </div>
 
-          // HISTÓRICO DE PAGAMENTOS E EXTRATO COMPLETO
           ) : (
             <div style={{ width: '100%', marginTop: '20px' }}>
-              
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Extrato de Pagamentos</h3>
@@ -650,23 +644,13 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                <div 
-                  onClick={() => { if(saldoCreditoVisivel > 0) setVerCreditoGlobal(true); }}
-                  style={{ backgroundColor: saldoCreditoVisivel > 0 ? '#f0fdf4' : '#f8fafc', border: `1px solid ${saldoCreditoVisivel > 0 ? '#bbf7d0' : '#e2e8f0'}`, padding: '10px', borderRadius: '10px', textAlign: 'center', cursor: saldoCreditoVisivel > 0 ? 'pointer' : 'default' }}
-                >
+                <div onClick={() => { if(saldoCreditoVisivel > 0) setVerCreditoGlobal(true); }} style={{ backgroundColor: saldoCreditoVisivel > 0 ? '#f0fdf4' : '#f8fafc', border: `1px solid ${saldoCreditoVisivel > 0 ? '#bbf7d0' : '#e2e8f0'}`, padding: '10px', borderRadius: '10px', textAlign: 'center', cursor: saldoCreditoVisivel > 0 ? 'pointer' : 'default' }}>
                   <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Crédito Atual</span>
-                  <p style={{ margin: 0, color: '#14532d', fontSize: '14px', fontWeight: '900' }}>
-                    {saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}
-                  </p>
+                  <p style={{ margin: 0, color: '#14532d', fontSize: '14px', fontWeight: '900' }}>{saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}</p>
                 </div>
-                <div 
-                  onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }}
-                  style={{ backgroundColor: totalPendenteGeral > 0 ? '#fdf2f2' : '#f8fafc', border: `1px solid ${totalPendenteGeral > 0 ? '#fecaca' : '#e2e8f0'}`, padding: '10px', borderRadius: '10px', textAlign: 'center', cursor: totalPendenteGeral > 0 ? 'pointer' : 'default' }}
-                >
+                <div onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }} style={{ backgroundColor: totalPendenteGeral > 0 ? '#fdf2f2' : '#f8fafc', border: `1px solid ${totalPendenteGeral > 0 ? '#fecaca' : '#e2e8f0'}`, padding: '10px', borderRadius: '10px', textAlign: 'center', cursor: totalPendenteGeral > 0 ? 'pointer' : 'default' }}>
                   <span style={{ fontSize: '10px', color: totalPendenteGeral > 0 ? '#dc2626' : '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Dívida Global</span>
-                  <p style={{ margin: 0, color: totalPendenteGeral > 0 ? '#991b1b' : '#334155', fontSize: '14px', fontWeight: '900' }}>
-                    {totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}
-                  </p>
+                  <p style={{ margin: 0, color: totalPendenteGeral > 0 ? '#991b1b' : '#334155', fontSize: '14px', fontWeight: '900' }}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
                 </div>
               </div>
 
@@ -681,18 +665,14 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>{pgto.descricao}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>
-                            {new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>{new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                           {forma && <span style={{ fontSize: '9px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>{forma}</span>}
                         </div>
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>
-                            R$ {parseFloat(pgto.valor_pago || pgto.valor_total || 0).toFixed(2)}
-                          </span>
+                          <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>R$ {parseFloat(pgto.valor_pago || pgto.valor_total || 0).toFixed(2)}</span>
                           {devedorRestante > 0 && <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626' }}>Falta: R$ {devedorRestante.toFixed(2)}</span>}
                         </div>
 
@@ -705,11 +685,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                       </div>
                     </div>
                   );
-                }) : (
-                  <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                    <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>Nenhum pagamento referenciado para este ano.</p>
-                  </div>
-                )}
+                }) : <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', margin: 0, textAlign: 'center' }}>Nenhum pagamento referenciado para este ano.</p>}
               </div>
             </div>
           )}
@@ -726,7 +702,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         </div>
       </div>
 
-      {/* RENDERIZAÇÃO DO MODAL DE CAIXA (PDV) POR CIMA DA FICHA */}
       <ModalPagamento 
         aberto={modalPDVAberto} onFechar={() => setModalPDVAberto(false)}
         aluno={aluno} dataPagamento={dataPagamentoPDV} setDataPagamento={setDataPagamentoPDV}

@@ -239,7 +239,7 @@ export function ModalPagamento({
             <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] mb-4 pb-4 border-b border-slate-200">Valores Recebidos (R$)</h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Inputs Padrões */}
+              {/* Inputs Padrões Blindados */}
               {[
                 { label: "Pix", key: "pix" },
                 { label: "Dinheiro (Espécie)", key: "dinheiro" },
@@ -251,6 +251,7 @@ export function ModalPagamento({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">{metodo.label}</label>
                   <input 
                     type="number" 
+                    step="0.01" min="0"
                     placeholder="0.00"
                     value={pagamentosMetodos[metodo.key] ?? pagamentosMetodos[metodo.alt || ""] ?? ""} 
                     onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value, ...(metodo.alt && { [metodo.alt]: undefined }) })} 
@@ -263,6 +264,7 @@ export function ModalPagamento({
                 <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Abater do Crédito</label>
                 <input 
                   type="number" 
+                  step="0.01" min="0"
                   placeholder="0.00"
                   value={pagamentosMetodos.credito_aluno || ""} 
                   onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, credito_aluno: e.target.value })} 
@@ -282,6 +284,7 @@ export function ModalPagamento({
                       <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">{metodo.label}</label>
                       <input 
                         type="number" 
+                        step="0.01" min="0"
                         placeholder="0.00"
                         value={pagamentosMetodos[metodo.key] ?? pagamentosMetodos[metodo.alt || ""] ?? ""} 
                         onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, [metodo.key]: e.target.value, ...(metodo.alt && { [metodo.alt]: undefined }) })} 
@@ -313,7 +316,10 @@ export function ModalPagamento({
               <div>
                 <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Desconto Aplicado</label>
                 <input 
-                  type="number" placeholder="0.00" value={pagamentosMetodos.desconto || ""} 
+                  type="number" 
+                  step="0.01" min="0"
+                  placeholder="0.00" 
+                  value={pagamentosMetodos.desconto || ""} 
                   onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, desconto: e.target.value })} 
                   className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-white font-bold text-blue-900 outline-none focus:border-blue-400" 
                 />
@@ -321,7 +327,10 @@ export function ModalPagamento({
               <div>
                 <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Multa / Juros</label>
                 <input 
-                  type="number" placeholder="0.00" value={pagamentosMetodos.multa || ""} 
+                  type="number" 
+                  step="0.01" min="0"
+                  placeholder="0.00" 
+                  value={pagamentosMetodos.multa || ""} 
                   onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, multa: e.target.value })} 
                   className="w-full px-4 py-2.5 rounded-xl border border-red-200 bg-white font-bold text-red-900 outline-none focus:border-red-400" 
                 />
