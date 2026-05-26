@@ -162,7 +162,6 @@ export async function gerarDocumentoCodes(turmas: any[], alunos: any[], boletins
 
 
     // --- ASSINATURAS OFICIAIS NO RODAPÉ ---
-    const posRodape = 270;
     const finalY = (doc as any).lastAutoTable.finalY + 25;
     
     // Evita que as assinaturas quebrem página sozinhas

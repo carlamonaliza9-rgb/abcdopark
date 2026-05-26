@@ -129,6 +129,9 @@ export default function DashboardLayout({
                     <Link href="/admin/financeiro" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       📊 Visão Geral
                     </Link>
+                    <Link href="/admin/pdv" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                     🛒 Ponto de Venda
+                    </Link>
                     <Link href="/admin/financeiro/mensalidades" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       🏫 Mensalidades
                     </Link>
