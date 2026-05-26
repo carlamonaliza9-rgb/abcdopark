@@ -146,15 +146,22 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   // --- LÓGICA DE FRENTE DE CAIXA (PDV) ---
   async function handleConfirmarPDV(dividasSelecionadas: any[]) {
-    const somaPaga = Object.values(pagamentosMetodosPDV).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    const valorMulta = parseFloat(pagamentosMetodosPDV.multa || "0");
-    const valorDesconto = parseFloat(pagamentosMetodosPDV.desconto || "0");
-    const creditoUtilizado = parseFloat(pagamentosMetodosPDV.credito_aluno || "0");
+    // 1. HIGIENIZADOR DE VALORES FINANCEIROS
+    const clean = (val: any) => {
+      if (!val || val === "") return 0;
+      return parseFloat(String(val).replace(/\./g, '').replace(',', '.'));
+    };
+
+    const somaPaga = Object.values(pagamentosMetodosPDV).reduce((acc, val) => acc + clean(val), 0);
+    const valorMulta = clean(pagamentosMetodosPDV.multa);
+    const valorDesconto = clean(pagamentosMetodosPDV.desconto);
+    const creditoUtilizado = clean(pagamentosMetodosPDV.credito_aluno);
     
     const valorPagoFinal = somaPaga + valorMulta - valorDesconto;
-    const totalDividas = dividasSelecionadas.reduce((acc, d) => acc + ((parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0)), 0);
+    const totalDividas = dividasSelecionadas.reduce((acc, d) => acc + (clean(d.valor_total) - clean(d.valor_pago)), 0);
 
-    if (valorPagoFinal < totalDividas) {
+    // Ajuste de margem de erro para comparações de floats
+    if (valorPagoFinal + 0.01 < totalDividas) {
       return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Por favor, desmarque alguma do carrinho.");
     }
 
@@ -162,9 +169,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
       return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
     }
 
-    // Processa a quitação das selecionadas
+    // Processa a quitação das selecionadas blindado contra falha de tipagem
     for (const div of dividasSelecionadas) {
-      if (div.id.startsWith('temp_')) {
+      if (String(div.id || "").startsWith('temp_')) {
         // Gera a nova mensalidade como paga
         await supabase.from('historico_pagamentos').insert({
           aluno_id: aluno.id,
