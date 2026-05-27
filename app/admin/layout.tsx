@@ -135,11 +135,8 @@ export default function DashboardLayout({
                     <Link href="/admin/financeiro/mensalidades" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       🏫 Mensalidades
                     </Link>
-                    <Link href="/admin/financeiro/vendas-taxas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      🛍️ Vendas & Taxas
-                    </Link>
-                    <Link href="/admin/financeiro/eventos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      🎟️ Eventos
+                     <Link href="/admin/financeiro/vendas-taxas-eventos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      🛍️ Eventos, Vendas & Taxas
                     </Link>
                     <Link href="/admin/financeiro/despesas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       💸 Despesas

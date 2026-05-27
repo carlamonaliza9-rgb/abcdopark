@@ -641,7 +641,39 @@ export default function DashboardFinanceiroPage() {
               </button>
             </div>
           </div>
-          
+
+          {/* DASHBOARD DE MÉTRICAS GRÁFICAS DE EVENTOS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5 text-4xl">🎟️</div>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Eventos Ativos</p>
+              <h3 className="text-3xl font-black text-slate-800">{totalEventosAtivos}</h3>
+            </div>
+            
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-4 opacity-5 text-4xl">👥</div>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Alunos Envolvidos</p>
+              <h3 className="text-3xl font-black text-emerald-600">{totalAlunosParticipantes}</h3>
+            </div>
+            
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+              <div className="flex justify-between items-end mb-2">
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Receita Coletada</p>
+                <span className="text-sm font-black text-blue-600">{pctArrecadacaoEventos}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2.5 mb-1 overflow-hidden">
+                <div 
+                  className="bg-blue-500 h-2.5 rounded-full transition-all duration-1000 ease-out" 
+                  style={{ width: `${pctArrecadacaoEventos}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-[10px] text-slate-400 font-semibold uppercase">R$ {arrecadacaoPagaEventos.toFixed(2).replace('.', ',')}</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase">Alvo: R$ {arrecadacaoEsperadaEventos.toFixed(2).replace('.', ',')}</p>
+              </div>
+            </div>
+          </div>
+
           {/* VISUAL REESTRUTURADO: DETALHES DE CADA EVENTO E GRÁFICOS COM DADOS REAIS */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
             <div>
