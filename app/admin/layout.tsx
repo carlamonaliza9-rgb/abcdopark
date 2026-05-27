@@ -55,7 +55,7 @@ export default function DashboardLayout({
       
       {ehAdmin && <AlertaEvasao />}
 
-      <aside className="w-64 bg-blue-600/10 backdrop-blur-md flex flex-col shadow-sm border-r border-blue-100">
+      <aside className="w-74 bg-blue-600/10 backdrop-blur-md flex flex-col shadow-sm border-r border-blue-100">
         
         <div className="p-6 border-b border-blue-200 flex flex-col items-center text-center">
           <img
@@ -129,20 +129,20 @@ export default function DashboardLayout({
                     <Link href="/admin/financeiro" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       📊 Visão Geral
                     </Link>
-                    <Link href="/admin/pdv" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                     🛒 Ponto de Venda
+                    <Link href="/admin/financeiro/acordos-dividas-creditos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                     💲 Controle de Pagamentos
                     </Link>
                      <Link href="/admin/financeiro/vendas-taxas-eventos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       🛍️ Eventos, Vendas & Taxas
+                    </Link>
+                    <Link href="/admin/pdv" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                     🛒 Ponto de Venda
                     </Link>
                     <Link href="/admin/financeiro/despesas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       💸 Despesas
                     </Link>
                     <Link href="/admin/financeiro/contas-a-pagar" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       ⏳ Contas a Pagar
-                    </Link>
-                    <Link href="/admin/financeiro/acordos-dividas-creditos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      💲 Controle de Pagamentos
                     </Link>
                   </div>
                 )}
