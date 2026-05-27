@@ -132,9 +132,6 @@ export default function DashboardLayout({
                     <Link href="/admin/pdv" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                      🛒 Ponto de Venda
                     </Link>
-                    <Link href="/admin/financeiro/mensalidades" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      🏫 Mensalidades
-                    </Link>
                      <Link href="/admin/financeiro/vendas-taxas-eventos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       🛍️ Eventos, Vendas & Taxas
                     </Link>
@@ -144,14 +141,8 @@ export default function DashboardLayout({
                     <Link href="/admin/financeiro/contas-a-pagar" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                       ⏳ Contas a Pagar
                     </Link>
-                    
-                    {/* NOVO LINK ADICIONADO AQUI */}
-                    <Link href="/admin/financeiro/acordos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      🤝 Acordos & Dívidas
-                    </Link>
-
-                    <Link href="/admin/financeiro/saldos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      👥 Saldos & Créditos
+                    <Link href="/admin/financeiro/acordos-dividas-creditos" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      💲 Controle de Pagamentos
                     </Link>
                   </div>
                 )}
