@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-// Auxiliar de conversão
+// Auxiliar de conversão financeira blindada
 const clean = (val: any) => parseFloat(String(val).replace(/\./g, '').replace(',', '.') || "0") || 0;
 
 export default function PDVPage() {
@@ -14,6 +14,10 @@ export default function PDVPage() {
   // Dados Globais
   const [alunos, setAlunos] = useState<any[]>([]);
   const [historicoGeral, setHistoricoGeral] = useState<any[]>([]);
+  
+  // Dados do Acompanhamento Diário
+  const [vencimentosHoje, setVencimentosHoje] = useState<any[]>([]);
+  const [recebimentosHoje, setRecebimentosHoje] = useState<any[]>([]);
   
   // Estados do PDV
   const [buscaAluno, setBuscaAluno] = useState("");
@@ -32,34 +36,119 @@ export default function PDVPage() {
   // Estado para controlar o destino do troco
   const [acaoTroco, setAcaoTroco] = useState<'credito' | 'devolver'>('credito');
 
+  const dataHojeStr = new Date().toISOString().split('T')[0];
+  const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const SENHA_MESTRA = "1234";
+
   useEffect(() => {
     carregarDadosBase();
   }, []);
 
   async function carregarDadosBase() {
     setCarregando(true);
+    
     const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome');
-    const { data: historico } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+    
+    // Busca ampla para o Dashboard Diário (incluindo 'vencido' por segurança)
+    const { data: historico } = await supabase
+      .from('historico_pagamentos')
+      .select('*')
+      .or(`status.in.(pendente,parcial,atrasado,vencido),data_pagamento.eq.${dataHojeStr}`);
     
     if (listaAlunos) setAlunos(listaAlunos);
-    if (historico) setHistoricoGeral(historico);
+    
+    if (historico) {
+      setHistoricoGeral(historico);
+      
+      const vencem = historico.filter(h => h.data_pagamento === dataHojeStr && h.status !== 'pago');
+      const recebidos = historico.filter(h => h.data_pagamento === dataHojeStr && (h.status === 'pago' || h.status === 'parcial') && clean(h.valor_pago) > 0);
+      
+      setVencimentosHoje(vencem);
+      setRecebimentosHoje(recebidos);
+    }
+    
     setCarregando(false);
   }
 
-  // Efeito ao selecionar um aluno: Puxar dívidas dele e resetar o caixa
+  // BUSCA BLINDADA DE PENDÊNCIAS QUANDO SELECIONA O ALUNO (O RAIO-X COMPLETO)
   useEffect(() => {
     if (alunoSelecionado) {
-      const pendencias = historicoGeral.filter(h => h.aluno_id === alunoSelecionado.id);
-      setDividasAluno(pendencias);
+      const buscarPendenciasDoAluno = async () => {
+        // 1. Busca na tabela tradicional de historico_pagamentos
+        const { data: dataHistorico } = await supabase
+          .from('historico_pagamentos')
+          .select('*')
+          .eq('aluno_id', alunoSelecionado.id);
+          
+        let registrosPuros = dataHistorico || [];
+
+        // 2. BUSCA VIRTUAL DE MENSALIDADES (Idêntica à FichaAlunoModal)
+        // Se a mensalidade venceu no mês atual e não está no banco, nós forçamos ela a aparecer
+        const dataAtual = new Date();
+        const mesAtualNum = dataAtual.getMonth(); 
+        const diaAtual = dataAtual.getDate();
+        const anoAtual = dataAtual.getFullYear().toString();
+        const diaVencimentoAluno = parseInt(alunoSelecionado.vencimento) || 5;
+        const valorMensalidadeBase = parseFloat(alunoSelecionado.valor) || 0;
+
+        if (valorMensalidadeBase > 0) {
+          for (let i = 0; i <= mesAtualNum; i++) {
+            const nomeMes = mesesAno[i];
+            if (i === mesAtualNum && diaAtual <= diaVencimentoAluno) continue;
+
+            const jaExisteNoBanco = registrosPuros.some((h: any) => 
+              (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
+              h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
+              (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) &&
+              h.status !== 'cancelado' && h.status !== 'estornado'
+            );
+
+            if (!jaExisteNoBanco) {
+              registrosPuros.push({
+                id: `temp_${nomeMes}_${Date.now()}`,
+                tipo: 'mensalidade',
+                descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`,
+                mes_referencia: nomeMes,
+                valor_total: valorMensalidadeBase,
+                valor_pago: 0,
+                data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
+                status: 'atrasado',
+                atraso_automatico: true,
+                isTemp: true
+              });
+            }
+          }
+        }
+
+        if (registrosPuros.length > 0) {
+          // Filtra garantindo que registros totalmente pagos sejam descartados da listagem
+          const pendenciasReais = registrosPuros.filter((h: any) => {
+            const statusBanco = (h.status || '').toLowerCase().trim();
+            const vTotal = clean(h.valor_total); 
+            const vPago = clean(h.valor_pago);
+            const saldoDevedor = vTotal - vPago;
+
+            return statusBanco !== 'pago' && saldoDevedor > 0;
+          });
+
+          setDividasAluno(pendenciasReais);
+        } else {
+          setDividasAluno([]);
+        }
+      };
+
+      buscarPendenciasDoAluno();
+      
+      // Reseta a interface ao trocar de aluno
       setCarrinho([]); 
       setPagamentos({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1" });
       setAcrescimos({ multa: "", desconto: "" });
-      setAcaoTroco('credito'); // Reseta a ação do troco
+      setAcaoTroco('credito'); 
     } else {
       setDividasAluno([]);
       setCarrinho([]);
     }
-  }, [alunoSelecionado, historicoGeral]);
+  }, [alunoSelecionado]);
 
   const adicionarAoCarrinho = (item: any) => {
     if (!carrinho.find(c => c.id === item.id)) {
@@ -88,7 +177,6 @@ export default function PDVPage() {
     setNovoItem({ tipo: 'uniforme', descricao: '', valor: '' });
   };
 
-  // Cálculos do PDV
   const subtotalCarrinho = carrinho.reduce((acc, item) => acc + (clean(item.valor_total) - clean(item.valor_pago)), 0);
   const totalComAcrescimos = Math.max(0, subtotalCarrinho + clean(acrescimos.multa) - clean(acrescimos.desconto));
   
@@ -102,20 +190,19 @@ export default function PDVPage() {
 
   const finalizarVenda = async () => {
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
-    if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores de pagamento.");
+    if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
 
     setProcessando(true);
     try {
-      const dataHoje = new Date().toISOString().split('T')[0];
       let saldoParaDistribuir = totalPagoRodada + clean(acrescimos.desconto) - clean(acrescimos.multa);
 
-      // Desconta o valor do troco se ele for ser devolvido ao cliente (não abate nas dívidas)
       if (trocoGerado > 0 && acaoTroco === 'devolver') {
          saldoParaDistribuir -= trocoGerado;
       }
 
       for (const item of carrinho) {
+        const idString = String(item.id || "");
         const restanteDestaDivida = clean(item.valor_total) - clean(item.valor_pago);
         const valorAbatido = Math.max(0, Math.min(restanteDestaDivida, saldoParaDistribuir));
         saldoParaDistribuir -= valorAbatido;
@@ -123,13 +210,12 @@ export default function PDVPage() {
         const novoValorPago = clean(item.valor_pago) + valorAbatido;
         
         let novoStatus = 'pendente';
-        if (novoValorPago >= clean(item.valor_total)) {
+        if (novoValorPago >= clean(item.valor_total) - 0.01) {
             novoStatus = 'pago';
         } else if (novoValorPago > 0) {
             novoStatus = 'parcial';
         }
 
-        // Se o item for antigo e não recebeu nenhum abatimento nesta transação, pula para não fazer query inútil
         if (valorAbatido === 0 && !item.isNovo && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0) {
             continue;
         }
@@ -139,10 +225,11 @@ export default function PDVPage() {
         if (clean(pagamentos.dinheiro) > 0) formasStrArray.push("Dinheiro");
         if (clean(pagamentos.credito) > 0) formasStrArray.push("Cartão de Crédito");
         if (clean(pagamentos.debito) > 0) formasStrArray.push("Cartão de Débito");
+        if (clean(pagamentos.boleto) > 0) formasStrArray.push("Boleto");
         if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
         
         const registroParcial = {
-          data_recebimento: dataHoje,
+          data_recebimento: dataHojeStr,
           valor_pago_rodada: valorAbatido,
           formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso",
           desconto: acrescimos.desconto,
@@ -151,36 +238,34 @@ export default function PDVPage() {
 
         const historicoAntigo = Array.isArray(item.detalhes_metodos?.historico_parciais) ? item.detalhes_metodos.historico_parciais : [];
         const historico_parciais = valorAbatido > 0 || clean(acrescimos.desconto) > 0 
-            ? [...historicoAntigo, registroParcial] 
-            : historicoAntigo;
+          ? [...historicoAntigo, registroParcial] 
+          : historicoAntigo;
 
         const payloadMetodos = { ...pagamentos, historico_parciais };
 
-        if (item.isNovo) {
+        if (item.isNovo || item.isTemp || idString.startsWith('temp_')) {
           await supabase.from('historico_pagamentos').insert({
             aluno_id: alunoSelecionado.id,
-            tipo: item.tipo,
+            tipo: item.tipo || 'mensalidade',
             descricao: item.descricao,
-            mes_referencia: 'Avulso',
+            mes_referencia: item.mes_referencia || 'Avulso',
             valor_total: item.valor_total,
             valor_pago: novoValorPago,
             status: novoStatus,
-            data_pagamento: dataHoje,
+            data_pagamento: dataHojeStr,
             detalhes_metodos: payloadMetodos
           });
         } else {
           await supabase.from('historico_pagamentos').update({ 
             status: novoStatus, 
             valor_pago: novoValorPago,
-            data_pagamento: novoStatus === 'pago' ? dataHoje : item.data_pagamento, 
+            data_pagamento: novoStatus === 'pago' ? dataHojeStr : item.data_pagamento, 
             detalhes_metodos: payloadMetodos 
           }).eq('id', item.id);
         }
       }
 
-      // Atualiza a conta corrente do aluno (Abate crédito usado + Adiciona Troco apenas se escolhido)
       const trocoParaAdicionar = acaoTroco === 'credito' ? trocoGerado : 0;
-      
       if (creditoUtilizado > 0 || trocoParaAdicionar > 0) {
         const novoSaldo = saldoAtualAluno - creditoUtilizado + trocoParaAdicionar;
         await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', alunoSelecionado.id);
@@ -197,11 +282,34 @@ export default function PDVPage() {
     }
   };
 
+  const estornarPagamento = async (item: any) => {
+    if (prompt("Ação destrutiva. Digite a Senha Mestra para ESTORNAR:") !== SENHA_MESTRA) {
+      return alert("Senha incorreta.");
+    }
+    setProcessando(true);
+    try {
+      if (item.mes_referencia === 'Avulso' || item.id.startsWith('novo_')) {
+        await supabase.from('historico_pagamentos').delete().eq('id', item.id);
+      } else {
+        await supabase.from('historico_pagamentos').update({
+          status: 'pendente',
+          valor_pago: 0,
+          detalhes_metodos: {}
+        }).eq('id', item.id);
+      }
+      alert("Operação estornada com sucesso! Lembre-se de ajustar manualmente o saldo de crédito do aluno se houveram trocos envolvidos.");
+      await carregarDadosBase();
+    } catch (error: any) {
+      alert("Erro ao estornar: " + error.message);
+    }
+    setProcessando(false);
+  };
+
   const alunosFiltrados = buscaAluno === "" 
     ? alunos.slice(0, 5) 
     : alunos.filter(a => a.nome.toLowerCase().includes(buscaAluno.toLowerCase())).slice(0, 5);
 
-  if (carregando) return (
+  if (carregando && historicoGeral.length === 0) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -283,7 +391,7 @@ export default function PDVPage() {
                       <h3 className="font-bold text-slate-800">{alunoSelecionado.nome}</h3>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-md flex items-center gap-1 border border-emerald-200/50">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08-.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           Saldo: R$ {saldoAtualAluno.toFixed(2)}
                         </span>
                       </div>
@@ -299,99 +407,166 @@ export default function PDVPage() {
               )}
             </div>
 
-            {/* Bloco 2: Dívidas em Aberto */}
-            {alunoSelecionado && (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
-                 <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
-                  <span className="bg-rose-100 text-rose-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-rose-200">2</span> 
-                  Dívidas em Aberto
-                </h2>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                  {dividasAluno.length > 0 ? dividasAluno.map(div => {
-                    const devedor = clean(div.valor_total) - clean(div.valor_pago);
-                    const noCarrinho = carrinho.find(c => c.id === div.id);
-                    if (devedor <= 0) return null;
-                    
-                    return (
-                      <div key={div.id} className={`p-4 rounded-xl border flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 ${noCarrinho ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md'}`}>
-                        <div>
-                          <span className="block text-sm font-bold text-slate-800">{div.descricao}</span>
-                          <span className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            Venceu em: {new Date(div.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="font-bold text-rose-600">R$ {devedor.toFixed(2)}</span>
-                          <button 
-                            onClick={() => noCarrinho ? removerDoCarrinho(div.id) : adicionarAoCarrinho(div)}
-                            className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all ${noCarrinho ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 hover:bg-indigo-700' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-                          >
-                            {noCarrinho ? (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                            ) : (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div className="flex flex-col items-center justify-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      </div>
-                      <p className="text-sm text-slate-500 font-medium">O aluno não possui pendências.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Bloco 3: Lançamento Avulso Rápido */}
-            {alunoSelecionado && (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-6">
-                 <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
-                  <span className="bg-sky-100 text-sky-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-sky-200">3</span> 
-                  Venda Avulsa
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                  <select 
-                    value={novoItem.tipo} 
-                    onChange={(e) => setNovoItem({...novoItem, tipo: e.target.value})} 
-                    className="sm:col-span-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                  >
-                    <option value="uniforme">Uniforme</option>
-                    <option value="material">Material</option>
-                    <option value="evento">Evento</option>
-                    <option value="acordo">Outros</option>
-                  </select>
-                  <input 
-                    type="text" 
-                    placeholder="Descrição detalhada..." 
-                    value={novoItem.descricao} 
-                    onChange={(e) => setNovoItem({...novoItem, descricao: e.target.value})} 
-                    className="sm:col-span-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
-                  />
-                  <div className="sm:col-span-3 relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                    <input 
-                      type="number" step="0.01" min="0" 
-                      placeholder="0.00" 
-                      value={novoItem.valor} 
-                      onChange={(e) => setNovoItem({...novoItem, valor: e.target.value})} 
-                      className="w-full pl-10 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
-                    />
+            {/* Painéis Condicionais: Dash Diário x Dívidas do Aluno */}
+            {!alunoSelecionado ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-300">
+                {/* Vencimentos Hoje */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
+                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
+                      <span className="w-3 h-3 rounded-full bg-rose-500"></span>
+                      ⚠️ Vencem Hoje
+                  </h3>
+                  <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
+                      {vencimentosHoje.length > 0 ? vencimentosHoje.map(item => {
+                          const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Desconhecido";
+                          const restante = clean(item.valor_total) - clean(item.valor_pago);
+                          return (
+                              <div key={item.id} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-100 rounded-xl hover:border-slate-300 transition-colors">
+                                  <div className="overflow-hidden pr-2">
+                                      <span className="block text-xs font-bold text-slate-800 uppercase truncate">{nomeAluno}</span>
+                                      <span className="text-[10px] text-slate-500 uppercase block truncate">{item.descricao}</span>
+                                  </div>
+                                  <span className="font-bold text-rose-600 text-sm whitespace-nowrap">R$ {restante.toFixed(2)}</span>
+                              </div>
+                          );
+                      }) : (
+                          <div className="h-full flex flex-col items-center justify-center text-center opacity-60 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            <span className="text-4xl mb-2">🎉</span>
+                            <p className="text-xs text-slate-500 font-medium italic">Nenhum vencimento<br/>pendente hoje.</p>
+                          </div>
+                      )}
                   </div>
-                  <button 
-                    onClick={lancarItemAvulsoNoCarrinho} 
-                    className="sm:col-span-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Incluir
-                  </button>
+                </div>
+
+                {/* Recebimentos Hoje */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
+                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
+                      <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                      ✅ Caixa do Dia
+                  </h3>
+                  <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
+                      {recebimentosHoje.length > 0 ? recebimentosHoje.map(item => {
+                          const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Desconhecido";
+                          return (
+                              <div key={item.id} className="flex justify-between items-center p-3.5 bg-emerald-50/30 border border-emerald-100 rounded-xl hover:border-emerald-300 transition-colors">
+                                  <div className="overflow-hidden pr-2">
+                                      <span className="block text-xs font-bold text-emerald-900 uppercase truncate">{nomeAluno}</span>
+                                      <span className="text-[10px] text-slate-500 font-medium uppercase block truncate">{item.descricao}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 whitespace-nowrap">
+                                      <span className="font-bold text-emerald-600 text-sm">R$ {clean(item.valor_pago).toFixed(2)}</span>
+                                      <button 
+                                          onClick={() => estornarPagamento(item)}
+                                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                                          title="Estornar / Desfazer Lançamento"
+                                      >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                      </button>
+                                  </div>
+                              </div>
+                          );
+                      }) : (
+                          <div className="h-full flex flex-col items-center justify-center text-center opacity-60 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            <span className="text-4xl mb-2">💸</span>
+                            <p className="text-xs text-slate-500 font-medium italic">Nenhum recebimento<br/>registrado hoje.</p>
+                          </div>
+                      )}
+                  </div>
                 </div>
               </div>
+            ) : (
+              <>
+                {/* Bloco 2: Dívidas em Aberto do Aluno Selecionado */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
+                   <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
+                    <span className="bg-rose-100 text-rose-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-rose-200">2</span> 
+                    Dívidas em Aberto
+                  </h2>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                    {dividasAluno.length > 0 ? dividasAluno.map(div => {
+                      const devedor = clean(div.valor_total) - clean(div.valor_pago);
+                      const noCarrinho = carrinho.find(c => c.id === div.id);
+                      if (devedor <= 0) return null;
+                      
+                      return (
+                        <div key={div.id} className={`p-4 rounded-xl border flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 ${noCarrinho ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md'}`}>
+                          <div>
+                            <span className="block text-sm font-bold text-slate-800">{div.descricao}</span>
+                            <span className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                              Venceu em: {new Date(div.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-rose-600">R$ {devedor.toFixed(2)}</span>
+                            <button 
+                              onClick={() => noCarrinho ? removerDoCarrinho(div.id) : adicionarAoCarrinho(div)}
+                              className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all ${noCarrinho ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 hover:bg-indigo-700' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                            >
+                              {noCarrinho ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <div className="flex flex-col items-center justify-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium">O aluno não possui pendências.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bloco 3: Lançamento Avulso Rápido */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-6">
+                   <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
+                    <span className="bg-sky-100 text-sky-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-sky-200">3</span> 
+                    Venda Avulsa
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <select 
+                      value={novoItem.tipo} 
+                      onChange={(e) => setNovoItem({...novoItem, tipo: e.target.value})} 
+                      className="sm:col-span-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                    >
+                      <option value="uniforme">Uniforme</option>
+                      <option value="material">Material</option>
+                      <option value="evento">Evento</option>
+                      <option value="acordo">Outros</option>
+                    </select>
+                    <input 
+                      type="text" 
+                      placeholder="Descrição detalhada..." 
+                      value={novoItem.descricao} 
+                      onChange={(e) => setNovoItem({...novoItem, descricao: e.target.value})} 
+                      className="sm:col-span-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
+                    />
+                    <div className="sm:col-span-3 relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input 
+                        type="number" step="0.01" min="0" 
+                        placeholder="0.00" 
+                        value={novoItem.valor} 
+                        onChange={(e) => setNovoItem({...novoItem, valor: e.target.value})} 
+                        className="w-full pl-10 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
+                      />
+                    </div>
+                    <button 
+                      onClick={lancarItemAvulsoNoCarrinho} 
+                      className="sm:col-span-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      Incluir
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -479,25 +654,44 @@ export default function PDVPage() {
                 </div>
               </div>
 
-              {/* Formas de Pagamento Dinâmicas */}
+              {/* Formas de Pagamento Dinâmicas (Inputs Limpos e Sem Sobreposição) */}
               <div className="space-y-4 mb-8">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">Formas de Pagamento</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative group">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase group-focus-within:text-indigo-500 transition-colors">Pix</span>
-                    <input type="number" value={pagamentos.pix} onChange={e => setPagamentos({...pagamentos, pix: e.target.value})} className="w-full pl-11 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Pix</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input type="number" step="0.01" min="0" value={pagamentos.pix} onChange={e => setPagamentos({...pagamentos, pix: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                    </div>
                   </div>
-                  <div className="relative group">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase group-focus-within:text-indigo-500 transition-colors">Espécie</span>
-                    <input type="number" value={pagamentos.dinheiro} onChange={e => setPagamentos({...pagamentos, dinheiro: e.target.value})} className="w-full pl-16 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Espécie</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input type="number" step="0.01" min="0" value={pagamentos.dinheiro} onChange={e => setPagamentos({...pagamentos, dinheiro: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                    </div>
                   </div>
-                  <div className="relative group">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase group-focus-within:text-indigo-500 transition-colors">Crédito</span>
-                    <input type="number" value={pagamentos.credito} onChange={e => setPagamentos({...pagamentos, credito: e.target.value})} className="w-full pl-16 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cartão de Crédito</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input type="number" step="0.01" min="0" value={pagamentos.credito} onChange={e => setPagamentos({...pagamentos, credito: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                    </div>
                   </div>
-                  <div className="relative group">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold uppercase group-focus-within:text-indigo-500 transition-colors">Débito</span>
-                    <input type="number" value={pagamentos.debito} onChange={e => setPagamentos({...pagamentos, debito: e.target.value})} className="w-full pl-14 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cartão de Débito</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input type="number" step="0.01" min="0" value={pagamentos.debito} onChange={e => setPagamentos({...pagamentos, debito: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Boleto Bancário</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                      <input type="number" step="0.01" min="0" value={pagamentos.boleto} onChange={e => setPagamentos({...pagamentos, boleto: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                    </div>
                   </div>
                 </div>
 
@@ -509,13 +703,13 @@ export default function PDVPage() {
                     </div>
                     <div className="relative w-28 group">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600/50 font-bold text-sm">R$</span>
-                      <input type="number" placeholder="0.00" value={pagamentos.credito_aluno} onChange={e => setPagamentos({...pagamentos, credito_aluno: e.target.value})} className="w-full pl-8 py-2 bg-white border border-emerald-200 text-emerald-800 text-sm rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 font-bold transition-all shadow-sm" />
+                      <input type="number" step="0.01" min="0" placeholder="0.00" value={pagamentos.credito_aluno} onChange={e => setPagamentos({...pagamentos, credito_aluno: e.target.value})} className="w-full pl-8 py-2 bg-white border border-emerald-200 text-emerald-800 text-sm rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 font-bold transition-all shadow-sm" />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* OPÇÕES DE DESTINO DO TROCO (Aparece dinamicamente) */}
+              {/* OPÇÕES DE DESTINO DO TROCO */}
               {trocoGerado > 0 && (
                 <div className="mb-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm transition-all animate-in fade-in zoom-in-95">
                   <h4 className="text-xs font-bold text-emerald-800 uppercase mb-3 flex items-center gap-2">

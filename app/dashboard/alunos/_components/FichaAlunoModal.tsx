@@ -59,6 +59,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const [anoSelecionado, setAnoSelecionado] = useState("2026");
   const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("2026");
 
+  // --- ESTADO DO RELATÓRIO FINANCEIRO LOCAL AUTÔNOMO ---
+  const [historicoLocal, setHistoricoLocal] = useState<any[]>([]);
+
   // --- ESTADOS DO PDV INLINE (FRENTE DE CAIXA) ---
   const [modalPDVAberto, setModalPDVAberto] = useState(false);
   const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
@@ -74,6 +77,13 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
       buscarDadosAdicionais();
     }
   }, [aluno?.id, aluno?.saldo_credito]);
+
+  // Recarrega os dados locais se houver mudança de ano selecionado no painel
+  useEffect(() => {
+    if (aluno?.id) {
+      buscarDadosAdicionais();
+    }
+  }, [anoPagamentoSelecionado]);
 
   async function buscarDadosAdicionais() {
     const { data: avs } = await supabase.from('avaliacoes').select('participacao, comportamento, atividades, socioemocional').eq('aluno_id', aluno.id);
@@ -91,6 +101,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     const { data: historicoCompleto } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', aluno.id).order('data_pagamento', { ascending: false });
     
     if (historicoCompleto) {
+      setHistoricoLocal(historicoCompleto);
       let dividaCalculada = 0;
       let listaDívida = [];
       
@@ -144,58 +155,93 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
   }
 
-  // --- LÓGICA DE FRENTE DE CAIXA (PDV) CORRIGIDA ---
+  // --- LÓGICA DE FRENTE DE CAIXA (PDV) ---
   async function handleConfirmarPDV(dividasSelecionadas: any[]) {
-    // 1. LIMPEZA SEGURA DE VALORES (EVITA BUG DOS 6 MIL)
-    const clean = (val: any) => parseFloat(String(val).replace(/\./g, '').replace(',', '.') || "0") || 0;
+    const clean = (val: any) => parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0;
 
-    const somaDinheiro = clean(pagamentosMetodosPDV.pix) + clean(pagamentosMetodosPDV.dinheiro) + clean(pagamentosMetodosPDV.credito) + clean(pagamentosMetodosPDV.debito) + clean(pagamentosMetodosPDV.boleto);
+    const somaPaga = clean(pagamentosMetodosPDV.pix) + clean(pagamentosMetodosPDV.dinheiro) + clean(pagamentosMetodosPDV.credito) + clean(pagamentosMetodosPDV.debito) + clean(pagamentosMetodosPDV.boleto);
     const valorMulta = clean(pagamentosMetodosPDV.multa);
     const valorDesconto = clean(pagamentosMetodosPDV.desconto);
     const creditoUtilizado = clean(pagamentosMetodosPDV.credito_aluno);
     
-    // A soma final que realmente entra no caixa é dinheiro + o que foi abatido do crédito
-    const valorPagoFinal = somaDinheiro + creditoUtilizado; 
-    
-    // A soma das dívidas deve considerar multas e descontos
-    const totalDividasBruto = dividasSelecionadas.reduce((acc, d) => acc + (clean(d.valor_total) - clean(d.valor_pago)), 0);
-    const totalDividasAjustado = totalDividasBruto + valorMulta - valorDesconto;
+    const valorPagoFinal = somaPaga + creditoUtilizado;
+    const totalDividas = dividasSelecionadas.reduce((acc, d) => acc + (clean(d.valor_total) - clean(d.valor_pago)), 0);
+    const totalDividasAjustado = totalDividas + valorMulta - valorDesconto;
 
     if (valorPagoFinal + 0.01 < totalDividasAjustado) {
-      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Desmarque algo no carrinho ou faça baixas individuais.");
     }
 
     if (creditoUtilizado > saldoCreditoVisivel) {
-      return alert("O aluno não possui crédito suficiente para abater.");
+      return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
     }
 
-    // Processa a quitação das selecionadas blindado contra falha de tipagem
+    let saldoParaDistribuir = valorPagoFinal + valorDesconto - valorMulta;
+    let trocoGlobal = 0;
+
     for (const div of dividasSelecionadas) {
-      if (String(div.id || "").startsWith('temp_')) {
+      const idString = String(div.id || "");
+      const valorOriginalTotal = clean(div.valor_total);
+      const valorJaPago = clean(div.valor_pago);
+      const restanteDestaDivida = valorOriginalTotal - valorJaPago;
+
+      if (restanteDestaDivida <= 0) continue;
+
+      const valorAbatido = Math.min(restanteDestaDivida, saldoParaDistribuir);
+      saldoParaDistribuir -= valorAbatido;
+
+      const novoValorPago = valorJaPago + valorAbatido;
+      const novoStatus = novoValorPago >= valorOriginalTotal ? 'pago' : 'parcial';
+
+      const formasStrArray = [];
+      if (clean(pagamentosMetodosPDV.pix) > 0) formasStrArray.push("Pix");
+      if (clean(pagamentosMetodosPDV.dinheiro) > 0) formasStrArray.push("Dinheiro");
+      if (clean(pagamentosMetodosPDV.credito) > 0) formasStrArray.push("Cartão");
+      if (clean(pagamentosMetodosPDV.boleto) > 0) formasStrArray.push("Boleto");
+      if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
+      const formaPagamentoTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso";
+
+      const historicoAntigo = Array.isArray(div.detalhes_metodos?.historico_parciais) ? div.detalhes_metodos.historico_parciais : [];
+      const novoHistoricoParcial = [...historicoAntigo, {
+        data_recebimento: dataPagamentoPDV,
+        valor_pago_rodada: valorAbatido,
+        formas: formaPagamentoTexto,
+        desconto: valorDesconto,
+        multa: valorMulta
+      }];
+
+      const jsonMetodos = {
+        ...pagamentosMetodosPDV,
+        historico_parciais: novoHistoricoParcial
+      };
+
+      if (idString.startsWith('temp_')) {
         await supabase.from('historico_pagamentos').insert({
           aluno_id: aluno.id,
           tipo: 'mensalidade',
           descricao: div.descricao,
           mes_referencia: div.mes_referencia,
-          valor_total: div.valor_total,
-          valor_pago: div.valor_total,
-          status: 'pago',
+          valor_total: valorOriginalTotal,
+          valor_pago: novoValorPago,
+          status: novoStatus,
           data_pagamento: dataPagamentoPDV,
-          detalhes_metodos: pagamentosMetodosPDV
+          detalhes_metodos: jsonMetodos
         });
       } else {
         await supabase.from('historico_pagamentos').update({ 
-          status: 'pago', 
-          valor_pago: div.valor_total,
-          data_pagamento: dataPagamentoPDV,
-          detalhes_metodos: pagamentosMetodosPDV 
+          status: novoStatus, 
+          valor_pago: novoValorPago,
+          data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : div.data_pagamento, 
+          detalhes_metodos: jsonMetodos 
         }).eq('id', div.id);
       }
     }
 
-    // Lógica de Crédito: Abatimento e Troco
-    const troco = valorPagoFinal - totalDividasAjustado;
-    const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + (troco > 0 ? troco : 0);
+    if (saldoParaDistribuir > 0) {
+      trocoGlobal = saldoParaDistribuir;
+    }
+
+    const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + trocoGlobal;
 
     if (novoSaldoCredito !== saldoCreditoVisivel) {
       await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', aluno.id);
@@ -271,7 +317,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   const extrairFormaPagamento = (detalhes: any) => {
     if (!detalhes) return null;
-    const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0);
+    const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais');
     return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
   };
 
@@ -286,6 +332,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
   const EstiloDado: React.CSSProperties = { fontSize: '14px', color: '#1e293b', fontWeight: '600', margin: 0 };
   const EstiloCard: React.CSSProperties = { backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' };
+
+  // Filtro dinâmico local do histórico para garantir integridade visual
+  const historicoFiltrado = historicoLocal.filter(h => h.data_pagamento && h.data_pagamento.startsWith(anoPagamentoSelecionado));
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
@@ -378,6 +427,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
+          // TELA DE CRÉDITO DETALHADA COM EDIÇÃO
           ) : verCreditoGlobal ? (
             <div style={{ width: '100%', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -426,6 +476,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
+          // TELA PRINCIPAL (FICHA)
           ) : !verHistorico && !verBoletim ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
@@ -546,6 +597,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
             </div>
 
+          // BOLETIM COMPLETO 
           ) : verBoletim ? (
             <div style={{ width: '100%', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
@@ -655,34 +707,85 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {historico.length > 0 ? historico.map((pgto: any, i: number) => {
+                {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
                   const forma = extrairFormaPagamento(pgto.detalhes_metodos);
                   const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
                   const devedorRestante = (parseFloat(pgto.valor_total) || 0) - (parseFloat(pgto.valor_pago || pgto.valor_total) || 0);
                   
                   return (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>{pgto.descricao}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>{new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                          {forma && <span style={{ fontSize: '9px', fontWeight: '800', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>{forma}</span>}
-                        </div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>R$ {parseFloat(pgto.valor_pago || pgto.valor_total || 0).toFixed(2)}</span>
-                          {devedorRestante > 0 && <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626' }}>Falta: R$ {devedorRestante.toFixed(2)}</span>}
-                        </div>
-
-                        {podeGerenciar && (
-                          <div style={{ display: 'flex', gap: '4px', borderLeft: '1px solid #cbd5e1', paddingLeft: '8px' }}>
-                            <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) { if (onEditarPagamento) onEditarPagamento(pgto); } else alert("Senha incorreta."); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Editar">✏️</button>
-                            <button onClick={() => { if (prompt("Digite a Senha Mestra para EXCLUIR:") === SENHA_MESTRA) { if(confirm("Deseja realmente excluir este registro?")) { if (onExcluirPagamento) onExcluirPagamento(pgto.id); } } else alert("Senha incorreta."); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Excluir">🗑️</button>
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>{pgto.descricao}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>🗓️ Venda/Lançamento: {new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                            {forma && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#0369a1', marginTop: '2px' }}>💳 Método Principal: {forma}</span>}
                           </div>
-                        )}
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Valor Original: R$ {(parseFloat(pgto.valor_total) || 0).toFixed(2)}</span>
+                            <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>Valor Pago: R$ {parseFloat(pgto.valor_pago || 0).toFixed(2)}</span>
+                            {devedorRestante > 0 && <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626' }}>Saldo Devedor: R$ {devedorRestante.toFixed(2)}</span>}
+                          </div>
+
+                          {podeGerenciar && (
+                            <div style={{ display: 'flex', gap: '6px', borderLeft: '1px solid #cbd5e1', paddingLeft: '8px', alignItems: 'center' }}>
+                              <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) { if (onEditarPagamento) onEditarPagamento(pgto); } else alert("Senha incorreta."); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Editar">✏️</button>
+                              
+                              {/* MECANISMO ADMINISTRATIVO DE ESTORNO AUTÔNOMO */}
+                              <button onClick={async () => {
+                                if (prompt("Digite a Senha Mestra para DESFAZER/ESTORNAR este faturamento:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+                                if (confirm("Deseja realmente estornar esta transação? O faturamento voltará ao status pendente e os valores pagos serão zerados.")) {
+                                  const { error } = await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', pgto.id);
+                                  if (!error) {
+                                    alert("Pagamento desfeito e faturamento resetado com sucesso!");
+                                    buscarDadosAdicionais();
+                                  } else {
+                                    alert("Erro operacional ao estornar: " + error.message);
+                                  }
+                                }
+                              }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Desfazer Lançamento/Estornar">🔄</button>
+                              
+                              {/* MECANISMO ADMINISTRATIVO DE EXCLUSÃO DIRETA NO BANCO */}
+                              <button onClick={async () => {
+                                if (prompt("Digite a Senha Mestra para EXCLUIR REGISTRO PERMANENTEMENTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+                                if(confirm("Deseja realmente deletar este faturamento para sempre da base do Supabase? Essa ação não pode ser desfeita.")) {
+                                  const { error } = await supabase.from('historico_pagamentos').delete().eq('id', pgto.id);
+                                  if (!error) {
+                                    alert("Registro deletado permanentemente!");
+                                    buscarDadosAdicionais();
+                                  } else {
+                                    alert("Erro ao excluir: " + error.message);
+                                  }
+                                }
+                              }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Excluir Permanentemente">🗑️</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
+
+                      {/* SUB-LEDGER / PARCIAIS DETALHADAS */}
+                      {pgto.detalhes_metodos?.historico_parciais && pgto.detalhes_metodos.historico_parciais.length > 0 && (
+                        <div style={{ marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Histórico de Recebimentos:</span>
+                          {pgto.detalhes_metodos.historico_parciais.map((parcial: any, idx: number) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569', backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                              <span>📅 Pago em: {new Date(parcial.data_recebimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})} • 💳 Canal: {parcial.formas}</span>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                {(parseFloat(parcial.desconto) > 0 || parseFloat(parcial.multa) > 0) && (
+                                  <span style={{ color: '#94a3b8', fontSize: '9px' }}>
+                                    {parseFloat(parcial.desconto) > 0 ? `(- R$ ${parseFloat(parcial.desconto).toFixed(2)})` : ''} 
+                                    {parseFloat(parcial.multa) > 0 ? `(+ R$ ${parseFloat(parcial.multa).toFixed(2)})` : ''}
+                                  </span>
+                                )}
+                                <span style={{ fontWeight: 'bold', color: '#16a34a' }}>+ R$ {parseFloat(parcial.valor_pago_rodada).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 }) : <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', margin: 0, textAlign: 'center' }}>Nenhum pagamento referenciado para este ano.</p>}
@@ -702,6 +805,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         </div>
       </div>
 
+      {/* RENDERIZAÇÃO DO MODAL DE CAIXA (PDV) POR CIMA DA FICHA */}
       <ModalPagamento 
         aberto={modalPDVAberto} onFechar={() => setModalPDVAberto(false)}
         aluno={aluno} dataPagamento={dataPagamentoPDV} setDataPagamento={setDataPagamentoPDV}

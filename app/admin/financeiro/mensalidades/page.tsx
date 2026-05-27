@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 // Importação dos Componentes e Modais da pasta original
 import { TabelaMensalidades } from "@/app/dashboard/financeiro/_components/TabelaMensalidades";
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
+
+// Auxiliar de conversão financeira blindada (Padrão do Sistema)
+const clean = (val: any) => parseFloat(String(val).replace(',', '.')) || 0;
 
 export default function MensalidadesPage() {
   const router = useRouter();
@@ -112,12 +115,12 @@ export default function MensalidadesPage() {
               valorTotalDevido += valorParcelaAcordo;
               nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
           } else if (temAcordoNoMes) {
-              nomeTags.push(`✅ Acordo Pago`); // Tag puramente visual pra saber que tem acordo mas já pagaram
+              nomeTags.push(`✅ Acordo Pago`); // Tag puramente visual
           }
 
           let nomeExibicao = nomeTags.length > 0 ? `${aluno.nome} (${nomeTags.join(' | ')})` : aluno.nome;
 
-          // CONSOLIDAÇÃO DO STATUS GERAL DO ALUNO NO MÊS
+          // CONSOLIDAÇÃO DO STATUS GERAL
           let statusFinal = 'pendente';
           if (!isMensalidadePendente && !isAcordoPendente) {
                statusFinal = 'pago';
@@ -128,14 +131,14 @@ export default function MensalidadesPage() {
           return {
             ...aluno,
             status: statusFinal,
-            valor: valorTotalDevido > 0 ? valorTotalDevido : valorBaseMensalidade, // Exibe a SOMA, se zerar exibe o base.
+            valor: valorTotalDevido > 0 ? valorTotalDevido : valorBaseMensalidade,
             nome: nomeExibicao,
             isAcordo: isAcordoPendente, 
             idPagamentoAcordo: idPagamentoAcordo,
             isMensalidadePendente: isMensalidadePendente,
             valorBaseMensalidade,
             valorParcelaAcordo,
-            temAcordoNoMes // Utilizado para o Desfazer
+            temAcordoNoMes
           };
         }).sort((a, b) => (a.status === 'pago' ? 1 : 0) - (b.status === 'pago' ? 1 : 0) || (parseInt(a.vencimento) || 0) - (parseInt(b.vencimento) || 0));
         
@@ -148,7 +151,7 @@ export default function MensalidadesPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, valorPadrao, verificandoAcesso]);
 
-  // ================= LÓGICA FINANCEIRA =================
+  // ================= LÓGICA FINANCEIRA INTEGRADA E INTELIGENTE =================
   async function confirmarPagamento() {
     // --- LÓGICA 1: GERAÇÃO INICIAL DO ACORDO (Mantida Intacta) ---
     if (tipoPagamento === "acordo") {
@@ -183,7 +186,7 @@ export default function MensalidadesPage() {
       return alert(`Acordo gerado: ${qtdParcelas} parcelas na Dívida Ativa.`);
     }
 
-    // --- LÓGICA 2: RECEBIMENTO FINANCEIRO (Pix, Dinheiro, Cartão...) ---
+    // --- LÓGICA 2: RECEBIMENTO FINANCEIRO (Integração Total com PDV/Ficha) ---
     const metodosLimpos: any = {};
     for (const [key, value] of Object.entries(pagamentosMetodos)) {
       if (value !== "" && value !== "0" && value !== null) {
@@ -197,18 +200,31 @@ export default function MensalidadesPage() {
       metodosLimpos.parcelas = "1";
     }
 
-    const valoresRecebidos = [ pagamentosMetodos.pix, pagamentosMetodos.dinheiro, pagamentosMetodos.credito, pagamentosMetodos.debito, pagamentosMetodos.boleto ];
-    const somaPaga = valoresRecebidos.reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
+    const dinheiroPix = clean(pagamentosMetodos.pix) + clean((pagamentosMetodos as any).pix_editora);
+    const dinheiroEspecie = clean(pagamentosMetodos.dinheiro);
+    const dinheiroCartao = clean(pagamentosMetodos.credito) + clean(pagamentosMetodos.debito) + clean((pagamentosMetodos as any).credito_editora) + clean((pagamentosMetodos as any).debito_editora);
+    const dinheiroBoleto = clean(pagamentosMetodos.boleto);
+
+    const somaPaga = dinheiroPix + dinheiroEspecie + dinheiroCartao + dinheiroBoleto;
+    const valorMulta = clean(pagamentosMetodos.multa);
+    const valorDesconto = clean(pagamentosMetodos.desconto);
+    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno);
     
-    const valorMulta = parseFloat(pagamentosMetodos.multa || "0");
-    const valorDesconto = parseFloat(pagamentosMetodos.desconto || "0");
-    const creditoUtilizado = parseFloat(pagamentosMetodos.credito_aluno || "0");
     const valorPagoFinal = somaPaga + creditoUtilizado;
 
-    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
+    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor financeiro válido.");
 
     const saldoDisponivel = parseFloat(alunoSelecionado?.saldo_credito || 0);
     if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
+
+    // Geração do Sub-ledger (Para aparecer na Ficha do Aluno perfeitamente)
+    const formasStrArray = [];
+    if (dinheiroPix > 0) formasStrArray.push("Pix");
+    if (dinheiroEspecie > 0) formasStrArray.push("Dinheiro");
+    if (dinheiroCartao > 0) formasStrArray.push("Cartão");
+    if (dinheiroBoleto > 0) formasStrArray.push("Boleto");
+    if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
+    const formaPagamentoTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Desconto";
 
     // VALIDAÇÃO DE DIVIDA EM COMBO (Mensalidade + Acordo)
     const isMensal = alunoSelecionado.isMensalidadePendente;
@@ -217,7 +233,6 @@ export default function MensalidadesPage() {
     let dividaMensalDB = isMensal ? alunoSelecionado.valorBaseMensalidade : 0;
     let dividaAcordoDB = isAcordo ? alunoSelecionado.valorParcelaAcordo : 0;
 
-    // Se tiver os dois, a multa/desconto aplica na Mensalidade para fechar a matemática do BD. Se só tiver acordo, aplica no acordo.
     if (isMensal) {
          dividaMensalDB = Math.max(0, (dividaMensalDB + valorMulta) - valorDesconto);
     } else if (isAcordo) {
@@ -227,19 +242,30 @@ export default function MensalidadesPage() {
     }
 
     const dividaReal = dividaAcordoDB + dividaMensalDB;
-    let creditoGerado = Math.max(0, valorPagoFinal - dividaReal);
-    let saldoParaDistribuir = valorPagoFinal;
+    let saldoParaDistribuir = valorPagoFinal + valorDesconto - valorMulta;
+    let trocoGlobal = 0;
 
     // 1. DÁ BAIXA NA PARCELA DO ACORDO
     if (isAcordo && alunoSelecionado.idPagamentoAcordo) {
          let valorAplicadoAcordo = Math.min(saldoParaDistribuir, dividaAcordoDB);
          saldoParaDistribuir -= valorAplicadoAcordo;
 
+         const registroParcial = {
+            data_recebimento: dataPagamento,
+            valor_pago_rodada: valorAplicadoAcordo,
+            formas: formaPagamentoTexto,
+            desconto: valorDesconto,
+            multa: valorMulta
+         };
+
+         // Como estamos recebendo direto pela Mensalidades, o histórico parcial se baseia na transação corrente
+         const metodosComSubLedger = { ...metodosLimpos, historico_parciais: [registroParcial] };
+
          await supabase.from('historico_pagamentos').update({
               valor_pago: valorAplicadoAcordo,
               status: valorAplicadoAcordo >= dividaAcordoDB ? 'pago' : (valorAplicadoAcordo > 0 ? 'parcial' : 'pendente'),
               data_pagamento: dataPagamento,
-              detalhes_metodos: metodosLimpos
+              detalhes_metodos: metodosComSubLedger
          }).eq('id', alunoSelecionado.idPagamentoAcordo);
     }
 
@@ -247,8 +273,18 @@ export default function MensalidadesPage() {
     if (isMensal || (!isMensal && !isAcordo)) {
          let valorAplicadoMensal = Math.min(saldoParaDistribuir, dividaMensalDB);
          saldoParaDistribuir -= valorAplicadoMensal;
+         
+         const registroParcial = {
+            data_recebimento: dataPagamento,
+            valor_pago_rodada: valorAplicadoMensal,
+            formas: formaPagamentoTexto,
+            desconto: valorDesconto,
+            multa: valorMulta
+         };
+
          const statusMensalObj = valorAplicadoMensal >= dividaMensalDB ? 'pago' : (valorAplicadoMensal > 0 ? 'parcial' : 'pendente');
          const descRef = `Mensalidade - ${mesReferencia}/${mesFiltro.split('-')[0]}`;
+         const metodosComSubLedger = { ...metodosLimpos, historico_parciais: [registroParcial] };
          
          const dados = {
               aluno_id: alunoSelecionado.id,
@@ -259,7 +295,7 @@ export default function MensalidadesPage() {
               valor_pago: valorAplicadoMensal,
               status: statusMensalObj,
               data_pagamento: dataPagamento,
-              detalhes_metodos: metodosLimpos
+              detalhes_metodos: metodosComSubLedger
          };
 
          await supabase.from('historico_pagamentos').insert([dados]);
@@ -268,9 +304,13 @@ export default function MensalidadesPage() {
          await supabase.from('alunos').update({ status: valorPagoFinal >= dividaReal ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
     }
 
-    // Saldo do Cliente
-    if (creditoGerado > 0 || creditoUtilizado > 0) {
-      const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
+    if (saldoParaDistribuir > 0) {
+        trocoGlobal = saldoParaDistribuir;
+    }
+
+    // Saldo do Cliente (Adiciona troco e subtrai o que foi usado)
+    if (trocoGlobal > 0 || creditoUtilizado > 0) {
+      const novoSaldoCredito = saldoDisponivel - creditoUtilizado + trocoGlobal;
       await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
     }
 
@@ -310,17 +350,17 @@ export default function MensalidadesPage() {
   // === CÁLCULO REATIVO DO VALOR TOTAL PARA O BANNER FLUTUANTE ===
   let valorTotalCalculado = 0;
   if (modalPgtoAberto && alunoSelecionado) {
-       const valMensal = alunoSelecionado.isMensalidadePendente ? (parseFloat(alunoSelecionado.valorBaseMensalidade) || valorPadrao) : 0;
-       const valAcordo = alunoSelecionado.isAcordo ? parseFloat(alunoSelecionado.valorParcelaAcordo) : 0;
-       const valMulta = parseFloat(pagamentosMetodos.multa || "0");
-       const valDesconto = parseFloat(pagamentosMetodos.desconto || "0");
+       const valMensal = alunoSelecionado.isMensalidadePendente ? (clean(alunoSelecionado.valorBaseMensalidade) || valorPadrao) : 0;
+       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorParcelaAcordo) : 0;
+       const valMulta = clean(pagamentosMetodos.multa);
+       const valDesconto = clean(pagamentosMetodos.desconto);
        valorTotalCalculado = Math.max(0, (valMensal + valAcordo + valMulta) - valDesconto);
   }
 
   return (
     <div className="w-full bg-slate-50 min-h-screen p-4 md:p-8 font-sans antialiased text-slate-800 pb-24 md:pb-8 relative">
       
-      {/* ================= BANNER DE TOTAL A RECEBER (Não afeta o Modal!) ================= */}
+      {/* ================= BANNER DE TOTAL A RECEBER ================= */}
       {modalPgtoAberto && (
           <div className="fixed top-6 right-6 z-[9999] bg-green-500 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-white animate-pulse flex flex-col items-end pointer-events-none transition-all">
               <span className="text-xs uppercase tracking-wider font-bold opacity-80">Valor Total a Receber</span>
@@ -362,7 +402,6 @@ export default function MensalidadesPage() {
             onPagamento={(a) => {
               setAlunoSelecionado(a);
               
-              // Já envia o valor SOMA (Mensalidade + Acordo) direto pro campo do PIX no Modal
               setPagamentosMetodos({ 
                 pix: a.valor.toString(), dinheiro: "", credito: "", debito: "", boleto: "", 
                 multa: "", desconto: "", parcelas: "1", credito_aluno: "",
@@ -385,7 +424,6 @@ export default function MensalidadesPage() {
               const nomeMesRef = mesesAno[parseInt(mes) - 1];
 
               if (alunoObj?.temAcordoNoMes && !alunoObj?.isMensalidadePendente) {
-                   // O aluno tem Acordo E a Mensalidade paga no mês, pergunta o que quer desfazer.
                    const opcao = prompt("ATENÇÃO: Esse aluno possui Mensalidade E Acordo pagos.\nDigite [ 1 ] para desfazer a MENSALIDADE.\nDigite [ 2 ] para desfazer o ACORDO.");
                    if (opcao === '1') {
                         await supabase.from('alunos').update({ status: 'pendente' }).eq('id', idAlunoSelecionado);
