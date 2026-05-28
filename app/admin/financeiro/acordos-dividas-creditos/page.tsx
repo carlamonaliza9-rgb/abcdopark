@@ -12,8 +12,11 @@ import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPaga
 
 // --- VARIÁVEIS GLOBAIS ---
 const clean = (val: any) => {
-  if (!val || val === "") return 0;
-  return parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0;
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).trim();
+  if (str.includes(',')) return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  return parseFloat(str) || 0;
 };
 const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const SENHA_MESTRA = "1234";
@@ -280,12 +283,11 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     const correspondeTurma = filtroTurma === "" || aluno.turma === filtroTurma;
     return correspondeNome && correspondeTurma;
   });
-  const historicoAlunoSelecionado = alunoSelecionado ? listaReceitasDetalhada.filter(h => h.aluno_id === alunoSelecionado.id) : [];
 
   let valorTotalCalculado = 0;
   if (modalPgtoAberto && alunoSelecionado) {
        const valMensal = alunoSelecionado.isMensalidadePendente ? (clean(alunoSelecionado.valorBaseMensalidade) || valorPadrao) : 0;
-       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorParcelaAcordo) : 0;
+       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorDevedorAcordo) : 0;
        const valMulta = clean(pagamentosMetodos.multa);
        const valDesconto = clean(pagamentosMetodos.desconto);
        valorTotalCalculado = Math.max(0, (valMensal + valAcordo + valMulta) - valDesconto);
@@ -381,7 +383,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
         descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
         pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
         onConfirmar={confirmarPagamento} editando={false} 
-        historicoGeral={historicoAlunoSelecionado}
       />
     </div>
   );
@@ -405,14 +406,14 @@ function VisaoSaldosCreditos() {
   const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" });
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
   async function carregarDados() {
     setCarregando(true);
     try {
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
-      const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial']);
+      const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
 
       const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
 
@@ -501,25 +502,66 @@ function VisaoSaldosCreditos() {
     doc.save(`Extrato_${alunoAgrupado.nome.replace(/\s+/g, '_')}.pdf`);
   }
 
+  // --- LÓGICA DE PAGAMENTO CORRIGIDA E SINCRO COM MODAL (MATEMÁTICA BLINDADA) ---
   async function confirmarPagamento() {
-    const somaPaga = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    if (somaPaga <= 0) return alert("Insira um valor.");
+    // Captura estritamente os canais de recebimento reais e válidos
+    const dinheiroPix = clean(pagamentosMetodos.pix);
+    const dinheiroEspecie = clean(pagamentosMetodos.dinheiro);
+    const dinheiroCreditoMaquininha = clean(pagamentosMetodos.credito);
+    const dinheiroDebito = clean(pagamentosMetodos.debito);
+    const dinheiroBoleto = clean((pagamentosMetodos as any).boleto);
 
-    const creditoUtilizado = parseFloat((pagamentosMetodos as any).credito || 0);
-    const saldoDisponivel = parseFloat(alunoSelecionado?.saldo_credito || 0);
+    const somaPaga = dinheiroPix + dinheiroEspecie + dinheiroCreditoMaquininha + dinheiroDebito + dinheiroBoleto;
+    
+    const valorMulta = clean(pagamentosMetodos.multa);
+    const valorDesconto = clean(pagamentosMetodos.desconto);
+    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno); 
+    
+    const valorPagoFinal = somaPaga + creditoUtilizado;
 
+    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
+
+    const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
     if (creditoUtilizado > saldoDisponivel) return alert("O aluno não possui esse saldo de crédito disponível.");
 
     const existente = listaSaldosDevedores.find(r => r.id === idPagamentoEdicao);
-    const valorOriginalDivida = parseFloat(existente?.valor_total) || 0;
-    const jaPagoAnteriormente = parseFloat(existente?.valor_pago || 0);
-    const novoTotalPagoAcumulado = jaPagoAnteriormente + somaPaga;
-    let status = novoTotalPagoAcumulado >= valorOriginalDivida ? "pago" : "parcial";
+    const valorOriginalDivida = clean(existente?.valor_total);
+    const jaPagoAnteriormente = clean(existente?.valor_pago);
+    const devedorRestanteLíquido = valorOriginalDivida - jaPagoAnteriormente;
 
-    let creditoGerado = novoTotalPagoAcumulado > valorOriginalDivida ? novoTotalPagoAcumulado - valorOriginalDivida : 0;
-    const dados = { valor_pago: Math.min(novoTotalPagoAcumulado, valorOriginalDivida), status: status, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
+    const valorAbaterDestaVez = Math.min(valorPagoFinal + valorDesconto - valorMulta, devedorRestanteLíquido);
+    const novoTotalPagoAcumulado = jaPagoAnteriormente + valorAbaterDestaVez;
+    
+    let status = novoTotalPagoAcumulado >= valorOriginalDivida - 0.01 ? "pago" : "parcial";
+    let creditoGerado = (valorPagoFinal + valorDesconto - valorMulta) > devedorRestanteLíquido ? (valorPagoFinal + valorDesconto - valorMulta) - devedorRestanteLíquido : 0;
 
-    await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
+    // Gerador de Histórico Parcial (Sub-ledger) para auditorias
+    const formasStrArray = [];
+    if (dinheiroPix > 0) formasStrArray.push("Pix");
+    if (dinheiroEspecie > 0) formasStrArray.push("Dinheiro");
+    if (dinheiroCreditoMaquininha > 0) formasStrArray.push("Cartão Créd.");
+    if (dinheiroDebito > 0) formasStrArray.push("Cartão Déb.");
+    if (dinheiroBoleto > 0) formasStrArray.push("Boleto");
+    if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
+    const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste";
+
+    const historicoAntigo = Array.isArray(existente?.detalhes_metodos?.historico_parciais) ? existente.detalhes_metodos.historico_parciais : [];
+    const novoHistoricoParcial = [...historicoAntigo, {
+      data_recebimento: dataPagamento,
+      valor_pago_rodada: valorAbaterDestaVez,
+      formas: formaTexto,
+      desconto: valorDesconto,
+      multa: valorMulta
+    }];
+
+    const jsonMetodos = { ...pagamentosMetodos, historico_parciais: novoHistoricoParcial };
+
+    await supabase.from('historico_pagamentos').update({ 
+      valor_pago: novoTotalPagoAcumulado, 
+      status: status, 
+      data_pagamento: dataPagamento, 
+      detalhes_metodos: jsonMetodos 
+    }).eq('id', idPagamentoEdicao);
 
     const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
     if (novoSaldoCredito !== saldoDisponivel) {
@@ -532,19 +574,21 @@ function VisaoSaldosCreditos() {
 
     setModalPgtoAberto(false); 
     carregarDados();
+    alert("Amortização registrada com sucesso!");
   }
 
   if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Sincronizando auditoria de saldos...</div>;
 
   const alunosConsolidados = alunos.map(aluno => {
-    const credito = parseFloat(aluno.saldo_credito || 0);
+    const credito = clean(aluno.saldo_credito);
     const dividasDoAluno = listaSaldosDevedores.filter(p => p.aluno_id === aluno.id);
     
     const listaDividasFormatadas = dividasDoAluno.map(d => ({
-      id: d.id, tipo: d.tipo, descricao: d.descricao, valorTotal: parseFloat(d.valor_total) || 0, valorPago: parseFloat(d.valor_pago || 0),
-      valorRestante: (parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago || 0)),
+      id: d.id, tipo: d.tipo, descricao: d.descricao, valorTotal: clean(d.valor_total), valorPago: clean(d.valor_pago),
+      valorRestante: clean(d.valor_total) - clean(d.valor_pago),
       dataPagamento: d.data_pagamento ? new Date(d.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--',
-      dataCriacao: d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : (d.data_pagamento ? new Date(d.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--')
+      dataCriacao: d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : (d.data_pagamento ? new Date(d.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--'),
+      detalhes_metodos: d.detalhes_metodos
     })).filter(d => d.valorRestante > 0);
 
     const totalDevido = listaDividasFormatadas.reduce((acc, curr) => acc + curr.valorRestante, 0);
@@ -650,17 +694,21 @@ function VisaoSaldosCreditos() {
                                     <button
                                       onClick={() => {
                                         setAlunoSelecionado(item.alunoRaw); setIdPagamentoEdicao(div.id); setTipoPagamento(div.tipo || "mensalidade"); setDescricaoOutro(div.descricao);
-                                        setPagamentosMetodos({ pix: div.valorRestante.toFixed(2), dinheiro: "", credito: "", debito: "", multa: "" }); setModalPgtoAberto(true);
+                                        setPagamentosMetodos({ pix: div.valorRestante.toFixed(2), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" }); setModalPgtoAberto(true);
                                       }}
                                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-all"
-                                    >🟢 + PGTO</button>
+                                    >
+                                      🟢 + PGTO
+                                    </button>
                                     <button
                                       onClick={() => {
                                         const msg = `Olá! Passando para lembrar que consta pendência ativa no sistema da Escola ABC do Park para o aluno *${item.nome}* referente a *${div.descricao}*.\n\n• *Valor Restante:* R$ ${div.valorRestante.toFixed(2)}\n\nCaso já tenha efetuado o pagamento, por favor, envie o comprovante por aqui. Obrigado! ✨`;
                                         window.open(`https://wa.me/55${item.alunoRaw.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
                                       }}
                                       className="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-all"
-                                    >💬 COBRAR</button>
+                                    >
+                                      💬 COBRAR
+                                    </button>
                                   </div>
                                 </div>
                               ))}
@@ -680,7 +728,7 @@ function VisaoSaldosCreditos() {
       </div>
 
       <ModalPagamento 
-        aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
+        aberto={modalPgtoAberto} onFechar={() => { setModalPgtoAberto(false); setIdPagamentoEdicao(null); }}
         aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
         tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento} mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno}
         descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}

@@ -3,9 +3,17 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Auxiliar de conversão financeira blindada
-const clean = (val: any) => parseFloat(String(val).replace(/\./g, '').replace(',', '.') || "0") || 0;
+const clean = (val: any) => {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).trim();
+  if (str.includes(',')) return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  return parseFloat(str) || 0;
+};
 
 export default function PDVPage() {
   const router = useRouter();
@@ -24,6 +32,7 @@ export default function PDVPage() {
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   const [dividasAluno, setDividasAluno] = useState<any[]>([]);
   const [carrinho, setCarrinho] = useState<any[]>([]);
+  const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
   
   // Estados de Nova Venda Avulsa
   const [novoItem, setNovoItem] = useState({ tipo: 'uniforme', descricao: '', valor: '' });
@@ -49,7 +58,6 @@ export default function PDVPage() {
     
     const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome');
     
-    // Busca ampla para o Dashboard Diário (incluindo 'vencido' por segurança)
     const { data: historico } = await supabase
       .from('historico_pagamentos')
       .select('*')
@@ -70,11 +78,9 @@ export default function PDVPage() {
     setCarregando(false);
   }
 
-  // BUSCA BLINDADA DE PENDÊNCIAS QUANDO SELECIONA O ALUNO (O RAIO-X COMPLETO)
   useEffect(() => {
     if (alunoSelecionado) {
       const buscarPendenciasDoAluno = async () => {
-        // 1. Busca na tabela tradicional de historico_pagamentos
         const { data: dataHistorico } = await supabase
           .from('historico_pagamentos')
           .select('*')
@@ -82,8 +88,31 @@ export default function PDVPage() {
           
         let registrosPuros = dataHistorico || [];
 
-        // 2. BUSCA VIRTUAL DE MENSALIDADES (Idêntica à FichaAlunoModal)
-        // Se a mensalidade venceu no mês atual e não está no banco, nós forçamos ela a aparecer
+        let dataMensalidades: any[] = [];
+        try {
+          const { data: mData, error: mError } = await supabase
+            .from('mensalidades')
+            .select('*')
+            .eq('aluno_id', alunoSelecionado.id);
+
+          if (!mError && mData) {
+            dataMensalidades = mData.map((m: any) => ({
+              id: m.id,
+              aluno_id: m.aluno_id,
+              tipo: 'mensalidade',
+              descricao: m.descricao || `Mensalidade - Ref: ${m.mes_referencia || 'Recorrente'}`,
+              valor_total: m.valor_total || m.valor || 0,
+              valor_pago: m.valor_pago || 0,
+              status: m.status || 'pendente',
+              data_pagamento: m.data_vencimento || m.vencimento || dataHojeStr,
+              isMensalidadeTable: true 
+            }));
+          }
+        } catch (e) {
+        }
+
+        registrosPuros = [...registrosPuros, ...dataMensalidades];
+
         const dataAtual = new Date();
         const mesAtualNum = dataAtual.getMonth(); 
         const diaAtual = dataAtual.getDate();
@@ -100,7 +129,7 @@ export default function PDVPage() {
               (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
               h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
               (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) &&
-              h.status !== 'cancelado' && h.status !== 'estornado'
+              !['cancelado', 'estornado', 'renegociado'].includes(h.status)
             );
 
             if (!jaExisteNoBanco) {
@@ -121,14 +150,13 @@ export default function PDVPage() {
         }
 
         if (registrosPuros.length > 0) {
-          // Filtra garantindo que registros totalmente pagos sejam descartados da listagem
           const pendenciasReais = registrosPuros.filter((h: any) => {
             const statusBanco = (h.status || '').toLowerCase().trim();
             const vTotal = clean(h.valor_total); 
             const vPago = clean(h.valor_pago);
             const saldoDevedor = vTotal - vPago;
 
-            return statusBanco !== 'pago' && saldoDevedor > 0;
+            return !['pago', 'renegociado', 'cancelado', 'estornado'].includes(statusBanco) && saldoDevedor > 0;
           });
 
           setDividasAluno(pendenciasReais);
@@ -138,12 +166,11 @@ export default function PDVPage() {
       };
 
       buscarPendenciasDoAluno();
-      
-      // Reseta a interface ao trocar de aluno
       setCarrinho([]); 
       setPagamentos({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1" });
       setAcrescimos({ multa: "", desconto: "" });
       setAcaoTroco('credito'); 
+      setDataPagamentoPDV(dataHojeStr);
     } else {
       setDividasAluno([]);
       setCarrinho([]);
@@ -188,6 +215,78 @@ export default function PDVPage() {
   const trocoGerado = totalPagoRodada > totalComAcrescimos ? totalPagoRodada - totalComAcrescimos : 0;
   const saldoAtualAluno = alunoSelecionado ? clean(alunoSelecionado.saldo_credito) : 0;
 
+  function gerarPDFRecibo(aluno: any, itensCarrinho: any[], valorTotal: number, valorTroco: number) {
+    const doc = new jsPDF();
+    const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+    try { doc.addImage(logoUrl, "PNG", 15, 12, 22, 22); } catch (e) {}
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 41, 59); doc.text("ESCOLA ABC DO PARK", 42, 18);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+    doc.text("Educação Infantil e Ensino Fundamental", 42, 23);
+    doc.text("Recibo Oficial de Pagamento - PDV", 42, 28);
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(30, 41, 59); doc.text("RECIBO", 195, 18, { align: "right" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.text(`Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 195, 23, { align: "right" });
+
+    doc.setDrawColor(226, 232, 240); doc.line(15, 38, 195, 38);
+
+    autoTable(doc, {
+      startY: 42,
+      body: [
+        [ { content: `ALUNO(A):\n${aluno.nome.toUpperCase()}`, styles: { fontStyle: 'bold' } }, { content: `DATA DO PGTO:\n${dataPagamentoPDV.split('-').reverse().join('/')}`, styles: { fontStyle: 'bold' } } ]
+      ],
+      theme: 'plain', styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [71, 85, 105], fillColor: [248, 250, 252] }
+    });
+
+    const tableRows = itensCarrinho.map(item => [
+      (item.tipo || 'Lançamento').toUpperCase(),
+      item.descricao.toUpperCase(),
+      `R$ ${clean(item.valor_total).toFixed(2)}`
+    ]);
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 4,
+      head: [['TIPO', 'DESCRIÇÃO DO ITEM', 'VALOR ORIGINAL']],
+      body: tableRows,
+      theme: 'striped',
+      headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+      styles: { fontSize: 8, cellPadding: 3.5, textColor: [30, 41, 59], valign: 'middle' },
+      columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 6;
+
+    const metodosUsados = [];
+    if (clean(pagamentos.pix) > 0) metodosUsados.push(['Pix:', `R$ ${clean(pagamentos.pix).toFixed(2)}`]);
+    if (clean(pagamentos.dinheiro) > 0) metodosUsados.push(['Dinheiro:', `R$ ${clean(pagamentos.dinheiro).toFixed(2)}`]);
+    if (clean(pagamentos.credito) > 0) metodosUsados.push(['Cartão de Crédito:', `R$ ${clean(pagamentos.credito).toFixed(2)}`]);
+    if (clean(pagamentos.debito) > 0) metodosUsados.push(['Cartão de Débito:', `R$ ${clean(pagamentos.debito).toFixed(2)}`]);
+    if (clean(pagamentos.boleto) > 0) metodosUsados.push(['Boleto Bancário:', `R$ ${clean(pagamentos.boleto).toFixed(2)}`]);
+    if (clean(pagamentos.credito_aluno) > 0) metodosUsados.push(['Crédito Utilizado (Virtual):', `R$ ${clean(pagamentos.credito_aluno).toFixed(2)}`]);
+
+    const corpoResumo: any[] = [
+      ['SUBTOTAL:', `R$ ${subtotalCarrinho.toFixed(2)}`],
+      ['DESCONTOS:', `- R$ ${clean(acrescimos.desconto).toFixed(2)}`],
+      ['MULTA / JUROS:', `+ R$ ${clean(acrescimos.multa).toFixed(2)}`],
+      [{ content: 'VALOR TOTAL RECEBIDO:', styles: { fontStyle: 'bold' } }, { content: `R$ ${totalPagoRodada.toFixed(2)}`, styles: { fontStyle: 'bold' } }],
+      ['TROCO GERADO:', `R$ ${valorTroco.toFixed(2)} (${acaoTroco === 'credito' ? 'Guardado na Carteira' : 'Devolvido'})`],
+      [{ content: 'FORMAS DE PAGAMENTO UTILIZADAS', colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [248, 250, 252] } }],
+      ...metodosUsados
+    ];
+
+    autoTable(doc, {
+      startY: finalY, margin: { left: 95 }, 
+      body: corpoResumo,
+      theme: 'plain', styles: { fontSize: 8.5, cellPadding: 3, halign: 'right', textColor: [51, 65, 85] }, 
+      columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 35, fontStyle: 'bold', halign: 'right' } }
+    });
+
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(148, 163, 184);
+    doc.text("Este documento consiste em um recibo de quitação operacional gerado via Ponto de Venda.", 15, pageHeight - 12);
+    doc.save(`Recibo_PDV_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
+  }
+
   const finalizarVenda = async () => {
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
     if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
@@ -229,7 +328,7 @@ export default function PDVPage() {
         if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
         
         const registroParcial = {
-          data_recebimento: dataHojeStr,
+          data_recebimento: dataPagamentoPDV, // Data personalizada escolhida
           valor_pago_rodada: valorAbatido,
           formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso",
           desconto: acrescimos.desconto,
@@ -252,14 +351,31 @@ export default function PDVPage() {
             valor_total: item.valor_total,
             valor_pago: novoValorPago,
             status: novoStatus,
-            data_pagamento: dataHojeStr,
+            data_pagamento: dataPagamentoPDV,
+            detalhes_metodos: payloadMetodos
+          });
+        } else if (item.isMensalidadeTable) {
+          await supabase.from('mensalidades').update({
+            status: novoStatus,
+            valor_pago: novoValorPago
+          }).eq('id', item.id);
+
+          await supabase.from('historico_pagamentos').insert({
+            aluno_id: alunoSelecionado.id,
+            tipo: 'mensalidade',
+            descricao: item.descricao,
+            mes_referencia: 'Recorrente',
+            valor_total: item.valor_total,
+            valor_pago: novoValorPago,
+            status: novoStatus,
+            data_pagamento: dataPagamentoPDV,
             detalhes_metodos: payloadMetodos
           });
         } else {
           await supabase.from('historico_pagamentos').update({ 
             status: novoStatus, 
             valor_pago: novoValorPago,
-            data_pagamento: novoStatus === 'pago' ? dataHojeStr : item.data_pagamento, 
+            data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, 
             detalhes_metodos: payloadMetodos 
           }).eq('id', item.id);
         }
@@ -271,7 +387,10 @@ export default function PDVPage() {
         await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', alunoSelecionado.id);
       }
 
-      alert("Transação finalizada com sucesso!");
+      if (window.confirm("Transação registrada com sucesso no banco de dados!\nDeseja imprimir o Recibo em PDF?")) {
+        gerarPDFRecibo(alunoSelecionado, carrinho, totalComAcrescimos, trocoGerado);
+      }
+      
       setAlunoSelecionado(null);
       await carregarDadosBase();
 
@@ -288,7 +407,7 @@ export default function PDVPage() {
     }
     setProcessando(true);
     try {
-      if (item.mes_referencia === 'Avulso' || item.id.startsWith('novo_')) {
+      if (item.mes_referencia === 'Avulso' || String(item.id).startsWith('novo_') || String(item.id).startsWith('temp_')) {
         await supabase.from('historico_pagamentos').delete().eq('id', item.id);
       } else {
         await supabase.from('historico_pagamentos').update({
@@ -345,10 +464,8 @@ export default function PDVPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8">
           
-          {/* COLUNA ESQUERDA: Identificação e Lançamentos */}
           <div className="xl:col-span-7 space-y-6">
             
-            {/* Bloco 1: Seleção de Aluno */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
               <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
                 <span className="bg-slate-100 text-slate-600 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-slate-200">1</span> 
@@ -407,10 +524,8 @@ export default function PDVPage() {
               )}
             </div>
 
-            {/* Painéis Condicionais: Dash Diário x Dívidas do Aluno */}
             {!alunoSelecionado ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-300">
-                {/* Vencimentos Hoje */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
                       <span className="w-3 h-3 rounded-full bg-rose-500"></span>
@@ -438,7 +553,6 @@ export default function PDVPage() {
                   </div>
                 </div>
 
-                {/* Recebimentos Hoje */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
                       <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
@@ -476,7 +590,6 @@ export default function PDVPage() {
               </div>
             ) : (
               <>
-                {/* Bloco 2: Dívidas em Aberto do Aluno Selecionado */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
                    <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
                     <span className="bg-rose-100 text-rose-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-rose-200">2</span> 
@@ -523,7 +636,6 @@ export default function PDVPage() {
                   </div>
                 </div>
 
-                {/* Bloco 3: Lançamento Avulso Rápido */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 transition-all duration-300 animate-in fade-in slide-in-from-bottom-6">
                    <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
                     <span className="bg-sky-100 text-sky-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-sky-200">3</span> 
@@ -576,7 +688,7 @@ export default function PDVPage() {
               
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                  <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                   Resumo do Caixa
                 </h2>
                 <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-md text-xs font-bold border border-slate-200">
@@ -618,7 +730,6 @@ export default function PDVPage() {
                 })}
               </div>
 
-              {/* Ajustes Financeiros */}
               <div className="bg-[#f8fafc] p-5 rounded-2xl border border-slate-200/80 space-y-4 mb-6">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-semibold text-slate-500">Subtotal</span>
@@ -654,9 +765,21 @@ export default function PDVPage() {
                 </div>
               </div>
 
-              {/* Formas de Pagamento Dinâmicas (Inputs Limpos e Sem Sobreposição) */}
+              {/* Formas e Data de Pagamento */}
               <div className="space-y-4 mb-8">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">Formas de Pagamento</h4>
+                <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Formas de Pagamento</h4>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Data Pgto:</label>
+                    <input 
+                      type="date" 
+                      value={dataPagamentoPDV} 
+                      onChange={(e) => setDataPagamentoPDV(e.target.value)} 
+                      className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-md px-2 py-1 outline-none focus:border-indigo-500 font-medium shadow-sm" 
+                    />
+                  </div>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Pix</label>
