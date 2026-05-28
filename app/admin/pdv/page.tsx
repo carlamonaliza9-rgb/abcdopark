@@ -238,76 +238,95 @@ export default function PDVPage() {
   const trocoGerado = totalPagoRodada > totalComAcrescimos ? totalPagoRodada - totalComAcrescimos : 0;
   const saldoAtualAluno = alunoSelecionado ? clean(alunoSelecionado.saldo_credito) : 0;
 
-  function gerarPDFRecibo(aluno: any, itensCarrinho: any[], valorTotal: number, valorTroco: number) {
+  function gerarPDFRecibo(aluno: any, itensCarrinho: any[], pagamentosFeitos: any, acrescimosFeitos: any, totalVenda: number, troco: number) {
     const doc = new jsPDF();
     const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
     try { doc.addImage(logoUrl, "PNG", 15, 12, 22, 22); } catch (e) {}
 
-    doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 41, 59); doc.text("ESCOLA ABC DO PARK", 42, 18);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(30, 41, 59); doc.text("ESCOLA ABC DO PARK", 42, 18);
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
-    doc.text("Educação Infantil e Ensino Fundamental", 42, 23);
-    doc.text("Recibo Oficial de Pagamento - PDV", 42, 28);
+    doc.text("Recibo Oficial de Pagamento (PDV)", 42, 24);
 
-    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(30, 41, 59); doc.text("RECIBO", 195, 18, { align: "right" });
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.text(`Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 195, 23, { align: "right" });
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("RECIBO FINANCEIRO", 195, 18, { align: "right" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(148, 163, 184); 
+    doc.text(`Data do Lançamento: ${dataPagamentoPDV.split('-').reverse().join('/')}`, 195, 24, { align: "right" });
+    doc.text(`Emissão do Recibo: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 195, 29, { align: "right" });
 
-    doc.setDrawColor(226, 232, 240); doc.line(15, 38, 195, 38);
+    doc.setDrawColor(226, 232, 240); doc.line(15, 34, 195, 34);
 
     autoTable(doc, {
-      startY: 42,
+      startY: 38,
       body: [
-        [ { content: `ALUNO(A):\n${aluno.nome.toUpperCase()}`, styles: { fontStyle: 'bold' } }, { content: `DATA DO PGTO:\n${dataPagamentoPDV.split('-').reverse().join('/')}`, styles: { fontStyle: 'bold' } } ]
+        [ 
+          { content: `ALUNO(A):\n${aluno.nome.toUpperCase()}`, styles: { fontStyle: 'bold' } }, 
+          { content: `TURMA:\n${aluno.turma?.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+          { content: `CPF:\n${aluno.cpf_aluno || aluno.cpf_responsavel || 'N/A'}`, styles: { fontStyle: 'bold' } }
+        ]
       ],
-      theme: 'plain', styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [71, 85, 105], fillColor: [248, 250, 252] }
+      theme: 'plain', styles: { fontSize: 9, cellPadding: 3, textColor: [71, 85, 105], fillColor: [248, 250, 252] }
     });
 
-    const tableRows = itensCarrinho.map(item => [
-      (item.tipo || 'Lançamento').toUpperCase(),
-      item.descricao.toUpperCase(),
-      `R$ ${clean(item.valor_total).toFixed(2)}`
-    ]);
+    const tableRows = itensCarrinho.map(item => {
+      const saldoDevedorAnterior = clean(item.valor_total) - clean(item.valor_pago);
+      return [
+        (item.tipo || 'Lançamento').toUpperCase(),
+        item.descricao.toUpperCase(),
+        `R$ ${clean(item.valor_total).toFixed(2)}`,
+        `R$ ${saldoDevedorAnterior.toFixed(2)}`
+      ];
+    });
 
     autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 4,
-      head: [['TIPO', 'DESCRIÇÃO DO ITEM', 'VALOR ORIGINAL']],
+      startY: (doc as any).lastAutoTable.finalY + 6,
+      head: [['TIPO DE CONTA', 'DESCRIÇÃO DO ITEM COBRADO', 'VALOR ORIGINAL', 'SALDO DEVEDOR ANTERIOR']],
       body: tableRows,
       theme: 'striped',
       headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
-      styles: { fontSize: 8, cellPadding: 3.5, textColor: [30, 41, 59], valign: 'middle' },
-      columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
+      styles: { fontSize: 8, cellPadding: 4, textColor: [30, 41, 59] },
+      columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right', fontStyle: 'bold', textColor: [153, 27, 27] } }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 6;
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
 
     const metodosUsados = [];
-    if (clean(pagamentos.pix) > 0) metodosUsados.push(['Pix:', `R$ ${clean(pagamentos.pix).toFixed(2)}`]);
-    if (clean(pagamentos.dinheiro) > 0) metodosUsados.push(['Dinheiro:', `R$ ${clean(pagamentos.dinheiro).toFixed(2)}`]);
-    if (clean(pagamentos.credito) > 0) metodosUsados.push(['Cartão de Crédito:', `R$ ${clean(pagamentos.credito).toFixed(2)}`]);
-    if (clean(pagamentos.debito) > 0) metodosUsados.push(['Cartão de Débito:', `R$ ${clean(pagamentos.debito).toFixed(2)}`]);
-    if (clean(pagamentos.boleto) > 0) metodosUsados.push(['Boleto Bancário:', `R$ ${clean(pagamentos.boleto).toFixed(2)}`]);
-    if (clean(pagamentos.credito_aluno) > 0) metodosUsados.push(['Crédito Utilizado (Virtual):', `R$ ${clean(pagamentos.credito_aluno).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.pix) > 0) metodosUsados.push(['Pix:', `R$ ${clean(pagamentosFeitos.pix).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.dinheiro) > 0) metodosUsados.push(['Dinheiro em Espécie:', `R$ ${clean(pagamentosFeitos.dinheiro).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.credito) > 0) metodosUsados.push(['Cartão de Crédito:', `R$ ${clean(pagamentosFeitos.credito).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.debito) > 0) metodosUsados.push(['Cartão de Débito:', `R$ ${clean(pagamentosFeitos.debito).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.boleto) > 0) metodosUsados.push(['Boleto Bancário:', `R$ ${clean(pagamentosFeitos.boleto).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.credito_aluno) > 0) metodosUsados.push(['Saldo Virtual (Carteira do Aluno):', `R$ ${clean(pagamentosFeitos.credito_aluno).toFixed(2)}`]);
+
+    const subtotalBase = subtotalCarrinho;
+    const valorMultaAplicada = clean(acrescimosFeitos.multa);
+    const valorDescontoAplicado = clean(acrescimosFeitos.desconto);
+    const totalRecebidoSomado = metodosUsados.reduce((acc, curr) => acc + clean(curr[1].replace('R$ ', '')), 0);
 
     const corpoResumo: any[] = [
-      ['SUBTOTAL:', `R$ ${subtotalCarrinho.toFixed(2)}`],
-      ['DESCONTOS:', `- R$ ${clean(acrescimos.desconto).toFixed(2)}`],
-      ['MULTA / JUROS:', `+ R$ ${clean(acrescimos.multa).toFixed(2)}`],
-      [{ content: 'VALOR TOTAL RECEBIDO:', styles: { fontStyle: 'bold' } }, { content: `R$ ${totalPagoRodada.toFixed(2)}`, styles: { fontStyle: 'bold' } }],
-      ['TROCO GERADO:', `R$ ${valorTroco.toFixed(2)} (${acaoTroco === 'credito' ? 'Guardado na Carteira' : 'Devolvido'})`],
+      ['SUBTOTAL DAS CONTAS:', `R$ ${subtotalBase.toFixed(2)}`],
+      ...(valorDescontoAplicado > 0 ? [['DESCONTOS APLICADOS:', `- R$ ${valorDescontoAplicado.toFixed(2)}`]] : []),
+      ...(valorMultaAplicada > 0 ? [['MULTA / JUROS:', `+ R$ ${valorMultaAplicada.toFixed(2)}`]] : []),
+      [{ content: 'VALOR TOTAL APURADO:', styles: { fontStyle: 'bold', textColor: [15, 23, 42] } }, { content: `R$ ${totalVenda.toFixed(2)}`, styles: { fontStyle: 'bold', textColor: [15, 23, 42] } }],
+      ['-', '-'],
       [{ content: 'FORMAS DE PAGAMENTO UTILIZADAS', colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [248, 250, 252] } }],
-      ...metodosUsados
+      ...metodosUsados,
+      [{ content: 'TOTAL EFETIVAMENTE PAGO:', styles: { fontStyle: 'bold', textColor: [22, 163, 74] } }, { content: `R$ ${totalRecebidoSomado.toFixed(2)}`, styles: { fontStyle: 'bold', textColor: [22, 163, 74] } }]
     ];
+
+    if (troco > 0) {
+      corpoResumo.push([{ content: `TROCO GERADO (${acaoTroco === 'credito' ? 'Guardado na Carteira' : 'Devolvido'}):`, styles: { fontStyle: 'bold', textColor: [217, 119, 6] } }, { content: `R$ ${troco.toFixed(2)}`, styles: { fontStyle: 'bold', textColor: [217, 119, 6] } }]);
+    }
 
     autoTable(doc, {
       startY: finalY, margin: { left: 95 }, 
       body: corpoResumo,
-      theme: 'plain', styles: { fontSize: 8.5, cellPadding: 3, halign: 'right', textColor: [51, 65, 85] }, 
-      columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 35, fontStyle: 'bold', halign: 'right' } }
+      theme: 'plain', styles: { fontSize: 8.5, cellPadding: 3.5, halign: 'right', textColor: [71, 85, 105] }, 
+      columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 30, fontStyle: 'bold', halign: 'right' } }
     });
 
     const pageHeight = doc.internal.pageSize.height;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(148, 163, 184);
-    doc.text("Este documento consiste em um recibo de quitação operacional gerado via Ponto de Venda.", 15, pageHeight - 12);
-    doc.save(`Recibo_PDV_${aluno.nome.replace(/\s+/g, '_')}.pdf`);
+    doc.setFont("helvetica", "italic"); doc.setFontSize(7); doc.setTextColor(148, 163, 184);
+    doc.text("Este documento é um recibo de pagamento emitido eletronicamente e comprova a quitação/amortização dos itens acima descritos.", 105, pageHeight - 15, { align: 'center' });
+    doc.save(`Recibo_PDV_${aluno.nome.replace(/\s+/g, '_')}_${dataPagamentoPDV}.pdf`);
   }
 
   const finalizarVenda = async () => {
@@ -410,8 +429,10 @@ export default function PDVPage() {
         await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', alunoSelecionado.id);
       }
 
-      if (window.confirm("Transação registrada com sucesso no banco de dados!\nDeseja imprimir o Recibo em PDF?")) {
-        gerarPDFRecibo(alunoSelecionado, carrinho, totalComAcrescimos, trocoGerado);
+      alert("Transação registrada com sucesso no banco de dados!");
+      
+      if (window.confirm("Deseja gerar o Recibo Oficial em PDF detalhando esta operação?")) {
+        gerarPDFRecibo(alunoSelecionado, carrinho, pagamentos, acrescimos, totalComAcrescimos, trocoGerado);
       }
       
       setAlunoSelecionado(null);
@@ -805,15 +826,15 @@ export default function PDVPage() {
 
               {/* Formas e Data de Pagamento */}
               <div className="space-y-4 mb-8">
-                <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                <div className="flex justify-between items-end border-b border-slate-100 pb-3 mb-4">
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Formas de Pagamento</h4>
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Data Pgto:</label>
+                  <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <label className="text-[10px] font-black text-slate-500 uppercase">Data Pgto:</label>
                     <input 
                       type="date" 
                       value={dataPagamentoPDV} 
                       onChange={(e) => setDataPagamentoPDV(e.target.value)} 
-                      className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-md px-2 py-1 outline-none focus:border-indigo-500 font-medium shadow-sm" 
+                      className="bg-transparent border-none text-slate-800 text-xs outline-none font-bold cursor-pointer" 
                     />
                   </div>
                 </div>
