@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Importação dos Componentes e Modais
 import { TabelaMensalidades } from "@/app/dashboard/financeiro/_components/TabelaMensalidades";
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 
@@ -26,6 +27,8 @@ const SENHA_MESTRA = "1234";
 function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
+  const [inicializado, setInicializado] = useState(false);
+  
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroTurma, setFiltroTurma] = useState(""); 
@@ -49,13 +52,22 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
   useEffect(() => {
-    const valorSalvo = localStorage.getItem('valorPadraoMensalidade');
-    if (valorSalvo) setValorPadrao(Number(valorSalvo));
+    if (typeof window !== 'undefined') {
+      const valorSalvo = localStorage.getItem('valorPadraoMensalidade');
+      if (valorSalvo) setValorPadrao(Number(valorSalvo));
+    }
+    setInicializado(true);
   }, []);
 
   async function carregarDados() {
     setCarregando(true);
     try {
+      let valorBaseVigente = valorPadrao;
+      if (typeof window !== 'undefined') {
+        const salvo = localStorage.getItem('valorPadraoMensalidade');
+        if (salvo && !editandoValor) valorBaseVigente = Number(salvo);
+      }
+
       const hoje = new Date();
       const [ano, mes] = mesFiltro.split('-');
       const dataInicioAno = `${ano}-01-01`;
@@ -88,13 +100,13 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           const acordoAluno = acordosDesteMes.find((a: any) => a.aluno_id === aluno.id && a.status !== 'pago');
           const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
 
-          let valorBaseMensalidade = clean(aluno.valor) || valorPadrao;
+          let valorBaseMensalidade = clean(aluno.valor) || valorBaseVigente;
           let isMensalidadePendente = !estaPagoNesseMes;
           let statusMensalidade = estaPagoNesseMes ? 'pago' : (hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? 'atrasado' : 'pendente');
 
           let temAcordoNoMes = !!acordoAluno;
           let isAcordoPendente = temAcordoNoMes && acordoAluno.status !== 'pago';
-          let valorDevedorAcordo = temAcordoNoMes ? (clean(acordoAluno.valor_total) - clean(acordoAluno.valor_pago)) : 0;
+          let valorParcelaAcordo = temAcordoNoMes ? clean(acordoAluno.valor_total) : 0;
           let idPagamentoAcordo = temAcordoNoMes ? acordoAluno.id : null;
 
           let valorTotalDevido = 0;
@@ -102,10 +114,10 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
           if (isMensalidadePendente) valorTotalDevido += valorBaseMensalidade;
           
-          if (isAcordoPendente && valorDevedorAcordo > 0) {
-              valorTotalDevido += valorDevedorAcordo;
-              nomeTags.push(`📌 Acordo R$ ${valorDevedorAcordo.toFixed(2)}`);
-          } else if (acordosDesteMes.some((a: any) => a.aluno_id === aluno.id && a.status === 'pago')) {
+          if (isAcordoPendente) {
+              valorTotalDevido += valorParcelaAcordo;
+              nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
+          } else if (temAcordoNoMes) {
               nomeTags.push(`✅ Acordo Pago`); 
           }
 
@@ -125,7 +137,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             nome: nomeExibicao,
             isAcordo: isAcordoPendente, 
             idPagamentoAcordo: idPagamentoAcordo,
-            valorDevedorAcordo: valorDevedorAcordo,
+            valorParcelaAcordo: valorParcelaAcordo,
             isMensalidadePendente: isMensalidadePendente,
             valorBaseMensalidade,
             temAcordoNoMes 
@@ -139,7 +151,9 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     } finally { setCarregando(false); }
   }
 
-  useEffect(() => { carregarDados(); }, [mesFiltro]);
+  useEffect(() => { 
+    if(inicializado) carregarDados(); 
+  }, [mesFiltro, inicializado]);
 
   async function confirmarPagamento() {
     if (tipoPagamento === "acordo") {
@@ -187,15 +201,19 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       metodosLimpos.parcelas = "1";
     }
 
-    const somaPaga = clean(pagamentosMetodos.pix) + clean(pagamentosMetodos.dinheiro) + clean(pagamentosMetodos.credito) + clean(pagamentosMetodos.debito) + clean(pagamentosMetodos.boleto);
-    
+    // Restauração do suporte aos valores da Editora
+    const dinheiroPix = clean(pagamentosMetodos.pix) + clean((pagamentosMetodos as any).pix_editora);
+    const dinheiroEspecie = clean(pagamentosMetodos.dinheiro);
+    const dinheiroCartao = clean(pagamentosMetodos.credito) + clean(pagamentosMetodos.debito) + clean((pagamentosMetodos as any).credito_editora) + clean((pagamentosMetodos as any).debito_editora);
+    const dinheiroBoleto = clean((pagamentosMetodos as any).boleto);
+
+    const somaPaga = dinheiroPix + dinheiroEspecie + dinheiroCartao + dinheiroBoleto;
     const valorMulta = clean(pagamentosMetodos.multa);
     const valorDesconto = clean(pagamentosMetodos.desconto);
-    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno);
-    
+    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno); 
     const valorPagoFinal = somaPaga + creditoUtilizado;
 
-    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
+    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor financeiro válido.");
 
     const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
     if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
@@ -204,7 +222,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     const isAcordo = alunoSelecionado.isAcordo;
 
     let dividaMensalDB = isMensal ? alunoSelecionado.valorBaseMensalidade : 0;
-    let dividaAcordoDB = isAcordo ? alunoSelecionado.valorDevedorAcordo : 0;
+    let dividaAcordoDB = isAcordo ? alunoSelecionado.valorParcelaAcordo : 0;
 
     if (isMensal) {
          dividaMensalDB = Math.max(0, (dividaMensalDB + valorMulta) - valorDesconto);
@@ -219,11 +237,10 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     let saldoParaDistribuir = valorPagoFinal + valorDesconto - valorMulta;
 
     const formasStrArray = [];
-    if (clean(pagamentosMetodos.pix) > 0) formasStrArray.push("Pix");
-    if (clean(pagamentosMetodos.dinheiro) > 0) formasStrArray.push("Dinheiro");
-    if (clean(pagamentosMetodos.credito) > 0) formasStrArray.push("Cartão");
-    if (clean(pagamentosMetodos.debito) > 0) formasStrArray.push("Débito");
-    if (clean(pagamentosMetodos.boleto) > 0) formasStrArray.push("Boleto");
+    if (dinheiroPix > 0) formasStrArray.push("Pix");
+    if (dinheiroEspecie > 0) formasStrArray.push("Dinheiro");
+    if (dinheiroCartao > 0) formasStrArray.push("Cartão");
+    if (dinheiroBoleto > 0) formasStrArray.push("Boleto");
     if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
     const formaPagamentoTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Desconto";
 
@@ -330,10 +347,12 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     return correspondeNome && correspondeTurma;
   });
 
+  const historicoAlunoSelecionado = alunoSelecionado ? listaReceitasDetalhada.filter((h: any) => h.aluno_id === alunoSelecionado.id) : [];
+
   let valorTotalCalculado = 0;
   if (modalPgtoAberto && alunoSelecionado) {
        const valMensal = alunoSelecionado.isMensalidadePendente ? (clean(alunoSelecionado.valorBaseMensalidade) || valorPadrao) : 0;
-       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorDevedorAcordo) : 0;
+       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorParcelaAcordo) : 0;
        const valMulta = clean(pagamentosMetodos.multa);
        const valDesconto = clean(pagamentosMetodos.desconto);
        valorTotalCalculado = Math.max(0, (valMensal + valAcordo + valMulta) - valDesconto);
@@ -419,7 +438,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               setModalPgtoAberto(true);
             }}
             onCobrar={(a: any) => {
-              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
+              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
               window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             onDesfazer={async (idAlunoSelecionado: string) => {
@@ -462,6 +481,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
         descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
         pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
         onConfirmar={confirmarPagamento} editando={false} 
+        historicoGeral={historicoAlunoSelecionado}
       />
     </div>
   );
@@ -597,7 +617,7 @@ function VisaoSaldosCreditos() {
     if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
 
     const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
-    if (creditoUtilizado > saldoDisponivel) return alert("O aluno não possui esse saldo de crédito disponível.");
+    if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
 
     const existente = listaSaldosDevedores.find(r => r.id === idPagamentoEdicao);
     const valorOriginalDivida = clean(existente?.valor_total);
@@ -637,7 +657,6 @@ function VisaoSaldosCreditos() {
 
     setModalPgtoAberto(false); 
     alert("Amortização registrada com sucesso!");
-    // Força o reload global da página para garantir a re-hidratação visual (Workaround para state lock)
     window.location.reload();
   }
 
@@ -781,6 +800,7 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
     try {
       const hoje = new Date().toISOString().split('T')[0];
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
+      
       const { data: todosAcordos } = await supabase.from('historico_pagamentos').select('*').eq('tipo', 'acordo').order('data_pagamento', { ascending: true });
 
       if (listaAlunos && todosAcordos) {
@@ -788,18 +808,50 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
           const parcelasDoAluno = todosAcordos.filter((a: any) => a.aluno_id === aluno.id);
           if (parcelasDoAluno.length === 0) return null;
 
-          const parcelasAtualizadas = parcelasDoAluno.map((p: any) => {
-            let statusReal = p.status;
-            if (p.status !== 'pago' && p.data_pagamento < hoje) statusReal = 'atrasado';
-            return { ...p, status: statusReal };
+          const contratosMap = new Map();
+          parcelasDoAluno.forEach((p: any) => {
+             const chave = p.created_at ? p.created_at.substring(0, 16) : p.data_pagamento;
+             if (!contratosMap.has(chave)) contratosMap.set(chave, []);
+             contratosMap.get(chave).push({
+               ...p,
+               status: (p.status !== 'pago' && p.data_pagamento < hoje) ? 'atrasado' : p.status
+             });
           });
 
-          const valorTotal = parcelasAtualizadas.reduce((acc: number, p: any) => acc + clean(p.valor_total), 0);
-          const valorPago = parcelasAtualizadas.filter((p: any) => p.status === 'pago').reduce((acc: number, p: any) => acc + clean(p.valor_pago || p.valor_total), 0);
-          const dataInicio = parcelasAtualizadas[0]?.created_at?.split('T')[0] || parcelasAtualizadas[0]?.data_pagamento;
-          const responsavel = parcelasAtualizadas[0]?.detalhes_metodos?.criado_por || "Sistema/Admin";
+          const contratosArray = Array.from(contratosMap.values()).map((parcelasContrato: any) => {
+             const valorTotal = parcelasContrato.reduce((acc: number, p: any) => acc + clean(p.valor_total), 0);
+             const valorPago = parcelasContrato.filter((p: any) => p.status === 'pago').reduce((acc: number, p: any) => acc + clean(p.valor_pago || p.valor_total), 0);
+             const dataInicio = parcelasContrato[0]?.created_at?.split('T')[0] || parcelasContrato[0]?.data_pagamento;
+             const responsavel = parcelasContrato[0]?.detalhes_metodos?.criado_por || "Sistema/Admin";
+             const qtdParcelas = parcelasContrato.length;
 
-          return { ...aluno, parcelas: parcelasAtualizadas, valorTotal, valorPago, dataInicio, responsavel, progresso: Math.round((valorPago / valorTotal) * 100) || 0 };
+             return {
+                idBase: parcelasContrato[0].id,
+                parcelas: parcelasContrato,
+                valorTotal,
+                valorPago,
+                dataInicio,
+                responsavel,
+                qtdParcelas,
+                progresso: Math.round((valorPago / valorTotal) * 100) || 0
+             };
+          });
+
+          const totalGeralPago = contratosArray.reduce((acc: number, c: any) => acc + c.valorPago, 0);
+          const totalGeralDevido = contratosArray.reduce((acc: number, c: any) => acc + c.valorTotal, 0);
+          const progressoGeral = Math.round((totalGeralPago / totalGeralDevido) * 100) || 0;
+          const resumoParcelas = contratosArray.map((c: any) => `${c.qtdParcelas}x`).join(' e ');
+
+          return { 
+            ...aluno, 
+            contratos: contratosArray,
+            totalGeralPago,
+            totalGeralDevido,
+            progressoGeral,
+            qtdAcordos: contratosArray.length,
+            resumoParcelas,
+            observacoes_financeiras: aluno.observacoes_financeiras
+          };
         }).filter(Boolean);
 
         setAcordosAgrupados(agrupados as any[]);
@@ -812,6 +864,40 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
     await supabase.from('alunos').update({ observacoes_financeiras: textoObs }).eq('id', alunoId);
     setAcordosAgrupados(acordosAgrupados.map((a: any) => a.id === alunoId ? { ...a, observacoes_financeiras: textoObs } : a));
     setEditandoObs(null);
+  }
+
+  // --- FUNÇÕES DE GERENCIAMENTO DE ACORDOS ---
+  async function desfazerParcela(id: string) {
+    if (prompt("Digite a Senha Mestra para ESTORNAR o pagamento desta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', id);
+    carregarDados();
+  }
+
+  async function excluirParcela(id: string) {
+    if (prompt("Digite a Senha Mestra para EXCLUIR esta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    await supabase.from('historico_pagamentos').delete().eq('id', id);
+    carregarDados();
+  }
+
+  async function excluirAcordoInteiro(parcelas: any[]) {
+    if (prompt("ATENÇÃO: Digite a Senha Mestra para EXCLUIR O CONTRATO INTEIRO (todas as parcelas):") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    const ids = parcelas.map(p => p.id);
+    await supabase.from('historico_pagamentos').delete().in('id', ids);
+    carregarDados();
+  }
+
+  async function editarParcela(parcela: any) {
+    if (prompt("Digite a Senha Mestra para EDITAR os valores:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    const novoValor = prompt("Novo valor da parcela (ex: 150.00):", clean(parcela.valor_total).toString());
+    if (!novoValor) return;
+    const novaData = prompt("Novo vencimento (AAAA-MM-DD):", parcela.data_pagamento);
+    if (!novaData) return;
+    
+    await supabase.from('historico_pagamentos').update({
+      valor_total: clean(novoValor),
+      data_pagamento: novaData
+    }).eq('id', parcela.id);
+    carregarDados();
   }
 
   const dadosFiltrados = acordosAgrupados.filter((a: any) => a.nome.toLowerCase().includes(filtroNome.toLowerCase()));
@@ -841,34 +927,62 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
                     <div>
                       <h2 className="font-bold text-lg text-slate-800 uppercase">{aluno.nome}</h2>
                       <p className="text-xs text-slate-500 font-semibold mt-1">
-                        📦 Acordo parcelado em <b className="text-indigo-600">{aluno.parcelas.length}x</b> | Aberto em: {aluno.dataInicio?.split('-').reverse().join('/')} | 👤 Gestor: {aluno.responsavel}
+                        📦 {aluno.qtdAcordos} acordo(s) ativo(s) parcelado(s) em: <b className="text-indigo-600">{aluno.resumoParcelas}</b> | 👤 Gestor Base: {aluno.contratos[0]?.responsavel}
                       </p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end min-w-[220px]">
-                    <span className="text-xs font-bold text-slate-500 mb-1">Quitado: <b className="text-emerald-500">R$ {aluno.valorPago.toFixed(2)}</b> de R$ {aluno.valorTotal.toFixed(2)}</span>
-                    <div className="w-full bg-slate-100 rounded-full h-2 shadow-inner"><div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${aluno.progresso}%` }} /></div>
+                    <span className="text-xs font-bold text-slate-500 mb-1">Quitado Geral: <b className="text-emerald-500">R$ {aluno.totalGeralPago.toFixed(2)}</b> de R$ {aluno.totalGeralDevido.toFixed(2)}</span>
+                    <div className="w-full bg-slate-100 rounded-full h-2 shadow-inner"><div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${aluno.progressoGeral}%` }} /></div>
                   </div>
                 </div>
 
                 {alunoExpandido === aluno.id && (
                   <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col lg:grid lg:grid-cols-12 gap-6 animate-in fade-in duration-200">
-                    <div className="lg:col-span-8 space-y-2.5">
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Detalhamento das Parcelas Cadastradas</h4>
-                      {aluno.parcelas.map((parcela: any, idx: number) => {
-                        return (
-                          <div key={parcela.id} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-xs">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-slate-800 uppercase">{parcela.descricao} (Parcela {idx + 1}/{aluno.parcelas.length})</span>
-                              <span className="text-[10px] text-slate-400">Vencimento original programado para: {parcela.data_pagamento?.split('-').reverse().join('/')}</span>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <span className="font-bold text-slate-800">R$ {clean(parcela.valor_total).toFixed(2)}</span>
-                              <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${parcela.status === 'pago' ? 'bg-emerald-100 text-emerald-700' : parcela.status === 'atrasado' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>{parcela.status}</span>
-                            </div>
+                    <div className="lg:col-span-8 space-y-4">
+                      
+                      {aluno.contratos.map((contrato: any, cIdx: number) => (
+                        <div key={cIdx} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+                          <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
+                            <span className="font-bold text-slate-700 text-xs uppercase tracking-wider">
+                              Contrato {cIdx + 1} - Firmado em {contrato.dataInicio?.split('-').reverse().join('/')} ({contrato.qtdParcelas} Parcela(s))
+                            </span>
+                            <button onClick={() => excluirAcordoInteiro(contrato.parcelas)} className="text-[10px] text-rose-500 font-bold hover:underline bg-rose-50 px-2 py-1 rounded">
+                              🗑️ Excluir Contrato Inteiro
+                            </button>
                           </div>
-                        );
-                      })}
+                          
+                          <div className="space-y-2">
+                            {contrato.parcelas.map((parcela: any) => {
+                              const estaPago = parcela.status === 'pago';
+                              return (
+                                <div key={parcela.id} className={`flex justify-between items-center p-3 rounded-lg border text-xs transition-colors ${estaPago ? 'bg-slate-100/50 border-slate-200 opacity-60' : 'bg-slate-50 border-slate-100 hover:border-indigo-200'}`}>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className={`font-bold uppercase ${estaPago ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{parcela.descricao}</span>
+                                    <span className="text-[10px] text-slate-400">Vencimento: {parcela.data_pagamento?.split('-').reverse().join('/')}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className={`font-bold ${estaPago ? 'text-slate-400' : 'text-slate-800'}`}>R$ {clean(parcela.valor_total).toFixed(2)}</span>
+                                    <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider ${estaPago ? 'bg-emerald-100 text-emerald-700' : parcela.status === 'atrasado' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>{parcela.status}</span>
+                                    
+                                    <div className="flex gap-2 border-l border-slate-200 pl-3 ml-1">
+                                      {estaPago ? (
+                                        <button onClick={() => desfazerParcela(parcela.id)} className="text-slate-400 hover:text-amber-600 text-sm" title="Estornar Pagamento">🔄</button>
+                                      ) : (
+                                        <>
+                                          <button onClick={() => editarParcela(parcela)} className="text-slate-400 hover:text-indigo-600 text-sm" title="Editar Parcela">✏️</button>
+                                          <button onClick={() => excluirParcela(parcela.id)} className="text-slate-400 hover:text-rose-600 text-sm" title="Excluir Parcela">🗑️</button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+
                     </div>
                     
                     <div className="lg:col-span-4 flex flex-col h-full">
