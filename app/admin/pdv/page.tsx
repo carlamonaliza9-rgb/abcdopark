@@ -24,7 +24,7 @@ export default function PDVPage() {
   const [historicoGeral, setHistoricoGeral] = useState<any[]>([]);
   
   // Dados do Acompanhamento Diário
-  const [vencimentosHoje, setVencimentosHoje] = useState<any[]>([]);
+  const [inadimplentesTop5, setInadimplentesTop5] = useState<any[]>([]);
   const [recebimentosHoje, setRecebimentosHoje] = useState<any[]>([]);
   
   // Estados do PDV
@@ -61,18 +61,41 @@ export default function PDVPage() {
     const { data: historico } = await supabase
       .from('historico_pagamentos')
       .select('*')
-      .or(`status.in.(pendente,parcial,atrasado,vencido),data_pagamento.eq.${dataHojeStr}`);
+      .neq('status', 'cancelado')
+      .neq('status', 'estornado');
     
-    if (listaAlunos) setAlunos(listaAlunos);
-    
-    if (historico) {
+    if (listaAlunos && historico) {
+      setAlunos(listaAlunos);
       setHistoricoGeral(historico);
       
-      const vencem = historico.filter(h => h.data_pagamento === dataHojeStr && h.status !== 'pago');
       const recebidos = historico.filter(h => h.data_pagamento === dataHojeStr && (h.status === 'pago' || h.status === 'parcial') && clean(h.valor_pago) > 0);
-      
-      setVencimentosHoje(vencem);
       setRecebimentosHoje(recebidos);
+
+      const mapaDevedores = new Map();
+      
+      const pendenciasAtivas = historico.filter(h => h.status !== 'pago' && h.status !== 'renegociado');
+      
+      pendenciasAtivas.forEach(pend => {
+        const devedorRestante = clean(pend.valor_total) - clean(pend.valor_pago);
+        if (devedorRestante > 0) {
+          if (!mapaDevedores.has(pend.aluno_id)) mapaDevedores.set(pend.aluno_id, 0);
+          mapaDevedores.set(pend.aluno_id, mapaDevedores.get(pend.aluno_id) + devedorRestante);
+        }
+      });
+
+      const radarFormatado = Array.from(mapaDevedores.entries()).map(([aluno_id, total_devido]) => {
+        const alunoReferencia = listaAlunos.find(a => a.id === aluno_id);
+        return {
+          alunoRaw: alunoReferencia,
+          nome: alunoReferencia?.nome || 'Desconhecido',
+          total_devido
+        };
+      })
+      .filter(item => item.alunoRaw)
+      .sort((a, b) => b.total_devido - a.total_devido)
+      .slice(0, 5);
+
+      setInadimplentesTop5(radarFormatado);
     }
     
     setCarregando(false);
@@ -328,7 +351,7 @@ export default function PDVPage() {
         if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
         
         const registroParcial = {
-          data_recebimento: dataPagamentoPDV, // Data personalizada escolhida
+          data_recebimento: dataPagamentoPDV,
           valor_pago_rodada: valorAbatido,
           formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso",
           desconto: acrescimos.desconto,
@@ -438,8 +461,8 @@ export default function PDVPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 font-sans text-slate-800 pb-24 selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-6 lg:p-8 xl:p-10 font-sans text-slate-800 pb-24 selection:bg-indigo-100 selection:text-indigo-900">
+      <div className="max-w-[1700px] w-full mx-auto space-y-6 md:space-y-8">
         
         {/* Cabeçalho */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex justify-between items-center relative overflow-hidden">
@@ -464,7 +487,7 @@ export default function PDVPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8">
           
-          <div className="xl:col-span-7 space-y-6">
+          <div className="xl:col-span-8 space-y-6">
             
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
               <h2 className="text-sm font-bold text-slate-800 mb-5 flex items-center gap-2.5 uppercase tracking-wide">
@@ -524,35 +547,49 @@ export default function PDVPage() {
               )}
             </div>
 
+            {/* Painéis Condicionais: Radar Diário x Dívidas do Aluno */}
             {!alunoSelecionado ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-300">
+                
+                {/* Radar de Inadimplência Crítica */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
-                      <span className="w-3 h-3 rounded-full bg-rose-500"></span>
-                      ⚠️ Vencem Hoje
+                  <h3 className="text-sm font-bold text-rose-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-rose-100 pb-3">
+                      <span className="flex w-3 h-3">
+                        <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                      </span>
+                      Radar de Inadimplência
                   </h3>
                   <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
-                      {vencimentosHoje.length > 0 ? vencimentosHoje.map(item => {
-                          const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "Desconhecido";
-                          const restante = clean(item.valor_total) - clean(item.valor_pago);
+                      {inadimplentesTop5.length > 0 ? inadimplentesTop5.map(item => {
                           return (
-                              <div key={item.id} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-100 rounded-xl hover:border-slate-300 transition-colors">
+                              <div key={item.alunoRaw.id} className="flex justify-between items-center p-3.5 bg-rose-50/50 border border-rose-100 rounded-xl hover:border-rose-300 transition-colors">
                                   <div className="overflow-hidden pr-2">
-                                      <span className="block text-xs font-bold text-slate-800 uppercase truncate">{nomeAluno}</span>
-                                      <span className="text-[10px] text-slate-500 uppercase block truncate">{item.descricao}</span>
+                                      <span className="block text-xs font-bold text-slate-800 uppercase truncate">{item.nome}</span>
+                                      <span className="text-[10px] text-slate-500 font-medium">Turma: {item.alunoRaw.turma || "N/A"}</span>
                                   </div>
-                                  <span className="font-bold text-rose-600 text-sm whitespace-nowrap">R$ {restante.toFixed(2)}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-rose-600 text-sm whitespace-nowrap">R$ {item.total_devido.toFixed(2)}</span>
+                                    <button 
+                                        onClick={() => setAlunoSelecionado(item.alunoRaw)}
+                                        className="bg-rose-100 hover:bg-rose-600 hover:text-white text-rose-700 p-1.5 rounded-lg transition-all"
+                                        title="Cobrar no PDV"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                  </div>
                               </div>
                           );
                       }) : (
                           <div className="h-full flex flex-col items-center justify-center text-center opacity-60 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <span className="text-4xl mb-2">🎉</span>
-                            <p className="text-xs text-slate-500 font-medium italic">Nenhum vencimento<br/>pendente hoje.</p>
+                            <span className="text-4xl mb-2">🏆</span>
+                            <p className="text-xs text-slate-500 font-medium italic">Nenhuma inadimplência<br/>registrada no momento.</p>
                           </div>
                       )}
                   </div>
                 </div>
 
+                {/* Recebimentos Hoje */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 flex flex-col h-[400px]">
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide border-b border-slate-100 pb-3">
                       <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
@@ -683,7 +720,7 @@ export default function PDVPage() {
           </div>
 
           {/* COLUNA DIREITA: Carrinho e Fechamento */}
-          <div className="xl:col-span-5 relative">
+          <div className="xl:col-span-4 relative">
             <div className="bg-white p-6 md:p-7 rounded-2xl shadow-xl border border-slate-200/80 sticky top-6 flex flex-col min-h-[600px] border-t-4 border-t-indigo-500">
               
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
@@ -730,6 +767,7 @@ export default function PDVPage() {
                 })}
               </div>
 
+              {/* Ajustes Financeiros */}
               <div className="bg-[#f8fafc] p-5 rounded-2xl border border-slate-200/80 space-y-4 mb-6">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-semibold text-slate-500">Subtotal</span>
