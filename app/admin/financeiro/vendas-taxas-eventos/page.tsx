@@ -568,7 +568,7 @@ export default function DashboardFinanceiroPage() {
       {/* HEADER CENTRALIZADO COM SELETOR DE ABAS */}
       <div className="mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:border-none print:shadow-none">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">💰 Caixa Executive & Faturamentos</h1>
+          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">💰 Caixa & Faturamentos</h1>
           <p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Escola ABC do Park — Gestão Unificada</p>
         </div>
 
