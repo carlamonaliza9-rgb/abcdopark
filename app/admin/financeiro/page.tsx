@@ -35,9 +35,6 @@ export default function FinanceiroAdminPage() {
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
   const [carregando, setCarregando] = useState(true);
 
-  // --- CONSTANTE DE BACKGROUND REINTEGRADA PARA O CÁLCULO DE BOLSAS ---
-  const valorPadrao = 550;
-
   // --- ESTADOS DOS NOVOS PAINÉIS DE ANÁLISE ---
   const [radarInadimplencia, setRadarInadimplencia] = useState<any[]>([]);
   const [distribuicaoGastos, setDistribuicaoGastos] = useState({ fixas: 0, variaveis: 0, pctFixas: 0, pctVariaveis: 0 });
@@ -118,7 +115,7 @@ export default function FinanceiroAdminPage() {
       const todasAsDespesas = [...(gastosMes || []), ...contasFormatadas];
       setListaGastosDetalhada(todasAsDespesas);
 
-      const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim);
+      const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
       const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
 
       const metodosResumo = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
@@ -191,8 +188,11 @@ export default function FinanceiroAdminPage() {
         const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
         const totalGeralPrevisto = vPago + totalPendenteCaixa;
         
-        // CÁLCULO DE BOLSAS DE DESCONTOS RESTAURADO COM SEGURANÇA
-        const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, valorPadrao - (parseFloat(curr.valor) || 0)), 0);
+        // --- MOTOR DE DESCONTOS INTEGRADO AO CACHE (CORREÇÃO APLICADA) ---
+        const valorSalvoMemoria = localStorage.getItem('valorPadraoMensalidade');
+        const mensalidadeBaseVigente = valorSalvoMemoria ? Number(valorSalvoMemoria) : 550;
+
+        const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, mensalidadeBaseVigente - (parseFloat(curr.valor) || 0)), 0);
         
         setMetricas({ 
           total: totalGeralPrevisto, 
@@ -350,7 +350,7 @@ export default function FinanceiroAdminPage() {
 
   const maxArrecadacaoDia = Math.max(...timelineDiaria.map((d: any) => d.valor), 1);
 
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium">Carregando painel financeiro global...</div>;
+  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium tracking-widest animate-pulse">Carregando painel financeiro...</div>;
 
   return (
     <div className="w-full min-h-screen bg-[#f8fafc] p-4 md:p-6 lg:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
@@ -386,14 +386,41 @@ export default function FinanceiroAdminPage() {
           onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
         />
 
+        {/* ================= TIMELINE DE ARRECADAÇÃO DIÁRIA (SVG) ================= */}
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">📈 Fluxo de Arrecadação Diária</h3>
+            <p className="text-xs text-slate-400">Distribuição volumétrica das entradas consolidadas ao longo dos dias do mês</p>
+          </div>
+          <div className="w-full pt-4">
+            <div className="flex items-end justify-between h-24 gap-1 px-2 border-b border-slate-100">
+              {timelineDiaria.map((d: any) => {
+                const alturaPct = (d.valor / maxArrecadacaoDia) * 100;
+                return (
+                  <div key={d.dia} className="flex-1 flex flex-col items-center group relative">
+                    <div className="absolute bottom-full mb-1 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 whitespace-nowrap">
+                      Dia {d.dia}: R$ {d.valor.toFixed(2)}
+                    </div>
+                    <div 
+                      style={{ height: `${Math.max(alturaPct, 4)}%` }} 
+                      className={`w-full rounded-t transition-all ${d.valor > 0 ? 'bg-indigo-500 group-hover:bg-indigo-600' : 'bg-slate-100'}`}
+                    />
+                    <span className="text-[9px] text-slate-400 font-bold mt-1.5 block">{d.dia}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         {/* Bloco Avançado Separado: Esquerda (Radar/Métodos) e Direita (Despesas/Geral) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
           
-          {/* COLUNA ESQUERDA (8/12): Radar de Inadimplência e Balanço de Métodos */}
+          {/* COLUNA ESQUERDA (8/12) */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             
             {/* Radar de Inadimplência Crítica */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
               <div className="border-b pb-3 border-slate-100 flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
@@ -419,25 +446,24 @@ export default function FinanceiroAdminPage() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm">
               <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">💳 Métodos de Arrecadação</h3>
               <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
             </div>
 
           </div>
 
-          {/* COLUNA DIREITA (4/12): Distribuição Analítica de Despesas */}
+          {/* COLUNA DIREITA (4/12) */}
           <div className="lg:col-span-4 space-y-6 md:space-y-8">
             
             {/* Distribuição de Despesas Categorizadas */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
               <div className="border-b pb-3 border-slate-100">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">📊 Distribuição de Despesas</h3>
                 <p className="text-xs text-slate-400">Classificação proporcional dos custos do período</p>
               </div>
               
               <div className="flex-1 flex flex-col justify-center space-y-6">
-                {/* Categoria 1: Fixas */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-end text-xs">
                     <span className="font-bold text-slate-700 uppercase">🏢 Custos Fixos (Contas)</span>
@@ -448,7 +474,6 @@ export default function FinanceiroAdminPage() {
                   </div>
                 </div>
 
-                {/* Categoria 2: Variáveis */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-end text-xs">
                     <span className="font-bold text-slate-700 uppercase">🛍️ Gastos Variáveis / Eventos</span>
@@ -460,7 +485,7 @@ export default function FinanceiroAdminPage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center mt-4">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Total de Saídas Calculado</span>
                 <span className="font-black text-slate-800 text-base">R$ {metricas.gastos.toFixed(2)}</span>
               </div>
@@ -499,6 +524,12 @@ export default function FinanceiroAdminPage() {
         })}
         onExcluir={handleExcluirReceita}
       />
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}} />
     </div>
   );
 }

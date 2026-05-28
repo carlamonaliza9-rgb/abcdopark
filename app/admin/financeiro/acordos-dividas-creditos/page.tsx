@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Importação dos Componentes e Modais
 import { TabelaMensalidades } from "@/app/dashboard/financeiro/_components/TabelaMensalidades";
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 
@@ -49,6 +48,11 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   });
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
+  useEffect(() => {
+    const valorSalvo = localStorage.getItem('valorPadraoMensalidade');
+    if (valorSalvo) setValorPadrao(Number(valorSalvo));
+  }, []);
+
   async function carregarDados() {
     setCarregando(true);
     try {
@@ -66,14 +70,13 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
       const pgtosDesteMes = pgtosAnoSeguro.filter((p: any) => p.tipo === 'mensalidade' && (p.descricao || '').includes(nomeMesReferencia));
       
-      // FILTRO BLINDADO: Apenas acordos genuínos de mensalidade entram aqui
       const acordosDesteMes = pgtosAnoSeguro.filter((p: any) => {
         const isAcordo = p.tipo === 'acordo';
         const isNoMesFiltro = p.data_pagamento && p.data_pagamento.startsWith(mesFiltro);
         const isAvulso = p.mes_referencia === 'Avulso';
         
         const desc = (p.descricao || '').toLowerCase();
-        const isVendaOuTaxa = desc.includes('uniforme') || desc.includes('material') || desc.includes('livro') || desc.includes('evento') || desc.includes('avulso');
+        const isVendaOuTaxa = desc.includes('uniforme') || desc.includes('material') || desc.includes('livro') || desc.includes('evento') || desc.includes('avulso') || desc.includes('taxa');
 
         return isAcordo && isNoMesFiltro && !isAvulso && !isVendaOuTaxa;
       });
@@ -136,7 +139,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     } finally { setCarregando(false); }
   }
 
-  useEffect(() => { carregarDados(); }, [mesFiltro, valorPadrao]);
+  useEffect(() => { carregarDados(); }, [mesFiltro]);
 
   async function confirmarPagamento() {
     if (tipoPagamento === "acordo") {
@@ -354,7 +357,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             
-            {/* Controle do Valor Padrão */}
             <div className={`flex items-center border rounded-xl px-3 py-2 shadow-sm transition-all h-[44px] ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200'}`}>
               <button 
                 onClick={() => { 
@@ -366,12 +368,14 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                     }
                   } else {
                     setEditandoValor(false);
+                    localStorage.setItem('valorPadraoMensalidade', valorPadrao.toString());
+                    carregarDados();
                   }
                 }} 
                 className="text-sm mr-2 opacity-70 hover:opacity-100 transition-opacity focus:outline-none"
-                title={editandoValor ? "Bloquear valor" : "Desbloquear valor base"}
+                title={editandoValor ? "Salvar valor padrão" : "Desbloquear valor base"}
               >
-                {editandoValor ? "🔓" : "🔒"}
+                {editandoValor ? "💾" : "🔒"}
               </button>
               <div className="flex items-center gap-1">
                 <span className="text-xs font-bold text-slate-400">R$</span>
@@ -483,39 +487,40 @@ function VisaoSaldosCreditos() {
   const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" });
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
-  async function carregarDados() {
-    setCarregando(true);
-    try {
-      const { data: listaAlunos } = await supabase.from('alunos').select('*');
-      const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+  useEffect(() => {
+    async function carregarDados() {
+      setCarregando(true);
+      try {
+        const { data: listaAlunos } = await supabase.from('alunos').select('*');
+        const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
 
-      const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
+        const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
 
-      const obterPesoPedagogico = (turmaNome: string) => {
-        const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
-        const index = ordemHierarquicaTurmas.findIndex(t => nomeMinusculo.includes(t));
-        return index === -1 ? 999 : index;
-      };
+        const obterPesoPedagogico = (turmaNome: string) => {
+          const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
+          const index = ordemHierarquicaTurmas.findIndex(t => nomeMinusculo.includes(t));
+          return index === -1 ? 999 : index;
+        };
 
-      if (listaAlunos) {
-        const ordenados = [...listaAlunos].sort((a, b) => {
-          const pesoA = obterPesoPedagogico(a.turma);
-          const pesoB = obterPesoPedagogico(b.turma);
-          if (pesoA !== pesoB) return pesoA - pesoB;
-          const compTurmaString = (a.turma || "").localeCompare(b.turma || "", "pt-BR");
-          if (compTurmaString !== 0) return compTurmaString;
-          return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
-        });
-        setAlunos(ordenados);
-      }
+        if (listaAlunos) {
+          const ordenados = [...listaAlunos].sort((a, b) => {
+            const pesoA = obterPesoPedagogico(a.turma);
+            const pesoB = obterPesoPedagogico(b.turma);
+            if (pesoA !== pesoB) return pesoA - pesoB;
+            const compTurmaString = (a.turma || "").localeCompare(b.turma || "", "pt-BR");
+            if (compTurmaString !== 0) return compTurmaString;
+            return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
+          });
+          setAlunos(ordenados);
+        }
 
-      if (pgtosPendentes) setListaSaldosDevedores(pgtosPendentes);
-    } catch (err) {
-      console.error("Erro ao processar balanço de saldos:", err);
-    } finally { setCarregando(false); }
-  }
-
-  useEffect(() => { carregarDados(); }, []);
+        if (pgtosPendentes) setListaSaldosDevedores(pgtosPendentes);
+      } catch (err) {
+        console.error("Erro ao processar balanço de saldos:", err);
+      } finally { setCarregando(false); }
+    }
+    carregarDados();
+  }, []);
 
   const toggleAluno = (id: string) => setAlunosExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -592,7 +597,7 @@ function VisaoSaldosCreditos() {
     if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
 
     const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
-    if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
+    if (creditoUtilizado > saldoDisponivel) return alert("O aluno não possui esse saldo de crédito disponível.");
 
     const existente = listaSaldosDevedores.find(r => r.id === idPagamentoEdicao);
     const valorOriginalDivida = clean(existente?.valor_total);
@@ -631,11 +636,11 @@ function VisaoSaldosCreditos() {
     }
 
     setModalPgtoAberto(false); 
-    carregarDados();
     alert("Amortização registrada com sucesso!");
+    // Força o reload global da página para garantir a re-hidratação visual (Workaround para state lock)
+    window.location.reload();
   }
 
-  // --- FILTRO CONSOLIDADO E CORRIGIDO (Resolvendo os Implicit 'Any' Type) ---
   const alunosConsolidados = alunos.map((aluno: any) => {
     const credito = clean(aluno.saldo_credito);
     const dividasDoAluno = listaSaldosDevedores.filter((p: any) => p.aluno_id === aluno.id);
@@ -663,6 +668,8 @@ function VisaoSaldosCreditos() {
     if (abaAtiva === "dividas") return item.saldoFinal < 0;
     return true;
   });
+
+  if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Carregando Auditoria...</div>;
 
   return (
     <div className="w-full relative">
