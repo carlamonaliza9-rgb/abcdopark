@@ -70,7 +70,7 @@ export default function DashboardLayout({
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {/* Dashboard Geral */}
           <Link href="/dashboard" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-            📊 Home
+            📊 Painel de Controle
           </Link>
 
           {/* ITENS PARA ADMIN */}
