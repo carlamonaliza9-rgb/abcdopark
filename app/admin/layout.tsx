@@ -138,11 +138,8 @@ export default function DashboardLayout({
                     <Link href="/admin/pdv" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
                      🛒 Ponto de Venda
                     </Link>
-                    <Link href="/admin/financeiro/despesas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      💸 Despesas
-                    </Link>
-                    <Link href="/admin/financeiro/contas-a-pagar" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
-                      ⏳ Contas a Pagar
+                    <Link href="/admin/financeiro/saidas" className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-base font-bold transition-all">
+                      💸 Saídas
                     </Link>
                   </div>
                 )}
