@@ -744,7 +744,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div style={{ textAlign: 'right' }}>
                             <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Valor Original: R$ {clean(pgto.valor_total).toFixed(2)}</span>
-                            <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>Amortizado: R$ {clean(pgto.valor_pago).toFixed(2)}</span>
+                            <span style={{ fontSize: '14px', fontWeight: '900', color: pgto.status === 'pago' ? '#16a34a' : pgto.status === 'parcial' ? '#d97706' : '#dc2626', display: 'block' }}>Pago: R$ {clean(pgto.valor_pago).toFixed(2)}</span>
                             {devedorRestante > 0 && <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626' }}>Saldo Devedor: R$ {devedorRestante.toFixed(2)}</span>}
                           </div>
 
