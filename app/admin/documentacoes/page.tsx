@@ -8,7 +8,16 @@ import { useRouter } from "next/navigation";
 import { gerarPDFMatricula } from "@/app/dashboard/documentacoes/_lib/geradorMatricula";
 import { gerarPDFImpostoRenda } from "@/app/dashboard/documentacoes/_lib/geradorImpostoRenda";
 import { gerarPDFRessalva } from "@/app/dashboard/documentacoes/_lib/geradorRessalva";
-import { gerarDocumentoCodes } from "@/app/dashboard/documentacoes/_lib/geradorCodes"; // NOVA IMPORTAÇÃO CODES
+import { gerarDocumentoCodes } from "@/app/dashboard/documentacoes/_lib/geradorCodes"; 
+import { gerarNotificacaoExtrajudicial } from "@/app/dashboard/documentacoes/_lib/geradorNotificacaoExtrajudicial"; 
+
+const clean = (val: any) => {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).trim();
+  if (str.includes(',')) return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  return parseFloat(str) || 0;
+};
 
 export default function DocumentacoesAdminPage() {
   const router = useRouter();
@@ -23,10 +32,71 @@ export default function DocumentacoesAdminPage() {
   const [mesesPagos, setMesesPagos] = useState<string>("12");
   const [anoBase, setAnoBase] = useState<string>("2025");
 
-  // --- NOVOS ESTADOS PARA O CODES ---
+  // --- ESTADOS PARA O CODES ---
   const [turmas, setTurmas] = useState<any[]>([]);
   const [boletins, setBoletins] = useState<any[]>([]);
   const [abaTurmaAtiva, setAbaTurmaAtiva] = useState<string>("");
+
+  // --- ESTADOS PARA A NOTIFICAÇÃO EXTRAJUDICIAL ---
+  const [dataReferencia, setDataReferencia] = useState("");
+  const [valorPagoNotificacao, setValorPagoNotificacao] = useState("");
+  const [multaNotificacao, setMultaNotificacao] = useState("");
+  const [descontoNotificacao, setDescontoNotificacao] = useState("");
+  const [prazoDias, setPrazoDias] = useState("15 (quinze)");
+  const [cidadeData, setCidadeData] = useState(`Belém, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`);
+  const [itensNotificacao, setItensNotificacao] = useState<{descricao: string, valor: string}[]>([
+    { descricao: "", valor: "" }
+  ]);
+
+  // --- MÁSCARAS DE FORMATAÇÃO EM TEMPO REAL ---
+  const handleDataChange = (value: string, setter: (val: string) => void) => {
+    let v = value.replace(/\D/g, "");
+    if (v.length > 2) v = v.substring(0, 2) + "/" + v.substring(2);
+    if (v.length > 5) v = v.substring(0, 5) + "/" + v.substring(5, 9);
+    setter(v);
+  };
+
+  const handleMoedaChange = (value: string, setter: (val: string) => void) => {
+    let v = value.replace(/\D/g, "");
+    if (v === "") {
+      setter("");
+      return;
+    }
+    v = (parseInt(v, 10) / 100).toFixed(2);
+    v = v.replace(".", ",");
+    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+    setter(v);
+  };
+
+  // --- BUSCADOR AUTOMÁTICO DE INADIMPLÊNCIA (NOTIFICAÇÃO) ---
+  useEffect(() => {
+    async function carregarPendenciasAluno() {
+      if (documentoAtivo === 'notificacao' && alunoSelecionado) {
+        const { data } = await supabase.from('historico_pagamentos')
+          .select('*')
+          .eq('aluno_id', alunoSelecionado.id)
+          .in('status', ['pendente', 'parcial', 'atrasado'])
+          .order('data_pagamento', { ascending: true });
+
+        if (data && data.length > 0) {
+          const pendenciasMapeadas = data.map(p => {
+            const restante = clean(p.valor_total) - clean(p.valor_pago);
+            let valString = restante.toFixed(2).replace(".", ",");
+            valString = valString.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+            
+            return {
+              descricao: p.descricao ? p.descricao.toUpperCase() : "DÉBITO PENDENTE",
+              valor: valString
+            };
+          });
+          setItensNotificacao(pendenciasMapeadas);
+        } else {
+          setItensNotificacao([{ descricao: "", valor: "" }]);
+        }
+      }
+    }
+    carregarPendenciasAluno();
+  }, [documentoAtivo, alunoSelecionado]);
 
   // --- TRAVA DE SEGURANÇA ---
   useEffect(() => {
@@ -100,6 +170,7 @@ export default function DocumentacoesAdminPage() {
     if (documentoAtivo === 'matricula') nomeDoc = "Declaração de Matrícula";
     else if (documentoAtivo === 'quitacao') nomeDoc = "Quitação de Imposto de Renda";
     else if (documentoAtivo === 'ressalva') nomeDoc = "Ressalva (Transferência)";
+    else if (documentoAtivo === 'notificacao') nomeDoc = "Notificação Extrajudicial";
     
     const mensagem = `Olá! Aqui é da *Escola ABC do Park*. Segue a ${nomeDoc} de *${aluno.nome}*. Por favor, salve o arquivo PDF que acabei de gerar para você.`;
     
@@ -107,13 +178,33 @@ export default function DocumentacoesAdminPage() {
     window.open(url, "_blank");
   };
 
-  // --- LÓGICA AUXILIAR DO CODES ---
   const executarGeracaoCodesPdf = async () => {
     const doc = await gerarDocumentoCodes(turmas, alunos, boletins);
     if (doc) {
       const pdfUrl = doc.output('bloburl');
       window.open(pdfUrl, '_blank');
     }
+  };
+
+  const executarGeracaoNotificacao = async () => {
+    const itensConvertidos = itensNotificacao.map(i => ({
+        descricao: i.descricao,
+        valor: parseFloat(i.valor.replace(/\./g, '').replace(',', '.')) || 0
+    }));
+
+    const dados = {
+      nomeResponsavel: responsavelEscolhido.nome,
+      cpfResponsavel: responsavelEscolhido.cpf,
+      enderecoResponsavel: alunoSelecionado.endereco || "Endereço não cadastrado",
+      dataReferencia: dataReferencia,
+      valorPago: parseFloat(valorPagoNotificacao.replace(/\./g, '').replace(',', '.')) || 0,
+      multa: parseFloat(multaNotificacao.replace(/\./g, '').replace(',', '.')) || 0,
+      desconto: parseFloat(descontoNotificacao.replace(/\./g, '').replace(',', '.')) || 0,
+      itens: itensConvertidos,
+      prazoDias: prazoDias,
+      cidadeData: cidadeData
+    };
+    await gerarNotificacaoExtrajudicial(dados);
   };
 
   const obterMediaFinalAluno = (alunoId: string, materiaChave: string, materiaChaveSecundaria?: string) => {
@@ -169,11 +260,16 @@ export default function DocumentacoesAdminPage() {
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Documento de transferência com direito à matrícula.</p>
           </div>
 
-          {/* NOVA OPÇÃO CODES ADICIONADA */}
           <div onClick={() => setDocumentoAtivo('codes')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
             <span style={{ fontSize: '40px', marginBottom: '15px' }}>📋</span>
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>CODES</h3>
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Relatório oficial (1º ao 5º Ano) exigido pela SEDUC.</p>
+          </div>
+
+          <div onClick={() => setDocumentoAtivo('notificacao')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontSize: '40px', marginBottom: '15px' }}>⚖️</span>
+            <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Notificação Extrajudicial</h3>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Cobrança formal de débitos em aberto.</p>
           </div>
         </div>
       ) : (
@@ -184,7 +280,6 @@ export default function DocumentacoesAdminPage() {
 
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: documentoAtivo === 'codes' ? '1200px' : '600px', width: '100%', overflowX: 'auto' }}>
             
-            {/* LÓGICA DE EXIBIÇÃO: SE FOR CODES, MOSTRA PREVIEW, SE NÃO FOR, MOSTRA SELECT DO ALUNO */}
             {documentoAtivo === 'codes' ? (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
@@ -244,6 +339,7 @@ export default function DocumentacoesAdminPage() {
                   {documentoAtivo === 'matricula' && 'Gerar Declaração de Matrícula'}
                   {documentoAtivo === 'quitacao' && 'Gerar Quitação de Imposto de Renda'}
                   {documentoAtivo === 'ressalva' && 'Gerar Ressalva'}
+                  {documentoAtivo === 'notificacao' && 'Gerar Notificação Extrajudicial'}
                 </h2>
                 
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>1. Selecione o Aluno</label>
@@ -285,6 +381,92 @@ export default function DocumentacoesAdminPage() {
                       </div>
                     )}
 
+                    {documentoAtivo === 'notificacao' && (
+                      <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>DATA DE REFERÊNCIA</label>
+                            <input type="text" placeholder="Ex: 28/03/2023" value={dataReferencia} onChange={(e) => handleDataChange(e.target.value, setDataReferencia)} maxLength={10} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>VALOR JÁ PAGO (R$)</label>
+                            <input type="text" placeholder="Ex: 50,00" value={valorPagoNotificacao} onChange={(e) => handleMoedaChange(e.target.value, setValorPagoNotificacao)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MULTA / JUROS (R$)</label>
+                            <input type="text" placeholder="Ex: 10,00" value={multaNotificacao} onChange={(e) => handleMoedaChange(e.target.value, setMultaNotificacao)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>DESCONTO (R$)</label>
+                            <input type="text" placeholder="Ex: 5,00" value={descontoNotificacao} onChange={(e) => handleMoedaChange(e.target.value, setDescontoNotificacao)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>PRAZO PARA PAGAMENTO</label>
+                            <input type="text" placeholder="Ex: 15 (quinze)" value={prazoDias} onChange={(e) => setPrazoDias(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>LOCAL E DATA DA EMISSÃO</label>
+                            <input type="text" value={cidadeData} onChange={(e) => setCidadeData(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: '10px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ITENS DEVIDOS</label>
+                          {itensNotificacao.map((item, index) => (
+                            <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                              <input 
+                                type="text" 
+                                placeholder="Descrição (ex: Mensalidade Maio)" 
+                                value={item.descricao} 
+                                onChange={(e) => {
+                                  const newItens = [...itensNotificacao];
+                                  newItens[index].descricao = e.target.value;
+                                  setItensNotificacao(newItens);
+                                }}
+                                style={{ flex: 2, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }}
+                              />
+                              <input 
+                                type="text" 
+                                placeholder="Valor (R$)" 
+                                value={item.valor} 
+                                onChange={(e) => {
+                                  const newItens = [...itensNotificacao];
+                                  handleMoedaChange(e.target.value, (val) => {
+                                      newItens[index].valor = val;
+                                      setItensNotificacao(newItens);
+                                  });
+                                }}
+                                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }}
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  const newItens = itensNotificacao.filter((_, i) => i !== index);
+                                  setItensNotificacao(newItens);
+                                }} 
+                                style={{ padding: '0 15px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                X
+                              </button>
+                            </div>
+                          ))}
+                          <button 
+                            type="button" 
+                            onClick={() => setItensNotificacao([...itensNotificacao, { descricao: "", valor: "" }])} 
+                            style={{ padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}
+                          >
+                            + Adicionar Item
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {(documentoAtivo === 'matricula' || documentoAtivo === 'ressalva') && (
                       <div style={{ marginBottom: '20px' }}>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textTransform: 'uppercase' }}>2. Qual o sexo do aluno?</label>
@@ -296,7 +478,7 @@ export default function DocumentacoesAdminPage() {
                     )}
 
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textTransform: 'uppercase' }}>
-                      3. Qual responsável assinará?
+                      {documentoAtivo === 'notificacao' ? '2. Qual responsável será notificado?' : '3. Qual responsável assinará?'}
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {[1, 2].map((tipo) => {
@@ -323,6 +505,8 @@ export default function DocumentacoesAdminPage() {
                               gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
                             } else if(documentoAtivo === 'ressalva') {
                               gerarPDFRessalva(alunoSelecionado, sexoAluno);
+                            } else if(documentoAtivo === 'notificacao') {
+                              executarGeracaoNotificacao();
                             }
                           }}
                           style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
@@ -339,6 +523,8 @@ export default function DocumentacoesAdminPage() {
                               gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
                             } else if(documentoAtivo === 'ressalva') {
                               gerarPDFRessalva(alunoSelecionado, sexoAluno);
+                            } else if(documentoAtivo === 'notificacao') {
+                              executarGeracaoNotificacao();
                             }
                             enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
                           }}
