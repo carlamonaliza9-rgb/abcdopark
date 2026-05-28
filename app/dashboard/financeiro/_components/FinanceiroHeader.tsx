@@ -3,77 +3,46 @@
 interface FinanceiroHeaderProps {
   mesFiltro: string;
   setMesFiltro: (val: string) => void;
-  onNovoEvento: () => void;
-  onRegistrarGasto: () => void;
-  onVendaUniforme: () => void;
   onZerarMes: () => void;
-  valorPadrao: number;
-  setValorPadrao: (val: number) => void;
-  editandoValor: boolean;
-  setEditandoValor: (val: boolean) => void;
-  senhaMestra: string;
 }
 
 export function FinanceiroHeader({
   mesFiltro,
   setMesFiltro,
-  onNovoEvento,
-  onRegistrarGasto,
-  onVendaUniforme,
-  onZerarMes,
-  valorPadrao,
-  setValorPadrao,
-  editandoValor,
-  setEditandoValor,
-  senhaMestra
+  onZerarMes
 }: FinanceiroHeaderProps) {
-  
-  const estiloBtnReduzido = { 
-    padding: '4px 10px', 
-    borderRadius: '8px', 
-    fontSize: '10px', 
-    fontWeight: 'bold' as 'bold', 
-    border: 'none', 
-    cursor: 'pointer', 
-    display: 'inline-block' 
-  };
-
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-      <header>
-        <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937' }}>Financeiro ABC DO PARK</h1>
-        <div style={{ marginTop: '10px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280', marginRight: '10px' }}>VISUALIZAR MÊS:</label>
+    <div className="flex-1 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 w-full">
+      
+      {/* Lado Esquerdo: Título e Filtro de Mês */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase italic">
+          Financeiro ABC DO PARK
+        </h1>
+        <div className="flex items-center gap-3 mt-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            Visualizar Mês:
+          </label>
           <input 
             type="month" 
             value={mesFiltro} 
             onChange={(e) => setMesFiltro(e.target.value)} 
-            style={{ border: '1px solid #ddd', padding: '5px 10px', borderRadius: '8px', fontWeight: 'bold' }} 
-          />
-        </div>
-      </header>
-      
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <button onClick={onNovoEvento} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#8b5cf6', color: 'white' }}>🎟️ NOVO EVENTO</button>
-        <button onClick={onRegistrarGasto} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#ef4444', color: 'white' }}>- GASTO</button>
-        <button onClick={onZerarMes} style={{ ...estiloBtnReduzido, padding: '12px 15px', backgroundColor: '#374151', color: 'white' }}>🔄 ZERAR MÊS</button>
-        
-        <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <button 
-            onClick={() => { if(prompt("Senha:") === senhaMestra) setEditandoValor(!editandoValor); }} 
-            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            {editandoValor ? "🔓" : "🔒"}
-          </button>
-          <input 
-            type="number" 
-            value={valorPadrao} 
-            disabled={!editandoValor} 
-            onChange={(e) => setValorPadrao(Number(e.target.value))} 
-            style={{ width: '60px', border: 'none', textAlign: 'center', fontWeight: 'bold' }} 
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm hover:border-indigo-300" 
           />
         </div>
       </div>
+
+      {/* Lado Direito: Ação Administrativa (Zerar Mês) */}
+      <div className="flex items-center w-full xl:w-auto">
+        <button 
+          onClick={onZerarMes} 
+          className="flex justify-center w-full xl:w-auto items-center gap-2 px-5 py-3.5 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-bold text-xs rounded-xl transition-all shadow-sm border border-slate-200 uppercase tracking-widest"
+          title="Resetar status de pagamentos do mês exibido"
+        >
+          🔄 Zerar Mês
+        </button>
+      </div>
+
     </div>
   );
 }

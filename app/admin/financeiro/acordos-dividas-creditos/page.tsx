@@ -26,6 +26,7 @@ const SENHA_MESTRA = "1234";
 // ============================================================================
 function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [valorPadrao, setValorPadrao] = useState(550);
+  const [editandoValor, setEditandoValor] = useState(false);
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroTurma, setFiltroTurma] = useState(""); 
@@ -64,7 +65,18 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
       const pgtosDesteMes = pgtosAnoSeguro.filter((p: any) => p.tipo === 'mensalidade' && (p.descricao || '').includes(nomeMesReferencia));
-      const acordosDesteMes = pgtosAnoSeguro.filter((p: any) => p.tipo === 'acordo' && p.data_pagamento && p.data_pagamento.startsWith(mesFiltro));
+      
+      // FILTRO BLINDADO: Apenas acordos genuínos de mensalidade entram aqui
+      const acordosDesteMes = pgtosAnoSeguro.filter((p: any) => {
+        const isAcordo = p.tipo === 'acordo';
+        const isNoMesFiltro = p.data_pagamento && p.data_pagamento.startsWith(mesFiltro);
+        const isAvulso = p.mes_referencia === 'Avulso';
+        
+        const desc = (p.descricao || '').toLowerCase();
+        const isVendaOuTaxa = desc.includes('uniforme') || desc.includes('material') || desc.includes('livro') || desc.includes('evento') || desc.includes('avulso');
+
+        return isAcordo && isNoMesFiltro && !isAvulso && !isVendaOuTaxa;
+      });
 
       if (listaAlunos) {
         const idsPagosNestaReferencia = pgtosDesteMes.filter((p: any) => p.status === 'pago').map((p: any) => p.aluno_id);
@@ -217,18 +229,28 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
          if (acordoOriginal) {
              const valorPagoAnteriormenteAcordo = clean(acordoOriginal.valor_pago);
              const valorTotalDoAcordoNaBase = clean(acordoOriginal.valor_total);
-             const valorAbaterNoAcordoDaVez = Math.min(saldoParaDistribuir, dividaAcordoDB);
-             saldoParaDistribuir -= valorAbaterNoAcordoDaVez;
-             const novoValorPagoAbsolutoAcordo = valorPagoAnteriormenteAcordo + valorAbaterNoAcordoDaVez;
+             const valorAbaterDestaVez = Math.min(saldoParaDistribuir, dividaAcordoDB);
+             
+             saldoParaDistribuir -= valorAbaterDestaVez;
 
-             const registroParcialAcordo = { data_recebimento: dataPagamento, valor_pago_rodada: valorAbaterNoAcordoDaVez, formas: formaPagamentoTexto, desconto: valorDesconto, multa: valorMulta };
+             const novoValorPagoAbsolutoAcordo = valorPagoAnteriormenteAcordo + valorAbaterDestaVez;
+
+             const registroParcialAcordo = {
+                data_recebimento: dataPagamento,
+                valor_pago_rodada: valorAbaterDestaVez,
+                formas: formaPagamentoTexto,
+                desconto: valorDesconto,
+                multa: valorMulta
+             };
+
              const historicoAntigoAcordo = Array.isArray(acordoOriginal.detalhes_metodos?.historico_parciais) ? acordoOriginal.detalhes_metodos.historico_parciais : [];
              const metodosComSubLedgerAcordo = { ...metodosLimpos, historico_parciais: [...historicoAntigoAcordo, registroParcialAcordo] };
 
              await supabase.from('historico_pagamentos').update({
                   valor_pago: novoValorPagoAbsolutoAcordo,
                   status: novoValorPagoAbsolutoAcordo >= valorTotalDoAcordoNaBase ? 'pago' : (novoValorPagoAbsolutoAcordo > 0 ? 'parcial' : 'pendente'),
-                  data_pagamento: dataPagamento, detalhes_metodos: metodosComSubLedgerAcordo
+                  data_pagamento: dataPagamento,
+                  detalhes_metodos: metodosComSubLedgerAcordo
              }).eq('id', alunoSelecionado.idPagamentoAcordo);
          }
     }
@@ -239,14 +261,27 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
          const statusMensalObj = valorAplicadoMensal >= dividaMensalDB ? 'pago' : (valorAplicadoMensal > 0 ? 'parcial' : 'pendente');
          const descRef = `Mensalidade - ${mesReferencia}/${mesFiltro.split('-')[0]}`;
-         const registroParcialMensalidade = { data_recebimento: dataPagamento, valor_pago_rodada: valorAplicadoMensal, formas: formaPagamentoTexto, desconto: valorDesconto, multa: valorMulta };
+         
+         const registroParcialMensalidade = {
+            data_recebimento: dataPagamento,
+            valor_pago_rodada: valorAplicadoMensal,
+            formas: formaPagamentoTexto,
+            desconto: valorDesconto,
+            multa: valorMulta
+         };
+
          const metodosComSubLedgerMensalidade = { ...metodosLimpos, historico_parciais: [registroParcialMensalidade] };
          
          const dados = {
-              aluno_id: alunoSelecionado.id, tipo: tipoPagamento, descricao: descricaoOutro || descRef,
+              aluno_id: alunoSelecionado.id,
+              tipo: tipoPagamento,
+              descricao: descricaoOutro || descRef,
               mes_referencia: tipoPagamento === "mensalidade" ? mesReferencia : null,
-              valor_total: dividaMensalDB, valor_pago: valorAplicadoMensal, status: statusMensalObj,
-              data_pagamento: dataPagamento, detalhes_metodos: metodosComSubLedgerMensalidade
+              valor_total: dividaMensalDB,
+              valor_pago: valorAplicadoMensal,
+              status: statusMensalObj,
+              data_pagamento: dataPagamento,
+              detalhes_metodos: metodosComSubLedgerMensalidade
          };
 
          await supabase.from('historico_pagamentos').insert([dados]);
@@ -318,9 +353,41 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           </div>
           
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            
+            {/* Controle do Valor Padrão */}
+            <div className={`flex items-center border rounded-xl px-3 py-2 shadow-sm transition-all h-[44px] ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200'}`}>
+              <button 
+                onClick={() => { 
+                  if (!editandoValor) {
+                    if (prompt("Digite a Senha Mestra para desbloquear a mensalidade base:") === SENHA_MESTRA) {
+                      setEditandoValor(true);
+                    } else {
+                      alert("Senha incorreta!");
+                    }
+                  } else {
+                    setEditandoValor(false);
+                  }
+                }} 
+                className="text-sm mr-2 opacity-70 hover:opacity-100 transition-opacity focus:outline-none"
+                title={editandoValor ? "Bloquear valor" : "Desbloquear valor base"}
+              >
+                {editandoValor ? "🔓" : "🔒"}
+              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-bold text-slate-400">R$</span>
+                <input 
+                  type="number" 
+                  value={valorPadrao} 
+                  disabled={!editandoValor} 
+                  onChange={(e) => setValorPadrao(Number(e.target.value))} 
+                  className="w-12 bg-transparent border-none text-sm font-black text-slate-700 text-center outline-none p-0 disabled:opacity-80" 
+                />
+              </div>
+            </div>
+
             <select
               value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)}
-              className="w-full sm:w-auto px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-xs uppercase tracking-wider"
+              className="w-full sm:w-auto px-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-xs uppercase tracking-wider h-[44px]"
             >
               <option value="">Todas as Turmas</option>
               {listaTurmasUnicas.map((turma: any) => (
@@ -329,7 +396,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             </select>
             <input
               type="month" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)}
-              className="w-full sm:w-auto px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-sm"
+              className="w-full sm:w-auto px-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-sm h-[44px]"
             />
           </div>
         </div>
@@ -348,7 +415,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               setModalPgtoAberto(true);
             }}
             onCobrar={(a: any) => {
-              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, desconsidere esta mensagem ou nos envie o comprovante para darmos a baixa no system. \n\nTenha um excelente dia! ✨`;
+              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
               window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             onDesfazer={async (idAlunoSelecionado: string) => {
@@ -667,7 +734,7 @@ function VisaoSaldosCreditos() {
                                     <span className="font-bold text-slate-700 uppercase">[{div.tipo}] {div.descricao}</span>
                                     <p className="text-[10px] text-slate-400 mt-0.5">Lançamento: {div.dataCriacao} | Restante: R$ {div.valorRestante.toFixed(2)}</p>
                                   </div>
-                                  <button onClick={() => { setAlunoSelecionado(item.alunoRaw); setIdPagamentoEdicao(div.id); setTipoPagamento(div.tipo || "mensalidade"); setDescricaoOutro(div.descricao); setPagamentosMetodos({ pix: div.valorRestante.toFixed(2), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" }); setModalPgtoAberto(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px]">🟢 + PGTO</button>
+                                  <button onClick={() => { setAlunoSelecionado(item.alunoRaw); setIdPagamentoEdicao(div.id); setTipoPagamento(div.tipo || "mensalidade"); setDescricaoOutro(div.descricao); setPagamentosMetodos({ pix: div.valorRestante.toFixed(2), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" }); setModalPgtoAberto(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-all">🟢 + PGTO</button>
                                 </div>
                               ))}
                             </div>
