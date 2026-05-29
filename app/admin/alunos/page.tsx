@@ -529,7 +529,14 @@ export default function AlunosAdminPage() {
     setModoEdicao(true); setModalAberto(true);
   }
 
+  // --- TRAVA CONDICIONAL APLICADA AQUI ---
   function abrirFicha(aluno: any) {
+    if (!ehVisitante) {
+      router.push(`/admin/alunos/${aluno.id}`);
+      return;
+    }
+
+    // Se for professor (visitante), abre o modal exatamente como antes
     setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); setTurno(aluno.turno || "");
     setCep(aluno.cep || ""); setEndereco(aluno.endereco || ""); setNumero(aluno.numero || ""); 
     setBairro(aluno.bairro || ""); setCidade(aluno.cidade || ""); setEstado(aluno.estado || "");
