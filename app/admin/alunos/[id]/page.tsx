@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
+import { FormAlunoModal } from "@/app/dashboard/alunos/_components/FormAlunoModal";
 
 export default function PerfilAlunoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [ehVisitante, setEhVisitante] = useState(true);
   const [carregando, setCarregando] = useState(true);
+  
+  const [isProcessandoAcao, setIsProcessandoAcao] = useState(false);
 
   // --- ESTADOS DA FICHA ---
   const [verBoletim, setVerBoletim] = useState(false);
@@ -55,9 +58,15 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [mesReferencia, setMesReferencia] = useState("");
   const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
 
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [formEdicao, setFormEdicao] = useState<any>({});
+  const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
+  // --- FUNÇÕES UTILITÁRIAS INTERNAS ---
   const clean = (val: any) => {
     if (val === null || val === undefined || val === "") return 0;
     if (typeof val === 'number') return val;
@@ -73,7 +82,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   const mWhatsApp = (v: string) => {
     if (!v) return "";
-    return v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+    let val = v.replace(/\D/g, "");
+    if (val.length === 0) return "";
+    if (val.length <= 2) return `(${val}`;
+    if (val.length <= 7) return `(${val.substring(0, 2)}) ${val.substring(2)}`;
+    return `(${val.substring(0, 2)}) ${val.substring(2, 7)}-${val.substring(7, 11)}`;
   };
 
   const calcularIdade = (data: string) => {
@@ -85,6 +98,24 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       idade--;
     }
     return `${idade} anos`;
+  };
+
+  const abrirWhatsApp = (numero: any) => {
+    if (!numero) return;
+    const apenasNumeros = String(numero).replace(/\D/g, '');
+    window.open(`https://wa.me/55${apenasNumeros}`, '_blank');
+  };
+
+  const obterMediaFinal = (n: any) => {
+    const bimestres = [n.bimestre1, n.bimestre2, n.bimestre3, n.bimestre4].map(v => parseFloat(v) || 0);
+    const soma = bimestres.reduce((acc, curr) => acc + curr, 0);
+    return (soma / 4).toFixed(1);
+  };
+
+  const extrairFormaPagamento = (detalhes: any) => {
+    if (!detalhes) return null;
+    const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais' && key !== 'forma_geradora' && key !== 'ids_origem' && key !== 'e_subtracao' && key !== 'credito_utilizado_nesta_parcela');
+    return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
   };
 
   useEffect(() => {
@@ -188,13 +219,251 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  function gerarPDFHistorico() {
-    const extrairForma = (detalhes: any) => {
-      if (!detalhes) return "-";
-      const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais');
-      return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : "-";
-    };
+  async function processarAcaoPagamento(pgto: any, acao: 'estornar' | 'excluir') {
+    if (isProcessandoAcao) return;
+    
+    if (acao === 'excluir' && userEmail !== 'carlamonaliza9@gmail.com') {
+        return alert("Acesso negado: Apenas a administração master pode excluir registros permanentemente do banco.");
+    }
 
+    const isAdmin = prompt(`Digite a Senha Mestra para ${acao.toUpperCase()}:`);
+    if (isAdmin !== SENHA_MESTRA) return alert("Senha incorreta.");
+
+    let variacaoSaldoCredito = 0;
+    let idsParaDeletar: string[] = [];
+    let idsParaZerar: string[] = [];
+    let mensagem = `⚠️ DETALHES DA ${acao === 'estornar' ? 'REVERSÃO' : 'EXCLUSÃO'}:\n\n`;
+
+    const isCredito = pgto.tipo === 'credito' || pgto.descricao?.toLowerCase().includes('crédito') || pgto.descricao?.toLowerCase().includes('troco');
+    
+    if (isCredito) {
+        const valorCredito = clean(pgto.valor_total);
+        const isSubtracao = pgto.detalhes_metodos?.e_subtracao === true;
+        
+        if (!isSubtracao) {
+            variacaoSaldoCredito -= valorCredito;
+            idsParaDeletar.push(pgto.id);
+            mensagem += `- Remoção do Crédito/Troco da carteira: -R$ ${valorCredito.toFixed(2)}\n`;
+
+            const origens = pgto.detalhes_metodos?.ids_origem;
+            if (origens) {
+                const strOrigens = Array.isArray(origens) ? origens.map(String) : [String(origens)];
+                const dividasVinculadas = historicoLocal.filter(h => strOrigens.includes(String(h.id)));
+                
+                for (const div of dividasVinculadas) {
+                    if (acao === 'estornar') idsParaZerar.push(div.id);
+                    if (acao === 'excluir') idsParaDeletar.push(div.id);
+
+                    let creditoUsado = clean(div.detalhes_metodos?.credito_utilizado_nesta_parcela);
+                    if (creditoUsado === 0 && clean(div.detalhes_metodos?.credito_aluno) > 0) creditoUsado = clean(div.detalhes_metodos?.credito_aluno);
+                    
+                    if (creditoUsado > 0) {
+                        variacaoSaldoCredito += creditoUsado;
+                        mensagem += `- Reembolso (Parcela Vinculada usou crédito): +R$ ${creditoUsado.toFixed(2)}\n`;
+                    }
+                }
+                if (dividasVinculadas.length > 0) {
+                    mensagem += `- ${dividasVinculadas.length} parcela(s) originais serão ${acao === 'estornar' ? 'reabertas (Status: Pendente)' : 'excluídas do sistema'}.\n`;
+                }
+            }
+        } else {
+            variacaoSaldoCredito += Math.abs(valorCredito);
+            idsParaDeletar.push(pgto.id);
+            mensagem += `- Reversão de Subtração (O valor voltará para a carteira): +R$ ${Math.abs(valorCredito).toFixed(2)}\n`;
+        }
+    } else {
+        if (acao === 'estornar') idsParaZerar.push(pgto.id);
+        if (acao === 'excluir') idsParaDeletar.push(pgto.id);
+        
+        mensagem += `- A transação será ${acao === 'estornar' ? 'reaberta para PENDENTE (R$ 0,00 pago)' : 'APAGADA DEFINITIVAMENTE'}.\n`;
+        
+        let creditoUsado = clean(pgto.detalhes_metodos?.credito_utilizado_nesta_parcela);
+        if (creditoUsado === 0 && clean(pgto.detalhes_metodos?.credito_aluno) > 0) creditoUsado = clean(pgto.detalhes_metodos?.credito_aluno);
+        
+        if (creditoUsado > 0) {
+            variacaoSaldoCredito += creditoUsado;
+            mensagem += `- Devolução do Crédito Virtual usado no pagamento: +R$ ${creditoUsado.toFixed(2)}\n`;
+        }
+
+        const creditosGerados = historicoLocal.filter(h => {
+            const isCred = h.tipo === 'credito' || h.descricao?.toLowerCase().includes('troco') || h.descricao?.toLowerCase().includes('crédito');
+            if (!isCred) return false;
+            
+            const origens = h.detalhes_metodos?.ids_origem;
+            if (origens) {
+                const strOrigens = Array.isArray(origens) ? origens.map(String) : [String(origens)];
+                if (strOrigens.includes(String(pgto.id))) return true;
+            }
+            
+            if (h.descricao && pgto.descricao && h.descricao.toLowerCase().includes(pgto.descricao.toLowerCase())) {
+                return true;
+            }
+            return false;
+        });
+
+        for (const c of creditosGerados) {
+            idsParaDeletar.push(c.id);
+            variacaoSaldoCredito -= clean(c.valor_total);
+            mensagem += `- O Troco gerado por este pagamento será CANCELADO e retirado da carteira: -R$ ${clean(c.valor_total).toFixed(2)}\n`;
+        }
+    }
+
+    const saldoFinalEsperado = Math.max(0, saldoCreditoVisivel + variacaoSaldoCredito);
+    mensagem += `\nSaldo Atual na Carteira: R$ ${saldoCreditoVisivel.toFixed(2)}`;
+    mensagem += `\nSaldo Final Após Operação: R$ ${saldoFinalEsperado.toFixed(2)}\n\nConfirmar operação de Integridade?`;
+
+    if (!confirm(mensagem)) return;
+
+    setIsProcessandoAcao(true);
+    setCarregando(true);
+    try {
+        if (variacaoSaldoCredito !== 0) {
+            await supabase.from('alunos').update({ saldo_credito: saldoFinalEsperado }).eq('id', aluno.id);
+            setSaldoCreditoVisivel(saldoFinalEsperado);
+        }
+
+        if (idsParaDeletar.length > 0) {
+            await supabase.from('historico_pagamentos').delete().in('id', idsParaDeletar);
+        }
+
+        if (idsParaZerar.length > 0) {
+            await supabase.from('historico_pagamentos').update({ 
+                status: 'pendente', 
+                valor_pago: 0, 
+                detalhes_metodos: {} 
+            }).in('id', idsParaZerar);
+        }
+
+        alert(`Operação de ${acao} processada com sucesso! Relatórios e carteira reajustados.`);
+        await buscarAlunoBase();
+        await buscarDadosAdicionais();
+    } catch (error: any) {
+        alert("Erro ao processar ação: " + error.message);
+    } finally {
+        setCarregando(false);
+        setIsProcessandoAcao(false);
+    }
+  }
+
+  const abrirEdicaoFicha = () => {
+    setFormEdicao({
+      nome: aluno.nome || "",
+      cpfAluno: aluno.cpf_aluno || "",
+      dataNascimento: aluno.data_nascimento || "",
+      turma: aluno.turma || "",
+      turno: aluno.turno || "",
+      cep: aluno.cep || "",
+      endereco: aluno.endereco || "",
+      numero: aluno.numero || "",
+      bairro: aluno.bairro || "",
+      cidade: aluno.cidade || "",
+      estado: aluno.estado || "",
+      valor: aluno.valor || "",
+      vencimento: aluno.vencimento || "",
+      responsavel: aluno.responsavel || "",
+      parentesco1: aluno.parentesco_1 || aluno.parentesco1 || "Mãe",
+      whatsapp: aluno.whatsapp || "",
+      cpfResponsavel: aluno.cpf_responsavel || "",
+      emailResponsavel: aluno.email_responsavel || "",
+      profissaoResponsavel: aluno.profissao_responsavel || aluno.responsavel_profissao || "",
+      responsavel2: aluno.responsavel2 || aluno.responsavel_2_nome || "",
+      parentesco2: aluno.parentesco_2 || aluno.parentesco2 || "Pai",
+      whatsapp2: aluno.whatsapp2 || aluno.responsavel_2_contato || "",
+      cpfResponsavel2: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2 || "",
+      emailResponsavel2: aluno.email_responsavel_2 || aluno.email_responsavel2 || "",
+      profissaoResponsavel2: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao || "",
+      responsavel3: aluno.responsavel3 || aluno.responsavel_3_nome || "",
+      parentesco3: aluno.parentesco_3 || aluno.parentesco3 || "",
+      whatsapp3: aluno.whatsapp3 || aluno.responsavel_3_contato || "",
+      emailResponsavel3: aluno.email_responsavel_3 || aluno.email_responsavel3 || "",
+      eAutista: aluno.e_autista || false,
+      temAlergia: aluno.tem_alergia || false,
+      alergiaDescricao: aluno.alergia_descricao || "",
+      observacoes: aluno.observacoes || ""
+    });
+    setPreviewUrl(aluno.foto_url);
+    setArquivoFoto(null);
+    setModoEdicao(true);
+  };
+
+  const processarRecorteImagem = (arquivo: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(arquivo);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        
+        const TAMANHO_ALVO = 300;
+        canvas.width = TAMANHO_ALVO;
+        canvas.height = TAMANHO_ALVO;
+
+        if (ctx) {
+          const menorDimensao = Math.min(img.width, img.height);
+          const sWidth = menorDimensao;
+          const sHeight = menorDimensao;
+          const sx = (img.width - sWidth) / 2;
+          const sy = (img.height - sHeight) / 2;
+
+          ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, TAMANHO_ALVO, TAMANHO_ALVO);
+        }
+        
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else resolve(arquivo);
+        }, "image/jpeg", 0.9);
+      };
+    });
+  };
+
+  async function salvarEdicaoAluno(e: React.FormEvent) {
+    e.preventDefault();
+    if (ehVisitante || isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+    setCarregando(true);
+    try {
+      let urlFinal = previewUrl;
+      
+      if (arquivoFoto) {
+        const imagemRecortadaBlob = await processarRecorteImagem(arquivoFoto);
+        const nomeArquivo = `${Date.now()}_aluno_foto.jpg`;
+        
+        const { data, error: uploadError } = await supabase.storage
+          .from('fotos-alunos')
+          .upload(nomeArquivo, imagemRecortadaBlob, { contentType: 'image/jpeg' });
+          
+        if (uploadError) throw uploadError;
+        if (data) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
+      }
+      
+      const dadosParaEnviar = { 
+        nome: formEdicao.nome, cpf_aluno: formEdicao.cpfAluno, turma: formEdicao.turma, turno: formEdicao.turno,
+        cep: formEdicao.cep, endereco: formEdicao.endereco, numero: formEdicao.numero, bairro: formEdicao.bairro, cidade: formEdicao.cidade, estado: formEdicao.estado,
+        responsavel: formEdicao.responsavel, parentesco_1: formEdicao.parentesco1, whatsapp: formEdicao.whatsapp, cpf_responsavel: formEdicao.cpfResponsavel,
+        email_responsavel: formEdicao.emailResponsavel, profissao_responsavel: formEdicao.profissaoResponsavel,
+        responsavel_2_nome: formEdicao.responsavel2, parentesco_2: formEdicao.parentesco2, responsavel_2_contato: formEdicao.whatsapp2, cpf_responsavel_2: formEdicao.cpfResponsavel2,
+        email_responsavel_2: formEdicao.emailResponsavel2, profissao_responsavel_2: formEdicao.profissaoResponsavel2,
+        responsavel_3_nome: formEdicao.responsavel3, parentesco_3: formEdicao.parentesco3, responsavel_3_contato: formEdicao.whatsapp3,
+        email_responsavel_3: formEdicao.emailResponsavel3,
+        valor: formEdicao.valor ? parseFloat(formEdicao.valor.toString()) : null, vencimento: formEdicao.vencimento, data_nascimento: formEdicao.dataNascimento,
+        tem_alergia: formEdicao.temAlergia, alergia_descricao: formEdicao.temAlergia ? formEdicao.alergiaDescricao : "", e_autista: formEdicao.eAutista, 
+        observacoes: formEdicao.observacoes, foto_url: urlFinal
+      };
+
+      const { error: errorUpdate } = await supabase.from('alunos').update(dadosParaEnviar).eq('id', alunoId);
+      if (errorUpdate) throw errorUpdate;
+
+      setModoEdicao(false); 
+      await buscarAlunoBase();
+    } catch (error: any) { 
+      alert("Erro ao salvar: " + (error.message || "Ocorreu um erro inesperado.")); 
+    } finally { 
+      setCarregando(false);
+      setIsProcessandoAcao(false);
+    }
+  }
+
+  function gerarPDFHistorico() {
     const doc = new jsPDF();
     doc.setFontSize(16);
     doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
@@ -209,8 +478,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       body: historicoFiltradoParaPDF.map((h: any) => [
         new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
         h.descricao.toUpperCase(),
-        extrairForma(h.detalhes_metodos),
-        `R$ ${h.valor_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        h.detalhes_metodos?.forma_geradora || extrairFormaPagamento(h.detalhes_metodos),
+        `${h.detalhes_metodos?.e_subtracao ? '- ' : ''}R$ ${Math.abs(clean(h.valor_total)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]),
       headStyles: { fillColor: [37, 99, 235] }
     });
@@ -240,7 +509,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     doc.text("ESCOLA ABC DO PARK", 60, 20);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("CNPJ 05.067.797-68", 60, 26);
+    doc.text("CNPJ 05.067.797/0001-68", 60, 26);
     doc.text("CONJ PARKLANDIA - QUADRA A CASA 02", 60, 31);
     doc.text("TELEFONE (91) 3268-3484 / (91) 98622-7715", 60, 36);
     doc.text("INEP - 15159213", 60, 41);
@@ -312,15 +581,34 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   }
 
   async function handleSalvarPgtoEditado() {
+    if (isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+
     const soma = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
     const dados = { tipo: tipoPagamento, descricao: descricaoOutro, valor_total: soma, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
     await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
+    
+    const checkTroco = historicoLocal.filter(h => Array.isArray(h.detalhes_metodos?.ids_origem) && h.detalhes_metodos.ids_origem.map(String).includes(String(idPagamentoEdicao)));
+    if (checkTroco.length > 0) {
+        alert("Atenção: Você editou manualmente uma parcela que havia gerado troco. O valor na carteira de crédito do aluno NÃO foi reajustado automaticamente. Recomendamos o Estorno ao invés da edição caso tenha errado o valor pago.");
+    }
+
     setModalPgtoAberto(false);
     buscarDadosAdicionais();
+    setIsProcessandoAcao(false);
   }
 
   async function handleConfirmarPDV(dividasSelecionadas: any[]) {
-    const somaPaga = clean(pagamentosMetodosPDV.pix) + clean(pagamentosMetodosPDV.dinheiro) + clean(pagamentosMetodosPDV.credito) + clean(pagamentosMetodosPDV.debito) + clean(pagamentosMetodosPDV.boleto);
+    if (isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+
+    const valorPix = clean(pagamentosMetodosPDV.pix);
+    const valorDinheiro = clean(pagamentosMetodosPDV.dinheiro);
+    const valorCredito = clean(pagamentosMetodosPDV.credito);
+    const valorDebito = clean(pagamentosMetodosPDV.debito);
+    const valorBoleto = clean(pagamentosMetodosPDV.boleto);
+    
+    const somaPaga = valorPix + valorDinheiro + valorCredito + valorDebito + valorBoleto;
     const valorMulta = clean(pagamentosMetodosPDV.multa);
     const valorDesconto = clean(pagamentosMetodosPDV.desconto);
     const creditoUtilizado = clean(pagamentosMetodosPDV.credito_aluno);
@@ -330,15 +618,19 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     const totalDividasAjustado = totalDividas + valorMulta - valorDesconto;
 
     if (valorPagoFinal + 0.01 < totalDividasAjustado) {
-      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Desmarque algo no carrinho ou faça baixas individuais.");
+      setIsProcessandoAcao(false);
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
     }
 
     if (creditoUtilizado > saldoCreditoVisivel) {
+      setIsProcessandoAcao(false);
       return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
     }
 
     let saldoParaDistribuir = valorPagoFinal + valorDesconto - valorMulta;
+    let creditoRestanteParaDistribuir = creditoUtilizado;
     let trocoGlobal = 0;
+    let idsProcessados: string[] = [];
 
     for (const div of dividasSelecionadas) {
       const idString = String(div.id || "");
@@ -351,15 +643,19 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const valorAbatido = Math.min(restanteDestaDivida, saldoParaDistribuir);
       saldoParaDistribuir -= valorAbatido;
 
+      const creditoAbatidoAqui = Math.min(valorAbatido, creditoRestanteParaDistribuir);
+      creditoRestanteParaDistribuir -= creditoAbatidoAqui;
+
       const novoValorPago = valorJaPago + valorAbatido;
       const novoStatus = novoValorPago >= valorOriginalTotal ? 'pago' : 'parcial';
 
       const formasStrArray = [];
-      if (clean(pagamentosMetodosPDV.pix) > 0) formasStrArray.push("Pix");
-      if (clean(pagamentosMetodosPDV.dinheiro) > 0) formasStrArray.push("Dinheiro");
-      if (clean(pagamentosMetodosPDV.credito) > 0) formasStrArray.push("Cartão");
-      if (clean(pagamentosMetodosPDV.boleto) > 0) formasStrArray.push("Boleto");
-      if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
+      if (valorPix > 0) formasStrArray.push("Pix");
+      if (valorDinheiro > 0) formasStrArray.push("Dinheiro");
+      if (valorCredito > 0) formasStrArray.push("Cartão de Crédito");
+      if (valorDebito > 0) formasStrArray.push("Cartão de Débito");
+      if (valorBoleto > 0) formasStrArray.push("Boleto");
+      if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
       const formaPagamentoTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso";
 
       const historicoAntigo = Array.isArray(div.detalhes_metodos?.historico_parciais) ? div.detalhes_metodos.historico_parciais : [];
@@ -373,11 +669,14 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
       const jsonMetodos = {
         ...pagamentosMetodosPDV,
+        credito_utilizado_nesta_parcela: creditoAbatidoAqui,
         historico_parciais: novoHistoricoParcial
       };
 
+      let savedId = div.id;
+
       if (idString.startsWith('temp_')) {
-        await supabase.from('historico_pagamentos').insert({
+        const { data } = await supabase.from('historico_pagamentos').insert({
           aluno_id: aluno.id,
           tipo: 'mensalidade',
           descricao: div.descricao,
@@ -387,7 +686,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           status: novoStatus,
           data_pagamento: dataPagamentoPDV,
           detalhes_metodos: jsonMetodos
-        });
+        }).select('id').single();
+        if (data) savedId = data.id;
       } else {
         await supabase.from('historico_pagamentos').update({ 
           status: novoStatus, 
@@ -396,10 +696,35 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           detalhes_metodos: jsonMetodos 
         }).eq('id', div.id);
       }
+      
+      if (savedId) idsProcessados.push(String(savedId));
     }
 
     if (saldoParaDistribuir > 0) {
       trocoGlobal = saldoParaDistribuir;
+      
+      const formasStrArray = [];
+      if (valorPix > 0) formasStrArray.push("Pix");
+      if (valorDinheiro > 0) formasStrArray.push("Dinheiro");
+      if (valorCredito > 0) formasStrArray.push("Cartão de Crédito");
+      if (valorDebito > 0) formasStrArray.push("Cartão de Débito");
+      if (valorBoleto > 0) formasStrArray.push("Boleto");
+      const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Adição Automática";
+
+      const nomesItens = dividasSelecionadas.map((d: any) => d.descricao).join(", ");
+      const descricaoTroco = `Crédito de Troco gerado na quitação de: ${nomesItens}. (Valor Devido: R$ ${totalDividasAjustado.toFixed(2)} | Valor Pago: R$ ${somaPaga.toFixed(2)})`;
+
+      await supabase.from('historico_pagamentos').insert({
+        aluno_id: aluno.id,
+        tipo: 'credito',
+        descricao: descricaoTroco,
+        mes_referencia: 'Avulso',
+        valor_total: trocoGlobal,
+        valor_pago: trocoGlobal,
+        status: 'pago',
+        data_pagamento: dataPagamentoPDV,
+        detalhes_metodos: { forma_geradora: formaTexto, ids_origem: idsProcessados }
+      });
     }
 
     const novoSaldoCredito = saldoCreditoVisivel - creditoUtilizado + trocoGlobal;
@@ -411,12 +736,19 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
     setModalPDVAberto(false);
     buscarDadosAdicionais();
+    setIsProcessandoAcao(false);
     alert("Pagamento recebido e baixas aplicadas com sucesso!");
   }
 
   async function confirmarRenegociacao(pendenciaOriginal: any) {
+    if (isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+
     const qtdParcelas = parseInt(formRenegociacao.parcelas);
-    if (qtdParcelas < 1) return alert("Número de parcelas inválido.");
+    if (qtdParcelas < 1) {
+        setIsProcessandoAcao(false);
+        return alert("Número de parcelas inválido.");
+    }
 
     const valorDevedor = clean(pendenciaOriginal.valor_total) - clean(pendenciaOriginal.valor_pago);
     const valorPorParcela = valorDevedor / qtdParcelas;
@@ -460,50 +792,95 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
     setIdRenegociacao(null);
     buscarDadosAdicionais(); 
+    setIsProcessandoAcao(false);
   }
 
   async function handleSalvarCredito() {
+    if (isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+
     const valorConvertido = clean(novoValorCredito);
+    const diferenca = valorConvertido - saldoCreditoVisivel;
+
+    if (diferenca === 0) {
+        setIsProcessandoAcao(false);
+        setEditandoCredito(false);
+        return;
+    }
+
     const { error } = await supabase.from('alunos').update({ saldo_credito: valorConvertido }).eq('id', aluno.id);
-    if (!error) { setSaldoCreditoVisivel(valorConvertido); setEditandoCredito(false); }
+    if (!error) { 
+        await supabase.from('historico_pagamentos').insert({
+          aluno_id: aluno.id,
+          tipo: 'credito',
+          descricao: `Ajuste manual de saldo de crédito na Ficha (${diferenca > 0 ? 'Adição' : 'Subtração'} de R$ ${Math.abs(diferenca).toFixed(2)})`,
+          mes_referencia: 'Avulso',
+          valor_total: Math.abs(diferenca),
+          valor_pago: Math.abs(diferenca),
+          status: 'pago',
+          data_pagamento: new Date().toISOString().split('T')[0],
+          detalhes_metodos: { forma_geradora: "Ajuste Direto na Ficha", e_subtracao: diferenca < 0 }
+        });
+      
+      setSaldoCreditoVisivel(valorConvertido); 
+      setEditandoCredito(false); 
+      await buscarAlunoBase();
+      await buscarDadosAdicionais();
+    }
+    setIsProcessandoAcao(false);
   }
 
   async function handleZerarCredito() {
+    if (isProcessandoAcao) return;
+    
     if (prompt("Digite a Senha Mestra para ZERAR o crédito:") === SENHA_MESTRA) {
+      const motivo = prompt("Informe o motivo para zerar este crédito (Obrigatório):");
+      if (!motivo) return alert("Operação cancelada. O motivo é obrigatório.");
+
+      setIsProcessandoAcao(true);
+      const valorRemovido = saldoCreditoVisivel;
       const { error } = await supabase.from('alunos').update({ saldo_credito: 0 }).eq('id', aluno.id);
-      if (!error) { setSaldoCreditoVisivel(0); setVerCreditoGlobal(false); }
+      if (!error) { 
+        if (valorRemovido > 0) {
+            await supabase.from('historico_pagamentos').insert({
+            aluno_id: aluno.id,
+            tipo: 'credito',
+            descricao: `Zeração manual da carteira de crédito. Motivo: ${motivo}`,
+            mes_referencia: 'Avulso',
+            valor_total: valorRemovido,
+            valor_pago: valorRemovido,
+            status: 'pago',
+            data_pagamento: new Date().toISOString().split('T')[0],
+            detalhes_metodos: { forma_geradora: "Exclusão Manual", e_subtracao: true }
+            });
+        }
+        setSaldoCreditoVisivel(0); 
+        setVerCreditoGlobal(false); 
+        await buscarAlunoBase();
+        await buscarDadosAdicionais();
+      }
+      setIsProcessandoAcao(false);
     } else alert("Senha incorreta.");
   }
-
-  const abrirWhatsApp = (numero: any) => {
-    if (!numero) return;
-    const apenasNumeros = String(numero).replace(/\D/g, '');
-    window.open(`https://wa.me/55${apenasNumeros}`, '_blank');
-  };
-
-  const obterMediaFinal = (n: any) => {
-    const bimestres = [n.bimestre1, n.bimestre2, n.bimestre3, n.bimestre4].map(v => parseFloat(v) || 0);
-    const soma = bimestres.reduce((acc, curr) => acc + curr, 0);
-    return (soma / 4).toFixed(1);
-  };
-
-  const extrairFormaPagamento = (detalhes: any) => {
-    if (!detalhes) return null;
-    const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais');
-    return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
-  };
 
   if (carregando || !aluno) {
     return <div className="flex justify-center items-center h-screen bg-slate-50 text-slate-500 font-bold">Carregando Perfil...</div>;
   }
 
   const contatos = [
-    { nome: aluno.responsavel, whats: aluno.whatsapp, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "text-pink-700", bg: "bg-pink-100 border-pink-200" },
-    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "text-blue-700", bg: "bg-blue-100 border-blue-200" },
-    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.cpf_responsavel_3, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "text-emerald-700", bg: "bg-emerald-100 border-emerald-200" }
+    { nome: aluno.responsavel, whats: aluno.whatsapp, email: aluno.email_responsavel, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "text-pink-700", bg: "bg-pink-100 border-pink-200" },
+    { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, email: aluno.email_responsavel_2 || aluno.email_responsavel2, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "text-blue-700", bg: "bg-blue-100 border-blue-200" },
+    { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, email: aluno.email_responsavel_3 || aluno.email_responsavel3, cpf: aluno.cpf_responsavel_3, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "text-emerald-700", bg: "bg-emerald-100 border-emerald-200" }
   ];
 
-  const historicoFiltrado = historicoLocal.filter(h => h.data_pagamento && h.data_pagamento.startsWith(anoPagamentoSelecionado) && h.status !== 'renegociado');
+  const historicoFiltrado = historicoLocal.filter(h => h.data_pagamento && h.data_pagamento.startsWith(anoPagamentoSelecionado) && h.status !== 'renegociado' && h.tipo?.toLowerCase() !== 'credito');
+
+  const historicoCreditos = historicoLocal.filter(h => 
+    h.tipo?.toLowerCase() === 'credito' || 
+    h.descricao?.toLowerCase().includes('crédito') || 
+    h.descricao?.toLowerCase().includes('troco') ||
+    h.descricao?.toLowerCase().includes('adiantamento')
+  );
 
   return (
     <div className="w-full bg-[#f8fafc] min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8">
@@ -511,9 +888,9 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         
         {/* BANNER DE CABEÇALHO DO ALUNO (FULL WIDTH) */}
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden relative">
-           <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-10"></div>
+           <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-10"></div>
            
-           <div className="p-6 md:p-8 relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-8">
+           <div className="p-6 md:p-4 relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-8">
                <button 
                   onClick={() => router.push('/admin/alunos')} 
                   className="absolute top-6 left-6 md:static bg-white border border-slate-200 text-slate-500 hover:text-slate-800 p-2 md:p-3 rounded-xl shadow-sm transition-all"
@@ -531,13 +908,26 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
                  {aluno.e_autista && <span className="absolute bottom-0 right-0 text-2xl md:text-3xl bg-white rounded-full p-1 shadow-sm border border-slate-100" title="TEA">🧩</span>}
                </div>
 
-               <div className="flex-1 text-center md:text-left">
-                  <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black tracking-wider rounded-lg mb-2 uppercase border border-blue-100">Matrícula Ativa</div>
-                  <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">{aluno.nome}</h1>
-                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3">
-                    <span className="text-sm font-semibold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">{calcularIdade(aluno.data_nascimento)}</span>
-                    <span className="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
+               <div className="flex-1 text-center md:text-left flex flex-col md:flex-row justify-between w-full">
+                  <div>
+                    <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black tracking-wider rounded-lg mb-2 uppercase border border-blue-100">Matrícula Ativa</div>
+                    <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">{aluno.nome}</h1>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3">
+                      <span className="text-sm font-semibold text-slate-500 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">{calcularIdade(aluno.data_nascimento)}</span>
+                      <span className="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
+                    </div>
                   </div>
+                  
+                  {!ehVisitante && (
+                    <div className="mt-6 md:mt-0 flex justify-center md:justify-end items-center">
+                      <button 
+                        onClick={abrirEdicaoFicha} 
+                        className="bg-gray-100 hover:bg-blue-200 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-md transition-all flex items-center gap-2"
+                      >
+                        ✏️ Editar Ficha
+                      </button>
+                    </div>
+                  )}
                </div>
            </div>
         </div>
@@ -550,12 +940,15 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
               <button onClick={() => { setVerDividasGlobais(false); setIdRenegociacao(null); }} className="bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl transition-colors">← VOLTAR AO PERFIL</button>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 p-8 rounded-3xl text-center mb-8 shadow-inner">
-              <span className="text-sm text-rose-600 font-bold uppercase tracking-widest">Valor Total em Aberto</span>
-              <p className="text-4xl md:text-5xl font-black text-rose-700 mt-2">R$ {totalPendenteGeral.toFixed(2)}</p>
+            <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl mb-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="text-center md:text-left">
+                <span className="text-xs text-rose-600 font-bold uppercase tracking-widest">Valor Total em Aberto</span>
+                <p className="text-3xl font-black text-rose-700 mt-1">R$ {totalPendenteGeral.toFixed(2)}</p>
+              </div>
               {!ehVisitante && (
-                <button onClick={() => setModalPDVAberto(true)} className="mt-6 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md transition-all">
-                  💰 ABRIR CAIXA E RECEBER DÍVIDAS
+                <button onClick={() => setModalPDVAberto(true)} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+                  RECEBER DÍVIDAS
                 </button>
               )}
             </div>
@@ -597,7 +990,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
                           <button onClick={() => setIdRenegociacao(null)} className="flex-1 sm:flex-none p-3 rounded-xl border border-slate-300 bg-white text-slate-500 font-bold hover:bg-slate-50">CANCELAR</button>
-                          <button onClick={() => confirmarRenegociacao(pend)} className="flex-1 sm:flex-none p-3 rounded-xl border-none bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-sm">CONFIRMAR</button>
+                          <button onClick={() => confirmarRenegociacao(pend)} disabled={isProcessandoAcao} className="flex-1 sm:flex-none p-3 rounded-xl border-none bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-sm">CONFIRMAR</button>
                         </div>
                       </div>
                     )}
@@ -614,38 +1007,79 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
               <button onClick={() => setVerCreditoGlobal(false)} className="bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl transition-colors">← VOLTAR AO PERFIL</button>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-200 p-8 rounded-3xl text-center shadow-inner">
-              <span className="text-sm text-emerald-600 font-bold uppercase tracking-widest">Saldo Atual Retido do Aluno</span>
-              
-              {editandoCredito ? (
-                <div className="flex flex-col items-center gap-4 mt-6">
-                  <input 
-                    type="number" 
-                    value={novoValorCredito} 
-                    onChange={(e) => setNovoValorCredito(e.target.value)} 
-                    placeholder="0.00"
-                    className="p-4 rounded-2xl border-2 border-emerald-400 text-2xl font-black text-center w-64 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all" 
-                  />
-                  <div className="flex gap-3">
-                    <button onClick={() => setEditandoCredito(false)} className="px-6 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold hover:bg-slate-50">CANCELAR</button>
-                    <button onClick={handleSalvarCredito} className="px-6 py-3 rounded-xl border-none bg-emerald-500 text-white font-bold hover:bg-emerald-600 shadow-sm">SALVAR CRÉDITO</button>
+            {/* CARD HORIZONTAL DE CRÉDITO SUAVIZADO */}
+            <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl mb-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="text-center md:text-left w-full md:w-auto">
+                <span className="text-xs text-emerald-600 font-bold uppercase tracking-widest">Saldo Atual Retido</span>
+                {editandoCredito ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input 
+                      type="number" 
+                      value={novoValorCredito} 
+                      onChange={(e) => setNovoValorCredito(e.target.value)} 
+                      placeholder="0.00"
+                      className="px-3 py-1.5 rounded-xl border border-emerald-300 text-lg font-bold text-center w-32 outline-none" 
+                    />
+                    <button onClick={handleSalvarCredito} disabled={isProcessandoAcao} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-700">✓</button>
+                    <button onClick={() => setEditandoCredito(false)} className="bg-white border border-slate-200 text-slate-500 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-slate-50">X</button>
                   </div>
+                ) : (
+                  <p className="text-3xl font-black text-emerald-700 mt-1">R$ {saldoCreditoVisivel.toFixed(2)}</p>
+                )}
+              </div>
+              {!ehVisitante && !editandoCredito && (
+                <div className="flex gap-2 w-full md:w-auto justify-center md:justify-end">
+                  <button onClick={() => { setNovoValorCredito(saldoCreditoVisivel.toString()); setEditandoCredito(true); }} className="bg-white border border-emerald-300 text-emerald-600 px-4 py-2 rounded-xl font-bold text-xs hover:bg-emerald-50 transition-colors flex items-center gap-1">
+                    ✏️ Ajustar
+                  </button>
+                  <button onClick={handleZerarCredito} disabled={isProcessandoAcao} className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs hover:bg-rose-100 transition-colors flex items-center gap-1">
+                    🗑️ Zerar
+                  </button>
                 </div>
-              ) : (
-                <>
-                  <p className="text-5xl font-black text-emerald-700 mt-4 mb-8">R$ {saldoCreditoVisivel.toFixed(2)}</p>
-                  {!ehVisitante && (
-                    <div className="flex justify-center gap-3">
-                      <button onClick={() => { setNovoValorCredito(saldoCreditoVisivel.toString()); setEditandoCredito(true); }} className="bg-white border border-emerald-300 text-emerald-600 px-6 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex items-center gap-2">
-                        ✏️ Ajustar Saldo Manualmente
-                      </button>
-                      <button onClick={handleZerarCredito} className="bg-rose-50 border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold hover:bg-rose-100 transition-colors flex items-center gap-2">
-                        🗑️ Zerar Crédito
-                      </button>
-                    </div>
-                  )}
-                </>
               )}
+            </div>
+
+            {/* LISTAGEM DE HISTÓRICO DE CRÉDITO COM ESTORNO INTELIGENTE E EXCLUSÃO MASTER */}
+            <div className="space-y-3 mt-6">
+              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Histórico de Movimentações de Crédito</h4>
+              <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                {historicoCreditos.length > 0 ? (
+                  historicoCreditos.map((h: any, idx: number) => {
+                    const forma = h.detalhes_metodos?.forma_geradora || extrairFormaPagamento(h.detalhes_metodos) || 'Não especificada';
+                    const podeGerenciar = !ehVisitante;
+                    const isSubtracao = h.detalhes_metodos?.e_subtracao === true;
+                    const valorRenderizado = Math.abs(clean(h.valor_total));
+
+                    return (
+                      <div key={idx} className="flex flex-col md:flex-row justify-between md:items-center p-4 hover:bg-slate-50/50 transition-colors gap-4">
+                        <div>
+                          <span className="text-sm font-bold text-slate-800 block">{h.descricao}</span>
+                          <span className="text-xs text-slate-500 mt-1 block">
+                            🗓️ Data: {new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})} 
+                            {forma && <span className="ml-2 font-bold text-slate-500">| 💳 Forma: {forma}</span>}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 justify-between w-full md:w-auto">
+                          <span className={`text-base font-black ${isSubtracao ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {isSubtracao ? '- ' : '+ '}R$ {valorRenderizado.toFixed(2)}
+                          </span>
+                          
+                          {podeGerenciar && (
+                            <div className="flex gap-2 pl-4 border-l border-slate-200">
+                              <button onClick={() => processarAcaoPagamento(h, 'estornar')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors text-xs" title="Estornar/Desfazer">🔄</button>
+                              {userEmail === 'carlamonaliza9@gmail.com' && (
+                                <button onClick={() => processarAcaoPagamento(h, 'excluir')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors text-xs" title="Excluir Definitivamente do Sistema">🗑️</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center text-slate-400 italic font-medium">Nenhum registro de movimentação de crédito encontrado.</div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -760,21 +1194,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
                         {podeGerenciar && (
                           <div className="flex gap-2 pl-4 border-l border-slate-200 h-full items-center">
-                            <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
-                            <button onClick={async () => {
-                              if (prompt("Digite a Senha Mestra para ESTORNAR este faturamento:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-                              if (confirm("Deseja realmente estornar esta transação?")) {
-                                const { error } = await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', pgto.id);
-                                if (!error) { alert("Estorno concluído."); buscarDadosAdicionais(); }
-                              }
-                            }} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Estornar Lançamento">🔄</button>
-                            <button onClick={async () => {
-                              if (prompt("Digite a Senha Mestra para EXCLUIR REGISTRO PERMANENTEMENTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-                              if(confirm("Deseja realmente deletar para sempre?")) {
-                                const { error } = await supabase.from('historico_pagamentos').delete().eq('id', pgto.id);
-                                if (!error) { alert("Deletado."); buscarDadosAdicionais(); }
-                              }
-                            }} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
+                            <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
+                            <button onClick={() => processarAcaoPagamento(pgto, 'estornar')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
+                            {userEmail === 'carlamonaliza9@gmail.com' && (
+                                <button onClick={() => processarAcaoPagamento(pgto, 'excluir')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -859,17 +1283,17 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nascimento</span>
-                    <p className="text-base font-bold text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-100">{aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Não registrado'}</p>
+                    <p className="text-lg font-bold text-slate-800 bg-slate-50 p-4 rounded-2xl border border-slate-200">{aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Não registrado'}</p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CPF do Aluno</span>
-                    <p className="text-base font-bold text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-100">{mCPF(aluno.cpf_aluno) || 'Não registrado'}</p>
+                    <p className="text-lg font-bold text-slate-800 bg-slate-50 p-4 rounded-2xl border border-slate-200">{mCPF(aluno.cpf_aluno) || 'Não registrado'}</p>
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Endereço Residencial</span>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-base font-bold text-slate-700">{aluno.endereco ? `${aluno.endereco}, ${aluno.numero || 'S/N'}` : 'Endereço não cadastrado'}</p>
-                      <p className="text-xs font-semibold text-slate-500 mt-2">{aluno.bairro ? `${aluno.bairro} • ${aluno.cidade}-${aluno.estado}` : ''} {aluno.cep ? ` • CEP: ${aluno.cep}` : ''}</p>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <p className="text-lg font-bold text-slate-800">{aluno.endereco ? `${aluno.endereco}, ${aluno.numero || 'S/N'}` : 'Endereço não cadastrado'}</p>
+                      <p className="text-sm font-semibold text-slate-500 mt-1">{aluno.bairro ? `${aluno.bairro} • ${aluno.cidade}-${aluno.estado}` : ''} {aluno.cep ? ` • CEP: ${aluno.cep}` : ''}</p>
                     </div>
                   </div>
                 </div>
@@ -925,24 +1349,25 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
                     <div key={index} className={`p-5 rounded-2xl border ${contato.bg} relative overflow-hidden group`}>
                       <div className="flex justify-between items-start mb-4 relative z-10">
                         <div className="pr-12">
-                          <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md mb-3 inline-block bg-white ${contato.cor} shadow-sm border border-slate-100/50`}>{contato.tag}</span>
-                          <p className="text-base font-bold text-slate-800 leading-tight mb-1">{contato.nome}</p>
-                          {contato.profissao && <span className="text-xs font-semibold text-slate-500 block">💼 {contato.profissao}</span>}
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md mb-3 inline-block bg-white ${contato.cor} shadow-sm border border-slate-100/50`}>{contato.tag}</span>
+                          <p className="text-lg font-bold text-slate-900 leading-tight mb-1">{contato.nome}</p>
+                          {contato.profissao && <span className="text-sm font-semibold text-slate-500 block">💼 {contato.profissao}</span>}
+                          {contato.email && <span className="text-sm font-semibold text-slate-500 block break-all">📧 {contato.email}</span>}
                         </div>
                         {contato.whats && (
-                          <button onClick={() => abrirWhatsApp(contato.whats)} className="absolute top-0 right-0 w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 hover:scale-105 transition-all text-xl" title="Chamar no WhatsApp">
-                            💬
+                          <button onClick={() => abrirWhatsApp(contato.whats)} className="absolute top-0 right-0 w-11 h-11 bg-emerald-500 rounded-xl shadow-sm border border-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:scale-105 transition-all text-white" title="Chamar no WhatsApp">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="w-6 h-6"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157.1zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7 .9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>
                           </button>
                         )}
                       </div>
                       <div className="space-y-2 relative z-10 border-t border-slate-200/50 pt-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-400 w-10">WPP:</span>
-                          <span className="text-sm font-bold text-slate-700">{mWhatsApp(contato.whats) || '---'}</span>
+                          <span className="text-sm font-bold text-slate-500 w-12">WPP:</span>
+                          <span className="text-base font-bold text-slate-700">{mWhatsApp(contato.whats) || '---'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-400 w-10">CPF:</span>
-                          <span className="text-sm font-bold text-slate-700">{mCPF(contato.cpf) || '---'}</span>
+                          <span className="text-sm font-bold text-slate-500 w-12">CPF:</span>
+                          <span className="text-base font-bold text-slate-700">{mCPF(contato.cpf) || '---'}</span>
                         </div>
                       </div>
                     </div>
@@ -958,6 +1383,29 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* RENDERIZAÇÃO DO MODAL DE EDIÇÃO DA FICHA */}
+      {modoEdicao && !ehVisitante && (
+        <FormAlunoModal 
+          idEdicao={alunoId} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
+          form={formEdicao}
+          setForm={(d: any) => setFormEdicao((prev: any) => ({...prev, ...d}))}
+          onTrocarFoto={(e: any) => { 
+            if (!e.target.files) {
+              setArquivoFoto(null);
+              setPreviewUrl(null);
+              return;
+            }
+            const file = e.target.files?.[0]; 
+            if (file) { 
+              setArquivoFoto(file); 
+              setPreviewUrl(URL.createObjectURL(file)); 
+            } 
+          }}
+          onSalvar={salvarEdicaoAluno} 
+          onCancelar={() => setModoEdicao(false)}
+        />
+      )}
 
       {/* RENDERIZAÇÃO DO MODAL DE CAIXA E EDIÇÃO DE PAGAMENTO */}
       <ModalPagamento 

@@ -329,7 +329,9 @@ export default function PDVPage() {
     doc.save(`Recibo_PDV_${aluno.nome.replace(/\s+/g, '_')}_${dataPagamentoPDV}.pdf`);
   }
 
+  // --- MOTOR DE FINALIZAÇÃO BLINDADO DO PDV ---
   const finalizarVenda = async () => {
+    if (processando) return; // TRAVA DE DUPLO CLIQUE
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
     if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
@@ -341,6 +343,8 @@ export default function PDVPage() {
       if (trocoGerado > 0 && acaoTroco === 'devolver') {
          saldoParaDistribuir -= trocoGerado;
       }
+
+      let idsProcessados: string[] = [];
 
       for (const item of carrinho) {
         const idString = String(item.id || "");
@@ -367,7 +371,7 @@ export default function PDVPage() {
         if (clean(pagamentos.credito) > 0) formasStrArray.push("Cartão de Crédito");
         if (clean(pagamentos.debito) > 0) formasStrArray.push("Cartão de Débito");
         if (clean(pagamentos.boleto) > 0) formasStrArray.push("Boleto");
-        if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
+        if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
         
         const registroParcial = {
           data_recebimento: dataPagamentoPDV,
@@ -384,8 +388,10 @@ export default function PDVPage() {
 
         const payloadMetodos = { ...pagamentos, historico_parciais };
 
+        let savedId = item.id;
+
         if (item.isNovo || item.isTemp || idString.startsWith('temp_')) {
-          await supabase.from('historico_pagamentos').insert({
+          const { data } = await supabase.from('historico_pagamentos').insert({
             aluno_id: alunoSelecionado.id,
             tipo: item.tipo || 'mensalidade',
             descricao: item.descricao,
@@ -395,14 +401,15 @@ export default function PDVPage() {
             status: novoStatus,
             data_pagamento: dataPagamentoPDV,
             detalhes_metodos: payloadMetodos
-          });
+          }).select('id').single();
+          if (data) savedId = data.id;
         } else if (item.isMensalidadeTable) {
           await supabase.from('mensalidades').update({
             status: novoStatus,
             valor_pago: novoValorPago
           }).eq('id', item.id);
 
-          await supabase.from('historico_pagamentos').insert({
+          const { data } = await supabase.from('historico_pagamentos').insert({
             aluno_id: alunoSelecionado.id,
             tipo: 'mensalidade',
             descricao: item.descricao,
@@ -412,7 +419,8 @@ export default function PDVPage() {
             status: novoStatus,
             data_pagamento: dataPagamentoPDV,
             detalhes_metodos: payloadMetodos
-          });
+          }).select('id').single();
+          if (data) savedId = data.id;
         } else {
           await supabase.from('historico_pagamentos').update({ 
             status: novoStatus, 
@@ -421,12 +429,40 @@ export default function PDVPage() {
             detalhes_metodos: payloadMetodos 
           }).eq('id', item.id);
         }
+
+        if (savedId) idsProcessados.push(String(savedId));
       }
 
+      // GERAÇÃO DE CRÉDITO COM O DNA VINCULADO
       const trocoParaAdicionar = acaoTroco === 'credito' ? trocoGerado : 0;
       if (creditoUtilizado > 0 || trocoParaAdicionar > 0) {
         const novoSaldo = saldoAtualAluno - creditoUtilizado + trocoParaAdicionar;
         await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', alunoSelecionado.id);
+
+        if (trocoParaAdicionar > 0) {
+            const formasStrArray = [];
+            if (clean(pagamentos.pix) > 0) formasStrArray.push("Pix");
+            if (clean(pagamentos.dinheiro) > 0) formasStrArray.push("Dinheiro");
+            if (clean(pagamentos.credito) > 0) formasStrArray.push("Cartão de Crédito");
+            if (clean(pagamentos.debito) > 0) formasStrArray.push("Cartão de Débito");
+            if (clean(pagamentos.boleto) > 0) formasStrArray.push("Boleto");
+            const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Adição Automática";
+
+            const nomesItens = carrinho.map((c: any) => c.descricao).join(", ");
+            const descricaoTroco = `Crédito de Troco gerado na quitação de: ${nomesItens}. (Total Devido: R$ ${totalComAcrescimos.toFixed(2)} | Total Pago: R$ ${totalPagoRodada.toFixed(2)})`;
+
+            await supabase.from('historico_pagamentos').insert({
+              aluno_id: alunoSelecionado.id,
+              tipo: 'credito',
+              descricao: descricaoTroco,
+              mes_referencia: 'Avulso',
+              valor_total: trocoParaAdicionar,
+              valor_pago: trocoParaAdicionar,
+              status: 'pago',
+              data_pagamento: dataPagamentoPDV,
+              detalhes_metodos: { forma_geradora: formaTexto, ids_origem: idsProcessados }
+            });
+        }
       }
 
       alert("Transação registrada com sucesso no banco de dados!");
@@ -445,27 +481,121 @@ export default function PDVPage() {
     }
   };
 
-  const estornarPagamento = async (item: any) => {
-    if (prompt("Ação destrutiva. Digite a Senha Mestra para ESTORNAR:") !== SENHA_MESTRA) {
-      return alert("Senha incorreta.");
+  // --- MOTOR DE ESTORNO DO PDV (IDÊNTICO AO PERFIL DO ALUNO) ---
+  const estornarPagamento = async (pgto: any) => {
+    if (processando) return;
+    const isAdmin = prompt(`Digite a Senha Mestra para ESTORNAR:`);
+    if (isAdmin !== SENHA_MESTRA) return alert("Senha incorreta.");
+
+    let variacaoSaldoCredito = 0;
+    let idsParaDeletar: string[] = [];
+    let idsParaZerar: string[] = [];
+    let mensagem = "⚠️ DETALHES DO ESTORNO:\n\n";
+
+    const isCredito = pgto.tipo === 'credito' || pgto.descricao?.toLowerCase().includes('crédito') || pgto.descricao?.toLowerCase().includes('troco');
+    
+    if (isCredito) {
+        const valorCredito = clean(pgto.valor_total);
+        const isSubtracao = pgto.detalhes_metodos?.e_subtracao === true;
+        
+        if (!isSubtracao) {
+            variacaoSaldoCredito -= valorCredito;
+            idsParaDeletar.push(pgto.id);
+            mensagem += `- Remoção do Crédito/Troco da carteira: -R$ ${valorCredito.toFixed(2)}\n`;
+
+            const origens = pgto.detalhes_metodos?.ids_origem;
+            if (origens) {
+                const strOrigens = Array.isArray(origens) ? origens.map(String) : [String(origens)];
+                const dividasVinculadas = historicoGeral.filter(h => strOrigens.includes(String(h.id)));
+                
+                for (const div of dividasVinculadas) {
+                    idsParaZerar.push(div.id);
+                    let creditoUsado = clean(div.detalhes_metodos?.credito_utilizado_nesta_parcela);
+                    if (creditoUsado === 0 && clean(div.detalhes_metodos?.credito_aluno) > 0) creditoUsado = clean(div.detalhes_metodos?.credito_aluno);
+                    
+                    if (creditoUsado > 0) {
+                        variacaoSaldoCredito += creditoUsado;
+                        mensagem += `- Reembolso (Parcela Vinculada usou crédito): +R$ ${creditoUsado.toFixed(2)}\n`;
+                    }
+                }
+                if (dividasVinculadas.length > 0) {
+                    mensagem += `- ${dividasVinculadas.length} parcela(s) originais voltarão a ficar PENDENTES.\n`;
+                }
+            }
+        } else {
+            variacaoSaldoCredito += Math.abs(valorCredito);
+            idsParaDeletar.push(pgto.id);
+            mensagem += `- Reversão de Subtração (O valor voltará para a carteira): +R$ ${Math.abs(valorCredito).toFixed(2)}\n`;
+        }
+    } else {
+        idsParaZerar.push(pgto.id);
+        mensagem += `- A transação voltará para PENDENTE (R$ 0,00 pago).\n`;
+        
+        let creditoUsado = clean(pgto.detalhes_metodos?.credito_utilizado_nesta_parcela);
+        if (creditoUsado === 0 && clean(pgto.detalhes_metodos?.credito_aluno) > 0) creditoUsado = clean(pgto.detalhes_metodos?.credito_aluno);
+        
+        if (creditoUsado > 0) {
+            variacaoSaldoCredito += creditoUsado;
+            mensagem += `- Devolução do Crédito Virtual usado no pagamento: +R$ ${creditoUsado.toFixed(2)}\n`;
+        }
+
+        const creditosGerados = historicoGeral.filter(h => {
+            const isCred = h.tipo === 'credito' || h.descricao?.toLowerCase().includes('troco') || h.descricao?.toLowerCase().includes('crédito');
+            if (!isCred) return false;
+            
+            const origens = h.detalhes_metodos?.ids_origem;
+            if (origens) {
+                const strOrigens = Array.isArray(origens) ? origens.map(String) : [String(origens)];
+                if (strOrigens.includes(String(pgto.id))) return true;
+            }
+            
+            if (h.descricao && pgto.descricao && h.descricao.toLowerCase().includes(pgto.descricao.toLowerCase())) {
+                return true;
+            }
+            return false;
+        });
+
+        for (const c of creditosGerados) {
+            idsParaDeletar.push(c.id);
+            variacaoSaldoCredito -= clean(c.valor_total);
+            mensagem += `- O Troco gerado por este pagamento será CANCELADO e retirado da carteira: -R$ ${clean(c.valor_total).toFixed(2)}\n`;
+        }
     }
+
+    const alunoEspecifico = alunos.find(a => a.id === pgto.aluno_id);
+    const saldoAtual = alunoEspecifico ? clean(alunoEspecifico.saldo_credito) : 0;
+    const saldoFinalEsperado = Math.max(0, saldoAtual + variacaoSaldoCredito);
+    
+    mensagem += `\nSaldo Atual na Carteira: R$ ${saldoAtual.toFixed(2)}`;
+    mensagem += `\nSaldo Final Após Estorno: R$ ${saldoFinalEsperado.toFixed(2)}\n\nConfirmar operação de Estorno Integrado?`;
+
+    if (!confirm(mensagem)) return;
+
     setProcessando(true);
     try {
-      if (item.mes_referencia === 'Avulso' || String(item.id).startsWith('novo_') || String(item.id).startsWith('temp_')) {
-        await supabase.from('historico_pagamentos').delete().eq('id', item.id);
-      } else {
-        await supabase.from('historico_pagamentos').update({
-          status: 'pendente',
-          valor_pago: 0,
-          detalhes_metodos: {}
-        }).eq('id', item.id);
-      }
-      alert("Operação estornada com sucesso! Lembre-se de ajustar manualmente o saldo de crédito do aluno se houveram trocos envolvidos.");
-      await carregarDadosBase();
+        if (variacaoSaldoCredito !== 0) {
+            await supabase.from('alunos').update({ saldo_credito: saldoFinalEsperado }).eq('id', pgto.aluno_id);
+        }
+
+        if (idsParaDeletar.length > 0) {
+            await supabase.from('historico_pagamentos').delete().in('id', idsParaDeletar);
+        }
+
+        if (idsParaZerar.length > 0) {
+            await supabase.from('historico_pagamentos').update({ 
+                status: 'pendente', 
+                valor_pago: 0, 
+                detalhes_metodos: {} 
+            }).in('id', idsParaZerar);
+        }
+
+        alert("Estorno processado com sucesso! Relatórios e carteira reajustados.");
+        await carregarDadosBase();
     } catch (error: any) {
-      alert("Erro ao estornar: " + error.message);
+        alert("Erro ao estornar: " + error.message);
+    } finally {
+        setProcessando(false);
     }
-    setProcessando(false);
   };
 
   const alunosFiltrados = buscaAluno === "" 
@@ -629,7 +759,8 @@ export default function PDVPage() {
                                       <span className="font-bold text-emerald-600 text-sm">R$ {clean(item.valor_pago).toFixed(2)}</span>
                                       <button 
                                           onClick={() => estornarPagamento(item)}
-                                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                                          disabled={processando}
+                                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-50"
                                           title="Estornar / Desfazer Lançamento"
                                       >
                                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
