@@ -370,7 +370,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       <div className="space-y-6">
         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter italic">🏫 Mensalidades</h1>
+            <h1 className="text-3xl font-bold text-gray-900">🏫 Mensalidades</h1>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Gestão de Recebimentos e Baixas Operacionais</p>
           </div>
           
@@ -694,8 +694,8 @@ function VisaoSaldosCreditos() {
     <div className="w-full relative">
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">👥 Carteira de Saldos & Créditos</h1>
-          <p className="text-sm text-gray-500 mt-1">Auditoria geral de adiantamentos e contas pendentes agrupados por aluno</p>
+          <h1 className="text-3xl font-bold text-gray-900">👥 Carteira de Saldos & Créditos</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Auditoria geral de adiantamentos e contas pendentes agrupados por aluno</p>
         </div>
         <div>
           <input type="text" placeholder="🔍 Buscar aluno por nome..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} className="p-3 bg-gray-100 rounded-xl text-sm border-none text-gray-800 outline-none w-64 font-medium" />
@@ -908,10 +908,10 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
     <div className="space-y-6">
       <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter italic">🤝 Cronograma de Acordos</h1>
+          <h1 className="text-3xl font-bold text-gray-900">🤝 Acordos Realizados</h1>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Parcelamentos Especiais e Histórico Detalhado de Renegociações</p>
         </div>
-        <input type="text" placeholder="Buscar aluno..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} className="w-full sm:w-64 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-sm" />
+        <input type="text" placeholder="🔍 Buscar aluno..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} className="w-full sm:w-64 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-sm" />
       </div>
 
       <div className="space-y-4">
@@ -925,9 +925,9 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
                   <div className="flex-1 flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xl">{aluno.nome.charAt(0)}</div>
                     <div>
-                      <h2 className="font-bold text-lg text-slate-800 uppercase">{aluno.nome}</h2>
+                      <h2 className="font-bold" style={{ fontSize: '18px' }}>{aluno.nome}</h2>
                       <p className="text-xs text-slate-500 font-semibold mt-1">
-                        📦 {aluno.qtdAcordos} acordo(s) ativo(s) parcelado(s) em: <b className="text-indigo-600">{aluno.resumoParcelas}</b> | 👤 Gestor Base: {aluno.contratos[0]?.responsavel}
+                        📝 {aluno.qtdAcordos} acordo(s) ativo(s) parcelado(s) em: <b className="text-indigo-600">{aluno.resumoParcelas}</b> | 👤 Gestor Base: {aluno.contratos[0]?.responsavel}
                       </p>
                     </div>
                   </div>

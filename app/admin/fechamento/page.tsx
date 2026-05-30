@@ -15,10 +15,24 @@ export default function FechamentoLetivo() {
   async function carregarDados() {
     setCarregando(true);
     try {
-      const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome');
+      // 1. Adicionado tratamento de erro na busca de alunos
+      const { data: listaAlunos, error: erroAlunos } = await supabase.from('alunos').select('*').order('nome');
+      
+      if (erroAlunos) {
+        console.error("Erro ao buscar alunos:", erroAlunos);
+        alert("Erro ao carregar alunos. Verifique o console (F12).");
+        return;
+      }
       
       if (listaAlunos) {
-        const { data: todasNotas } = await supabase.from('boletins').select('*');
+        // 2. Adicionado tratamento de erro na busca de notas
+        const { data: todasNotas, error: erroNotas } = await supabase.from('boletins').select('*');
+
+        if (erroNotas) {
+          console.error("Erro ao buscar boletins:", erroNotas);
+          alert("Erro ao carregar os boletins. Verifique o console.");
+          return;
+        }
 
         const alunosComMedias = listaAlunos.map(aluno => {
           const notasDoAluno = todasNotas?.filter(n => n.aluno_id === aluno.id) || [];
@@ -44,6 +58,8 @@ export default function FechamentoLetivo() {
 
         setAlunos(alunosComMedias);
       }
+    } catch (err) {
+      console.error("Erro inesperado no carregamento:", err);
     } finally {
       setCarregando(false);
     }
@@ -59,6 +75,7 @@ export default function FechamentoLetivo() {
       .eq('id', id);
     
     if (error) {
+      console.error("Erro na atualização do aluno:", error);
       alert("Erro ao salvar no banco: " + error.message);
       carregarDados();
     }
@@ -71,45 +88,66 @@ export default function FechamentoLetivo() {
     if (!confirm("Isso moverá os alunos 'APROVADOS' para a próxima série. Os boletins atuais SERÃO MANTIDOS no histórico do aluno. Continuar?")) return;
 
     setUltimoBackup([...alunos]);
+    setCarregando(true); // Mostra o loading durante a promoção
 
-    for (const aluno of alunos) {
-      if (aluno.situacao_academica === 'Aprovado') {
-        const indexAtual = turmasOrdem.indexOf(aluno.turma);
-        if (indexAtual !== -1 && indexAtual < turmasOrdem.length - 1) {
-          const proximaTurma = turmasOrdem[indexAtual + 1];
-          
-          // APENAS ATUALIZA O ALUNO. OS BOLETINS NÃO SÃO MAIS DELETADOS.
-          await supabase.from('alunos').update({ 
-            turma: proximaTurma, 
-            situacao_academica: 'Em curso',
-            status: 'pendente'
-          }).eq('id', aluno.id);
-        }
-      }
+    try {
+      // 3. Uso do Promise.all para evitar gargalo de requisições no Supabase
+      const promessas = alunos
+        .filter(aluno => aluno.situacao_academica === 'Aprovado')
+        .map(aluno => {
+          const indexAtual = turmasOrdem.indexOf(aluno.turma);
+          if (indexAtual !== -1 && indexAtual < turmasOrdem.length - 1) {
+            const proximaTurma = turmasOrdem[indexAtual + 1];
+            return supabase.from('alunos').update({ 
+              turma: proximaTurma, 
+              situacao_academica: 'Em curso',
+              status: 'pendente'
+            }).eq('id', aluno.id);
+          }
+          return null;
+        })
+        .filter(Boolean); // Remove os nulos da lista
+
+      await Promise.all(promessas);
+      alert("Alunos promovidos com sucesso! O histórico de boletins foi preservado.");
+    } catch (error) {
+      console.error("Erro durante a promoção:", error);
+      alert("Houve um erro ao promover os alunos. Verifique o console.");
+    } finally {
+      carregarDados();
     }
-    alert("Alunos promovidos com sucesso! O histórico de boletins foi preservado.");
-    carregarDados();
   }
 
   async function desfazerPromocao() {
     if (!ultimoBackup) return;
     if (!confirm("Deseja reverter os alunos para as turmas e situações anteriores?")) return;
 
-    for (const alunoOriginal of ultimoBackup) {
-        if (alunoOriginal.situacao_academica === 'Aprovado') {
-            await supabase.from('alunos').update({
-                turma: alunoOriginal.turma,
-                situacao_academica: 'Aprovado',
-                status: alunoOriginal.status
-            }).eq('id', alunoOriginal.id);
-        }
+    setCarregando(true);
+
+    try {
+      // 4. Uso do Promise.all no desfazimento também
+      const promessas = ultimoBackup
+        .filter(alunoOriginal => alunoOriginal.situacao_academica === 'Aprovado')
+        .map(alunoOriginal => {
+          return supabase.from('alunos').update({
+            turma: alunoOriginal.turma,
+            situacao_academica: 'Aprovado',
+            status: alunoOriginal.status
+          }).eq('id', alunoOriginal.id);
+        });
+
+      await Promise.all(promessas);
+      setUltimoBackup(null);
+      alert("Promoção revertida!");
+    } catch (error) {
+      console.error("Erro ao desfazer promoção:", error);
+      alert("Houve um erro ao reverter. Verifique o console.");
+    } finally {
+      carregarDados();
     }
-    setUltimoBackup(null);
-    alert("Promoção revertida!");
-    carregarDados();
   }
 
-  if (carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando dados de fechamento...</div>;
+  if (carregando) return <div style={{ padding: '40px', textAlign: 'center', fontWeight: 'bold' }}>Carregando dados de fechamento...</div>;
 
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>

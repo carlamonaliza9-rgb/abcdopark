@@ -1,15 +1,54 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
-// Importação dos Componentes (Buscando da pasta original para não duplicar)
+// --- IMPORTAÇÕES RESTAURADAS ---
 import { TurmasHeader } from "@/app/dashboard/turmas/_components/TurmasHeader";
 import { TurmaCard } from "@/app/dashboard/turmas/_components/TurmaCard";
 import { ModalHorario } from "@/app/dashboard/turmas/_components/ModalHorario";
 import { ModalDetalhesTurma } from "@/app/dashboard/turmas/_components/ModalDetalhesTurma";
 import { ModalFichaAlunoTurma } from "@/app/dashboard/turmas/_components/ModalFichaAlunoTurma";
 import { ModalAgendaTurma } from "@/app/dashboard/turmas/_components/ModalAgendaTurma";
+
+// --- FUNÇÕES AUXILIARES DE CORTE ---
+function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number) {
+  return centerCrop(
+    makeAspectCrop({ unit: "%", width: 90 }, aspect, mediaWidth, mediaHeight),
+    mediaWidth, mediaHeight
+  );
+}
+
+async function getCroppedImg(image: HTMLImageElement, crop: PixelCrop, fileName: string): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  canvas.width = crop.width;
+  canvas.height = crop.height;
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+
+  ctx.drawImage(
+    image,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
+    0, 0, crop.width, crop.height
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Canvas is empty"));
+        return;
+      }
+      (blob as any).name = fileName;
+      resolve(blob);
+    }, "image/jpeg", 0.95);
+  });
+}
 
 export default function TurmasAdminPage() {
   const router = useRouter();
@@ -18,7 +57,7 @@ export default function TurmasAdminPage() {
   const [listaProfessores, setListaProfessores] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const ehAdmin = true; // Forçado pois esta é a página de Admin
+  const ehAdmin = true; 
 
   const [coresConfig, setCoresConfig] = useState<any>({});
   const [coresTemporarias, setCoresTemporarias] = useState<any>({});
@@ -138,7 +177,6 @@ export default function TurmasAdminPage() {
     }
   }
 
-  // --- FUNÇÃO ATUALIZADA: ADICIONAR E APAGAR EM MASSA COM PORTUGUÊS NO TOPO ---
   async function gerenciarMaterias(e: React.MouseEvent, nomeTurma: string) {
     e.stopPropagation();
     const acao = prompt(`Gerenciar Matérias - ${nomeTurma}\n1 - Adicionar Matérias (Várias por vez)\n2 - Ver/Remover Matérias`);
@@ -174,13 +212,11 @@ export default function TurmasAdminPage() {
         .eq('ano', '2026');
 
       if (data && data.length > 0) {
-        // Ordenação manual conforme solicitado: Português no topo e Ed. Física na base
         const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
         
         const dataOrdenada = data.sort((a, b) => {
           const indexA = ordemManual.indexOf(a.disciplina);
           const indexB = ordemManual.indexOf(b.disciplina);
-          // Disciplinas fora da lista manual vão para o fim por padrão
           return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
         });
 
@@ -212,7 +248,16 @@ export default function TurmasAdminPage() {
       let publicUrl = previewHorario;
       if (arquivoHorario) {
         const fileExt = arquivoHorario.name.split('.').pop();
-        const fileName = `${turmaParaHorario.nome.replace(/\s/g, '')}_${Date.now()}.${fileExt}`;
+        
+        // HIGIENIZAÇÃO DO CAMINHO/NOME DO ARQUIVO (Remove º, acentos e espaços)
+        const nomeTurmaLimpo = turmaParaHorario.nome
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/__+/g, "_")
+          .toLowerCase();
+
+        const fileName = `${nomeTurmaLimpo}_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('horarios').upload(fileName, arquivoHorario);
         if (uploadError) throw uploadError;
         publicUrl = supabase.storage.from('horarios').getPublicUrl(fileName).data.publicUrl;
@@ -236,7 +281,7 @@ export default function TurmasAdminPage() {
       </div>
 
       {editandoCores && (
-        <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+        <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h4 style={{ margin: 0, fontSize: '15px', color: '#111827', fontWeight: '800' }}>Personalizar Cores</h4>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -265,15 +310,15 @@ export default function TurmasAdminPage() {
             key={turma.nome}
             turma={turma}
             ehAdmin={true}
-            onAbrirTurma={(t) => {
+            onAbrirTurma={(t: any) => {
               const listaOrdenada = todosAlunos.filter(a => a.turma === t.nome).sort((a, b) => a.nome.localeCompare(b.nome));
               setTurmaSelecionada({ ...t, alunos: listaOrdenada });
               setModalTurmaAberto(true);
             }}
             onEditarProfessor={editarProfessor}
             onGerenciarMaterias={gerenciarMaterias}
-            onAbrirUploadHorario={(e, t) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
-            onAbrirAgenda={(e, t) => { e.stopPropagation(); setTurmaParaAgenda(t); setModoAgenda('consultar'); setModalAgendaAberto(true); }}
+            onAbrirUploadHorario={(e: any, t: any) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
+            onAbrirAgenda={(e: any, t: any) => { e.stopPropagation(); setTurmaParaAgenda(t); setModoAgenda('consultar'); setModalAgendaAberto(true); }}
           />
         ))}
       </div>
@@ -282,10 +327,10 @@ export default function TurmasAdminPage() {
         <ModalHorario turma={turmaParaHorario} previewHorario={previewHorario} arrastandoHorario={arrastandoHorario} salvandoHorario={salvandoHorario} onClose={() => setModalHorarioAberto(false)} onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop} onFileSelect={(e: any) => { const file = e.target.files?.[0]; if (file) { setArquivoHorario(file); setPreviewHorario(URL.createObjectURL(file)); } }} onSalvar={salvarHorarioImagem} />
       )}
       {modalTurmaAberto && (
-        <ModalDetalhesTurma turma={turmaSelecionada} onClose={() => setModalTurmaAberto(false)} onAbrirFichaAluno={async (aluno) => { setAlunoSelecionado(aluno); setModalFichaAberto(true); }} />
+        <ModalDetalhesTurma turma={turmaSelecionada} onClose={() => setModalTurmaAberto(false)} onAbrirFichaAluno={async (aluno: any) => { setAlunoSelecionado(aluno); setModalFichaAberto(true); }} />
       )}
       {modalFichaAberto && (
-        <ModalFichaAlunoTurma aluno={alunoSelecionado} ehAdmin={true} onClose={() => setModalFichaAberto(false)} calcularIdade={(d) => d} />
+        <ModalFichaAlunoTurma aluno={alunoSelecionado} ehAdmin={true} onClose={() => setModalFichaAberto(false)} calcularIdade={(d: any) => d} />
       )}
       {modalAgendaAberto && (
         <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={true} onClose={() => setModalAgendaAberto(false)} />
