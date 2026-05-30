@@ -158,6 +158,26 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  async function handleDeletarFicha() {
+    if (isProcessandoAcao) return;
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Acesso negado: Apenas a administração master pode excluir uma ficha.");
+    if (prompt("Digite a Senha Mestra para DELETAR A FICHA DO ALUNO:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!confirm(`ATENÇÃO! Você está prestes a excluir PERMANENTEMENTE a ficha de ${aluno.nome}. Todos os dados serão perdidos. Deseja realmente continuar?`)) return;
+
+    setIsProcessandoAcao(true);
+    setCarregando(true);
+    try {
+      const { error } = await supabase.from('alunos').delete().eq('id', alunoId);
+      if (error) throw error;
+      alert("Ficha do aluno excluída com sucesso.");
+      router.push('/admin/alunos');
+    } catch (error: any) {
+      alert("Erro ao excluir ficha: " + error.message);
+      setIsProcessandoAcao(false);
+      setCarregando(false);
+    }
+  }
+
   async function processarAcaoPagamento(pgto: any, acao: 'estornar' | 'excluir') {
     if (isProcessandoAcao) return;
     if (acao === 'excluir' && userEmail !== 'carlamonaliza9@gmail.com') return alert("Acesso negado: Apenas a administração master pode excluir registros permanentemente do banco.");
@@ -567,7 +587,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     <div className="w-full bg-[#f8fafc] min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8">
       <div className="max-w-[1700px] w-full mx-auto space-y-6 lg:space-y-8 animate-in fade-in duration-300">
         
-        <BannerAluno aluno={aluno} router={router} ehVisitante={ehVisitante} abrirEdicaoFicha={abrirEdicaoFicha} />
+        <BannerAluno aluno={aluno} router={router} ehVisitante={ehVisitante} abrirEdicaoFicha={abrirEdicaoFicha} userEmail={userEmail} handleDeletarFicha={handleDeletarFicha} isProcessandoAcao={isProcessandoAcao} />
 
         {verDividasGlobais ? (
           <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} setModalPDVAberto={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
