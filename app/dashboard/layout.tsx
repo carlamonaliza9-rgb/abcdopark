@@ -106,8 +106,8 @@ export default function DashboardLayout({
                   💰 Financeiro
                 </Link>
 
-                <Link href="/admin/financeiro/contas-a-pagar" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
-                  💸 Contas a Pagar
+                <Link href="/admin/financeiro/saidas" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
+                  💸 Saídas
                 </Link>
 
                 <Link href="/admin/fechamento" className="block p-3 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-lg font-bold transition-all">
