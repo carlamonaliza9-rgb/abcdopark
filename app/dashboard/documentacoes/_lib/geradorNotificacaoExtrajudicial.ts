@@ -51,7 +51,7 @@ export const gerarNotificacaoExtrajudicial = async (dados: DadosNotificacaoExtra
   
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text("CNPJ 05.067.797-68", 60, 26);
+  doc.text("CNPJ 05.067.797/0001-68", 60, 26);
   doc.text("CONJ PARKLANDIA - QUADRA A CASA 02", 60, 31);
   doc.text("TELEFONE (91) 3268-3484 / (91) 98622-7715", 60, 36);
   doc.text("INEP - 15159213", 60, 41);
