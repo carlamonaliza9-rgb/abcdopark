@@ -6,15 +6,11 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Importação dos Componentes de Layout Essenciais para o Dashboard
 import { FinanceiroHeader } from "@/app/dashboard/financeiro/_components/FinanceiroHeader";
 import { MetricasCard } from "@/app/dashboard/financeiro/_components/MetricasCard";
 import { BalancoResumo } from "@/app/dashboard/financeiro/_components/BalancoResumo";
-
-// Importação dos Modais de Consulta de Listas Rápidas
 import { ModalListaGastos } from "@/app/dashboard/financeiro/_components/ModalListaGastos";
 
-// Auxiliar de conversão financeira blindada
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
   if (typeof val === 'number') return val;
@@ -26,7 +22,7 @@ const clean = (val: any) => {
 export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userCargo, setUserCargo] = useState<string | null>(null);
 
   // --- ESTADOS DE DADOS ---
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
@@ -48,24 +44,19 @@ export default function FinanceiroAdminPage() {
   const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
 
-  const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-  // --- TRAVA DE SEGURANÇA ---
+  // --- CONTROLO DE ACESSO SEGURO VIA PERFIL DA BASE DE DADOS ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
 
-      const emailAtual = user.email || "";
-      setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
+      const cargoUtilizador = perfil?.cargo || "";
+      setUserCargo(cargoUtilizador);
 
-      const ehAutorizado = 
-        emailAtual === 'carlamonaliza9@gmail.com' || 
-        emailAtual === 'diretoria@abcdopark.com' || 
-        perfil?.cargo === 'Admin' ||
-        perfil?.cargo === 'Direção';
+      const ehAutorizado = cargoUtilizador === 'Admin' || cargoUtilizador === 'Direção';
 
       if (!ehAutorizado) {
         return router.push("/dashboard");
@@ -150,7 +141,6 @@ export default function FinanceiroAdminPage() {
         pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100)
       });
 
-      // --- PROCESSAMENTO DA TIMELINE DIÁRIA DE ARRECADAÇÃO ---
       const diasNoMes = ultimoDiaObjeto.getDate();
       const mapaDias = Array.from({ length: diasNoMes }, (_, i) => ({ dia: i + 1, valor: 0 }));
       
@@ -188,9 +178,9 @@ export default function FinanceiroAdminPage() {
         const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
         const totalGeralPrevisto = vPago + totalPendenteCaixa;
         
-        // --- MOTOR DE DESCONTOS INTEGRADO AO CACHE (CORREÇÃO APLICADA) ---
-        const valorSalvoMemoria = localStorage.getItem('valorPadraoMensalidade');
-        const mensalidadeBaseVigente = valorSalvoMemoria ? Number(valorSalvoMemoria) : 550;
+        // --- LÓGICA ANTERIOR RESTAURADA PARA A MENSALIDADE BASE ---
+        const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('mensalidade_base') : null;
+        const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550;
 
         const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, mensalidadeBaseVigente - (parseFloat(curr.valor) || 0)), 0);
         
@@ -203,7 +193,6 @@ export default function FinanceiroAdminPage() {
           lucro: vPago - vGastos 
         });
 
-        // --- MOTOR DO RADAR DE INADIMPLÊNCIA CRÍTICA (TOP 5) ---
         const mapaDevedores = new Map();
         todasPendenciasExtras.forEach((pend: any) => {
           const saldoDevedor = clean(pend.valor_total) - clean(pend.valor_pago);
@@ -333,24 +322,26 @@ export default function FinanceiroAdminPage() {
   }
 
   async function handleExcluirGasto(id: string) {
-    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla pode excluir.");
-    if (prompt("Senha Mestra:") === SENHA_MESTRA) {
-      await supabase.from('gastos').delete().eq('id', id);
+    if (userCargo !== 'Admin') return alert("Operação não autorizada para o seu nível de acesso.");
+    
+    if (confirm("Tem a certeza de que deseja remover esta despesa permanentemente?")) {
+      const { error } = await supabase.from('gastos').delete().eq('id', id);
+      if (error) return alert("Erro ao excluir: Verifique as permissões na base de dados.");
       carregarDados();
     }
   }
 
   async function handleExcluirReceita(id: string) {
-    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla pode excluir.");
-    if (prompt("Senha Mestra:") === SENHA_MESTRA) {
-      await supabase.from('historico_pagamentos').delete().eq('id', id);
+    if (userCargo !== 'Admin') return alert("Operação não autorizada para o seu nível de acesso.");
+    
+    if (confirm("Tem a certeza de que deseja remover este registo de receita permanentemente?")) {
+      const { error } = await supabase.from('historico_pagamentos').delete().eq('id', id);
+      if (error) return alert("Erro ao excluir: Verifique as permissões na base de dados.");
       carregarDados();
     }
   }
 
-  const maxArrecadacaoDia = Math.max(...timelineDiaria.map((d: any) => d.valor), 1);
-
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium tracking-widest animate-pulse">Carregando painel financeiro...</div>;
+  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium tracking-widest animate-pulse">A carregar painel financeiro de forma segura...</div>;
 
   return (
     <div className="w-full min-h-screen bg-[#f8fafc] p-4 md:p-6 lg:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
@@ -362,21 +353,23 @@ export default function FinanceiroAdminPage() {
             mesFiltro={mesFiltro} 
             setMesFiltro={setMesFiltro}
             onZerarMes={() => {
-              if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode executar esta ação em lote.");
-              if (prompt("Digite a Senha Mestra para ZERAR O MÊS ATUAL:") === SENHA_MESTRA) {
-                alert("Ação registrada. Nenhum pagamento excluído por segurança.");
+              if (userCargo !== 'Admin') return alert("Apenas administradores do sistema podem executar esta ação.");
+              if (confirm("Deseja registar o fecho de lote para o mês atual?")) {
+                alert("Ação registada com sucesso.");
               }
             }} 
           />
-          <button 
-            onClick={gerarRelatorioTesouraria}
-            className="w-full xl:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all border border-slate-950/20 uppercase tracking-widest"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-slate-300">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-            Imprimir Balanço Mensal
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+            <button 
+              onClick={gerarRelatorioTesouraria}
+              className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all border border-slate-950/20 uppercase tracking-widest"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-slate-300">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+              Imprimir Balanço
+            </button>
+          </div>
         </div>
 
         {/* Bloco 2: Cards de Faturamento Principal */}
@@ -385,35 +378,8 @@ export default function FinanceiroAdminPage() {
           onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
           onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
         />
-
-        {/* ================= TIMELINE DE ARRECADAÇÃO DIÁRIA (SVG) ================= */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">📈 Fluxo de Arrecadação Diária</h3>
-            <p className="text-xs text-slate-400">Distribuição volumétrica das entradas consolidadas ao longo dos dias do mês</p>
-          </div>
-          <div className="w-full pt-4">
-            <div className="flex items-end justify-between h-24 gap-1 px-2 border-b border-slate-100">
-              {timelineDiaria.map((d: any) => {
-                const alturaPct = (d.valor / maxArrecadacaoDia) * 100;
-                return (
-                  <div key={d.dia} className="flex-1 flex flex-col items-center group relative">
-                    <div className="absolute bottom-full mb-1 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 whitespace-nowrap">
-                      Dia {d.dia}: R$ {d.valor.toFixed(2)}
-                    </div>
-                    <div 
-                      style={{ height: `${Math.max(alturaPct, 4)}%` }} 
-                      className={`w-full rounded-t transition-all ${d.valor > 0 ? 'bg-indigo-500 group-hover:bg-indigo-600' : 'bg-slate-100'}`}
-                    />
-                    <span className="text-[9px] text-slate-400 font-bold mt-1.5 block">{d.dia}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Bloco Avançado Separado: Esquerda (Radar/Métodos) e Direita (Despesas/Geral) */}
+        
+        {/* Bloco Avançado Separado */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
           
           {/* COLUNA ESQUERDA (8/12) */}
