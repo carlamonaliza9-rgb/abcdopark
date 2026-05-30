@@ -362,7 +362,7 @@ export default function FuncionariosAdminPage() {
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{f.nome}</h3>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '16px' }}>
                     <span style={{ fontSize: '16px' }}>📱</span> {mWhatsApp(f.whatsapp || "--")}
                 </div>
             </div>
