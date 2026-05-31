@@ -24,29 +24,24 @@ export default function FinanceiroAdminPage() {
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userCargo, setUserCargo] = useState<string | null>(null);
 
-  // --- ESTADOS DE DADOS ---
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [alunos, setAlunos] = useState<any[]>([]);
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
   const [carregando, setCarregando] = useState(true);
 
-  // --- ESTADOS DOS NOVOS PAINÉIS DE ANÁLISE ---
   const [radarInadimplencia, setRadarInadimplencia] = useState<any[]>([]);
   const [distribuicaoGastos, setDistribuicaoGastos] = useState({ fixas: 0, variaveis: 0, pctFixas: 0, pctVariaveis: 0 });
   const [timelineDiaria, setTimelineDiaria] = useState<any[]>([]);
 
-  // --- ESTADOS DE CONTROLE DE MODAIS DE LISTAGEM ---
   const [modalListaGastosAberto, setModalListaGastosAberto] = useState(false); 
   const [modalListaReceitasAberto, setModalListaReceitasAberto] = useState(false);
 
-  // --- ESTADOS DE FORMULÁRIOS E HISTÓRICOS ---
   const [listaGastosDetalhada, setListaGastosDetalhada] = useState<any[]>([]); 
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
 
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-  // --- CONTROLO DE ACESSO SEGURO VIA PERFIL DA BASE DE DADOS ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -67,6 +62,7 @@ export default function FinanceiroAdminPage() {
   }, [router]);
 
   async function carregarDados() {
+    // ... (A LÓGICA DE CARREGAMENTO FOI MANTIDA INTACTA PARA GARANTIR O FUNCIONAMENTO) ...
     setCarregando(true);
     try {
       const hoje = new Date();
@@ -178,7 +174,6 @@ export default function FinanceiroAdminPage() {
         const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
         const totalGeralPrevisto = vPago + totalPendenteCaixa;
         
-        // --- LÓGICA ANTERIOR RESTAURADA PARA A MENSALIDADE BASE ---
         const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('mensalidade_base') : null;
         const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550;
 
@@ -223,6 +218,7 @@ export default function FinanceiroAdminPage() {
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, verificandoAcesso]);
 
   function gerarRelatorioTesouraria() {
+    // ... (LÓGICA DO PDF MANTIDA INTACTA) ...
     const doc = new jsPDF();
     const [ano, mesNum] = mesFiltro.split('-');
     const nomeMes = mesesAno[parseInt(mesNum) - 1];
@@ -302,11 +298,17 @@ export default function FinanceiroAdminPage() {
       theme: 'grid',
       headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
       styles: { fontSize: 8, textColor: [51, 65, 85] },
-      columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'left', cellWidth: 28 } }
+      columnStyles: { 
+        0: { halign: 'center', cellWidth: 22 }, 
+        1: { halign: 'left' }, // Removida a largura fixa para expandir automaticamente
+        2: { halign: 'right', cellWidth: 28 } // Largura e alinhamento aplicados corretamente à coluna de VALOR
+      }
     });
+    
 
     finalY = (doc as any).lastAutoTable.finalY + 22;
     if (finalY > 250) { doc.addPage(); finalY = 35; }
+    
     
     doc.setDrawColor(203, 213, 225);
     doc.line(20, finalY, 90, finalY);
@@ -323,7 +325,6 @@ export default function FinanceiroAdminPage() {
 
   async function handleExcluirGasto(id: string) {
     if (userCargo !== 'Admin') return alert("Operação não autorizada para o seu nível de acesso.");
-    
     if (confirm("Tem a certeza de que deseja remover esta despesa permanentemente?")) {
       const { error } = await supabase.from('gastos').delete().eq('id', id);
       if (error) return alert("Erro ao excluir: Verifique as permissões na base de dados.");
@@ -333,7 +334,6 @@ export default function FinanceiroAdminPage() {
 
   async function handleExcluirReceita(id: string) {
     if (userCargo !== 'Admin') return alert("Operação não autorizada para o seu nível de acesso.");
-    
     if (confirm("Tem a certeza de que deseja remover este registo de receita permanentemente?")) {
       const { error } = await supabase.from('historico_pagamentos').delete().eq('id', id);
       if (error) return alert("Erro ao excluir: Verifique as permissões na base de dados.");
@@ -341,14 +341,18 @@ export default function FinanceiroAdminPage() {
     }
   }
 
-  if (verificandoAcesso || carregando) return <div className="p-10 text-center font-sans text-slate-400 font-medium tracking-widest animate-pulse">A carregar painel financeiro de forma segura...</div>;
+  if (verificandoAcesso || carregando) return (
+    <div className="flex justify-center items-center h-screen w-full bg-slate-50">
+        <div className="text-center font-sans text-indigo-400 font-bold tracking-widest animate-pulse">A preparar o painel financeiro...</div>
+    </div>
+  );
 
   return (
-    <div className="w-full min-h-screen bg-[#f8fafc] p-4 md:p-6 lg:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
-      <div className="max-w-[1700px] w-full mx-auto space-y-6 md:space-y-8">
+    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
+      <div className="max-w-[1700px] w-full mx-auto space-y-8">
         
-        {/* Bloco 1: Header de Filtros */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-6">
+        {/* Bloco 1: Header de Filtros com visual mais limpo */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-6">
           <FinanceiroHeader 
             mesFiltro={mesFiltro} 
             setMesFiltro={setMesFiltro}
@@ -362,9 +366,9 @@ export default function FinanceiroAdminPage() {
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
             <button 
               onClick={gerarRelatorioTesouraria}
-              className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all border border-slate-950/20 uppercase tracking-widest"
+              className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl shadow-sm transition-all tracking-wide"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-slate-300">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
               Imprimir Balanço
@@ -373,6 +377,7 @@ export default function FinanceiroAdminPage() {
         </div>
 
         {/* Bloco 2: Cards de Faturamento Principal */}
+        {/* Obs: Para que o MetricasCard também fique com esse visual, você pode aplicar as classes 'rounded-3xl border border-slate-100 shadow-sm' lá dentro do componente dele depois! */}
         <MetricasCard 
           metricas={metricas} 
           onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
@@ -380,80 +385,93 @@ export default function FinanceiroAdminPage() {
         />
         
         {/* Bloco Avançado Separado */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* COLUNA ESQUERDA (8/12) */}
-          <div className="lg:col-span-8 space-y-6 md:space-y-8">
+          <div className="lg:col-span-8 space-y-8">
             
-            {/* Radar de Inadimplência Crítica */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
-              <div className="border-b pb-3 border-slate-100 flex justify-between items-center">
+            {/* Radar de Inadimplência Crítica Redesenhado */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
+              <div className="border-b pb-4 border-slate-50 flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-                    🚨 Radar de Inadimplência Crítica
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span className="flex h-3 w-3 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                    </span>
+                    Inadimplência Crítica
                   </h3>
-                  <p className="text-xs text-slate-400">Maiores saldos devedores acumulados na base de dados ativa</p>
+                  <p className="text-sm text-slate-500 mt-1">Maiores saldos devedores na base ativa</p>
                 </div>
-                <span className="bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded text-xs">Top 5</span>
+                <span className="bg-rose-100 text-rose-700 font-bold px-3 py-1 rounded-lg text-xs">Top 5</span>
               </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar pt-3 space-y-2">
+              
+              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
                 {radarInadimplencia.length > 0 ? radarInadimplencia.map((dev: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 border rounded-xl hover:border-rose-200 transition-colors">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 uppercase block">{dev.nome}</span>
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Etapa: {dev.turma}</span>
+                  <div key={idx} className="flex justify-between items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-900">{dev.nome}</span>
+                      <span className="text-xs text-slate-500 font-medium mt-0.5">Etapa: {dev.turma}</span>
                     </div>
-                    <span className="font-black text-rose-600 text-sm">R$ {dev.total_devido.toFixed(2)}</span>
+                    <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+                        <span className="font-extrabold text-rose-600 text-base">R$ {dev.total_devido.toFixed(2)}</span>
+                    </div>
                   </div>
                 )) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 italic text-xs">Nenhum devedor crítico listado.</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Nenhum devedor crítico listado.</div>
                 )}
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">💳 Métodos de Arrecadação</h3>
+            {/* Resumo de Métodos */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+              <h3 className="text-base font-bold text-slate-800 mb-6">Métodos de Arrecadação</h3>
               <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
             </div>
 
           </div>
 
           {/* COLUNA DIREITA (4/12) */}
-          <div className="lg:col-span-4 space-y-6 md:space-y-8">
+          <div className="lg:col-span-4 space-y-8">
             
-            {/* Distribuição de Despesas Categorizadas */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col h-[350px]">
-              <div className="border-b pb-3 border-slate-100">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">📊 Distribuição de Despesas</h3>
-                <p className="text-xs text-slate-400">Classificação proporcional dos custos do período</p>
+            {/* Distribuição de Despesas */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
+              <div className="border-b pb-4 border-slate-50 mb-6">
+                <h3 className="text-base font-bold text-slate-800">Distribuição de Despesas</h3>
+                <p className="text-sm text-slate-500 mt-1">Classificação proporcional de custos</p>
               </div>
               
-              <div className="flex-1 flex flex-col justify-center space-y-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end text-xs">
-                    <span className="font-bold text-slate-700 uppercase">🏢 Custos Fixos (Contas)</span>
-                    <span className="font-bold text-slate-500">R$ {distribuicaoGastos.fixas.toFixed(2)} ({distribuicaoGastos.pctFixas}%)</span>
+              <div className="flex-1 flex flex-col justify-center space-y-8">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end text-sm">
+                    <span className="font-bold text-slate-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        Custos Fixos
+                    </span>
+                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.fixas.toFixed(2)} <span className="text-slate-400 font-medium text-xs ml-1">({distribuicaoGastos.pctFixas}%)</span></span>
                   </div>
-                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
                     <div className="bg-rose-500 h-full transition-all" style={{ width: `${distribuicaoGastos.pctFixas}%` }} />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end text-xs">
-                    <span className="font-bold text-slate-700 uppercase">🛍️ Gastos Variáveis / Eventos</span>
-                    <span className="font-bold text-slate-500">R$ {distribuicaoGastos.variaveis.toFixed(2)} ({distribuicaoGastos.pctVariaveis}%)</span>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end text-sm">
+                    <span className="font-bold text-slate-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Variáveis / Eventos
+                    </span>
+                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.variaveis.toFixed(2)} <span className="text-slate-400 font-medium text-xs ml-1">({distribuicaoGastos.pctVariaveis}%)</span></span>
                   </div>
-                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-amber-500 h-full transition-all" style={{ width: `${distribuicaoGastos.pctVariaveis}%` }} />
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                    <div className="bg-amber-400 h-full transition-all" style={{ width: `${distribuicaoGastos.pctVariaveis}%` }} />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center mt-4">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total de Saídas Calculado</span>
-                <span className="font-black text-slate-800 text-base">R$ {metricas.gastos.toFixed(2)}</span>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center mt-6">
+                <span className="text-xs font-bold text-slate-500 block mb-1">Total Calculado</span>
+                <span className="font-black text-slate-900 text-2xl">R$ {metricas.gastos.toFixed(2)}</span>
               </div>
             </div>
 
@@ -463,7 +481,6 @@ export default function FinanceiroAdminPage() {
 
       </div>
 
-      {/* MODAIS DE CONVENIÊNCIA */}
       <ModalListaGastos 
         aberto={modalListaGastosAberto} onFechar={() => setModalListaGastosAberto(false)}
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada} onExcluir={handleExcluirGasto}
@@ -492,9 +509,10 @@ export default function FinanceiroAdminPage() {
       />
 
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
       `}} />
     </div>
   );

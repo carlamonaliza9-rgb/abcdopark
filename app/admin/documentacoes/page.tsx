@@ -36,6 +36,7 @@ export default function DocumentacoesAdminPage() {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [boletins, setBoletins] = useState<any[]>([]);
   const [abaTurmaAtiva, setAbaTurmaAtiva] = useState<string>("");
+  const [carregandoCodes, setCarregandoCodes] = useState(false); // Novo estado de carregamento leve
 
   // --- ESTADOS PARA A NOTIFICAÇÃO EXTRAJUDICIAL ---
   const [dataReferencia, setDataReferencia] = useState("");
@@ -98,7 +99,7 @@ export default function DocumentacoesAdminPage() {
     carregarPendenciasAluno();
   }, [documentoAtivo, alunoSelecionado]);
 
-  // --- TRAVA DE SEGURANÇA ---
+  // --- TRAVA DE SEGURANÇA E CARREGAMENTO INICIAL LEVE ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -116,32 +117,45 @@ export default function DocumentacoesAdminPage() {
         return router.push("/dashboard");
       }
 
-      await buscarDados();
+      // Inicia a busca de alunos de forma assíncrona para não travar a tela
+      buscarAlunos(); 
       setVerificandoAcesso(false);
     }
     verificarAcesso();
   }, [router]);
 
-  async function buscarDados() {
-    const [resAlunos, resTurmas, resBoletins] = await Promise.all([
-      supabase.from("alunos").select("*").order("nome"),
-      supabase.from("turmas_info").select("*"),
-      supabase.from("boletins").select("*")
-    ]);
-    
-    if (resAlunos.data) setAlunos(resAlunos.data);
-    if (resBoletins.data) setBoletins(resBoletins.data);
-    if (resTurmas.data) {
-      const filtradas = resTurmas.data.filter(t => 
-        t.nome_turma.includes("1º") || t.nome_turma.includes("2º") || 
-        t.nome_turma.includes("3º") || t.nome_turma.includes("4º") || 
-        t.nome_turma.includes("5º")
-      ).sort((a, b) => a.nome_turma.localeCompare(b.nome_turma));
-      
-      setTurmas(filtradas);
-      if (filtradas.length > 0) setAbaTurmaAtiva(filtradas[0].nome_turma);
-    }
+  // --- CARREGADORES SEPARADOS ---
+  async function buscarAlunos() {
+    const { data } = await supabase.from("alunos").select("*").order("nome");
+    if (data) setAlunos(data);
   }
+
+  // --- CARREGADOR SOB DEMANDA (LAZY LOAD) APENAS PARA O CODES ---
+  useEffect(() => {
+    async function carregarDadosCodes() {
+      if (documentoAtivo === 'codes' && turmas.length === 0) {
+        setCarregandoCodes(true);
+        const [resTurmas, resBoletins] = await Promise.all([
+          supabase.from("turmas_info").select("*"),
+          supabase.from("boletins").select("*")
+        ]);
+        
+        if (resBoletins.data) setBoletins(resBoletins.data);
+        if (resTurmas.data) {
+          const filtradas = resTurmas.data.filter(t => 
+            t.nome_turma.includes("1º") || t.nome_turma.includes("2º") || 
+            t.nome_turma.includes("3º") || t.nome_turma.includes("4º") || 
+            t.nome_turma.includes("5º")
+          ).sort((a, b) => a.nome_turma.localeCompare(b.nome_turma));
+          
+          setTurmas(filtradas);
+          if (filtradas.length > 0) setAbaTurmaAtiva(filtradas[0].nome_turma);
+        }
+        setCarregandoCodes(false);
+      }
+    }
+    carregarDadosCodes();
+  }, [documentoAtivo]);
 
   const selecionarResponsavel = (aluno: any, tipo: number) => {
     if (tipo === 1) {
@@ -233,7 +247,7 @@ export default function DocumentacoesAdminPage() {
     return situacao;
   };
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center' }}>Validando credenciais...</div>;
+  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center', color: '#64748b' }}>Validando credenciais...</div>;
 
   return (
     <div style={{ padding: 'clamp(15px, 5vw, 30px)', backgroundColor: '#f9fafb', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -281,58 +295,64 @@ export default function DocumentacoesAdminPage() {
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: documentoAtivo === 'codes' ? '1200px' : '600px', width: '100%', overflowX: 'auto' }}>
             
             {documentoAtivo === 'codes' ? (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Pré-visualização CODES (SEDUC)</h2>
-                  <button onClick={executarGeracaoCodesPdf} style={{ padding: '12px 20px', backgroundColor: '#0f172a', color: 'white', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
-                    📄 IMPRIMIR PDF OFICIAL
-                  </button>
+              carregandoCodes ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontWeight: 'bold' }}>
+                   A processar boletins e montar matriz curricular...
                 </div>
-
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-                  {turmas.map(t => (
-                    <button key={t.nome_turma} onClick={() => setAbaTurmaAtiva(t.nome_turma)} style={{ padding: '8px 16px', borderRadius: '8px', border: abaTurmaAtiva === t.nome_turma ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: abaTurmaAtiva === t.nome_turma ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b', whiteSpace: 'nowrap' }}>
-                      {t.nome_turma}
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Pré-visualização CODES (SEDUC)</h2>
+                    <button onClick={executarGeracaoCodesPdf} style={{ padding: '12px 20px', backgroundColor: '#0f172a', color: 'white', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>
+                      📄 IMPRIMIR PDF OFICIAL
                     </button>
-                  ))}
-                </div>
+                  </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '800px' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0' }}>Nº</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0' }}>ALUNO</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>PORT</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>MAT</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>CIÊN</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>HIST</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>GEO</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>ARTE</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>ING</th>
-                      <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>SITUAÇÃO</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {alunos.filter(a => a.turma === abaTurmaAtiva).sort((a, b) => a.nome.localeCompare(b.nome)).map((aluno, idx) => {
-                      const situacao = calcularSituacaoNaTela(aluno.id, aluno.nome);
-                      return (
-                        <tr key={aluno.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '12px', color: '#64748b' }}>{(idx + 1).toString().padStart(2, '0')}</td>
-                          <td style={{ padding: '12px', fontWeight: 'bold', color: '#1e293b' }}>{aluno.nome.toUpperCase()}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "portug", "port")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "mat")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "ciên", "cien")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "hist")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "geo")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "arte")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "ing")}</td>
-                          <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold', color: situacao.includes('APROVAD') ? '#16a34a' : situacao.includes('REPROVAD') ? '#dc2626' : '#64748b' }}>{situacao}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
+                    {turmas.map(t => (
+                      <button key={t.nome_turma} onClick={() => setAbaTurmaAtiva(t.nome_turma)} style={{ padding: '8px 16px', borderRadius: '8px', border: abaTurmaAtiva === t.nome_turma ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: abaTurmaAtiva === t.nome_turma ? '#eff6ff' : 'white', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b', whiteSpace: 'nowrap' }}>
+                        {t.nome_turma}
+                      </button>
+                    ))}
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '800px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0' }}>Nº</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0' }}>ALUNO</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>PORT</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>MAT</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>CIÊN</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>HIST</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>GEO</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>ARTE</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>ING</th>
+                        <th style={{ padding: '12px', borderBottom: '2px solid #e2e8f0', textAlign: 'center' }}>SITUAÇÃO</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {alunos.filter(a => a.turma === abaTurmaAtiva).sort((a, b) => a.nome.localeCompare(b.nome)).map((aluno, idx) => {
+                        const situacao = calcularSituacaoNaTela(aluno.id, aluno.nome);
+                        return (
+                          <tr key={aluno.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px', color: '#64748b' }}>{(idx + 1).toString().padStart(2, '0')}</td>
+                            <td style={{ padding: '12px', fontWeight: 'bold', color: '#1e293b' }}>{aluno.nome.toUpperCase()}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "portug", "port")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "mat")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "ciên", "cien")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "hist")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "geo")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "arte")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center' }}>{obterMediaFinalAluno(aluno.id, "ing")}</td>
+                            <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold', color: situacao.includes('APROVAD') ? '#16a34a' : situacao.includes('REPROVAD') ? '#dc2626' : '#64748b' }}>{situacao}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : (
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
