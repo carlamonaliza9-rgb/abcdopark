@@ -6,11 +6,8 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Importação dos Componentes e Modais
 import { TabelaMensalidades } from "@/app/dashboard/financeiro/_components/TabelaMensalidades";
-import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 
-// --- VARIÁVEIS GLOBAIS ---
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
   if (typeof val === 'number') return val;
@@ -25,6 +22,7 @@ const SENHA_MESTRA = "1234";
 // 1. COMPONENTE DA VISÃO DE MENSALIDADES (Gerenciamento Mensal)
 // ============================================================================
 function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
+  const router = useRouter();
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
   const [inicializado, setInicializado] = useState(false);
@@ -36,19 +34,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
 
-  const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
-  const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
-  const [idLancamentoAtual, setIdLancamentoAtual] = useState<string | null>(null);
-
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]);
-  const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
-  const [descricaoOutro, setDescricaoOutro] = useState("");
-  
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ 
-    pix: "", dinheiro: "", credito: "", debito: "", boleto: "", 
-    multa: "", desconto: "", parcelas: "1", credito_aluno: "",
-    acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" 
-  });
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
   useEffect(() => {
@@ -86,38 +71,47 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
         const isAcordo = p.tipo === 'acordo';
         const isNoMesFiltro = p.data_pagamento && p.data_pagamento.startsWith(mesFiltro);
         const isAvulso = p.mes_referencia === 'Avulso';
-        
         const desc = (p.descricao || '').toLowerCase();
         const isVendaOuTaxa = desc.includes('uniforme') || desc.includes('material') || desc.includes('livro') || desc.includes('evento') || desc.includes('avulso') || desc.includes('taxa');
-
         return isAcordo && isNoMesFiltro && !isAvulso && !isVendaOuTaxa;
       });
 
       if (listaAlunos) {
-        const idsPagosNestaReferencia = pgtosDesteMes.filter((p: any) => p.status === 'pago').map((p: any) => p.aluno_id);
-
         const ordenados = listaAlunos.map((aluno: any) => {
+          const pgtoMensalidade = pgtosDesteMes.find((p: any) => p.aluno_id === aluno.id);
+          const statusMensalidadeDB = pgtoMensalidade ? pgtoMensalidade.status : 'pendente';
+          const valorPagoMensalidade = pgtoMensalidade ? clean(pgtoMensalidade.valor_pago) : 0;
+
           const acordoAluno = acordosDesteMes.find((a: any) => a.aluno_id === aluno.id && a.status !== 'pago');
-          const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
-
+          
           let valorBaseMensalidade = clean(aluno.valor) || valorBaseVigente;
-          let isMensalidadePendente = !estaPagoNesseMes;
-          let statusMensalidade = estaPagoNesseMes ? 'pago' : (hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? 'atrasado' : 'pendente');
+          let isMensalidadePendente = statusMensalidadeDB !== 'pago'; 
+          
+          let valorDevidoMensalidade = valorBaseMensalidade;
+          if (statusMensalidadeDB === 'parcial' || statusMensalidadeDB === 'pago') {
+              valorDevidoMensalidade = Math.max(0, valorBaseMensalidade - valorPagoMensalidade);
+          }
 
-          let temAcordoNoMes = !!acordoAluno;
-          let isAcordoPendente = temAcordoNoMes && acordoAluno.status !== 'pago';
-          let valorParcelaAcordo = temAcordoNoMes ? clean(acordoAluno.valor_total) : 0;
-          let idPagamentoAcordo = temAcordoNoMes ? acordoAluno.id : null;
+          let temAcordoNoMes = !!acordosDesteMes.find((a: any) => a.aluno_id === aluno.id);
+          let isAcordoPendente = temAcordoNoMes && (!acordoAluno || acordoAluno.status !== 'pago');
+          let valorParcelaAcordo = acordoAluno ? clean(acordoAluno.valor_total) : 0;
+          if (acordoAluno && acordoAluno.status === 'parcial') {
+              valorParcelaAcordo = Math.max(0, valorParcelaAcordo - clean(acordoAluno.valor_pago));
+          }
+          let idPagamentoAcordo = acordoAluno ? acordoAluno.id : null;
 
           let valorTotalDevido = 0;
           let nomeTags = [];
 
-          if (isMensalidadePendente) valorTotalDevido += valorBaseMensalidade;
+          if (isMensalidadePendente && valorDevidoMensalidade > 0) {
+              valorTotalDevido += valorDevidoMensalidade;
+              if (statusMensalidadeDB === 'parcial') nomeTags.push(`⏳ Parcial (-R$ ${valorPagoMensalidade.toFixed(2)})`);
+          }
           
-          if (isAcordoPendente) {
+          if (isAcordoPendente && valorParcelaAcordo > 0) {
               valorTotalDevido += valorParcelaAcordo;
               nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
-          } else if (temAcordoNoMes) {
+          } else if (temAcordoNoMes && !isAcordoPendente) {
               nomeTags.push(`✅ Acordo Pago`); 
           }
 
@@ -126,7 +120,9 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           let statusFinal = 'pendente';
           if (!isMensalidadePendente && !isAcordoPendente) {
                statusFinal = 'pago';
-          } else if (statusMensalidade === 'atrasado' || (isAcordoPendente && hoje > new Date(acordoAluno.data_pagamento + "T12:00:00"))) {
+          } else if (statusMensalidadeDB === 'parcial' || (acordoAluno && acordoAluno.status === 'parcial')) {
+               statusFinal = 'parcial';
+          } else if (statusMensalidadeDB === 'atrasado' || (isAcordoPendente && hoje > new Date(acordoAluno.data_pagamento + "T12:00:00")) || hoje.getDate() > (parseInt(aluno.vencimento) || 1)) {
                statusFinal = 'atrasado';
           }
 
@@ -155,218 +151,17 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     if(inicializado) carregarDados(); 
   }, [mesFiltro, inicializado]);
 
-  async function confirmarPagamento() {
-    if (tipoPagamento === "acordo") {
-      const qtdParcelas = parseInt(pagamentosMetodos.acordo_qtd_parcelas || "0");
-      const valorParcela = clean(pagamentosMetodos.acordo_valor_parcela);
-      const dataPrimeiroVencimento = pagamentosMetodos.acordo_data_vencimento || dataPagamento;
-
-      if (qtdParcelas <= 0 || valorParcela <= 0) return alert("Preencha parcelas e valor do acordo.");
-
-      const parcelasParaInserir = [];
-      for (let i = 0; i < qtdParcelas; i++) {
-        const dataVenc = new Date(dataPrimeiroVencimento);
-        dataVenc.setMonth(dataVenc.getMonth() + i);
-
-        parcelasParaInserir.push({
-          aluno_id: alunoSelecionado.id,
-          tipo: 'acordo',
-          descricao: `Acordo Financeiro - Parcela ${i + 1}/${qtdParcelas}`,
-          valor_total: valorParcela,
-          valor_pago: 0,
-          status: 'pendente',
-          data_pagamento: dataVenc.toISOString().split('T')[0],
-          detalhes_metodos: { criado_por: userEmail || "Admin" }
-        });
-      }
-
-      await supabase.from('historico_pagamentos').insert(parcelasParaInserir);
-      await supabase.from('alunos').update({ status: 'pendente' }).eq('id', alunoSelecionado.id);
-      
-      setModalPgtoAberto(false);
-      carregarDados();
-      return alert(`Acordo gerado: ${qtdParcelas} parcelas na Dívida Ativa.`);
-    }
-
-    const metodosLimpos: any = {};
-    for (const [key, value] of Object.entries(pagamentosMetodos)) {
-      if (value !== "" && value !== "0" && value !== null) {
-        metodosLimpos[key] = value;
-      }
-    }
-    
-    if (!metodosLimpos.credito || clean(metodosLimpos.credito) <= 0) {
-      delete metodosLimpos.parcelas;
-    } else if (!metodosLimpos.parcelas) {
-      metodosLimpos.parcelas = "1";
-    }
-
-    // Restauração do suporte aos valores da Editora
-    const dinheiroPix = clean(pagamentosMetodos.pix) + clean((pagamentosMetodos as any).pix_editora);
-    const dinheiroEspecie = clean(pagamentosMetodos.dinheiro);
-    const dinheiroCartao = clean(pagamentosMetodos.credito) + clean(pagamentosMetodos.debito) + clean((pagamentosMetodos as any).credito_editora) + clean((pagamentosMetodos as any).debito_editora);
-    const dinheiroBoleto = clean((pagamentosMetodos as any).boleto);
-
-    const somaPaga = dinheiroPix + dinheiroEspecie + dinheiroCartao + dinheiroBoleto;
-    const valorMulta = clean(pagamentosMetodos.multa);
-    const valorDesconto = clean(pagamentosMetodos.desconto);
-    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno); 
-    const valorPagoFinal = somaPaga + creditoUtilizado;
-
-    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor financeiro válido.");
-
-    const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
-    if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
-
-    const isMensal = alunoSelecionado.isMensalidadePendente;
-    const isAcordo = alunoSelecionado.isAcordo;
-
-    let dividaMensalDB = isMensal ? alunoSelecionado.valorBaseMensalidade : 0;
-    let dividaAcordoDB = isAcordo ? alunoSelecionado.valorParcelaAcordo : 0;
-
-    if (isMensal) {
-         dividaMensalDB = Math.max(0, (dividaMensalDB + valorMulta) - valorDesconto);
-    } else if (isAcordo) {
-         dividaAcordoDB = Math.max(0, (dividaAcordoDB + valorMulta) - valorDesconto);
-    } else {
-         dividaMensalDB = Math.max(0, (clean(alunoSelecionado.valorBaseMensalidade || valorPadrao) + valorMulta) - valorDesconto);
-    }
-
-    const dividaReal = dividaAcordoDB + dividaMensalDB;
-    let creditoGerado = valorPagoFinal > dividaReal ? valorPagoFinal - dividaReal : 0;
-    let saldoParaDistribuir = valorPagoFinal + valorDesconto - valorMulta;
-
-    const formasStrArray = [];
-    if (dinheiroPix > 0) formasStrArray.push("Pix");
-    if (dinheiroEspecie > 0) formasStrArray.push("Dinheiro");
-    if (dinheiroCartao > 0) formasStrArray.push("Cartão");
-    if (dinheiroBoleto > 0) formasStrArray.push("Boleto");
-    if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
-    const formaPagamentoTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Desconto";
-
-    if (isAcordo && alunoSelecionado.idPagamentoAcordo && saldoParaDistribuir > 0) {
-         const { data: acordoOriginal } = await supabase.from('historico_pagamentos').select('valor_pago, valor_total, detalhes_metodos').eq('id', alunoSelecionado.idPagamentoAcordo).single();
-         if (acordoOriginal) {
-             const valorPagoAnteriormenteAcordo = clean(acordoOriginal.valor_pago);
-             const valorTotalDoAcordoNaBase = clean(acordoOriginal.valor_total);
-             const valorAbaterDestaVez = Math.min(saldoParaDistribuir, dividaAcordoDB);
-             
-             saldoParaDistribuir -= valorAbaterDestaVez;
-
-             const novoValorPagoAbsolutoAcordo = valorPagoAnteriormenteAcordo + valorAbaterDestaVez;
-
-             const registroParcialAcordo = {
-                data_recebimento: dataPagamento,
-                valor_pago_rodada: valorAbaterDestaVez,
-                formas: formaPagamentoTexto,
-                desconto: valorDesconto,
-                multa: valorMulta
-             };
-
-             const historicoAntigoAcordo = Array.isArray(acordoOriginal.detalhes_metodos?.historico_parciais) ? acordoOriginal.detalhes_metodos.historico_parciais : [];
-             const metodosComSubLedgerAcordo = { ...metodosLimpos, historico_parciais: [...historicoAntigoAcordo, registroParcialAcordo] };
-
-             await supabase.from('historico_pagamentos').update({
-                  valor_pago: novoValorPagoAbsolutoAcordo,
-                  status: novoValorPagoAbsolutoAcordo >= valorTotalDoAcordoNaBase ? 'pago' : (novoValorPagoAbsolutoAcordo > 0 ? 'parcial' : 'pendente'),
-                  data_pagamento: dataPagamento,
-                  detalhes_metodos: metodosComSubLedgerAcordo
-             }).eq('id', alunoSelecionado.idPagamentoAcordo);
-         }
-    }
-
-    if ((isMensal || (!isMensal && !isAcordo)) && saldoParaDistribuir > 0) {
-         let valorAplicadoMensal = Math.min(saldoParaDistribuir, dividaMensalDB);
-         saldoParaDistribuir -= valorAplicadoMensal;
-
-         const statusMensalObj = valorAplicadoMensal >= dividaMensalDB ? 'pago' : (valorAplicadoMensal > 0 ? 'parcial' : 'pendente');
-         const descRef = `Mensalidade - ${mesReferencia}/${mesFiltro.split('-')[0]}`;
-         
-         const registroParcialMensalidade = {
-            data_recebimento: dataPagamento,
-            valor_pago_rodada: valorAplicadoMensal,
-            formas: formaPagamentoTexto,
-            desconto: valorDesconto,
-            multa: valorMulta
-         };
-
-         const metodosComSubLedgerMensalidade = { ...metodosLimpos, historico_parciais: [registroParcialMensalidade] };
-         
-         const dados = {
-              aluno_id: alunoSelecionado.id,
-              tipo: tipoPagamento,
-              descricao: descricaoOutro || descRef,
-              mes_referencia: tipoPagamento === "mensalidade" ? mesReferencia : null,
-              valor_total: dividaMensalDB,
-              valor_pago: valorAplicadoMensal,
-              status: statusMensalObj,
-              data_pagamento: dataPagamento,
-              detalhes_metodos: metodosComSubLedgerMensalidade
-         };
-
-         await supabase.from('historico_pagamentos').insert([dados]);
-         await supabase.from('alunos').update({ status: statusMensalObj === 'pago' ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
-    } else if (isAcordo && !isMensal) {
-         await supabase.from('alunos').update({ status: valorPagoFinal >= dividaReal ? 'pago' : 'pendente' }).eq('id', alunoSelecionado.id);
-    }
-
-    if (creditoGerado > 0 || creditoUtilizado > 0) {
-      const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
-      await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
-    }
-
-    const valorCreditoEscola = clean(metodosLimpos.credito);
-    const parcelas = parseInt(metodosLimpos.parcelas) || 1;
-    
-    if (valorCreditoEscola > 0 && parcelas > 1 && valorPagoFinal >= dividaReal) {
-      const valorPorParcela = parseFloat((valorCreditoEscola / parcelas).toFixed(2));
-      const previsoes = [];
-      for (let i = 1; i <= parcelas; i++) {
-        const dataVencimento = new Date(dataPagamento);
-        dataVencimento.setMonth(dataVencimento.getMonth() + i);
-        previsoes.push({
-          aluno_id: alunoSelecionado.id, tipo: 'previsao_cartao', descricao: `Previsão Cartão (${i}/${parcelas}) - Pagamento Mensalidade/Acordo`,
-          valor_total: valorPorParcela, valor_pago: 0, status: 'pendente', data_pagamento: dataVencimento.toISOString().split('T')[0],
-          detalhes_metodos: {}
-        });
-      }
-      await supabase.from('historico_pagamentos').insert(previsoes);
-    }
-
-    setIdLancamentoAtual(null);
-    setModalPgtoAberto(false);
-    carregarDados();
-  }
-
   if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Sincronizando mensalidades...</div>;
 
-  const listaTurmasUnicas = Array.from(new Set(alunos.map((aluno: any) => aluno.turma).filter(Boolean))).sort();
+  const listaTurmasUnicas = Array.from(new Set(alunos.map((aluno: any) => aluno.turma).filter((t: any) => !!t))).sort();
   const alunosFiltrados = alunos.filter((aluno: any) => {
     const correspondeNome = aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase());
     const correspondeTurma = filtroTurma === "" || aluno.turma === filtroTurma;
     return correspondeNome && correspondeTurma;
   });
 
-  const historicoAlunoSelecionado = alunoSelecionado ? listaReceitasDetalhada.filter((h: any) => h.aluno_id === alunoSelecionado.id) : [];
-
-  let valorTotalCalculado = 0;
-  if (modalPgtoAberto && alunoSelecionado) {
-       const valMensal = alunoSelecionado.isMensalidadePendente ? (clean(alunoSelecionado.valorBaseMensalidade) || valorPadrao) : 0;
-       const valAcordo = alunoSelecionado.isAcordo ? clean(alunoSelecionado.valorParcelaAcordo) : 0;
-       const valMulta = clean(pagamentosMetodos.multa);
-       const valDesconto = clean(pagamentosMetodos.desconto);
-       valorTotalCalculado = Math.max(0, (valMensal + valAcordo + valMulta) - valDesconto);
-  }
-
   return (
     <div className="w-full relative">
-      {modalPgtoAberto && (
-          <div className="fixed top-6 right-6 z-[9999] bg-green-500 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-white animate-pulse flex flex-col items-end pointer-events-none transition-all">
-              <span className="text-xs uppercase tracking-wider font-bold opacity-80">Valor Total a Receber</span>
-              <span className="text-3xl font-black tracking-tight">R$ {valorTotalCalculado.toFixed(2)}</span>
-          </div>
-      )}
-
       <div className="space-y-6">
         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
@@ -428,14 +223,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           <TabelaMensalidades
             alunos={alunosFiltrados} filtroNome={filtroNome} setFiltroNome={setFiltroNome}
             onPagamento={(a: any) => {
-              setAlunoSelecionado(a);
-              setPagamentosMetodos({ 
-                pix: a.valor.toString(), dinheiro: "", credito: "", debito: "", boleto: "", 
-                multa: "", desconto: "", parcelas: "1", credito_aluno: "",
-                acordo_qtd_parcelas: "", acordo_valor_parcela: "", acordo_data_vencimento: "" 
-              });
-              setTipoPagamento("mensalidade"); 
-              setModalPgtoAberto(true);
+              router.push(`/admin/pdv?alunoId=${a.id}`);
             }}
             onCobrar={(a: any) => {
               const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
@@ -443,46 +231,111 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             }}
             onDesfazer={async (idAlunoSelecionado: string) => {
               if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
-              if (prompt("Digite a Senha Mestra para confirmar:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+              if (prompt("Digite a Senha Mestra para confirmar o estorno financeiro e reajuste da carteira:") !== SENHA_MESTRA) return alert("Senha incorreta.");
               
               const alunoObj = alunosFiltrados.find((a: any) => a.id === idAlunoSelecionado);
               const [ano, mes] = mesFiltro.split('-');
               const nomeMesRef = mesesAno[parseInt(mes) - 1];
 
+              let acao = 'mensalidade';
               if (alunoObj?.temAcordoNoMes && !alunoObj?.isMensalidadePendente) {
-                   const opcao = prompt("ATENÇÃO: Esse aluno possui Mensalidade E Acordo pagos.\nDigite [ 1 ] para desfazer a MENSALIDADE.\nDigite [ 2 ] para desfazer o ACORDO.");
-                   if (opcao === '1') {
-                        await supabase.from('alunos').update({ status: 'pendente' }).eq('id', idAlunoSelecionado);
-                        await supabase.from('historico_pagamentos').delete().eq('aluno_id', idAlunoSelecionado).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
-                   } else if (opcao === '2') {
-                        await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', alunoObj.idPagamentoAcordo);
-                   }
+                   const opcao = prompt("Esse aluno possui Mensalidade e Acordo pagos.\n[ 1 ] Desfazer MENSALIDADE\n[ 2 ] Desfazer ACORDO");
+                   if (opcao !== '1' && opcao !== '2') return;
+                   acao = opcao === '1' ? 'mensalidade' : 'acordo';
               } else if (alunoObj?.temAcordoNoMes && alunoObj?.isMensalidadePendente) {
-                   if(confirm("Desfazer recebimento do ACORDO? (A mensalidade já consta como pendente).")) {
-                        await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', alunoObj.idPagamentoAcordo);
-                   }
+                   if(!confirm("Desfazer recebimento do ACORDO? (Mensalidade já está pendente).")) return;
+                   acao = 'acordo';
               } else {
-                   if(confirm("Desfazer mensalidade? O registro retornará para pendente.")) {
-                        await supabase.from('alunos').update({ status: 'pendente' }).eq('id', idAlunoSelecionado);
-                        await supabase.from('historico_pagamentos').delete().eq('aluno_id', idAlunoSelecionado).eq('tipo', 'mensalidade').like('descricao', `%${nomeMesRef}%${ano}%`);
+                   if(!confirm("Desfazer recebimento da mensalidade? O saldo virtual será reajustado se houver troco/crédito envolvido.")) return;
+              }
+
+              let variacaoCredito = 0;
+              let idsExcluidos: string[] = [];
+              
+              if (acao === 'mensalidade') {
+                   // Nova busca inteligente que ignora variações no texto de descrição
+                   const { data: mensalidadesTodas } = await supabase.from('historico_pagamentos').select('*')
+                       .eq('aluno_id', idAlunoSelecionado)
+                       .eq('tipo', 'mensalidade');
+                       
+                   const mensalidades = (mensalidadesTodas || []).filter((m: any) => {
+                       const matchMes = m.mes_referencia === nomeMesRef || (m.descricao || "").includes(nomeMesRef);
+                       const matchAno = (m.data_pagamento || "").startsWith(ano) || (m.descricao || "").includes(ano);
+                       return matchMes && matchAno;
+                   });
+                       
+                   if (mensalidades && mensalidades.length > 0) {
+                       for (const m of mensalidades) {
+                           idsExcluidos.push(String(m.id));
+                           
+                           variacaoCredito += clean(m.detalhes_metodos?.credito_aluno);
+                           
+                           const parciais = m.detalhes_metodos?.historico_parciais || [];
+                           parciais.forEach((p: any) => { 
+                             variacaoCredito += clean(p.credito_utilizado) + clean(p.credito_utilizado_nesta_parcela); 
+                           });
+                       }
+                       await supabase.from('historico_pagamentos').delete().in('id', idsExcluidos);
+                   }
+                   await supabase.from('alunos').update({ status: 'pendente' }).eq('id', idAlunoSelecionado);
+                   
+              } else {
+                   const { data: acordo } = await supabase.from('historico_pagamentos').select('*').eq('id', alunoObj.idPagamentoAcordo).single();
+                   if (acordo) {
+                       idsExcluidos.push(String(acordo.id));
+                       variacaoCredito += clean(acordo.detalhes_metodos?.credito_aluno);
+                       
+                       const parciais = acordo.detalhes_metodos?.historico_parciais || [];
+                       parciais.forEach((p: any) => { 
+                         variacaoCredito += clean(p.credito_utilizado) + clean(p.credito_utilizado_nesta_parcela); 
+                       });
+                       
+                       await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', alunoObj.idPagamentoAcordo);
                    }
               }
+
+              // Estorno Aprimorado de Troco via Rastreamento de Origem do PDV
+              if (idsExcluidos.length > 0) {
+                  const { data: todosCreditos } = await supabase.from('historico_pagamentos')
+                      .select('*')
+                      .eq('aluno_id', idAlunoSelecionado)
+                      .eq('tipo', 'credito');
+
+                  if (todosCreditos && todosCreditos.length > 0) {
+                      const creditosParaDeletar = todosCreditos.filter((c: any) => {
+                          const origens = c.detalhes_metodos?.ids_origem;
+                          if (origens) {
+                              const strOrigens = Array.isArray(origens) ? origens.map(String) : [String(origens)];
+                              return idsExcluidos.some(id => strOrigens.includes(id));
+                          }
+                          // Fallback legado mais amplo e permissivo
+                          const descLower = (c.descricao || "").toLowerCase();
+                          if (acao === 'mensalidade' && descLower.includes(nomeMesRef.toLowerCase()) && descLower.includes('troco')) return true;
+                          return false;
+                      });
+
+                      if (creditosParaDeletar.length > 0) {
+                          for (const cg of creditosParaDeletar) {
+                              variacaoCredito -= clean(cg.valor_total); // Subtrai o troco indevido da carteira
+                          }
+                          await supabase.from('historico_pagamentos').delete().in('id', creditosParaDeletar.map(cg => cg.id));
+                      }
+                  }
+              }
+
+              if (variacaoCredito !== 0) {
+                   const { data: al } = await supabase.from('alunos').select('saldo_credito').eq('id', idAlunoSelecionado).single();
+                   if (al) {
+                       const novoSaldo = Math.max(0, clean(al.saldo_credito) + variacaoCredito);
+                       await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', idAlunoSelecionado);
+                   }
+              }
+              
               carregarDados();
             }}
           />
         </div>
       </div>
-
-      <ModalPagamento
-        aberto={modalPgtoAberto} onFechar={() => { setModalPgtoAberto(false); setIdLancamentoAtual(null); }}
-        aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
-        tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
-        mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno}
-        descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
-        pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
-        onConfirmar={confirmarPagamento} editando={false} 
-        historicoGeral={historicoAlunoSelecionado}
-      />
     </div>
   );
 }
@@ -491,21 +344,13 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 // 2. COMPONENTE DA VISÃO DE SALDOS E CRÉDITOS (Auditoria Global)
 // ============================================================================
 function VisaoSaldosCreditos() {
+  const router = useRouter();
   const [alunos, setAlunos] = useState<any[]>([]);
   const [listaSaldosDevedores, setListaSaldosDevedores] = useState<any[]>([]);
   const [filtroNome, setFiltroNome] = useState("");
   const [abaAtiva, setAbaAtiva] = useState<"todos" | "dividas" | "creditos">("todos");
   const [carregando, setCarregando] = useState(true);
   const [alunosExpandidos, setAlunosExpandidos] = useState<Record<string, boolean>>({});
-
-  const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
-  const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
-  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
-  const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
-  const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" });
-  const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
   useEffect(() => {
     async function carregarDados() {
@@ -599,65 +444,6 @@ function VisaoSaldosCreditos() {
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(148, 163, 184);
     doc.text("Este documento consiste em um demonstrativo financeiro interno de conta corrente escolar e não substitui os recibos oficiais de quitação.", 15, pageHeight - 12);
     doc.save(`Extrato_${alunoAgrupado.nome.replace(/\s+/g, '_')}.pdf`);
-  }
-
-  async function confirmarPagamento() {
-    const dinheiroPix = clean(pagamentosMetodos.pix);
-    const dineroEspecie = clean(pagamentosMetodos.dinheiro);
-    const dinheiroCreditoMaquininha = clean(pagamentosMetodos.credito);
-    const dinheiroDebito = clean(pagamentosMetodos.debito);
-    const dinheiroBoleto = clean((pagamentosMetodos as any).boleto);
-
-    const somaPaga = dinheiroPix + dineroEspecie + dinheiroCreditoMaquininha + dinheiroDebito + dinheiroBoleto;
-    const valorMulta = clean(pagamentosMetodos.multa);
-    const valorDesconto = clean(pagamentosMetodos.desconto);
-    const creditoUtilizado = clean(pagamentosMetodos.credito_aluno); 
-    const valorPagoFinal = somaPaga + creditoUtilizado;
-
-    if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor.");
-
-    const saldoDisponivel = clean(alunoSelecionado?.saldo_credito);
-    if (creditoUtilizado > saldoDisponivel) return alert(`Saldo insuficiente (R$ ${saldoDisponivel.toFixed(2)}).`);
-
-    const existente = listaSaldosDevedores.find(r => r.id === idPagamentoEdicao);
-    const valorOriginalDivida = clean(existente?.valor_total);
-    const jaPagoAnteriormente = clean(existente?.valor_pago);
-    const devedorRestanteLíquido = valorOriginalDivida - jaPagoAnteriormente;
-
-    const valorAbaterDestaVez = Math.min(valorPagoFinal + valorDesconto - valorMulta, devedorRestanteLíquido);
-    const novoTotalPagoAcumulado = jaPagoAnteriormente + valorAbaterDestaVez;
-    
-    let status = novoTotalPagoAcumulado >= valorOriginalDivida - 0.01 ? "pago" : "parcial";
-    let creditoGerado = (valorPagoFinal + valorDesconto - valorMulta) > devedorRestanteLíquido ? (valorPagoFinal + valorDesconto - valorMulta) - devedorRestanteLíquido : 0;
-
-    const formasStrArray = [];
-    if (dinheiroPix > 0) formasStrArray.push("Pix");
-    if (dineroEspecie > 0) formasStrArray.push("Dinheiro");
-    if (dinheiroCreditoMaquininha > 0) formasStrArray.push("Cartão Créd.");
-    if (dinheiroDebito > 0) formasStrArray.push("Cartão Déb.");
-    if (dinheiroBoleto > 0) formasStrArray.push("Boleto");
-    if (creditoUtilizado > 0) formasStrArray.push("Crédito Retido");
-    const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste";
-
-    const historicoAntigo = Array.isArray(existente?.detalhes_metodos?.historico_parciais) ? existente.detalhes_metodos.historico_parciais : [];
-    const novoHistoricoParcial = [...historicoAntigo, {
-      data_recebimento: dataPagamento, valor_pago_rodada: valorAbaterDestaVez, formas: formaTexto, desconto: valorDesconto, multa: valorMulta
-    }];
-
-    const jsonMetodos = { ...pagamentosMetodos, historico_parciais: novoHistoricoParcial };
-
-    await supabase.from('historico_pagamentos').update({ 
-      valor_pago: novoTotalPagoAcumulado, status: status, data_pagamento: dataPagamento, detalhes_metodos: jsonMetodos 
-    }).eq('id', idPagamentoEdicao);
-
-    const novoSaldoCredito = saldoDisponivel - creditoUtilizado + creditoGerado;
-    if (novoSaldoCredito !== saldoDisponivel) {
-      await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
-    }
-
-    setModalPgtoAberto(false); 
-    alert("Amortização registrada com sucesso!");
-    window.location.reload();
   }
 
   const alunosConsolidados = alunos.map((aluno: any) => {
@@ -760,7 +546,7 @@ function VisaoSaldosCreditos() {
                                     <span className="font-bold text-slate-700 uppercase">[{div.tipo}] {div.descricao}</span>
                                     <p className="text-[10px] text-slate-400 mt-0.5">Lançamento: {div.dataCriacao} | Restante: R$ {div.valorRestante.toFixed(2)}</p>
                                   </div>
-                                  <button onClick={() => { setAlunoSelecionado(item.alunoRaw); setIdPagamentoEdicao(div.id); setTipoPagamento(div.tipo || "mensalidade"); setDescricaoOutro(div.descricao); setPagamentosMetodos({ pix: div.valorRestante.toFixed(2), dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", parcelas: "1" }); setModalPgtoAberto(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-all">🟢 + PGTO</button>
+                                  <button onClick={() => router.push(`/admin/pdv?alunoId=${item.alunoRaw.id}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-all">🟢 + PGTO</button>
                                 </div>
                               ))}
                             </div>
@@ -777,7 +563,6 @@ function VisaoSaldosCreditos() {
           </table>
         </div>
       </div>
-      <ModalPagamento aberto={modalPgtoAberto} onFechar={() => { setModalPgtoAberto(false); setIdPagamentoEdicao(null); }} aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento} tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento} mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno} descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro} pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos} onConfirmar={confirmarPagamento} editando={true} />
     </div>
   );
 }
@@ -852,7 +637,7 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
             resumoParcelas,
             observacoes_financeiras: aluno.observacoes_financeiras
           };
-        }).filter(Boolean);
+        }).filter((item: any) => !!item);
 
         setAcordosAgrupados(agrupados as any[]);
       }

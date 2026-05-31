@@ -1,3 +1,5 @@
+"use client";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { clean, calcularIdade, obterMediaFinal, extrairFormaPagamento, mCPF, mWhatsApp, abrirWhatsApp } from "./alunoUtils";
@@ -491,12 +493,18 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     autoTable(doc, {
       startY: 66,
       head: [['DATA', 'DESCRIÇÃO', 'FORMA', 'VALOR']],
-      body: historicoFiltradoParaPDF.map((h: any) => [
-        new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-        h.descricao.toUpperCase(),
-        h.detalhes_metodos?.forma_geradora || extrairFormaPagamento(h.detalhes_metodos),
-        `${h.detalhes_metodos?.e_subtracao ? '- ' : ''}R$ ${Math.abs(clean(h.valor_total)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]),
+      body: historicoFiltradoParaPDF.map((h: any) => {
+        // Extrai a forma de pagamento avançada (incluindo Juros) do PDV/Modal
+        let f = h.detalhes_metodos?.formas || (h.detalhes_metodos?.historico_parciais?.length > 0 ? h.detalhes_metodos.historico_parciais[h.detalhes_metodos.historico_parciais.length - 1].formas : null) || h.detalhes_metodos?.forma_geradora;
+        if (!f) f = extrairFormaPagamento(h.detalhes_metodos);
+
+        return [
+          new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+          h.descricao.toUpperCase(),
+          f,
+          `${h.detalhes_metodos?.e_subtracao ? '- ' : ''}R$ ${Math.abs(clean(h.valor_total)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        ];
+      }),
       headStyles: { fillColor: [37, 99, 235] }
     });
     doc.save(`Extrato_${aluno?.nome?.replace(/\s+/g, '_')}_${anoPagamentoSelecionado}.pdf`);
@@ -521,7 +529,10 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
       <div className="space-y-4">
         {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
-          const forma = extrairFormaPagamento(pgto.detalhes_metodos);
+          // Extrai a forma de pagamento avançada para a tela
+          let forma = pgto.detalhes_metodos?.formas || (pgto.detalhes_metodos?.historico_parciais?.length > 0 ? pgto.detalhes_metodos.historico_parciais[pgto.detalhes_metodos.historico_parciais.length - 1].formas : null) || pgto.detalhes_metodos?.forma_geradora;
+          if (!forma) forma = extrairFormaPagamento(pgto.detalhes_metodos);
+
           const podeGerenciar = !ehVisitante;
           const devedorRestante = clean(pgto.valor_total) - clean(pgto.valor_pago);
           
@@ -562,10 +573,11 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                     <div key={idx} className="flex flex-col sm:flex-row justify-between sm:items-center text-xs bg-white p-3 rounded-lg border border-slate-200 shadow-sm gap-2">
                       <span className="font-semibold text-slate-600">📅 {new Date(parcial.data_recebimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})} <span className="text-slate-300 mx-2">|</span> 💳 {parcial.formas}</span>
                       <div className="flex gap-4 items-center sm:justify-end">
-                        {(parseFloat(parcial.desconto) > 0 || parseFloat(parcial.multa) > 0) && (
+                        {(parseFloat(parcial.desconto) > 0 || parseFloat(parcial.multa) > 0 || parseFloat(parcial.juros_cartao) > 0) && (
                           <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                             {parseFloat(parcial.desconto) > 0 ? `DESC: -R$ ${parseFloat(parcial.desconto).toFixed(2)} ` : ''} 
-                            {parseFloat(parcial.multa) > 0 ? `MULTA: +R$ ${parseFloat(parcial.multa).toFixed(2)}` : ''}
+                            {parseFloat(parcial.multa) > 0 ? `MULTA: +R$ ${parseFloat(parcial.multa).toFixed(2)} ` : ''}
+                            {parseFloat(parcial.juros_cartao) > 0 ? `JUROS MAQ: +R$ ${parseFloat(parcial.juros_cartao).toFixed(2)}` : ''}
                           </span>
                         )}
                         <span className="font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">+ R$ {clean(parcial.valor_pago_rodada).toFixed(2)}</span>

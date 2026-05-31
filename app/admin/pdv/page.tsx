@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -15,8 +15,9 @@ const clean = (val: any) => {
   return parseFloat(str) || 0;
 };
 
-export default function PDVPage() {
+function PDVContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [carregando, setCarregando] = useState(true);
   
   // Dados Globais
@@ -34,12 +35,32 @@ export default function PDVPage() {
   const [carrinho, setCarrinho] = useState<any[]>([]);
   const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
   
-  // Estados de Nova Venda Avulsa
+  // Estados de Nova Venda Avulsa (Geral)
   const [novoItem, setNovoItem] = useState({ tipo: 'uniforme', descricao: '', valor: '' });
+
+  // Estados de Nova Venda Avulsa (Catálogo de Uniformes)
+  const [uniformesVenda, setUniformesVenda] = useState({
+    camisaPadrao: 0, camisaEdFisica: 0, calca: 0, shortSaia: 0, short: 0, casaco: 0,
+  });
+  const [uniformesTamanhos, setUniformesTamanhos] = useState({
+    camisaPadrao: "4 anos", camisaEdFisica: "4 anos", calca: "4 anos", shortSaia: "4 anos", short: "4 anos", casaco: "4 anos",
+  });
+  const precosUniformes = {
+    camisaPadrao: 60, camisaEdFisica: 60, calca: 80, shortSaia: 60, short: 60, casaco: 130,
+  };
+  const totalVendaUniforme = 
+    (uniformesVenda.camisaPadrao * precosUniformes.camisaPadrao) +
+    (uniformesVenda.camisaEdFisica * precosUniformes.camisaEdFisica) +
+    (uniformesVenda.calca * precosUniformes.calca) +
+    (uniformesVenda.shortSaia * precosUniformes.shortSaia) +
+    (uniformesVenda.short * precosUniformes.short) +
+    (uniformesVenda.casaco * precosUniformes.casaco);
   
   // Fechamento e Pagamento
   const [pagamentos, setPagamentos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1" });
-  const [acrescimos, setAcrescimos] = useState({ multa: "", desconto: "" });
+  
+  // ACRESCENTADO: juros_cartao
+  const [acrescimos, setAcrescimos] = useState({ multa: "", desconto: "", juros_cartao: "" });
   const [processando, setProcessando] = useState(false);
   
   // Estado para controlar o destino do troco
@@ -48,6 +69,9 @@ export default function PDVPage() {
   const dataHojeStr = new Date().toISOString().split('T')[0];
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const SENHA_MESTRA = "1234";
+
+  // Verificador se há algum livro no carrinho para mostrar as opções da editora
+  const temLivroNoCarrinho = carrinho.some(item => item.tipo === 'livro' || (item.descricao || '').toLowerCase().includes('livro'));
 
   useEffect(() => {
     carregarDadosBase();
@@ -67,6 +91,15 @@ export default function PDVPage() {
     if (listaAlunos && historico) {
       setAlunos(listaAlunos);
       setHistoricoGeral(historico);
+
+      const urlAlunoId = searchParams.get('alunoId');
+      if (urlAlunoId) {
+        const alunoPreSelecionado = listaAlunos.find((a: any) => String(a.id) === String(urlAlunoId));
+        if (alunoPreSelecionado) {
+          setAlunoSelecionado(alunoPreSelecionado);
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
       
       const recebidos = historico.filter(h => h.data_pagamento === dataHojeStr && (h.status === 'pago' || h.status === 'parcial') && clean(h.valor_pago) > 0);
       setRecebimentosHoje(recebidos);
@@ -191,7 +224,7 @@ export default function PDVPage() {
       buscarPendenciasDoAluno();
       setCarrinho([]); 
       setPagamentos({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1" });
-      setAcrescimos({ multa: "", desconto: "" });
+      setAcrescimos({ multa: "", desconto: "", juros_cartao: "" });
       setAcaoTroco('credito'); 
       setDataPagamentoPDV(dataHojeStr);
     } else {
@@ -211,24 +244,54 @@ export default function PDVPage() {
   };
 
   const lancarItemAvulsoNoCarrinho = () => {
-    if (!novoItem.descricao || !novoItem.valor) return alert("Preencha descrição e valor do item.");
-    
-    const itemTemp = {
-      id: `novo_${Date.now()}`,
-      tipo: novoItem.tipo,
-      descricao: novoItem.descricao,
-      valor_total: clean(novoItem.valor),
-      valor_pago: 0,
-      status: 'pendente',
-      isNovo: true 
-    };
-    
-    setCarrinho([...carrinho, itemTemp]);
-    setNovoItem({ tipo: 'uniforme', descricao: '', valor: '' });
+    if (novoItem.tipo === 'uniforme') {
+      if (totalVendaUniforme <= 0) return alert("Adicione pelo menos um item de uniforme na grade.");
+
+      const itensComprados: string[] = [];
+      if (uniformesVenda.camisaPadrao > 0) itensComprados.push(`${uniformesVenda.camisaPadrao}x Camisa Padrão (${uniformesTamanhos.camisaPadrao})`);
+      if (uniformesVenda.camisaEdFisica > 0) itensComprados.push(`${uniformesVenda.camisaEdFisica}x Camisa Ed. Física (${uniformesTamanhos.camisaEdFisica})`);
+      if (uniformesVenda.calca > 0) itensComprados.push(`${uniformesVenda.calca}x Calça (${uniformesTamanhos.calca})`);
+      if (uniformesVenda.shortSaia > 0) itensComprados.push(`${uniformesVenda.shortSaia}x Short-Saia (${uniformesTamanhos.shortSaia})`);
+      if (uniformesVenda.short > 0) itensComprados.push(`${uniformesVenda.short}x Short (${uniformesTamanhos.short})`);
+      if (uniformesVenda.casaco > 0) itensComprados.push(`${uniformesVenda.casaco}x Casaco (${uniformesTamanhos.casaco})`);
+
+      const descricaoFinal = `Venda de Uniforme Avulsa: ${itensComprados.join(", ")}`;
+
+      const itemTemp = {
+        id: `novo_${Date.now()}`,
+        tipo: 'uniforme',
+        descricao: descricaoFinal,
+        valor_total: totalVendaUniforme,
+        valor_pago: 0,
+        status: 'pendente',
+        isNovo: true 
+      };
+      
+      setCarrinho([...carrinho, itemTemp]);
+      setUniformesVenda({ camisaPadrao: 0, camisaEdFisica: 0, calca: 0, shortSaia: 0, short: 0, casaco: 0 });
+      setUniformesTamanhos({ camisaPadrao: "4 anos", camisaEdFisica: "4 anos", calca: "4 anos", shortSaia: "4 anos", short: "4 anos", casaco: "4 anos" });
+    } else {
+      if (!novoItem.descricao || !novoItem.valor) return alert("Preencha descrição e valor do item avulso.");
+      
+      const itemTemp = {
+        id: `novo_${Date.now()}`,
+        tipo: novoItem.tipo,
+        descricao: novoItem.descricao,
+        valor_total: clean(novoItem.valor),
+        valor_pago: 0,
+        status: 'pendente',
+        isNovo: true 
+      };
+      
+      setCarrinho([...carrinho, itemTemp]);
+      setNovoItem({ ...novoItem, descricao: '', valor: '' });
+    }
   };
 
   const subtotalCarrinho = carrinho.reduce((acc, item) => acc + (clean(item.valor_total) - clean(item.valor_pago)), 0);
-  const totalComAcrescimos = Math.max(0, subtotalCarrinho + clean(acrescimos.multa) - clean(acrescimos.desconto));
+  
+  // ATUALIZADO: Cálculo englobando os Juros do Cartão no valor devedor final
+  const totalComAcrescimos = Math.max(0, subtotalCarrinho + clean(acrescimos.multa) + clean(acrescimos.juros_cartao) - clean(acrescimos.desconto));
   
   const somaDinheiroEntrante = clean(pagamentos.pix) + clean(pagamentos.dinheiro) + clean(pagamentos.credito) + clean(pagamentos.debito) + clean(pagamentos.boleto) + clean(pagamentos.pix_editora) + clean(pagamentos.credito_editora) + clean(pagamentos.debito_editora);
   const creditoUtilizado = clean(pagamentos.credito_aluno);
@@ -291,20 +354,35 @@ export default function PDVPage() {
     const metodosUsados = [];
     if (clean(pagamentosFeitos.pix) > 0) metodosUsados.push(['Pix:', `R$ ${clean(pagamentosFeitos.pix).toFixed(2)}`]);
     if (clean(pagamentosFeitos.dinheiro) > 0) metodosUsados.push(['Dinheiro em Espécie:', `R$ ${clean(pagamentosFeitos.dinheiro).toFixed(2)}`]);
-    if (clean(pagamentosFeitos.credito) > 0) metodosUsados.push(['Cartão de Crédito:', `R$ ${clean(pagamentosFeitos.credito).toFixed(2)}`]);
+    
+    // ATUALIZADO: Descritivo do Cartão de Crédito
+    if (clean(pagamentosFeitos.credito) > 0) {
+      let desc = `Cartão de Crédito ${pagamentosFeitos.parcelas}x:`;
+      if (clean(acrescimosFeitos.juros_cartao) > 0) desc = `Cartão de Crédito ${pagamentosFeitos.parcelas}x (c/ Juros):`;
+      metodosUsados.push([desc, `R$ ${clean(pagamentosFeitos.credito).toFixed(2)}`]);
+    }
+    
     if (clean(pagamentosFeitos.debito) > 0) metodosUsados.push(['Cartão de Débito:', `R$ ${clean(pagamentosFeitos.debito).toFixed(2)}`]);
     if (clean(pagamentosFeitos.boleto) > 0) metodosUsados.push(['Boleto Bancário:', `R$ ${clean(pagamentosFeitos.boleto).toFixed(2)}`]);
+    
+    // Métodos da Editora no PDF
+    if (clean(pagamentosFeitos.pix_editora) > 0) metodosUsados.push(['Pix (Editora/FTD):', `R$ ${clean(pagamentosFeitos.pix_editora).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.credito_editora) > 0) metodosUsados.push([`Cartão de Crédito (Editora) ${pagamentosFeitos.parcelas}x:`, `R$ ${clean(pagamentosFeitos.credito_editora).toFixed(2)}`]);
+    if (clean(pagamentosFeitos.debito_editora) > 0) metodosUsados.push(['Cartão de Débito (Editora):', `R$ ${clean(pagamentosFeitos.debito_editora).toFixed(2)}`]);
+    
     if (clean(pagamentosFeitos.credito_aluno) > 0) metodosUsados.push(['Saldo Virtual (Carteira do Aluno):', `R$ ${clean(pagamentosFeitos.credito_aluno).toFixed(2)}`]);
 
     const subtotalBase = subtotalCarrinho;
     const valorMultaAplicada = clean(acrescimosFeitos.multa);
     const valorDescontoAplicado = clean(acrescimosFeitos.desconto);
+    const valorJurosCartao = clean(acrescimosFeitos.juros_cartao); // NOVO
     const totalRecebidoSomado = metodosUsados.reduce((acc, curr) => acc + clean(curr[1].replace('R$ ', '')), 0);
 
     const corpoResumo: any[] = [
       ['SUBTOTAL DAS CONTAS:', `R$ ${subtotalBase.toFixed(2)}`],
       ...(valorDescontoAplicado > 0 ? [['DESCONTOS APLICADOS:', `- R$ ${valorDescontoAplicado.toFixed(2)}`]] : []),
       ...(valorMultaAplicada > 0 ? [['MULTA / JUROS:', `+ R$ ${valorMultaAplicada.toFixed(2)}`]] : []),
+      ...(valorJurosCartao > 0 ? [['JUROS DA MÁQUINA:', `+ R$ ${valorJurosCartao.toFixed(2)}`]] : []), // NOVO
       [{ content: 'VALOR TOTAL APURADO:', styles: { fontStyle: 'bold', textColor: [15, 23, 42] } }, { content: `R$ ${totalVenda.toFixed(2)}`, styles: { fontStyle: 'bold', textColor: [15, 23, 42] } }],
       ['-', '-'],
       [{ content: 'FORMAS DE PAGAMENTO UTILIZADAS', colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [248, 250, 252] } }],
@@ -338,7 +416,7 @@ export default function PDVPage() {
 
     setProcessando(true);
     try {
-      let saldoParaDistribuir = totalPagoRodada + clean(acrescimos.desconto) - clean(acrescimos.multa);
+      let saldoParaDistribuir = totalPagoRodada + clean(acrescimos.desconto) - clean(acrescimos.multa) - clean(acrescimos.juros_cartao);
 
       if (trocoGerado > 0 && acaoTroco === 'devolver') {
          saldoParaDistribuir -= trocoGerado;
@@ -361,16 +439,28 @@ export default function PDVPage() {
             novoStatus = 'parcial';
         }
 
-        if (valorAbatido === 0 && !item.isNovo && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0) {
+        if (valorAbatido === 0 && !item.isNovo && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0 && clean(acrescimos.juros_cartao) === 0) {
             continue;
         }
 
+        // ATUALIZADO: Geração do Extrato de Formas Dinâmico para as Parcelas e Juros
         const formasStrArray = [];
         if (clean(pagamentos.pix) > 0) formasStrArray.push("Pix");
         if (clean(pagamentos.dinheiro) > 0) formasStrArray.push("Dinheiro");
-        if (clean(pagamentos.credito) > 0) formasStrArray.push("Cartão de Crédito");
+        
+        if (clean(pagamentos.credito) > 0) {
+          let strCredito = `Cartão de Crédito ${pagamentos.parcelas}x`;
+          if (clean(acrescimos.juros_cartao) > 0) {
+            strCredito += ` (Juros R$ ${clean(acrescimos.juros_cartao).toFixed(2)})`;
+          }
+          formasStrArray.push(strCredito);
+        }
+        
         if (clean(pagamentos.debito) > 0) formasStrArray.push("Cartão de Débito");
         if (clean(pagamentos.boleto) > 0) formasStrArray.push("Boleto");
+        if (clean(pagamentos.pix_editora) > 0) formasStrArray.push("Pix (Editora)");
+        if (clean(pagamentos.credito_editora) > 0) formasStrArray.push(`Cartão de Crédito (Editora) ${pagamentos.parcelas}x`);
+        if (clean(pagamentos.debito_editora) > 0) formasStrArray.push("Cartão de Débito (Editora)");
         if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
         
         const registroParcial = {
@@ -378,7 +468,8 @@ export default function PDVPage() {
           valor_pago_rodada: valorAbatido,
           formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste/Avulso",
           desconto: acrescimos.desconto,
-          multa: acrescimos.multa
+          multa: acrescimos.multa,
+          juros_cartao: acrescimos.juros_cartao // NOVO NO HISTÓRICO
         };
 
         const historicoAntigo = Array.isArray(item.detalhes_metodos?.historico_parciais) ? item.detalhes_metodos.historico_parciais : [];
@@ -446,6 +537,10 @@ export default function PDVPage() {
             if (clean(pagamentos.credito) > 0) formasStrArray.push("Cartão de Crédito");
             if (clean(pagamentos.debito) > 0) formasStrArray.push("Cartão de Débito");
             if (clean(pagamentos.boleto) > 0) formasStrArray.push("Boleto");
+            if (clean(pagamentos.pix_editora) > 0) formasStrArray.push("Pix (Editora)");
+            if (clean(pagamentos.credito_editora) > 0) formasStrArray.push("Cartão de Crédito (Editora)");
+            if (clean(pagamentos.debito_editora) > 0) formasStrArray.push("Cartão de Débito (Editora)");
+            
             const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Adição Automática";
 
             const nomesItens = carrinho.map((c: any) => c.descricao).join(", ");
@@ -830,42 +925,103 @@ export default function PDVPage() {
                     <span className="bg-sky-100 text-sky-700 w-7 h-7 rounded-lg flex items-center justify-center text-xs border border-sky-200">3</span> 
                     Venda Avulsa
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  
+                  <div className="mb-4">
                     <select 
                       value={novoItem.tipo} 
                       onChange={(e) => setNovoItem({...novoItem, tipo: e.target.value})} 
-                      className="sm:col-span-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                      className="w-full sm:w-1/3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                     >
-                      <option value="uniforme">Uniforme</option>
+                      <option value="uniforme">Uniforme (Catálogo)</option>
                       <option value="material">Material</option>
                       <option value="evento">Evento</option>
                       <option value="acordo">Outros</option>
                     </select>
-                    <input 
-                      type="text" 
-                      placeholder="Descrição detalhada..." 
-                      value={novoItem.descricao} 
-                      onChange={(e) => setNovoItem({...novoItem, descricao: e.target.value})} 
-                      className="sm:col-span-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
-                    />
-                    <div className="sm:col-span-3 relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                      <input 
-                        type="number" step="0.01" min="0" 
-                        placeholder="0.00" 
-                        value={novoItem.valor} 
-                        onChange={(e) => setNovoItem({...novoItem, valor: e.target.value})} 
-                        className="w-full pl-10 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
-                      />
-                    </div>
-                    <button 
-                      onClick={lancarItemAvulsoNoCarrinho} 
-                      className="sm:col-span-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                      Incluir
-                    </button>
                   </div>
+
+                  {novoItem.tipo === 'uniforme' ? (
+                    <div className="space-y-4 animate-in fade-in zoom-in-95">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                          { key: 'camisaPadrao', label: 'Camisa Padrão (R$60)' },
+                          { key: 'camisaEdFisica', label: 'Camisa Ed. Física (R$60)' },
+                          { key: 'calca', label: 'Calça (R$80)' },
+                          { key: 'shortSaia', label: 'Short-Saia (R$60)' },
+                          { key: 'short', label: 'Short (R$60)' },
+                          { key: 'casaco', label: 'Casaco (R$130)' },
+                        ].map((item) => (
+                          <div key={item.key} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between shadow-sm">
+                            <span className="text-xs font-bold text-slate-600 block mb-2">{item.label}</span>
+                            <div className="flex gap-2 items-center">
+                              <div className="flex-[1.3]">
+                                <select
+                                  value={(uniformesTamanhos as any)[item.key]}
+                                  onChange={(e) => setUniformesTamanhos(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                  className="w-full p-2 rounded-lg border border-slate-300 text-xs font-bold bg-white text-slate-700 outline-none focus:border-indigo-400"
+                                >
+                                  <option value="4 anos">4 anos</option>
+                                  <option value="6 anos">6 anos</option>
+                                  <option value="8 anos">8 anos</option>
+                                  <option value="10 anos">10 anos</option>
+                                  <option value="12 anos">12 anos</option>
+                                </select>
+                              </div>
+                              <div className="flex-1">
+                                <input 
+                                  type="number" min="0" 
+                                  value={(uniformesVenda as any)[item.key] || ""} 
+                                  onChange={(e) => setUniformesVenda(prev => ({ ...prev, [item.key]: Math.max(0, parseInt(e.target.value) || 0) }))} 
+                                  className="w-full p-2 rounded-lg border border-slate-300 font-bold text-xs text-center outline-none focus:border-indigo-400" 
+                                  placeholder="0"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                        <div>
+                          <span className="text-xs font-bold text-indigo-800 block">TOTAL DO UNIFORME</span>
+                          <h3 className="text-2xl font-black text-indigo-700">R$ {totalVendaUniforme.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                        </div>
+                        <button 
+                          onClick={lancarItemAvulsoNoCarrinho} 
+                          className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          Adicionar à Venda
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 animate-in fade-in">
+                      <input 
+                        type="text" 
+                        placeholder="Descrição detalhada..." 
+                        value={novoItem.descricao} 
+                        onChange={(e) => setNovoItem({...novoItem, descricao: e.target.value})} 
+                        className="sm:col-span-6 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
+                      />
+                      <div className="sm:col-span-3 relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                        <input 
+                          type="number" step="0.01" min="0" 
+                          placeholder="0.00" 
+                          value={novoItem.valor} 
+                          onChange={(e) => setNovoItem({...novoItem, valor: e.target.value})} 
+                          className="w-full pl-10 p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" 
+                        />
+                      </div>
+                      <button 
+                        onClick={lancarItemAvulsoNoCarrinho} 
+                        className="sm:col-span-3 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        Incluir
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -899,7 +1055,7 @@ export default function PDVPage() {
                   return (
                     <div key={idx} className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100 group hover:border-slate-300 transition-colors">
                       <div className="truncate pr-3">
-                        <span className="text-sm font-bold text-slate-800 block truncate">{item.descricao}</span>
+                        <span className="text-sm font-bold text-slate-800 block truncate" title={item.descricao}>{item.descricao}</span>
                         <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider mt-1 inline-block">
                           {item.isNovo ? 'Nova Venda' : 'Quitação'}
                         </span>
@@ -985,13 +1141,30 @@ export default function PDVPage() {
                       <input type="number" step="0.01" min="0" value={pagamentos.dinheiro} onChange={e => setPagamentos({...pagamentos, dinheiro: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cartão de Crédito</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                      <input type="number" step="0.01" min="0" value={pagamentos.credito} onChange={e => setPagamentos({...pagamentos, credito: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                  
+                  {/* ATUALIZADO: CARTÃO DE CRÉDITO COM JUROS E PARCELAS */}
+                  <div className="col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Cartão de Crédito</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                        <input type="number" step="0.01" min="0" value={pagamentos.credito} onChange={e => setPagamentos({...pagamentos, credito: e.target.value})} className="w-full pl-9 pr-2 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Valor T." />
+                      </div>
+                      <div>
+                        <select value={pagamentos.parcelas} onChange={e => setPagamentos({...pagamentos, parcelas: e.target.value})} className="w-full px-2 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20">
+                          <option value="1">À vista</option>
+                          {[...Array(11)].map((_, i) => (
+                            <option key={i+2} value={i+2}>{i+2}x</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                        <input type="number" step="0.01" min="0" value={acrescimos.juros_cartao} onChange={e => setAcrescimos({...acrescimos, juros_cartao: e.target.value})} className="w-full pl-9 pr-2 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-lg outline-none focus:ring-2 focus:ring-rose-500/20" placeholder="Juros (+)" />
+                      </div>
                     </div>
                   </div>
+
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Cartão de Débito</label>
                     <div className="relative">
@@ -999,7 +1172,7 @@ export default function PDVPage() {
                       <input type="number" step="0.01" min="0" value={pagamentos.debito} onChange={e => setPagamentos({...pagamentos, debito: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
                     </div>
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Boleto Bancário</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
@@ -1007,6 +1180,39 @@ export default function PDVPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* PAINEL DINÂMICO DE EDITORA */}
+                {temLivroNoCarrinho && (
+                  <div className="mt-4 pt-4 border-t border-indigo-100 animate-in fade-in zoom-in-95">
+                    <h5 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                      Pagamento Direto - Editora FTD
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Pix (Editora)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-300 font-medium text-sm">R$</span>
+                          <input type="number" step="0.01" min="0" value={pagamentos.pix_editora} onChange={e => setPagamentos({...pagamentos, pix_editora: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-900 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Crédito (Editora)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-300 font-medium text-sm">R$</span>
+                          <input type="number" step="0.01" min="0" value={pagamentos.credito_editora} onChange={e => setPagamentos({...pagamentos, credito_editora: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-900 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-bold text-indigo-500 uppercase block mb-1">Débito (Editora)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-300 font-medium text-sm">R$</span>
+                          <input type="number" step="0.01" min="0" value={pagamentos.debito_editora} onChange={e => setPagamentos({...pagamentos, debito_editora: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-900 font-medium text-sm rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="0.00" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {saldoAtualAluno > 0 && (
                   <div className="mt-4 p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
@@ -1092,5 +1298,20 @@ export default function PDVPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}} />
     </div>
+  );
+}
+
+export default function PDVPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <div className="text-slate-500 font-medium tracking-wide animate-pulse">Iniciando Terminal PDV...</div>
+        </div>
+      </div>
+    }>
+      <PDVContent />
+    </Suspense>
   );
 }

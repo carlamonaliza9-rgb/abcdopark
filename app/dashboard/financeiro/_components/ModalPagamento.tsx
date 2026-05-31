@@ -295,18 +295,33 @@ export function ModalPagamento({
                 </>
               )}
 
-              {/* SELETOR DE PARCELAS CONDICIONAL */}
+              {/* SELETOR DE PARCELAS E JUROS CONDICIONAL (ATUALIZADO) */}
               {temValorNoCredito && (
                 <div className="col-span-1 sm:col-span-2 bg-blue-50/70 p-4 rounded-2xl border border-blue-200 mt-2">
-                  <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block mb-2">Parcelamento (Cartão de Crédito)</label>
-                  <select 
-                    value={pagamentosMetodos.parcelas || "1"} 
-                    onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} 
-                    className="w-full px-4 py-3 rounded-xl border border-blue-300 bg-white font-black text-blue-900 outline-none focus:border-blue-500"
-                  >
-                    <option value="1">À vista (1x)</option>
-                    {[2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x no cartão</option>)}
-                  </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block mb-2">Parcelamento (Cartão)</label>
+                      <select 
+                        value={pagamentosMetodos.parcelas || "1"} 
+                        onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-blue-300 bg-white font-black text-blue-900 outline-none focus:border-blue-500"
+                      >
+                        <option value="1">À vista (1x)</option>
+                        {[2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x no cartão</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-2">Juros da Máquina (+ R$)</label>
+                      <input 
+                        type="number" 
+                        step="0.01" min="0"
+                        placeholder="0.00"
+                        value={pagamentosMetodos.juros_cartao || ""} 
+                        onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, juros_cartao: e.target.value })} 
+                        className="w-full px-4 py-3 rounded-xl border border-rose-300 bg-white font-black text-rose-900 outline-none focus:border-rose-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -325,7 +340,7 @@ export function ModalPagamento({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Multa / Juros</label>
+                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Outras Multas / Acréscimos</label>
                 <input 
                   type="number" 
                   step="0.01" min="0"

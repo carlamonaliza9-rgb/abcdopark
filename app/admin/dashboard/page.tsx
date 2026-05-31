@@ -52,6 +52,14 @@ export default function DashboardAdminPage() {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
 
+  // --- LÓGICA DE ORDENAÇÃO PEDAGÓGICA HIERÁRQUICA ---
+  const ordemHierarquicaTurmas = ["maternal", "jardim i", "jardim ii", "1º", "2º", "3º", "4º", "5º"];
+  const obterPesoPedagogico = (turmaNome: string) => {
+    const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
+    const index = ordemHierarquicaTurmas.findIndex(t => nomeMinusculo.includes(t));
+    return index === -1 ? 999 : index;
+  };
+
   async function carregarDados() {
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -135,7 +143,14 @@ export default function DashboardAdminPage() {
           }
         }
 
-        const listaSaude = alunos.filter(a => a.tem_alergia === true).sort((a, b) => a.nome.localeCompare(b.nome));
+        const listaSaude = alunos.filter(a => a.tem_alergia === true).sort((a, b) => {
+          const pesoA = obterPesoPedagogico(a.turma);
+          const pesoB = obterPesoPedagogico(b.turma);
+          if (pesoA !== pesoB) return pesoA - pesoB;
+          const compTurma = (a.turma || "").localeCompare(b.turma || "", "pt-BR");
+          if (compTurma !== 0) return compTurma;
+          return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
+        });
 
         setDados({
           totalAlunos: alunos.length,
@@ -341,7 +356,14 @@ export default function DashboardAdminPage() {
           <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937' }}>Alunos por Turma</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
-              {Object.entries(dados.porTurma).map(([nome, qtd]) => (
+              {Object.entries(dados.porTurma)
+                .sort((a, b) => {
+                  const pesoA = obterPesoPedagogico(a[0]);
+                  const pesoB = obterPesoPedagogico(b[0]);
+                  if (pesoA !== pesoB) return pesoA - pesoB;
+                  return a[0].localeCompare(b[0]);
+                })
+                .map(([nome, qtd]) => (
                 <div key={nome}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '6px' }}>
                     <span style={{ fontWeight: '500' }}>{nome}</span>

@@ -16,9 +16,6 @@ import { TabelaUniformes } from "@/app/admin/financeiro/vendas-taxas/_components
 import { TabelaTaxas } from "@/app/admin/financeiro/vendas-taxas/_components/TabelaTaxas";
 import { ModaisInline } from "@/app/admin/financeiro/vendas-taxas/_components/ModaisInline";
 
-// Componente Compartilhado de Pagamento
-import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
-
 // FUNÇÃO BLINDADA DE CONVERSÃO FINANCEIRA
 function parseCurrency(val: any) {
   if (!val) return 0;
@@ -50,7 +47,6 @@ export default function DashboardFinanceiroPage() {
   const [taxasSelecionadas, setTaxasSelecionadas] = useState<string[]>([]);
 
   // --- ESTADOS DE CONTROLE DE MODAIS ---
-  const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [modalEventoAberto, setModalEventoAberto] = useState(false);
   const [modalUniformeAberto, setModalUniformeAberto] = useState(false);
   const [modalTaxasAberto, setModalTaxasAberto] = useState(false);
@@ -72,20 +68,7 @@ export default function DashboardFinanceiroPage() {
     data_pagamento: new Date().toISOString().split('T')[0], mes_referencia: "Anual" 
   });
 
-  // --- ESTADOS UNIFICADOS DO MODAL DE RECEBIMENTO ---
-  const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
-  const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]); 
-  const [tipoPagamento, setTipoPagamento] = useState("evento");
-  const [descricaoOutro, setDescricaoOutro] = useState("");
-  const [mesReferencia, setMesReferencia] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ 
-    pix: "", dinheiro: "", credito: "", debito: "", multa: "", credito_aluno: "", boleto: "",
-    pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: ""
-  });
-
   const SENHA_MESTRA = "1234";
-  const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   // --- TRAVA DE SEGURANÇA ---
   useEffect(() => {
@@ -165,210 +148,13 @@ export default function DashboardFinanceiroPage() {
     if (!verificandoAcesso) carregarDados(); 
   }, [verificandoAcesso]);
 
+  // --- REDIRECIONAMENTO DIRETO PARA O PDV ---
   function handleIniciarEdicao(pgto: any) {
-    if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
-      return alert("A direção não possui permissão para alterar lançamentos salvos.");
-    }
-    const aluno = alunos.find(a => a.id === pgto.aluno_id);
-    setAlunoSelecionado(aluno);
-    setIdPagamentoEdicao(pgto.id);
-    setTipoPagamento(pgto.tipo);
-    setDescricaoOutro(pgto.descricao);
-    
-    const dataSegura = pgto.data_pagamento && !pgto.data_pagamento.startsWith("1970") 
-      ? pgto.data_pagamento 
-      : new Date().toISOString().split('T')[0];
-      
-    setDataPagamento(dataSegura);
-    setMesReferencia(pgto.mes_referencia || "");
-    setPagamentosMetodos({ 
-      pix: "", dinheiro: "", credito: "", debito: "", multa: "", credito_aluno: "", boleto: "",
-      pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: "",
-      ...(pgto.detalhes_metodos || {})
-    });
-    setModalPgtoAberto(true);
+    router.push(`/admin/pdv?alunoId=${pgto.aluno_id}`);
   }
 
-  // --- MOTOR CENTRALIZADO E UNIFICADO DE CONFIRMAÇÃO DE PAGAMENTOS ---
-  async function confirmarPagamento() {
-    if (idPagamentoEdicao && userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
-      return alert("A direção não possui permissão para alterar ou editar lançamentos salvos.");
-    }
-
-    const dataAlvoFinal = dataPagamento && dataPagamento !== "" ? dataPagamento : new Date().toISOString().split('T')[0];
-
-    // FLUXO A: PAGAMENTO DE EVENTOS PEDAGÓGICOS
-    if (tipoPagamento === "evento") {
-      let interstateDinheiro = 0;
-      for (const [key, value] of Object.entries(pagamentosMetodos)) {
-        if (!['multa', 'desconto', 'parcelas', 'credito_aluno'].includes(key)) {
-          interstateDinheiro += parseCurrency(value);
-        }
-      }
-
-      const creditoUtilizado = parseCurrency(pagamentosMetodos.credito_aluno);
-      const somaPaga = Math.round((interstateDinheiro + creditoUtilizado) * 100) / 100;
-      const valorEsperado = Math.round((parseFloat(eventoParaGerenciar?.valor_unitario) || 0) * 100) / 100;
-
-      if (somaPaga <= 0) return alert("Insira um valor financeiro válido.");
-
-      const saldoDisponivel = parseCurrency(alunoSelecionado?.saldo_credito);
-
-      if (creditoUtilizado > saldoDisponivel) {
-        return alert("Crédito selecionado maior do que o saldo disponível do aluno.");
-      }
-
-      let status = "pago";
-      let valorPagoFinal = somaPaga;
-      let creditoGerado = 0;
-
-      if (valorEsperado > 0) {
-        if (somaPaga > valorEsperado) {
-          status = "pago";
-          valorPagoFinal = valorEsperado;
-          creditoGerado = Math.round((somaPaga - valorEsperado) * 100) / 100;
-          
-          if (Math.abs(creditoGerado - 1.00) < 0.01 && interstateDinheiro === valorEsperado) {
-            creditoGerado = 0;
-            valorPagoFinal = valorEsperado;
-          }
-        } else if (somaPaga < valorEsperado) {
-          status = somaPaga === 0 ? "pendente" : "parcial";
-        }
-      }
-
-      const metodosLimposEvento: any = {};
-      for (const [key, value] of Object.entries(pagamentosMetodos)) {
-        if (value !== "" && value !== "0" && value !== "0.00" && value !== null && Number(value) !== 0) {
-          metodosLimposEvento[key] = value;
-        }
-      }
-
-      const dadosEvento = { 
-        aluno_id: alunoSelecionado.id, 
-        tipo: "evento", 
-        descricao: descricaoOutro || `Evento: ${eventoParaGerenciar?.nome}`, 
-        valor_total: valorEsperado > 0 ? valorEsperado : somaPaga, 
-        valor_pago: valorPagoFinal,
-        status: status,
-        data_pagamento: dataAlvoFinal, 
-        detalhes_metodos: metodosLimposEvento 
-      };
-
-      if (idPagamentoEdicao) {
-        await supabase.from('historico_pagamentos').update(dadosEvento).eq('id', idPagamentoEdicao);
-      } else {
-        await supabase.from('historico_pagamentos').insert([dadosEvento]);
-      }
-
-      const novoSaldoCredito = Math.round((saldoDisponivel - creditoUtilizado + creditoGerado) * 100) / 100;
-      if (novoSaldoCredito !== saldoDisponivel) {
-        await supabase.from('alunos').update({ saldo_credito: novoSaldoCredito }).eq('id', alunoSelecionado.id);
-      }
-
-    // FLUXO B: PAGAMENTO DE UNIFORMES, LIVROS OU MATERIAIS
-    } else {
-      const metodosLimpos: any = {};
-      for (const [key, value] of Object.entries(pagamentosMetodos)) {
-        if (value !== "" && value !== "0" && value !== "0.00" && value !== null && Number(value) !== 0) {
-          metodosLimpos[key] = value;
-        }
-      }
-
-      const valorCredEscola = parseCurrency(pagamentosMetodos.credito) || parseCurrency((pagamentosMetodos as any).cartao);
-      const valorCredEditora = parseCurrency(pagamentosMetodos.credito_editora) || parseCurrency((pagamentosMetodos as any).cartao_editora);
-      const totalCreditoTransacionado = valorCredEscola + valorCredEditora;
-
-      if (totalCreditoTransacionado <= 0) {
-        delete metodosLimpos.parcelas;
-      } else if (!metodosLimpos.parcelas) {
-        metodosLimpos.parcelas = "1";
-      }
-
-      let somaPaga = 0;
-      for (const [key, value] of Object.entries(pagamentosMetodos)) {
-        if (!['multa', 'desconto', 'parcelas', 'credito_aluno'].includes(key)) {
-          somaPaga += parseCurrency(value);
-        }
-      }
-
-      const valorMulta = parseCurrency(pagamentosMetodos.multa);
-      const valorDesconto = parseCurrency(pagamentosMetodos.desconto);
-      const creditoUtilizado = parseCurrency(pagamentosMetodos.credito_aluno);
-      const valorPagoFinal = somaPaga + creditoUtilizado;
-
-      if (valorPagoFinal <= 0 && valorDesconto === 0) return alert("Insira um valor financeiro válido.");
-
-      try {
-        const { data: original } = await supabase.from('historico_pagamentos').select('valor_total, detalhes_metodos').eq('id', idPagamentoEdicao).single();
-        
-        const multaAntiga = parseCurrency(original?.detalhes_metodos?.multa);
-        const descontoAntigo = parseCurrency(original?.detalhes_metodos?.desconto);
-        const dividaBaseOriginal = (parseCurrency(original?.valor_total) - multaAntiga) + descontoAntigo;
-        
-        const novaDividaReal = Math.max(0, dividaBaseOriginal + valorMulta - valorDesconto);
-        
-        let status = "pago";
-        let creditoGerado = 0;
-
-        if (valorPagoFinal > novaDividaReal) {
-          creditoGerado = valorPagoFinal - novaDividaReal;
-        } else if (valorPagoFinal < novaDividaReal) {
-          status = valorPagoFinal === 0 ? "pendente" : "parcial";
-        }
-
-        const dadosAtualizados = {
-          descricao: descricaoOutro,
-          valor_total: novaDividaReal,
-          valor_pago: valorPagoFinal > novaDividaReal ? novaDividaReal : valorPagoFinal,
-          status: status,
-          data_pagamento: dataAlvoFinal,
-          detalhes_metodos: metodosLimpos,
-          mes_referencia: mesReferencia
-        };
-
-        const { error } = await supabase.from('historico_pagamentos').update(dadosAtualizados).eq('id', idPagamentoEdicao);
-        if (error) throw error;
-
-        if (creditoGerado > 0 || creditoUtilizado > 0) {
-          const { data: alunoAtual } = await supabase.from('alunos').select('saldo_credito').eq('id', alunoSelecionado.id).single();
-          const novoSaldo = parseCurrency(alunoAtual?.saldo_credito) - creditoUtilizado + creditoGerado;
-          await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', alunoSelecionado.id);
-        }
-
-        const parcelas = parseInt(metodosLimpos.parcelas) || 1;
-        if (totalCreditoTransacionado > 0 && parcelas > 1 && status === "pago") {
-          const valorPorParcela = parseFloat((totalCreditoTransacionado / parcelas).toFixed(2));
-          const previsoes = [];
-
-          for (let i = 1; i <= parcelas; i++) {
-            const dataVencimento = new Date(dataAlvoFinal);
-            dataVencimento.setMonth(dataVencimento.getMonth() + i);
-
-            previsoes.push({
-              aluno_id: alunoSelecionado.id,
-              tipo: 'previsao_cartao',
-              descricao: `Previsão Cartão (${i}/${parcelas}) - Ref. ${tipoPagamento.toUpperCase()}`,
-              valor_total: valorPorParcela,
-              valor_pago: 0,
-              status: 'pendente',
-              data_pagamento: dataVencimento.toISOString().split('T')[0],
-              detalhes_metodos: {}
-            });
-          }
-          await supabase.from('historico_pagamentos').insert(previsoes);
-        }
-      } catch (e: any) {
-        return alert("Erro ao atualizar faturamento: " + e.message);
-      }
-    }
-
-    setModalPgtoAberto(false);
-    carregarDados();
-  }
-
-  // --- CRIAÇÃO DE EVENTOS CONTROLE (COMPLETAMENTE CORRIGIDO E DINÂMICO) ---
-    async function salvarEvento() {
+  // --- CRIAÇÃO DE EVENTOS CONTROLE ---
+  async function salvarEvento() {
     if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
       return alert("A direção não possui permissão para estruturar ou alterar eventos.");
     }
@@ -377,7 +163,7 @@ export default function DashboardFinanceiroPage() {
     const dados = { 
       nome: nomeEvento, 
       valor_unitario: parseFloat(valorEvento),
-      data_evento: dataEvento, // Persistindo a data customizada
+      data_evento: dataEvento,
       total_alunos: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.total_alunos : alunosSelecionados.length, 
       participantes: idEventoEdicao ? eventosAtivos.find(e => e.id === idEventoEdicao)?.participantes : alunosSelecionados, 
       arquivado: false 
@@ -763,23 +549,9 @@ export default function DashboardFinanceiroPage() {
               setEventoParaGerenciar({ ...eventoParaGerenciar, participantes: novos, total_alunos: novos.length });
               carregarDados();
             }}
-            onAbrirPagamento={(aluno, ev, pgto) => {
-              if (pgto && (userEmail !== 'carlamonaliza9@gmail.com' || prompt("Senha Mestra para Editar:") !== SENHA_MESTRA)) return alert("Acesso negado.");
-              setAlunoSelecionado(aluno); setEventoParaGerenciar(ev); setTipoPagamento("evento");
-              if (pgto) { 
-                setIdPagamentoEdicao(pgto.id); 
-                setPagamentosMetodos({
-                  pix: "", dinheiro: "", credito: "", debito: "", multa: "", credito_aluno: "", boleto: "",
-                  pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: "",
-                  ...(pgto.detalhes_metodos || {})
-                }); 
-                setDescricaoOutro(pgto.descricao); 
-              } else { 
-                setIdPagamentoEdicao(null); 
-                setPagamentosMetodos({ pix: ev.valor_unitario.toString(), dinheiro: "", credito: "", debito: "", multa: "", credito_aluno: "", boleto: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1", desconto: "" }); 
-                setDescricaoOutro(`Evento: ${ev.nome}`); 
-              }
-              setModalPgtoAberto(true);
+            onAbrirPagamento={(aluno) => {
+              // REDIRECIONAMENTO DIRETO PARA O PDV
+              router.push(`/admin/pdv?alunoId=${aluno.id}`);
             }}
             onExcluirPagamento={handleExcluirReceita}
           />
@@ -811,17 +583,6 @@ export default function DashboardFinanceiroPage() {
           />
         </div>
       )}
-
-      {/* MODAL DE RECEBIMENTO COMPARTILHADO */}
-      <ModalPagamento 
-        aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)}
-        aluno={alunoSelecionado} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento}
-        tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
-        mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno}
-        descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro}
-        pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
-        onConfirmar={confirmarPagamento} editando={!!idPagamentoEdicao}
-      />
 
       {/* MODAL DE EVENTO REACESSANDO DATAS CORRETAMENTE */}
       <ModalEvento 
