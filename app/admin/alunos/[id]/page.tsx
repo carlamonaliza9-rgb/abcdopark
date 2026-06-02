@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { ModalPagamento } from "@/app/dashboard/financeiro/_components/ModalPagamento";
 import { FormAlunoModal } from "@/app/dashboard/alunos/_components/FormAlunoModal";
 import { clean, SENHA_MESTRA, mesesAno, mCPF, mWhatsApp } from "./_components/alunoUtils";
@@ -146,7 +148,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         }
       });
 
-      // 2. Filtra o histórico físico apagando as duplicidades pendentes de meses já pagos
+      // 2. Filtra o histórico físico apagando as duplicidades pendentes de meses já pagos e ANEXA OS DESCONTOS NA DESCRIÇÃO
       const historicoSemDuplicatas = historicoCompleto.filter(h => {
         if ((h.status === 'pendente' || h.status === 'atrasado') && h.tipo?.toLowerCase() === 'mensalidade') {
           const desc = (h.descricao || "").toLowerCase();
@@ -164,10 +166,21 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           if (mes && anoRef && mesesPagos.has(`${mes}_${anoRef}`)) return false; 
         }
         return true;
+      }).map(h => {
+          // Extrai descontos aplicados (via pdv ou avulso) e anexa na descrição para renderizar em toda a aplicação
+          let novaDesc = h.descricao || "";
+          let descontoAplicado = 0;
+          
+          if (h.detalhes_metodos?.desconto) descontoAplicado += clean(h.detalhes_metodos.desconto);
+          if (Array.isArray(h.detalhes_metodos?.historico_parciais)) {
+              h.detalhes_metodos.historico_parciais.forEach((p:any) => descontoAplicado += clean(p.desconto));
+          }
+          
+          if (descontoAplicado > 0 && !novaDesc.toLowerCase().includes('desconto')) {
+              novaDesc += ` (Desconto: R$ ${descontoAplicado.toFixed(2)})`;
+          }
+          return { ...h, descricao: novaDesc };
       });
-
-      // Usa o histórico limpo para renderizar o ExtratoAluno
-      setHistoricoLocal(historicoSemDuplicatas);
 
       let dividaCalculada = 0;
       let listaDívida = [];
@@ -195,14 +208,15 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         listaDívida.push({ ...pend, atraso_automatico: pend.tipo?.toLowerCase() === 'mensalidade' }); 
       });
 
-      // 4. Varredura Virtual de Mensalidades (Atrasos Faltantes)
+      // 4. Varredura Virtual de Mensalidades (Atrasos Faltantes e Bolsas Integrais 100%)
       const dataAtual = new Date();
       const mesAtualNum = dataAtual.getMonth(); 
       const anoAtual = dataAtual.getFullYear().toString();
       const diaVencimentoAluno = parseInt(aluno.vencimento);
       const valorMensalidadeBase = clean(aluno.valor);
+      const alunoTemValorCadastrado = aluno.valor !== null && aluno.valor !== undefined && aluno.valor !== "";
 
-      if (valorMensalidadeBase > 0 && !isNaN(diaVencimentoAluno)) {
+      if (alunoTemValorCadastrado && !isNaN(diaVencimentoAluno)) {
         for (let i = 0; i <= mesAtualNum; i++) {
           const isVencido = (i < mesAtualNum) || (i === mesAtualNum && dataAtual.getDate() > diaVencimentoAluno);
           if (!isVencido) continue; // Pula os meses futuros ou o mês atual não vencido
@@ -222,22 +236,44 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           });
 
           if (!jaTemDividaFisica) {
-            dividaCalculada += valorMensalidadeBase;
-            listaDívida.push({
-              id: `temp_${nomeMes}`, 
-              descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`, 
-              mes_referencia: nomeMes,
-              valor_total: valorMensalidadeBase, 
-              valor_pago: 0,
-              data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
-              status: 'atrasado', 
-              atraso_automatico: true, 
-              isTemp: true
-            });
+            if (valorMensalidadeBase === 0) {
+              // Registro de Bolsista 100%: Lança no extrato como mensalidade isenta/paga
+              historicoSemDuplicatas.push({
+                id: `bolsa_${nomeMes}`, 
+                descricao: `Mensalidade (Bolsa Integral 100%) - ${nomeMes}/${anoAtual}`, 
+                mes_referencia: nomeMes,
+                valor_total: 0, 
+                valor_pago: 0,
+                data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
+                status: 'pago', 
+                tipo: 'mensalidade',
+                detalhes_metodos: { forma_geradora: "Isenção Automática" }
+              });
+            } else {
+              dividaCalculada += valorMensalidadeBase;
+              listaDívida.push({
+                id: `temp_${nomeMes}`, 
+                descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`, 
+                mes_referencia: nomeMes,
+                valor_total: valorMensalidadeBase, 
+                valor_pago: 0,
+                data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
+                status: 'atrasado', 
+                atraso_automatico: true, 
+                isTemp: true
+              });
+            }
           }
+        }
+
+        // Reordena o histórico cronologicamente caso tenhamos inserido mensalidades bolsistas
+        if (valorMensalidadeBase === 0) {
+            historicoSemDuplicatas.sort((a, b) => new Date(b.data_pagamento).getTime() - new Date(a.data_pagamento).getTime());
         }
       }
 
+      // Atualiza o estado global final
+      setHistoricoLocal(historicoSemDuplicatas);
       setTotalPendenteGeral(dividaCalculada);
       setListaPendenciasGerais(listaDívida as any[]);
     }
@@ -411,11 +447,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     });
   };
 
-  async function salvarEdicaoAluno(e: React.FormEvent) {
-    e.preventDefault();
+  async function salvarEdicaoAluno(e?: any) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (ehVisitante || isProcessandoAcao) return;
     setIsProcessandoAcao(true);
-    setCarregando(true);
+    
     try {
       let urlFinal = previewUrl;
       if (arquivoFoto) {
@@ -445,7 +481,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       setModoEdicao(false); 
       await buscarAlunoBase();
     } catch (error: any) { alert("Erro ao salvar: " + (error.message || "Ocorreu um erro inesperado.")); } 
-    finally { setCarregando(false); setIsProcessandoAcao(false); }
+    finally { setIsProcessandoAcao(false); }
   }
 
   function handleEditarPagamento(pgto: any) {
@@ -670,6 +706,38 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     } else alert("Senha incorreta.");
   }
 
+  function gerarPDFHistorico() {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Aluno: ${aluno?.nome?.toUpperCase()}`, 15, 35);
+    
+    const extrairFormaPagamento = (detalhes: any) => {
+      if (!detalhes) return null;
+      const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais' && key !== 'forma_geradora' && key !== 'ids_origem' && key !== 'e_subtracao' && key !== 'credito_utilizado_nesta_parcela');
+      return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
+    };
+
+    const historicoFiltradoParaPDF = historicoLocal.filter(h => 
+      (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
+      h.status !== 'renegociado'
+    );
+
+    autoTable(doc, {
+      startY: 45,
+      head: [['DATA', 'DESCRIÇÃO', 'FORMA', 'VALOR']],
+      body: historicoFiltradoParaPDF.map((h: any) => [
+        new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+        h.descricao.toUpperCase(),
+        h.detalhes_metodos?.forma_geradora || extrairFormaPagamento(h.detalhes_metodos),
+        `${h.detalhes_metodos?.e_subtracao ? '- ' : ''}R$ ${Math.abs(clean(h.valor_total)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]),
+      headStyles: { fillColor: [37, 99, 235] }
+    });
+    doc.save(`Extrato_${aluno?.nome?.replace(/\s+/g, '_')}_${anoPagamentoSelecionado}.pdf`);
+  }
+
   if (carregando || !aluno) return <div className="flex justify-center items-center h-screen bg-slate-50 text-slate-500 font-bold">Carregando Perfil...</div>;
 
   return (
@@ -693,7 +761,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         ) : verBoletim ? (
           <BoletimAluno aluno={aluno} anoSelecionado={anoSelecionado} setAnoSelecionado={setAnoSelecionado} notas={notas} setVerBoletim={setVerBoletim} />
         ) : verHistorico ? (
-          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} />
+          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} gerarPDFHistorico={gerarPDFHistorico} />
         ) : (
           <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} />
         )}
@@ -702,7 +770,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
       {modoEdicao && !ehVisitante && (
         <FormAlunoModal 
-          idEdicao={alunoId} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp} form={formEdicao}
+          idEdicao={alunoId} previewUrl={previewUrl} carregando={isProcessandoAcao} mCPF={mCPF} mWhatsApp={mWhatsApp} form={formEdicao}
           setForm={(d: any) => setFormEdicao((prev: any) => ({...prev, ...d}))}
           onTrocarFoto={(e: any) => { 
             if (!e.target.files) { setArquivoFoto(null); setPreviewUrl(null); return; }

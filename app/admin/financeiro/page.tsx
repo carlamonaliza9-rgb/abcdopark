@@ -62,7 +62,6 @@ export default function FinanceiroAdminPage() {
   }, [router]);
 
   async function carregarDados() {
-    // ... (A LÓGICA DE CARREGAMENTO FOI MANTIDA INTACTA PARA GARANTIR O FUNCIONAMENTO) ...
     setCarregando(true);
     try {
       const hoje = new Date();
@@ -74,8 +73,11 @@ export default function FinanceiroAdminPage() {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      const { data: pgtosMes = [] } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
-      const { data: pgtosPendentes = [] } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+      const { data: pgtosMesDB } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      const { data: pgtosPendentesDB } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+
+      const pgtosMes = pgtosMesDB || [];
+      const pgtosPendentes = pgtosPendentesDB || [];
 
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
       const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
@@ -84,8 +86,8 @@ export default function FinanceiroAdminPage() {
         .like('descricao', `%${nomeMesReferencia}%${ano}%`);
 
       const mapaPgtos = new Map();
-      (pgtosMes || []).forEach((p: any) => mapaPgtos.set(p.id, p));
-      (pgtosPendentes || []).forEach((p: any) => mapaPgtos.set(p.id, p));
+      pgtosMes.forEach((p: any) => mapaPgtos.set(p.id, p));
+      pgtosPendentes.forEach((p: any) => mapaPgtos.set(p.id, p));
       const pgtosFiltrados = Array.from(mapaPgtos.values());
       
       setListaReceitasDetalhada(pgtosFiltrados);
@@ -156,6 +158,17 @@ export default function FinanceiroAdminPage() {
         const ordenados = listaAlunos.map((aluno: any) => {
           const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
           if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
+
+          // INTERCEPTAÇÃO DE ACORDOS: Identifica renegociações pendentes ou parciais do mês ativo
+          const temAcordoDesteMes = pgtosPendentes.some((p: any) => {
+            const isAcordo = p.tipo === 'acordo';
+            const pertenceAluno = p.aluno_id === aluno.id;
+            const isNoMesFiltro = p.data_pagamento && p.data_pagamento.startsWith(mesFiltro);
+            return isAcordo && pertenceAluno && isNoMesFiltro;
+          });
+
+          if (temAcordoDesteMes) return { ...aluno, status: 'acordo' };
+          
           return hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? { ...aluno, status: 'atrasado' } : { ...aluno, status: 'pendente' };
         });
         
@@ -169,7 +182,20 @@ export default function FinanceiroAdminPage() {
         const vMensalidadesDesteMesPendente = Math.max(0, mensalidadesPrevistas - vMensalidadesDesteMesPago);
 
         const todasPendenciasExtras = pgtosFiltrados.filter((p: any) => p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado');
-        const vExtrasPendente = todasPendenciasExtras.reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
+        
+        const extrasPendentesDesteMes = pgtosFiltrados.filter((p: any) => {
+          const statusPendente = p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado';
+          if (!statusPendente) return false;
+          if (p.tipo === 'mensalidade') return false;
+
+          const dataAlvo = p.data_pagamento || p.data_vencimento || p.created_at;
+          if (dataAlvo) {
+            return dataAlvo.startsWith(`${ano}-${mes}`);
+          }
+          return p.descricao?.includes(nomeMesReferencia) && p.descricao?.includes(ano);
+        });
+
+        const vExtrasPendente = extrasPendentesDesteMes.reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
 
         const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
         const totalGeralPrevisto = vPago + totalPendenteCaixa;
@@ -218,7 +244,6 @@ export default function FinanceiroAdminPage() {
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, verificandoAcesso]);
 
   function gerarRelatorioTesouraria() {
-    // ... (LÓGICA DO PDF MANTIDA INTACTA) ...
     const doc = new jsPDF();
     const [ano, mesNum] = mesFiltro.split('-');
     const nomeMes = mesesAno[parseInt(mesNum) - 1];
@@ -300,15 +325,13 @@ export default function FinanceiroAdminPage() {
       styles: { fontSize: 8, textColor: [51, 65, 85] },
       columnStyles: { 
         0: { halign: 'center', cellWidth: 22 }, 
-        1: { halign: 'left' }, // Removida a largura fixa para expandir automaticamente
-        2: { halign: 'right', cellWidth: 28 } // Largura e alinhamento aplicados corretamente à coluna de VALOR
+        1: { halign: 'left' }, 
+        2: { halign: 'right', cellWidth: 28 } 
       }
     });
     
-
     finalY = (doc as any).lastAutoTable.finalY + 22;
     if (finalY > 250) { doc.addPage(); finalY = 35; }
-    
     
     doc.setDrawColor(203, 213, 225);
     doc.line(20, finalY, 90, finalY);
@@ -351,13 +374,12 @@ export default function FinanceiroAdminPage() {
     <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
       <div className="max-w-[1700px] w-full mx-auto space-y-8">
         
-        {/* Bloco 1: Header de Filtros com visual mais limpo */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-6">
           <FinanceiroHeader 
             mesFiltro={mesFiltro} 
             setMesFiltro={setMesFiltro}
             onZerarMes={() => {
-              if (userCargo !== 'Admin') return alert("Apenas administradores do sistema podem executar esta ação.");
+              if (userCargo !== 'Admin') return alert("Apenas administradores do sistema podem executar esta action.");
               if (confirm("Deseja registar o fecho de lote para o mês atual?")) {
                 alert("Ação registada com sucesso.");
               }
@@ -376,21 +398,16 @@ export default function FinanceiroAdminPage() {
           </div>
         </div>
 
-        {/* Bloco 2: Cards de Faturamento Principal */}
-        {/* Obs: Para que o MetricasCard também fique com esse visual, você pode aplicar as classes 'rounded-3xl border border-slate-100 shadow-sm' lá dentro do componente dele depois! */}
         <MetricasCard 
           metricas={metricas} 
           onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
           onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
         />
         
-        {/* Bloco Avançado Separado */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* COLUNA ESQUERDA (8/12) */}
           <div className="lg:col-span-8 space-y-8">
             
-            {/* Radar de Inadimplência Crítica Redesenhado */}
             <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
               <div className="border-b pb-4 border-slate-50 flex justify-between items-center mb-4">
                 <div>
@@ -423,7 +440,6 @@ export default function FinanceiroAdminPage() {
               </div>
             </div>
 
-            {/* Resumo de Métodos */}
             <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
               <h3 className="text-base font-bold text-slate-800 mb-6">Métodos de Arrecadação</h3>
               <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
@@ -431,10 +447,8 @@ export default function FinanceiroAdminPage() {
 
           </div>
 
-          {/* COLUNA DIREITA (4/12) */}
           <div className="lg:col-span-4 space-y-8">
             
-            {/* Distribuição de Despesas */}
             <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
               <div className="border-b pb-4 border-slate-50 mb-6">
                 <h3 className="text-base font-bold text-slate-800">Distribuição de Despesas</h3>

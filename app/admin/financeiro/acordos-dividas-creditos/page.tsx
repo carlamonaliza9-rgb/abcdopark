@@ -27,29 +27,24 @@ function extrairMesAnoInteligente(h: any, fallbackAno: string) {
   
   const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   
-  // 1. Acha o mês na descrição caso não tenha sido preenchido no select
   if (!mes || !nomesMeses.includes(mes)) {
     mes = nomesMeses.find(m => desc.includes(m)) || "";
   }
   
-  // 2. Extrai rigorosamente o ano explicitamente escrito na descrição (Ex: "Janeiro/2026")
   const anoMatch = desc.match(/(20\d{2})/);
   let ano = anoMatch ? anoMatch[0] : null;
   
-  // 3. Se não escreveu na descrição, pega da data de vencimento (a competência real)
   if (!ano && (h.data_vencimento || h.vencimento)) {
       const dVenc = new Date(h.data_vencimento || h.vencimento);
       if (!isNaN(dVenc.getTime())) ano = dVenc.getFullYear().toString();
   }
 
-  // 4. Fallback final: Pega a data que foi pago, com inteligência para matrículas antecipadas
   if (!ano && h.data_pagamento) {
       const dPgto = new Date(h.data_pagamento);
       if (!isNaN(dPgto.getTime())) {
           const anoPgto = dPgto.getFullYear();
-          const mesPgto = dPgto.getMonth(); // 0 a 11
+          const mesPgto = dPgto.getMonth();
           
-          // Se pagou no final do ano (Out, Nov, Dez) e é referente ao início (Jan, Fev, Mar, Abr)
           if (mesPgto >= 9 && ["janeiro", "fevereiro", "março", "abril"].includes(mes)) {
               ano = (anoPgto + 1).toString();
           } else {
@@ -106,7 +101,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      // Busca IRRESTRITA: Precisamos carregar todo o histórico para linkar pagamentos antecipados
       const { data: pgtosAnoDB } = await supabase.from('historico_pagamentos')
         .select('*')
         .in('tipo', ['mensalidade', 'acordo'])
@@ -115,7 +109,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       
       let historicoCompleto = pgtosAnoDB || [];
 
-      // Caderninho de Mês/Ano que o aluno JÁ PAGOU (Independente de quando o pagamento foi feito)
       const mesesPagos = new Set();
       historicoCompleto.forEach(h => {
           if (h.status === 'pago' || h.status === 'renegociado') {
@@ -125,7 +118,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       });
 
       // ====================================================================================
-      // MOTOR AUTO-GERADOR BLINDADO (Gera apenas o que realmente falta)
+      // MOTOR AUTO-GERADOR BLINDADO
       // ====================================================================================
       const missingMensalidades: any[] = [];
       const apenasMensalidades = historicoCompleto.filter(p => p.tipo === 'mensalidade');
@@ -135,10 +128,8 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               const descMes = nomeMes.toLowerCase();
               const chaveGlobal = `${aluno.id}_${descMes}_${ano}`;
 
-              // Se a referência já foi paga antecipada/normalmente, bloqueia a criação de dívida
               if (mesesPagos.has(chaveGlobal)) return;
 
-              // Checa se já tem uma ficha pendente/atrasada física gerada para este mês
               const jaCriadoFisicamente = apenasMensalidades.some(p => {
                   const ref = extrairMesAnoInteligente(p, ano);
                   return p.aluno_id === aluno.id && ref.mes === descMes && ref.ano === ano;
@@ -162,7 +153,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                       valor_pago: 0,
                       status: statusInicial,
                       data_pagamento: dataVencStr,
-                      data_vencimento: dataVencStr, // FIXA VENCIMENTO ESTRITO
+                      data_vencimento: dataVencStr,
                       detalhes_metodos: {}
                   });
               }
@@ -180,9 +171,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             .neq('status', 'estornado');
           historicoCompleto = pgtosRefetch || [];
       }
-      // ====================================================================================
 
-      // Filtra os pagamentos exibidos na tela cruzando EXATAMENTE o Mês e Ano lido da descrição
       const pgtosDesteMes = historicoCompleto.filter((p: any) => {
           if (p.tipo !== 'mensalidade') return false;
           const ref = extrairMesAnoInteligente(p, ano);
@@ -198,10 +187,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
       if (listaAlunos) {
         const ordenados = listaAlunos.map((aluno: any) => {
-          
-          // ====================================================================================
-          // AVALIAÇÃO DE STATUS 100% BLINDADA E INTELIGENTE
-          // ====================================================================================
           const chaveBusca = `${aluno.id}_${nomeMesReferencia}_${ano}`;
           const jaPagouNoCaderninho = mesesPagos.has(chaveBusca);
 
@@ -209,24 +194,20 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           const acordoAluno = acordosDesteMes.find((a: any) => a.aluno_id === aluno.id && a.status !== 'pago');
           
           let valorBaseMensalidade = clean(aluno.valor) || valorBaseVigente;
-          
           let valorDevidoMensalidade = valorBaseMensalidade;
           let statusFinal = 'pendente';
           let nomeTags = [];
 
-          // 1. PRIORIDADE MÁXIMA: Se tá no caderninho de pagos (adiantamento ou normal), cravamos PAGO.
           if (jaPagouNoCaderninho) {
               statusFinal = 'pago';
               valorDevidoMensalidade = 0;
           } 
-          // 2. Se não está no caderninho, verificamos faturas pendentes ou parciais do mês
           else if (pgtoMensalidade) {
               if (pgtoMensalidade.status === 'parcial') {
                   statusFinal = 'parcial';
                   valorDevidoMensalidade = Math.max(0, valorBaseMensalidade - clean(pgtoMensalidade.valor_pago));
                   nomeTags.push(`⏳ Parcial (-R$ ${clean(pgtoMensalidade.valor_pago).toFixed(2)})`);
               } else {
-                  // Se não é parcial e não tá pago, só pode ser pendente. Avaliamos se já atrasou:
                   const diaVenc = parseInt(aluno.vencimento) || 5;
                   const dataVencObj = new Date(parseInt(ano), parseInt(mes) - 1, diaVenc);
                   dataVencObj.setHours(0,0,0,0);
@@ -237,7 +218,6 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               }
           }
 
-          // 3. Avaliação Secundária: Acordos Vigentes do Aluno
           let temAcordoNoMes = !!acordosDesteMes.find((a: any) => a.aluno_id === aluno.id);
           let isAcordoPendente = temAcordoNoMes && (!acordoAluno || acordoAluno.status !== 'pago');
           let valorParcelaAcordo = acordoAluno ? clean(acordoAluno.valor_total) : 0;
@@ -256,12 +236,10 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               valorTotalDevido += valorParcelaAcordo;
               nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
               
-              // Se há acordo pendente atrasado, o status final da linha fica vermelho
-              if (hojeObj > new Date(acordoAluno.data_pagamento + "T12:00:00")) {
-                  statusFinal = 'atrasado';
-              } else if (statusFinal !== 'atrasado') {
-                  statusFinal = acordoAluno.status === 'parcial' ? 'parcial' : 'pendente';
-              }
+              // =========================================================================
+              // ALTERAÇÃO PROTOCOLAR: Se há acordo pendente, força o status para 'acordo' (roxo)
+              // =========================================================================
+              statusFinal = 'acordo';
 
           } else if (temAcordoNoMes && !isAcordoPendente) {
               nomeTags.push(`✅ Acordo Pago`); 
@@ -277,7 +255,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             isAcordo: isAcordoPendente, 
             idPagamentoAcordo: idPagamentoAcordo,
             valorParcelaAcordo: valorParcelaAcordo,
-            isMensalidadePendente: statusFinal !== 'pago',
+            isMensalidadePendente: statusFinal !== 'pago' && statusFinal !== 'acordo',
             valorBaseMensalidade,
             temAcordoNoMes 
           };
@@ -369,10 +347,11 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               router.push(`/admin/pdv?alunoId=${a.id}`);
             }}
             onCobrar={(a: any) => {
-              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
+              const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${a.nome}*, referente a *${mesReferencia}*, venceu no dia *${a.vencimento}*.\n\n• *Valor:* R$ ${a.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no system. \n\nTenha um excelente dia! ✨`;
               window.open(`https://wa.me/55${a.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
-            onDesfazer={async (idAlunoSelecionado: string) => {
+            onDesfazer={async (linha: any) => {
+              const idAlunoSelecionado = linha.id;
               if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla Monaliza pode desfazer registros salvos.");
               if (prompt("Digite a Senha Mestra para confirmar o estorno financeiro e reajuste da carteira:") !== SENHA_MESTRA) return alert("Senha incorreta.");
               
@@ -530,7 +509,25 @@ function VisaoSaldosCreditos() {
           setAlunos(ordenados);
         }
 
-        if (pgtosPendentes) setListaSaldosDevedores(pgtosPendentes);
+        // =======================================================================
+        // METICULOSO: Garante que os acordos estornados/excluídos apareçam na lista de Dívidas
+        // =======================================================================
+        if (pgtosPendentes) {
+             const dividasReais = pgtosPendentes.filter(p => {
+                 // Acordos pendentes e outras taxas sempre entram
+                 if (p.tipo !== 'mensalidade') return true;
+                 
+                 // Se for mensalidade, barra faturas do futuro (que ainda não venceram)
+                 const dataVenc = new Date(p.data_vencimento || p.vencimento || p.data_pagamento || new Date());
+                 dataVenc.setHours(0,0,0,0);
+                 const hoje = new Date();
+                 hoje.setHours(0,0,0,0);
+                 
+                 return hoje > dataVenc;
+             });
+             setListaSaldosDevedores(dividasReais);
+        }
+
       } catch (err) {
         console.error("Erro ao processar balanço de saldos:", err);
       } finally { setCarregando(false); }
@@ -729,6 +726,13 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
   const [editandoObs, setEditandoObs] = useState<string | null>(null);
   const [textoObs, setTextoObs] = useState("");
 
+  // =========================================================================
+  // METICULOSO: Variável de recarregamento forçado para a aba de Saldos
+  // =========================================================================
+  const emitirRecarregamento = () => {
+    window.dispatchEvent(new Event('recarregarBalançoGlobal'));
+  };
+
   useEffect(() => { carregarDados(); }, []);
 
   async function carregarDados() {
@@ -804,13 +808,18 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
 
   async function desfazerParcela(id: string) {
     if (prompt("Digite a Senha Mestra para ESTORNAR o pagamento desta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    // =======================================================================
+    // METICULOSO: Volta o valor da parcela integral e devolve para pendente
+    // =======================================================================
     await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', id);
+    emitirRecarregamento();
     carregarDados();
   }
 
   async function excluirParcela(id: string) {
     if (prompt("Digite a Senha Mestra para EXCLUIR esta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
     await supabase.from('historico_pagamentos').delete().eq('id', id);
+    emitirRecarregamento();
     carregarDados();
   }
 
@@ -818,6 +827,7 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
     if (prompt("ATENÇÃO: Digite a Senha Mestra para EXCLUIR O CONTRATO INTEIRO (todas as parcelas):") !== SENHA_MESTRA) return alert("Senha incorreta.");
     const ids = parcelas.map(p => p.id);
     await supabase.from('historico_pagamentos').delete().in('id', ids);
+    emitirRecarregamento();
     carregarDados();
   }
 
@@ -832,6 +842,7 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
       valor_total: clean(novoValor),
       data_pagamento: novaData
     }).eq('id', parcela.id);
+    emitirRecarregamento();
     carregarDados();
   }
 
@@ -953,6 +964,17 @@ export default function ControleFinanceiroUnificadoPage() {
   const [visaoAtiva, setVisaoAtiva] = useState<"mensalidades" | "saldos" | "acordos">("mensalidades");
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  
+  // =========================================================================
+  // METICULOSO: Escuta eventos de atualização da aba de acordos para recarregar tudo
+  // =========================================================================
+  const [chaveReload, setChaveReload] = useState(0);
+
+  useEffect(() => {
+    const handleRecarregamento = () => setChaveReload(prev => prev + 1);
+    window.addEventListener('recarregarBalançoGlobal', handleRecarregamento);
+    return () => window.removeEventListener('recarregarBalançoGlobal', handleRecarregamento);
+  }, []);
 
   useEffect(() => {
     async function verificarAcesso() {
@@ -974,7 +996,7 @@ export default function ControleFinanceiroUnificadoPage() {
   if (verificandoAcesso) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Verificando Credenciais...</div>;
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8 flex flex-col">
+    <div key={chaveReload} className="w-full bg-slate-50 min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8 flex flex-col">
       <div className="max-w-[1700px] w-full mx-auto mb-6 px-4">
         <div className="flex bg-slate-200/60 p-1.5 rounded-2xl w-fit border border-slate-300/40">
           <button
