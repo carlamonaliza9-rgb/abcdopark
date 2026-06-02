@@ -20,6 +20,7 @@ export default function AlunosAdminPage() {
   const [carregando, setCarregando] = useState(false);
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [cargo, setCargo] = useState<string | null>(null); // Novo estado para controlar permissões por nível
   const [busca, setBusca] = useState("");
   
   // --- ESTADOS DOS CAMPOS ---
@@ -72,7 +73,7 @@ export default function AlunosAdminPage() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
   const [verBoletim, setVerBoletim] = useState(false);
-  const [notas, setNotas] = useState<any[]>([]);
+  const [notes, setNotas] = useState<any[]>([]);
   const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); 
 
   // --- ESTADOS PARA EDIÇÃO DE PAGAMENTO NO HISTÓRICO ---
@@ -86,7 +87,9 @@ export default function AlunosAdminPage() {
 
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  const ehVisitante = userEmail === "escolaabcdopark@gmail.com";
+  
+  // Define dinamicamente baseado no cargo salvo na tabela 'perfis'
+  const ehVisitante = cargo === "Visitante"; 
 
   // --- TRAVA DE SEGURANÇA E CARREGAMENTO ---
   useEffect(() => { 
@@ -94,13 +97,18 @@ export default function AlunosAdminPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
 
-      const emailAtual = user.email || "";
-      setUserEmail(emailAtual);
+      setUserEmail(user.email || null);
       
+      // Busca o cargo real do usuário atual do banco de dados
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
-      const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+      const cargoAtual = perfil?.cargo || null;
       
-      if (!ehAdmin) return router.push("/dashboard");
+      setCargo(cargoAtual);
+      
+      // Define quem tem permissão para entrar nesta tela (Admins e Visitantes/Professores)
+      const temAcesso = cargoAtual === 'Admin' || cargoAtual === 'Visitante';
+      
+      if (!temAcesso) return router.push("/dashboard");
 
       await buscarAlunos();
       setVerificandoAcesso(false);
@@ -218,13 +226,13 @@ export default function AlunosAdminPage() {
       .insert([{ aluno_id: idEdicao, disciplina: disc, ano: anoBoletimAtivo }])
       .select();
     if (data) {
-      setNotas(aplicarOrdenacaoManual([...notas, data[0]]));
+      setNotas(aplicarOrdenacaoManual([...notes, data[0]]));
     }
   }
 
   async function salvarNota(id: string, campo: string, valorNota: string) {
     const v = valorNota === "" ? 0 : parseFloat(valorNota.replace(',', '.'));
-    const notaAtual = notas.find(n => n.id === id);
+    const notaAtual = notes.find(n => n.id === id);
     if (!notaAtual) return;
     const nCalculo = { ...notaAtual, [campo]: v };
     let n1 = parseFloat(nCalculo.bimestre1 || 0);
@@ -243,13 +251,13 @@ export default function AlunosAdminPage() {
     const novaMedia = parseFloat(((n1 + n2 + n3 + n4) / 4).toFixed(1));
     const { error } = await supabase.from('boletins').update({ [campo]: v, media: novaMedia }).eq('id', id);
     if (error) return console.error("Erro ao salvar:", error.message);
-    setNotas(notas.map(n => n.id === id ? { ...n, [campo]: v, media: novaMedia } : n));
+    setNotas(notes.map(n => n.id === id ? { ...n, [campo]: v, media: novaMedia } : n));
   }
 
   async function excluirDisciplina(id: string) {
     if (confirm("Remover esta disciplina?")) {
       await supabase.from('boletins').delete().eq('id', id);
-      setNotas(notas.filter(n => n.id !== id));
+      setNotas(notes.filter(n => n.id !== id));
     }
   }
 
@@ -360,7 +368,7 @@ export default function AlunosAdminPage() {
     autoTable(doc, {
       startY: 105,
       head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
-      body: notas.map(n => [
+      body: notes.map(n => [
         n.disciplina.toUpperCase(),
         n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
         n.bimestre3 ?? '-', n.bimestre4 ?? '-', n.recuperacao2 ?? '-',
@@ -435,8 +443,8 @@ export default function AlunosAdminPage() {
   };
 
   async function salvarAluno(e: React.FormEvent) {
-    e.preventDefault();
     if (ehVisitante) return;
+    e.preventDefault();
     setCarregando(true);
     try {
       let urlFinal = previewUrl;
@@ -529,7 +537,6 @@ export default function AlunosAdminPage() {
     setModoEdicao(true); setModalAberto(true);
   }
 
-  // --- TRAVA CONDICIONAL APLICADA AQUI ---
   function abrirFicha(aluno: any) {
     if (!ehVisitante) {
       router.push(`/admin/alunos/${aluno.id}`);
@@ -598,7 +605,7 @@ export default function AlunosAdminPage() {
             e_artista: eAutista, foto_url: previewUrl, observacoes,
             saldo_credito: alunos.find(a => a.id === idEdicao)?.saldo_credito || 0
           }}
-          verBoletim={verBoletim} verHistorico={verHistorico} notas={notas} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
+          verBoletim={verBoletim} verHistorico={verHistorico} notas={notes} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
           onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
           onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
           onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}

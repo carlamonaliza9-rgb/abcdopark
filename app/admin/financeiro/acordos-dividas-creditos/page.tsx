@@ -19,7 +19,7 @@ const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "J
 const SENHA_MESTRA = "1234";
 
 // ============================================================================
-// MOTOR INTELIGENTE: LEITURA ESTRITA DE MÊS E ANO DE REFERÊNCIA
+// MOTOR INTELIGENTE: LEITURA ESTRITA DE COMPETÊNCIA (MÊS/ANO)
 // ============================================================================
 function extrairMesAnoInteligente(h: any, fallbackAno: string) {
   const desc = (h.descricao || "").toLowerCase();
@@ -27,24 +27,35 @@ function extrairMesAnoInteligente(h: any, fallbackAno: string) {
   
   const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   
+  // 1. Acha o mês na descrição caso não tenha sido preenchido no select
   if (!mes || !nomesMeses.includes(mes)) {
     mes = nomesMeses.find(m => desc.includes(m)) || "";
   }
   
-  // Extrai o ano explicitamente escrito na descrição (ex: Janeiro/2026 -> 2026)
+  // 2. Extrai rigorosamente o ano explicitamente escrito na descrição (Ex: "Janeiro/2026")
   const anoMatch = desc.match(/(20\d{2})/);
   let ano = anoMatch ? anoMatch[0] : null;
   
-  // Se não tem na descrição, procura no vencimento real
+  // 3. Se não escreveu na descrição, pega da data de vencimento (a competência real)
   if (!ano && (h.data_vencimento || h.vencimento)) {
-      const d = new Date(h.data_vencimento || h.vencimento);
-      if (!isNaN(d.getTime())) ano = d.getFullYear().toString();
+      const dVenc = new Date(h.data_vencimento || h.vencimento);
+      if (!isNaN(dVenc.getTime())) ano = dVenc.getFullYear().toString();
   }
 
-  // Fallback para a data do pagamento se nada mais for achado (exclusivo para itens sem ref)
+  // 4. Fallback final: Pega a data que foi pago, com inteligência para matrículas antecipadas
   if (!ano && h.data_pagamento) {
-      const d = new Date(h.data_pagamento);
-      if (!isNaN(d.getTime())) ano = d.getFullYear().toString();
+      const dPgto = new Date(h.data_pagamento);
+      if (!isNaN(dPgto.getTime())) {
+          const anoPgto = dPgto.getFullYear();
+          const mesPgto = dPgto.getMonth(); // 0 a 11
+          
+          // Se pagou no final do ano (Out, Nov, Dez) e é referente ao início (Jan, Fev, Mar, Abr)
+          if (mesPgto >= 9 && ["janeiro", "fevereiro", "março", "abril"].includes(mes)) {
+              ano = (anoPgto + 1).toString();
+          } else {
+              ano = anoPgto.toString();
+          }
+      }
   }
 
   return { mes, ano: ano || fallbackAno };
@@ -63,8 +74,9 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroTurma, setFiltroTurma] = useState(""); 
   const [alunos, setAlunos] = useState<any[]>([]);
-  const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
+  
+  const [listaReceitasDetalhada, setListaReceitasDetalhada] = useState<any[]>([])
 
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
@@ -85,12 +97,16 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
         if (salvo && !editandoValor) valorBaseVigente = Number(salvo);
       }
 
-      const hoje = new Date();
+      const hojeObj = new Date();
+      hojeObj.setHours(0,0,0,0);
+      
       const [ano, mes] = mesFiltro.split('-');
+      const nomeMesReferencia = mesesAno[parseInt(mes) - 1].toLowerCase();
+      setMesReferencia(mesesAno[parseInt(mes) - 1]);
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      // Remove a barreira de ano para poder pescar os pagamentos antecipados
+      // Busca IRRESTRITA: Precisamos carregar todo o histórico para linkar pagamentos antecipados
       const { data: pgtosAnoDB } = await supabase.from('historico_pagamentos')
         .select('*')
         .in('tipo', ['mensalidade', 'acordo'])
@@ -99,7 +115,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       
       let historicoCompleto = pgtosAnoDB || [];
 
-      // Dicionário de meses efetivamente pagos/renegociados com base na REFERÊNCIA, não na data de pagamento
+      // Caderninho de Mês/Ano que o aluno JÁ PAGOU (Independente de quando o pagamento foi feito)
       const mesesPagos = new Set();
       historicoCompleto.forEach(h => {
           if (h.status === 'pago' || h.status === 'renegociado') {
@@ -109,7 +125,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       });
 
       // ====================================================================================
-      // MOTOR AUTO-GERADOR: GARANTE QUE TODOS OS ALUNOS TENHAM DE JAN A DEZ NO BANCO
+      // MOTOR AUTO-GERADOR BLINDADO (Gera apenas o que realmente falta)
       // ====================================================================================
       const missingMensalidades: any[] = [];
       const apenasMensalidades = historicoCompleto.filter(p => p.tipo === 'mensalidade');
@@ -117,25 +133,25 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       listaAlunos?.forEach(aluno => {
           mesesAno.forEach((nomeMes, indexMes) => {
               const descMes = nomeMes.toLowerCase();
-              const chaveRef = `${aluno.id}_${descMes}_${ano}`;
+              const chaveGlobal = `${aluno.id}_${descMes}_${ano}`;
 
-              // Se a referência já foi paga antecipada/normalmente, pula a geração
-              if (mesesPagos.has(chaveRef)) return;
+              // Se a referência já foi paga antecipada/normalmente, bloqueia a criação de dívida
+              if (mesesPagos.has(chaveGlobal)) return;
 
-              const jaTemFisica = apenasMensalidades.some(p => {
+              // Checa se já tem uma ficha pendente/atrasada física gerada para este mês
+              const jaCriadoFisicamente = apenasMensalidades.some(p => {
                   const ref = extrairMesAnoInteligente(p, ano);
                   return p.aluno_id === aluno.id && ref.mes === descMes && ref.ano === ano;
               });
 
-              if (!jaTemFisica) {
+              if (!jaCriadoFisicamente) {
                   const diaVenc = parseInt(aluno.vencimento) || 5;
                   const dataVencStr = `${ano}-${String(indexMes + 1).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
                   const dataVencObj = new Date(`${dataVencStr}T12:00:00`);
+                  dataVencObj.setHours(0,0,0,0);
 
                   let statusInicial = 'pendente';
-                  if (hoje > dataVencObj) {
-                      statusInicial = 'atrasado';
-                  }
+                  if (hojeObj > dataVencObj) statusInicial = 'atrasado';
 
                   missingMensalidades.push({
                       aluno_id: aluno.id,
@@ -146,6 +162,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                       valor_pago: 0,
                       status: statusInicial,
                       data_pagamento: dataVencStr,
+                      data_vencimento: dataVencStr, // FIXA VENCIMENTO ESTRITO
                       detalhes_metodos: {}
                   });
               }
@@ -165,11 +182,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       }
       // ====================================================================================
 
-      setListaReceitasDetalhada(historicoCompleto);
-
-      const nomeMesReferencia = mesesAno[parseInt(mes) - 1].toLowerCase();
-      
-      // Filtra os registros para a tela conectando o motor inteligente
+      // Filtra os pagamentos exibidos na tela cruzando EXATAMENTE o Mês e Ano lido da descrição
       const pgtosDesteMes = historicoCompleto.filter((p: any) => {
           if (p.tipo !== 'mensalidade') return false;
           const ref = extrairMesAnoInteligente(p, ano);
@@ -185,22 +198,46 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
       if (listaAlunos) {
         const ordenados = listaAlunos.map((aluno: any) => {
-          const pgtoMensalidade = pgtosDesteMes.find((p: any) => p.aluno_id === aluno.id);
-          const statusMensalidadeDB = pgtoMensalidade ? pgtoMensalidade.status : 'pendente';
-          const valorPagoMensalidade = pgtoMensalidade ? clean(pgtoMensalidade.valor_pago) : 0;
+          
+          // ====================================================================================
+          // AVALIAÇÃO DE STATUS 100% BLINDADA E INTELIGENTE
+          // ====================================================================================
+          const chaveBusca = `${aluno.id}_${nomeMesReferencia}_${ano}`;
+          const jaPagouNoCaderninho = mesesPagos.has(chaveBusca);
 
+          const pgtoMensalidade = pgtosDesteMes.find((p: any) => p.aluno_id === aluno.id);
           const acordoAluno = acordosDesteMes.find((a: any) => a.aluno_id === aluno.id && a.status !== 'pago');
           
           let valorBaseMensalidade = clean(aluno.valor) || valorBaseVigente;
-          let isMensalidadePendente = statusMensalidadeDB !== 'pago' && statusMensalidadeDB !== 'renegociado'; 
           
           let valorDevidoMensalidade = valorBaseMensalidade;
-          if (statusMensalidadeDB === 'parcial') {
-              valorDevidoMensalidade = Math.max(0, valorBaseMensalidade - valorPagoMensalidade);
-          } else if (!isMensalidadePendente) {
+          let statusFinal = 'pendente';
+          let nomeTags = [];
+
+          // 1. PRIORIDADE MÁXIMA: Se tá no caderninho de pagos (adiantamento ou normal), cravamos PAGO.
+          if (jaPagouNoCaderninho) {
+              statusFinal = 'pago';
               valorDevidoMensalidade = 0;
+          } 
+          // 2. Se não está no caderninho, verificamos faturas pendentes ou parciais do mês
+          else if (pgtoMensalidade) {
+              if (pgtoMensalidade.status === 'parcial') {
+                  statusFinal = 'parcial';
+                  valorDevidoMensalidade = Math.max(0, valorBaseMensalidade - clean(pgtoMensalidade.valor_pago));
+                  nomeTags.push(`⏳ Parcial (-R$ ${clean(pgtoMensalidade.valor_pago).toFixed(2)})`);
+              } else {
+                  // Se não é parcial e não tá pago, só pode ser pendente. Avaliamos se já atrasou:
+                  const diaVenc = parseInt(aluno.vencimento) || 5;
+                  const dataVencObj = new Date(parseInt(ano), parseInt(mes) - 1, diaVenc);
+                  dataVencObj.setHours(0,0,0,0);
+                  
+                  if (hojeObj > dataVencObj) {
+                      statusFinal = 'atrasado';
+                  }
+              }
           }
 
+          // 3. Avaliação Secundária: Acordos Vigentes do Aluno
           let temAcordoNoMes = !!acordosDesteMes.find((a: any) => a.aluno_id === aluno.id);
           let isAcordoPendente = temAcordoNoMes && (!acordoAluno || acordoAluno.status !== 'pago');
           let valorParcelaAcordo = acordoAluno ? clean(acordoAluno.valor_total) : 0;
@@ -210,30 +247,27 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           let idPagamentoAcordo = acordoAluno ? acordoAluno.id : null;
 
           let valorTotalDevido = 0;
-          let nomeTags = [];
 
-          if (isMensalidadePendente && valorDevidoMensalidade > 0) {
+          if (statusFinal !== 'pago' && valorDevidoMensalidade > 0) {
               valorTotalDevido += valorDevidoMensalidade;
-              if (statusMensalidadeDB === 'parcial') nomeTags.push(`⏳ Parcial (-R$ ${valorPagoMensalidade.toFixed(2)})`);
           }
           
           if (isAcordoPendente && valorParcelaAcordo > 0) {
               valorTotalDevido += valorParcelaAcordo;
               nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
+              
+              // Se há acordo pendente atrasado, o status final da linha fica vermelho
+              if (hojeObj > new Date(acordoAluno.data_pagamento + "T12:00:00")) {
+                  statusFinal = 'atrasado';
+              } else if (statusFinal !== 'atrasado') {
+                  statusFinal = acordoAluno.status === 'parcial' ? 'parcial' : 'pendente';
+              }
+
           } else if (temAcordoNoMes && !isAcordoPendente) {
               nomeTags.push(`✅ Acordo Pago`); 
           }
 
           let nomeExibicao = nomeTags.length > 0 ? `${aluno.nome} (${nomeTags.join(' | ')})` : aluno.nome;
-
-          let statusFinal = 'pendente';
-          if (!isMensalidadePendente && !isAcordoPendente) {
-               statusFinal = 'pago';
-          } else if (statusMensalidadeDB === 'parcial' || (acordoAluno && acordoAluno.status === 'parcial')) {
-               statusFinal = 'parcial';
-          } else if (statusMensalidadeDB === 'atrasado' || (isAcordoPendente && hoje > new Date(acordoAluno.data_pagamento + "T12:00:00")) || hoje.getDate() > (parseInt(aluno.vencimento) || 1)) {
-               statusFinal = 'atrasado';
-          }
 
           return {
             ...aluno,
@@ -243,7 +277,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
             isAcordo: isAcordoPendente, 
             idPagamentoAcordo: idPagamentoAcordo,
             valorParcelaAcordo: valorParcelaAcordo,
-            isMensalidadePendente: isMensalidadePendente,
+            isMensalidadePendente: statusFinal !== 'pago',
             valorBaseMensalidade,
             temAcordoNoMes 
           };
@@ -382,7 +416,7 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                              variacaoCredito += clean(p.credito_utilizado) + clean(p.credito_utilizado_nesta_parcela); 
                            });
 
-                           const dataVenc = new Date(`${m.data_pagamento}T12:00:00`);
+                           const dataVenc = new Date(`${m.data_vencimento || m.vencimento || m.data_pagamento}T12:00:00`);
                            const statusCorreto = hoje > dataVenc ? 'atrasado' : 'pendente';
 
                            await supabase.from('historico_pagamentos').update({

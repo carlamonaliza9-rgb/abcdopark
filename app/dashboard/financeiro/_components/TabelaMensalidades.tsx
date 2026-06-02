@@ -28,6 +28,24 @@ export function TabelaMensalidades({
     display: 'inline-block' 
   };
 
+  // Função meticulosa para separar os status visualmente e não gerar falsos alertas
+  const obterEstiloStatus = (status: string) => {
+    switch(status?.toLowerCase()) {
+      case 'pago': 
+        return { bg: '#dcfce7', text: '#166534', label: 'PAGO' };
+      case 'atrasado': 
+        return { bg: '#fee2e2', text: '#991b1b', label: 'ATRASADO' }; // Alerta real
+      case 'parcial': 
+        return { bg: '#fef3c7', text: '#92400e', label: 'PARCIAL' };
+      case 'acordo': 
+        // NOVA REGRA: Roxo para acordos de renegociação
+        return { bg: '#f3e8ff', text: '#6b21a8', label: 'ACORDO' };
+      default: 
+        // PENDENTE (Mensalidade normal, ainda não venceu). Neutro para não assustar.
+        return { bg: '#f3f4f6', text: '#4b5563', label: 'PENDENTE' }; 
+    }
+  };
+
   return (
     <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -41,7 +59,6 @@ export function TabelaMensalidades({
         />
       </div>
       
-      {/* ALTERAÇÃO: Removido maxHeight e overflowY para eliminar a rolagem interna do card */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead style={{ position: 'sticky', top: 0, backgroundColor: 'white' }}>
@@ -54,35 +71,39 @@ export function TabelaMensalidades({
             </tr>
           </thead>
           <tbody>
-            {alunos.map((aluno) => (
-              <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</td>
-                <td style={{ padding: '12px' }}>R$ {aluno.valor?.toLocaleString('pt-BR')}</td>
-                <td style={{ textAlign: 'center' }}>{aluno.vencimento}</td>
-                <td style={{ textAlign: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                    <span style={{ 
-                      ...estiloBtnReduzido, 
-                      backgroundColor: aluno.status === 'pago' ? '#dcfce7' : (aluno.status === 'atrasado' ? '#ef4444' : '#fee2e2'), 
-                      color: aluno.status === 'pago' ? '#166534' : (aluno.status === 'atrasado' ? 'white' : '#991b1b') 
-                    }}>
-                      {aluno.status?.toUpperCase() || 'PENDENTE'}
-                    </span>
-                    {aluno.status === 'pago' && (
-                      <button onClick={() => onDesfazer(aluno.id)} title="Desfazer Baixa" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>↩️</button>
-                    )}
-                  </div>
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                    <button onClick={() => onPagamento(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
-                    {aluno.status !== 'pago' && (
-                      <button onClick={() => onCobrar(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {alunos.map((aluno) => {
+              const { bg, text, label } = obterEstiloStatus(aluno.status);
+              
+              return (
+                <tr key={aluno.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: '#1f2937' }}>{aluno.nome}</td>
+                  <td style={{ padding: '12px' }}>R$ {aluno.valor?.toLocaleString('pt-BR')}</td>
+                  <td style={{ textAlign: 'center' }}>{aluno.vencimento}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                      <span style={{ 
+                        ...estiloBtnReduzido, 
+                        backgroundColor: bg, 
+                        color: text 
+                      }}>
+                        {label}
+                      </span>
+                      {aluno.status === 'pago' && (
+                        <button onClick={() => onDesfazer(aluno.id)} title="Desfazer Baixa" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>↩️</button>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                      <button onClick={() => onPagamento(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#2563eb', color: 'white' }}>+ PGTO</button>
+                      {aluno.status !== 'pago' && (
+                        <button onClick={() => onCobrar(aluno)} style={{ ...estiloBtnReduzido, backgroundColor: '#10b981', color: 'white' }} title="Cobrar no WhatsApp">COBRAR</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
