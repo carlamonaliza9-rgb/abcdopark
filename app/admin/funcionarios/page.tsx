@@ -18,7 +18,6 @@ async function getCroppedImg(image: HTMLImageElement, crop: PixelCrop, fileName:
   const scaleX = image.naturalWidth / image.width;
   const scaleY = image.naturalHeight / image.height;
   
-  // O canvas deve ter o tamanho real do recorte projetado nos pixels originais da imagem
   canvas.width = Math.floor(crop.width * scaleX);
   canvas.height = Math.floor(crop.height * scaleY);
   
@@ -41,7 +40,7 @@ async function getCroppedImg(image: HTMLImageElement, crop: PixelCrop, fileName:
       }
       (blob as any).name = fileName;
       resolve(blob);
-    }, "image/jpeg", 1); // Qualidade ajustada para 1 (máxima)
+    }, "image/jpeg", 1);
   });
 }
 
@@ -61,6 +60,11 @@ export default function FuncionariosAdminPage() {
   const [cargo, setCargo] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
+  
+  // NOVO: Estados de Endereço
+  const [cep, setCep] = useState("");
+  const [endereco, setEndereco] = useState("");
+
   const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -69,7 +73,7 @@ export default function FuncionariosAdminPage() {
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const imgRef = useRef<HTMLImageElement>(null);
-  const aspect = 16 / 9; // Proporção retangular (estilo banner)
+  const aspect = 16 / 9;
 
   // --- ESTADOS DE DOCUMENTOS ---
   const [modalDocsAberto, setModalDocsAberto] = useState(false);
@@ -118,6 +122,28 @@ export default function FuncionariosAdminPage() {
     v = v.replace(/(\d{3})(\d)/, "$1.$2");
     v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
     return v;
+  };
+
+  const mCEP = (v: string) => {
+    v = v.replace(/\D/g, "");
+    v = v.replace(/^(\d{5})(\d)/, "$1-$2");
+    return v;
+  };
+
+  // --- BUSCA VIACEP ---
+  const buscarEnderecoPorCep = async (cepBuscado: string) => {
+    const cepLimpo = cepBuscado.replace(/\D/g, "");
+    if (cepLimpo.length === 8) {
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setEndereco(`${data.logradouro}, Bairro: ${data.bairro}, ${data.localidade} - ${data.uf}`);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP:", err);
+      }
+    }
   };
 
   async function buscarFuncionarios() {
@@ -191,6 +217,7 @@ export default function FuncionariosAdminPage() {
         if (uploadData) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
 
+      // NOVO: cep e endereco inseridos no payload
       const dados = { 
         nome, 
         cpf: cpf || null, 
@@ -198,6 +225,8 @@ export default function FuncionariosAdminPage() {
         cargo, 
         whatsapp: whatsapp || null, 
         email: email || null, 
+        cep: cep || null,
+        endereco: endereco || null,
         foto_url: urlFinal 
       };
 
@@ -278,6 +307,7 @@ export default function FuncionariosAdminPage() {
 
   function limparFormulario() {
     setIdEdicao(null); setNome(""); setCpf(""); setDataNascimento(""); setCargo(""); setWhatsapp(""); setEmail("");
+    setCep(""); setEndereco(""); // NOVO: Limpar CEP e Endereço
     setArquivoFoto(null); setPreviewUrl(null); setModoEdicao(false);
     setDocRG(null); setDocComprovante(null); setDocCertidao(null);
     setFotoOriginal(null); setCompletedCrop(undefined);
@@ -286,6 +316,7 @@ export default function FuncionariosAdminPage() {
   function abrirFicha(f: any) {
     setIdEdicao(f.id); setNome(f.nome); setCpf(f.cpf || ""); setDataNascimento(f.data_nascimento || "");
     setCargo(f.cargo || ""); setWhatsapp(f.whatsapp || ""); setEmail(f.email || "");
+    setCep(f.cep || ""); setEndereco(f.endereco || ""); // NOVO: Setar CEP e Endereço
     setPreviewUrl(f.foto_url); setModoEdicao(false); setModalAberto(true);
     setUrlsDocs({
       rg: f.rg_url || "",
@@ -344,7 +375,6 @@ export default function FuncionariosAdminPage() {
             onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'; }}
             onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'; }}
           >
-            {/* Header com altura fixa de 140px para não distorcer os cards */}
             <div style={{ width: '100%', height: '140px', backgroundColor: '#f1f5f9', position: 'relative' }}>
               {f.foto_url ? (
                 <img src={f.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -358,7 +388,6 @@ export default function FuncionariosAdminPage() {
               </div>
             </div>
             
-            {/* Corpo do Card */}
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{f.nome}</h3>
                 
@@ -374,7 +403,6 @@ export default function FuncionariosAdminPage() {
       {modalAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px' }}>
           
-          {/* MODAL DE CORTE DE IMAGEM SOBREPOSTO */}
           {fotoOriginal && modoEdicao && (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                   <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '24px', textAlign: 'center', maxWidth: '95%', maxHeight: '95%', display: 'flex', flexDirection: 'column' }}>
@@ -419,9 +447,18 @@ export default function FuncionariosAdminPage() {
                     <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>WhatsApp</span>
                     <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mWhatsApp(whatsapp) || '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
                     <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>E-mail</span>
                     <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{email || '--'}</span>
+                  </div>
+                  {/* NOVO: Exibição de CEP e Endereço */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CEP</span>
+                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mCEP(cep) || '--'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Endereço</span>
+                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600', lineHeight: '1.4' }}>{endereco || '--'}</span>
                   </div>
                 </div>
 
@@ -470,6 +507,25 @@ export default function FuncionariosAdminPage() {
                 <input type="text" placeholder="WhatsApp" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
                 <input type="email" placeholder="E-mail" value={email} onChange={(e)=>setEmail(e.target.value)} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
 
+                {/* NOVO: Campos de CEP e Endereço */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="CEP" 
+                    value={cep} 
+                    onChange={(e)=>setCep(mCEP(e.target.value))} 
+                    onBlur={(e)=>buscarEnderecoPorCep(e.target.value)}
+                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Endereço Completo" 
+                    value={endereco} 
+                    onChange={(e)=>setEndereco(e.target.value)} 
+                    style={{ flex: 2, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} 
+                  />
+                </div>
+
                 <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                   <button type="button" onClick={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', color: '#475569', cursor: 'pointer' }}>CANCELAR</button>
                   <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -491,7 +547,6 @@ export default function FuncionariosAdminPage() {
 
             <form onSubmit={salvarDocumentos} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
-              {/* RG */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Registro Geral (RG)</label>
@@ -500,7 +555,6 @@ export default function FuncionariosAdminPage() {
                 <input type="file" accept=".pdf,image/*" onChange={(e) => setDocRG(e.target.files?.[0] || null)} style={{ fontSize: '13px', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '10px', backgroundColor: 'white', cursor: 'pointer', color: '#475569' }} />
               </div>
 
-              {/* Comprovante de Residência */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Comprovante de Residência</label>
@@ -509,7 +563,6 @@ export default function FuncionariosAdminPage() {
                 <input type="file" accept=".pdf,image/*" onChange={(e) => setDocComprovante(e.target.files?.[0] || null)} style={{ fontSize: '13px', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '10px', backgroundColor: 'white', cursor: 'pointer', color: '#475569' }} />
               </div>
 
-              {/* Certidão de Nascimento */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Certidão de Nascimento</label>
