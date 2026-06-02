@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { clean, calcularIdade, obterMediaFinal, extrairFormaPagamento, mCPF, mWhatsApp, abrirWhatsApp } from "./alunoUtils";
 
-export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha }: any) {
+export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onExcluir }: any) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden relative">
       <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-10"></div>
@@ -30,10 +30,24 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha }: an
             </div>
           </div>
           {!ehVisitante && (
-            <div className="mt-6 md:mt-0 flex justify-center md:justify-end items-center">
+            <div className="mt-6 md:mt-0 flex justify-center md:justify-end items-center gap-3">
               <button onClick={abrirEdicaoFicha} className="bg-gray-100 hover:bg-blue-200 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-md transition-all flex items-center gap-2">
                 ✏️ Editar Ficha
               </button>
+              
+              {/* NOVO: Botão de Exclusão da Ficha do Aluno */}
+              {onExcluir && (
+                <button 
+                  onClick={onExcluir} 
+                  className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white font-bold px-4 py-3 rounded-xl shadow-md transition-all flex items-center gap-2 border border-rose-200"
+                  title="Excluir Permanentemente"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Excluir Ficha
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -56,10 +70,13 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${saldoCreditoVisivel > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>Crédito Conta</span>
           <p className={`text-xl lg:text-2xl font-black ${saldoCreditoVisivel > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
+        
+        {/* CORREÇÃO DO BLOCO DÍVIDA ATIVA - Exibe condicionalmente e usa a prop ajustada no painel principal */}
         <div onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }} className={`p-4 rounded-3xl border transition-all ${totalPendenteGeral > 0 ? 'bg-rose-50 border-rose-200 cursor-pointer hover:shadow-md hover:-translate-y-1' : 'bg-white border-slate-100 opacity-60'}`}>
           <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${totalPendenteGeral > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Dívida Ativa</span>
           <p className={`text-xl lg:text-2xl font-black ${totalPendenteGeral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
+        
         <div className="p-4 rounded-3xl border border-amber-100 bg-amber-50">
           <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-1">Média Pedagógica</span>
           <p className="text-lg lg:text-xl">{mediaEstrelas > 0 ? "⭐".repeat(Math.round(mediaEstrelas)) : <span className="text-amber-800/40 text-sm font-bold">Sem Notas</span>}</p>
@@ -178,6 +195,9 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
 }
 
 export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, setModalPDVAberto, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
+  // FILTRO: Só renderizamos o que está de fato vencido (considerando data local pt-BR). 
+  // Na props "listaPendenciasGerais" os dados já devem vir calculados pela página pai.
+  
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-6">
@@ -211,9 +231,9 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
                 <div>
                   <span className="text-base font-bold text-slate-800">{pend.descricao}</span>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-xs font-semibold text-slate-500">Vencimento: {new Date(pend.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                    <span className="text-xs font-semibold text-slate-500">Vencimento/Base: {new Date(pend.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${pend.atraso_automatico ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {pend.atraso_automatico ? 'NÃO PAGO' : pend.status}
+                      {pend.atraso_automatico ? 'NÃO PAGO (ATRASO)' : pend.status}
                     </span>
                   </div>
                 </div>
@@ -494,7 +514,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
       startY: 66,
       head: [['DATA', 'DESCRIÇÃO', 'FORMA', 'VALOR']],
       body: historicoFiltradoParaPDF.map((h: any) => {
-        // Extrai a forma de pagamento avançada (incluindo Juros) do PDV/Modal
         let f = h.detalhes_metodos?.formas || (h.detalhes_metodos?.historico_parciais?.length > 0 ? h.detalhes_metodos.historico_parciais[h.detalhes_metodos.historico_parciais.length - 1].formas : null) || h.detalhes_metodos?.forma_geradora;
         if (!f) f = extrairFormaPagamento(h.detalhes_metodos);
 
@@ -529,7 +548,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
       <div className="space-y-4">
         {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
-          // Extrai a forma de pagamento avançada para a tela
           let forma = pgto.detalhes_metodos?.formas || (pgto.detalhes_metodos?.historico_parciais?.length > 0 ? pgto.detalhes_metodos.historico_parciais[pgto.detalhes_metodos.historico_parciais.length - 1].formas : null) || pgto.detalhes_metodos?.forma_geradora;
           if (!forma) forma = extrairFormaPagamento(pgto.detalhes_metodos);
 

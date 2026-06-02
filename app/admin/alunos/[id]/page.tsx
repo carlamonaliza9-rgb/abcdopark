@@ -113,41 +113,126 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     const { data: historicoCompleto } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', aluno.id).order('data_pagamento', { ascending: false });
     
     if (historicoCompleto) {
-      setHistoricoLocal(historicoCompleto);
-      let dividaCalculada = 0;
-      let listaDívida = [];
+      // ==========================================
+      // MOTOR DE DESDUPLICAÇÃO (Antecipações e Conflitos)
+      // ==========================================
+      const mesesPagos = new Set();
       
-      const pendenciasRegistradas = historicoCompleto.filter(h => h.status === 'pendente' || h.status === 'parcial');
-      pendenciasRegistradas.forEach(pend => {
-        dividaCalculada += (clean(pend.valor_total) - clean(pend.valor_pago));
-        listaDívida.push({ ...pend, atraso_automatico: false });
+      // 1. Rastreador de meses pagos
+      historicoCompleto.forEach(h => {
+        if (h.status === 'pago' && (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo')) {
+          const desc = (h.descricao || "").toLowerCase();
+          let mes = (h.mes_referencia || "").toLowerCase().trim();
+          
+          if (!mes) {
+            const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+            mes = nomesMeses.find(m => desc.includes(m)) || "";
+          }
+          
+          const anoMatch = desc.match(/(20\d{2})/);
+          let anoRef = anoMatch ? anoMatch[0] : null;
+
+          if (!anoRef && h.data_pagamento) {
+            const dPgto = new Date(h.data_pagamento);
+            if (dPgto.getMonth() >= 9) { // Se pagou no final do ano
+              const mesesInicio = ["janeiro", "fevereiro", "março", "abril"];
+              anoRef = mesesInicio.includes(mes) ? (dPgto.getFullYear() + 1).toString() : dPgto.getFullYear().toString();
+            } else {
+              anoRef = dPgto.getFullYear().toString();
+            }
+          }
+
+          if (mes && anoRef) mesesPagos.add(`${mes}_${anoRef}`);
+        }
       });
 
+      // 2. Filtra o histórico físico apagando as duplicidades pendentes de meses já pagos
+      const historicoSemDuplicatas = historicoCompleto.filter(h => {
+        if ((h.status === 'pendente' || h.status === 'atrasado') && h.tipo?.toLowerCase() === 'mensalidade') {
+          const desc = (h.descricao || "").toLowerCase();
+          let mes = (h.mes_referencia || "").toLowerCase().trim();
+          
+          if (!mes) {
+            const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+            mes = nomesMeses.find(m => desc.includes(m)) || "";
+          }
+          
+          const anoMatch = desc.match(/(20\d{2})/);
+          let anoRef = anoMatch ? anoMatch[0] : (h.data_vencimento || h.data_pagamento)?.substring(0, 4);
+
+          // Se a chave "mes_ano" já foi paga, descarta a versão pendente da tela/extrato
+          if (mes && anoRef && mesesPagos.has(`${mes}_${anoRef}`)) return false; 
+        }
+        return true;
+      });
+
+      // Usa o histórico limpo para renderizar o ExtratoAluno
+      setHistoricoLocal(historicoSemDuplicatas);
+
+      let dividaCalculada = 0;
+      let listaDívida = [];
+      const hojeStr = new Date();
+      hojeStr.setHours(0,0,0,0);
+
+      // 3. Verifica pendências físicas limpas, exigindo que estejam em atraso real
+      const pendenciasRegistradas = historicoSemDuplicatas.filter(h => {
+        if (h.status === 'renegociado' || h.status === 'cancelado' || h.status === 'estornado' || h.status === 'pago') return false;
+        
+        const devedor = clean(h.valor_total) - clean(h.valor_pago);
+        if (devedor <= 0) return false;
+
+        // Se for mensalidade (cadastrada fisicamente), exige atraso
+        if (h.tipo?.toLowerCase() === 'mensalidade') {
+          const dataVenc = new Date(h.data_vencimento || h.vencimento || h.data_pagamento);
+          dataVenc.setHours(0,0,0,0);
+          if (dataVenc >= hojeStr) return false; // Ignora se o vencimento é hoje ou futuro (Pendente)
+        }
+        return true;
+      });
+
+      pendenciasRegistradas.forEach(pend => {
+        dividaCalculada += (clean(pend.valor_total) - clean(pend.valor_pago));
+        listaDívida.push({ ...pend, atraso_automatico: pend.tipo?.toLowerCase() === 'mensalidade' }); 
+      });
+
+      // 4. Varredura Virtual de Mensalidades (Atrasos Faltantes)
       const dataAtual = new Date();
       const mesAtualNum = dataAtual.getMonth(); 
       const anoAtual = dataAtual.getFullYear().toString();
-      const diaVencimentoAluno = parseInt(aluno.vencimento) || 5;
+      const diaVencimentoAluno = parseInt(aluno.vencimento);
       const valorMensalidadeBase = clean(aluno.valor);
 
-      if (valorMensalidadeBase > 0) {
+      if (valorMensalidadeBase > 0 && !isNaN(diaVencimentoAluno)) {
         for (let i = 0; i <= mesAtualNum; i++) {
+          const isVencido = (i < mesAtualNum) || (i === mesAtualNum && dataAtual.getDate() > diaVencimentoAluno);
+          if (!isVencido) continue; // Pula os meses futuros ou o mês atual não vencido
+
           const nomeMes = mesesAno[i];
-          if (i === mesAtualNum && dataAtual.getDate() <= diaVencimentoAluno) continue;
+          const chaveBusca = `${nomeMes.toLowerCase()}_${anoAtual}`;
 
-          const jaExisteNoBanco = historicoCompleto.some(h => 
-            (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
-            h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
-            (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) &&
-            !['cancelado', 'estornado'].includes(h.status)
-          );
+          // Se já está no caderninho de pagos (antecipado ou normal), ignora
+          if (mesesPagos.has(chaveBusca)) continue;
 
-          if (!jaExisteNoBanco) {
+          // Se já tem uma dívida física gerada para esse mês, ignora para não duplicar
+          const jaTemDividaFisica = pendenciasRegistradas.some(h => {
+            const isMensalidade = h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo';
+            const isMesCorreto = h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() || (h.descricao||"").toLowerCase().includes(nomeMes.toLowerCase());
+            const isAnoCorreto = (h.descricao||"").includes(anoAtual) || h.data_pagamento?.startsWith(anoAtual);
+            return isMensalidade && isMesCorreto && isAnoCorreto;
+          });
+
+          if (!jaTemDividaFisica) {
             dividaCalculada += valorMensalidadeBase;
             listaDívida.push({
-              id: `temp_${nomeMes}`, descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`, mes_referencia: nomeMes,
-              valor_total: valorMensalidadeBase, valor_pago: 0,
+              id: `temp_${nomeMes}`, 
+              descricao: `Mensalidade em Atraso - ${nomeMes}/${anoAtual}`, 
+              mes_referencia: nomeMes,
+              valor_total: valorMensalidadeBase, 
+              valor_pago: 0,
               data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(),
-              status: 'atrasado', atraso_automatico: true, isTemp: true
+              status: 'atrasado', 
+              atraso_automatico: true, 
+              isTemp: true
             });
           }
         }
@@ -167,8 +252,14 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     setIsProcessandoAcao(true);
     setCarregando(true);
     try {
+      await supabase.from('historico_pagamentos').delete().eq('aluno_id', alunoId);
+      await supabase.from('mensalidades').delete().eq('aluno_id', alunoId);
+      await supabase.from('boletins').delete().eq('aluno_id', alunoId);
+      await supabase.from('taxas_eventos').delete().eq('aluno_id', alunoId);
+      
       const { error } = await supabase.from('alunos').delete().eq('id', alunoId);
       if (error) throw error;
+      
       alert("Ficha do aluno excluída com sucesso.");
       router.push('/admin/alunos');
     } catch (error: any) {
@@ -311,12 +402,9 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         const ctx = canvas.getContext("2d");
         const TAMANHO_ALVO = 300;
         canvas.width = TAMANHO_ALVO; canvas.height = TAMANHO_ALVO;
-
         if (ctx) {
           const menorDimensao = Math.min(img.width, img.height);
-          const sWidth = menorDimensao; const sHeight = menorDimensao;
-          const sx = (img.width - sWidth) / 2; const sy = (img.height - sHeight) / 2;
-          ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, TAMANHO_ALVO, TAMANHO_ALVO);
+          ctx.drawImage(img, (img.width - menorDimensao) / 2, (img.height - menorDimensao) / 2, menorDimensao, menorDimensao, 0, 0, TAMANHO_ALVO, TAMANHO_ALVO);
         }
         canvas.toBlob((blob) => { if (blob) resolve(blob); else resolve(arquivo); }, "image/jpeg", 0.9);
       };
@@ -405,6 +493,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       setIsProcessandoAcao(false);
       return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
     }
+
     if (creditoUtilizado > saldoCreditoVisivel) {
       setIsProcessandoAcao(false);
       return alert("O aluno não possui essa quantidade de crédito disponível para abater.");
@@ -587,7 +676,15 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     <div className="w-full bg-[#f8fafc] min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8">
       <div className="max-w-[1700px] w-full mx-auto space-y-6 lg:space-y-8 animate-in fade-in duration-300">
         
-        <BannerAluno aluno={aluno} router={router} ehVisitante={ehVisitante} abrirEdicaoFicha={abrirEdicaoFicha} userEmail={userEmail} handleDeletarFicha={handleDeletarFicha} isProcessandoAcao={isProcessandoAcao} />
+        <BannerAluno 
+          aluno={aluno} 
+          router={router} 
+          ehVisitante={ehVisitante} 
+          abrirEdicaoFicha={abrirEdicaoFicha} 
+          userEmail={userEmail} 
+          onExcluir={handleDeletarFicha} 
+          isProcessandoAcao={isProcessandoAcao} 
+        />
 
         {verDividasGlobais ? (
           <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} setModalPDVAberto={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
