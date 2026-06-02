@@ -63,7 +63,6 @@ export default function DashboardAdminPage() {
   async function carregarDados() {
     try {
       const { data: authData } = await supabase.auth.getUser();
-      const { data: sessionData } = await supabase.auth.getSession();
       
       if (!authData?.user) return router.push("/login");
       
@@ -179,7 +178,7 @@ export default function DashboardAdminPage() {
     try {
       const { error } = await supabase.auth.updateUser({ data: { nome: novoNomeInput } });
       if (error) throw error;
-      alert("Perfil atualizado com sucesso!");
+      alert("Perfil updated com sucesso!");
       setNomeUsuario(novoNomeInput.split(' ')[0]);
       setNomeCompleto(novoNomeInput);
       setModalConfigAberto(false);
@@ -218,28 +217,51 @@ export default function DashboardAdminPage() {
   const formatarDataLocal = (dataString: string) => { const d = new Date(dataString + "T12:00:00"); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }); };
   const extrairDiaUTC = (dataString: string) => { const d = new Date(dataString + "T12:00:00"); return d.getUTCDate(); };
   const handleDrag = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setArrastando(e.type === "dragenter" || e.type === "dragover"); };
-  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setArrastando(false); const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith("image/")) { setArquivoImagem(file); setPreviewImagem(URL.createObjectURL(file)); } };
+  
+  const handleDrop = (e: React.DragEvent) => { 
+    e.preventDefault(); 
+    e.stopPropagation(); 
+    setArrastando(false); 
+    const file = e.dataTransfer.files?.[0]; 
+    if (file && file.type.startsWith("image/")) { 
+      setArquivoImagem(file); 
+      setPreviewImagem(URL.createObjectURL(file)); 
+    } 
+  };
 
-  const enviarAvisoWhatsApp = () => {
-    // Código seguro do emoji de megafone
+  // FUNÇÃO ATUALIZADA COM SUPORTE A IMAGENS VIA CLIPBOARD API
+  const enviarAvisoWhatsApp = async () => {
     const iconeAviso = String.fromCodePoint(0x1F4E2); 
     const textoFinal = `${iconeAviso} *AVISO ABC DO PARK*\n\n${mensagemAviso}`;
     
-    // Substituído wa.me pela API direta do WhatsApp para não quebrar a codificação da URL
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoFinal)}`;
     
-    navigator.clipboard.writeText(textoFinal);
+    if (arquivoImagem) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [arquivoImagem.type]: arquivoImagem
+          })
+        ]);
+        alert("✅ Imagem copiada!\n\nQuando o WhatsApp abrir, clique na barra de texto e pressione Ctrl+V para enviar a imagem junto com o comunicado.");
+      } catch (error) {
+        console.error("Erro ao transferir imagem para o Clipboard:", error);
+        alert("⚠️ Seu navegador não permitiu a cópia automática da imagem. Se necessário, anexe o arquivo manualmente no WhatsApp.");
+      }
+    } else {
+      navigator.clipboard.writeText(textoFinal);
+    }
+    
     window.open(url, '_blank');
     setModalAvisoAberto(false); 
     setMensagemAviso(""); 
+    setArquivoImagem(null); 
     setPreviewImagem(null); 
     setMostrarEmojis(false);
   };
 
   const parabensWhatsApp = (persona: any) => {
-    // Códigos seguros: 🎉 (0x1F389), 🎂 (0x1F382), 🎈 (0x1F388)
     const msg = `Parabéns, ${persona.nome.split(' ')[0]}! ${String.fromCodePoint(0x1F389)} A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! ${String.fromCodePoint(0x1F382)}${String.fromCodePoint(0x1F388)}`;
-    
     const url = `https://api.whatsapp.com/send?phone=55${persona.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
@@ -302,21 +324,21 @@ export default function DashboardAdminPage() {
             <div style={{ padding: '30px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 {aniversariantesHoje.map(pessoa => {
-                  const ehVoce = pessoa.email === userEmail;
+                  const ehRealVoce = pessoa.email === userEmail;
                   return (
-                    <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: ehVoce ? '#f0f9ff' : '#f8fafc', padding: '15px', borderRadius: '22px', border: `2px solid ${ehVoce ? '#3b82f6' : '#e5e7eb'}` }}>
+                    <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: ehRealVoce ? '#f0f9ff' : '#f8fafc', padding: '15px', borderRadius: '22px', border: `2px solid ${ehRealVoce ? '#3b82f6' : '#e5e7eb'}` }}>
                       <div style={{ width: '65px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', border: '2px solid #eee', overflow: 'hidden', flexShrink: 0 }}>
                         {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#666' }}>{pessoa.nome.charAt(0)}</div>}
                       </div>
                       <div style={{ flex: 1 }}>
                         <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
-                          {ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}
+                          {ehRealVoce ? "Você está de parabéns! 🥳" : pessoa.nome}
                         </h4>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: ehVoce ? '#2563eb' : (pessoa.tipo === 'funcionario' ? '#a90cd0' : '#64748b') }}>
-                          {ehVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: ehRealVoce ? '#2563eb' : (pessoa.tipo === 'funcionario' ? '#a90cd0' : '#64748b') }}>
+                          {ehRealVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
                         </span>
                       </div>
-                      {!ehVoce && (
+                      {!ehRealVoce && (
                         <button onClick={() => parabensWhatsApp(pessoa)} style={{ background: '#22c55e', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 6px rgba(34, 197, 94, 0.2)' }} title="Dar parabéns">📱</button>
                       )}
                     </div>
@@ -410,7 +432,7 @@ export default function DashboardAdminPage() {
                     {persona.foto_url ? <img src={persona.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: corDestaque }}>{persona.nome.charAt(0)}</div>}
                   </div>
                   <p style={{ fontSize: '12px', fontWeight: 'bold', marginTop: '8px', color: '#1f2937' }}>{persona.nome.split(' ')[0]}</p>
-                  <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia} {persona.tipo === 'funcionario'}</p>
+                  <p style={{ fontSize: '11px', color: corDestaque, fontWeight: '600' }}>Dia {dia < 10 ? `0${dia}` : dia}</p>
                 </div>
               );
             }) : <p style={{ color: '#9ca3af', fontSize: '14px' }}>Nenhum aniversário este mês.</p>}
