@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Buscando os componentes na pasta original para não duplicar arquivos
 import { AlunosHeader } from "@/app/dashboard/alunos/_components/AlunosHeader";
 import { AlunoCard } from "@/app/dashboard/alunos/_components/AlunoCard";
 import { FichaAlunoModal } from "@/app/dashboard/alunos/_components/FichaAlunoModal";
@@ -20,9 +19,12 @@ export default function AlunosAdminPage() {
   const [carregando, setCarregando] = useState(false);
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [cargo, setCargo] = useState<string | null>(null); // Novo estado para controlar permissões por nível
+  const [cargo, setCargo] = useState<string | null>(null); 
   const [busca, setBusca] = useState("");
   
+  // ESTADO DO CAIXA DO PDV
+  const [caixaAtual, setCaixaAtual] = useState<any>(null);
+
   // --- ESTADOS DOS CAMPOS ---
   const [idEdicao, setIdEdicao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
@@ -30,7 +32,6 @@ export default function AlunosAdminPage() {
   const [turma, setTurma] = useState("");
   const [turno, setTurno] = useState("");
 
-  // Endereço
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
   const [numero, setNumero] = useState("");
@@ -38,7 +39,6 @@ export default function AlunosAdminPage() {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
   
-  // Responsável 1
   const [responsavel, setResponsavel] = useState("");
   const [parentesco1, setParentesco1] = useState("Mãe");
   const [cpfResponsavel, setCpfResponsavel] = useState("");
@@ -46,7 +46,6 @@ export default function AlunosAdminPage() {
   const [emailResponsavel, setEmailResponsavel] = useState("");
   const [profissaoResponsavel, setProfissaoResponsavel] = useState(""); 
   
-  // Responsável 2
   const [responsavel2, setResponsavel2] = useState("");
   const [parentesco2, setParentesco2] = useState("Pai");
   const [cpfResponsavel2, setCpfResponsavel2] = useState("");
@@ -54,7 +53,6 @@ export default function AlunosAdminPage() {
   const [emailResponsavel2, setEmailResponsavel2] = useState("");
   const [profissaoResponsavel2, setProfissaoResponsavel2] = useState(""); 
 
-  // Responsável 3
   const [responsavel3, setResponsavel3] = useState("");
   const [parentesco3, setParentesco3] = useState("");
   const [whatsapp3, setWhatsapp3] = useState("");
@@ -76,22 +74,22 @@ export default function AlunosAdminPage() {
   const [notes, setNotas] = useState<any[]>([]);
   const [anoBoletimAtivo, setAnoBoletimAtivo] = useState("2026"); 
 
-  // --- ESTADOS PARA EDIÇÃO DE PAGAMENTO NO HISTÓRICO ---
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
   const [dataPagamento, setDataPagamento] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
   const [mesReferencia, setMesReferencia] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+  
+  const [pagamentosMetodos, setPagamentosMetodos] = useState<any>({ 
+    pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" 
+  });
 
   const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   
-  // Define dinamicamente baseado no cargo salvo na tabela 'perfis'
   const ehVisitante = cargo === "Visitante"; 
 
-  // --- TRAVA DE SEGURANÇA E CARREGAMENTO ---
   useEffect(() => { 
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -99,24 +97,24 @@ export default function AlunosAdminPage() {
 
       setUserEmail(user.email || null);
       
-      // Busca o cargo real do usuário atual do banco de dados
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const cargoAtual = perfil?.cargo || null;
-      
       setCargo(cargoAtual);
       
-      // Define quem tem permissão para entrar nesta tela (Admins e Visitantes/Professores)
       const temAcesso = cargoAtual === 'Admin' || cargoAtual === 'Visitante';
-      
       if (!temAcesso) return router.push("/dashboard");
 
       await buscarAlunos();
+      
+      // BUSCA O CAIXA ABERTO NO PDV
+      const { data: sessoesAtivas } = await supabase.from('sessoes_caixa').select('*').eq('status', 'aberto').order('data_abertura', { ascending: false }).limit(1);
+      setCaixaAtual(sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null);
+
       setVerificandoAcesso(false);
     }
     verificarAcesso();
   }, [router]);
 
-  // --- FUNÇÕES UTILITÁRIAS ---
   const mWhatsApp = (v: string) => {
     if (!v) return "";
     v = v.replace(/\D/g, "");
@@ -261,7 +259,6 @@ export default function AlunosAdminPage() {
     }
   }
 
-  // --- FILTRO INTELIGENTE EM REGRAS DE NEGÓCIO ---
   async function buscarHistoricoPagamento(alunoId: string, ano: string = "2026") {
     const { data, error } = await supabase
       .from('historico_pagamentos')
@@ -509,13 +506,46 @@ export default function AlunosAdminPage() {
     setDataPagamento(pgto.data_pagamento);
     setTipoPagamento(pgto.tipo);
     setDescricaoOutro(pgto.descricao);
-    setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    
+    // Reseta o form para garantir que chaves como desconto e multa apareçam
+    setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" });
     setModalPgtoAberto(true);
   }
 
   async function handleSalvarPgtoEditado() {
-    const soma = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    const dados = { tipo: tipoPagamento, descricao: descricaoOutro, valor_total: soma, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
+    const limpa = (v: any) => parseFloat(String(v).replace(',', '.')) || 0;
+    
+    const somaRecebida = 
+      limpa(pagamentosMetodos.pix) + 
+      limpa(pagamentosMetodos.dinheiro) + 
+      limpa(pagamentosMetodos.credito) + 
+      limpa(pagamentosMetodos.debito) + 
+      limpa(pagamentosMetodos.boleto) +
+      limpa(pagamentosMetodos.credito_aluno);
+
+    const { data: pgtoOriginal } = await supabase.from('historico_pagamentos').select('valor_total').eq('id', idPagamentoEdicao).single();
+    const valorOriginalDaDivida = pgtoOriginal ? limpa(pgtoOriginal.valor_total) : somaRecebida;
+
+    const totalDesconto = limpa(pagamentosMetodos.desconto);
+    const devedorRestante = valorOriginalDaDivida - somaRecebida - totalDesconto;
+
+    const novoStatus = devedorRestante <= 0.01 ? 'pago' : 'parcial';
+
+    // VERIFICAÇÃO DE CAIXA: Toda atualização de saldo financeiro na Ficha deve pertencer ao caixa do dia
+    if (!caixaAtual) {
+      return alert("ATENÇÃO: Não há nenhum Caixa Aberto! Vá ao módulo 'Frente de Caixa (PDV)' e abra o turno antes de realizar ou modificar pagamentos.");
+    }
+
+    const dados = { 
+      tipo: tipoPagamento, 
+      descricao: descricaoOutro, 
+      valor_pago: somaRecebida, 
+      status: novoStatus,
+      data_pagamento: dataPagamento, 
+      detalhes_metodos: pagamentosMetodos,
+      caixa_id: caixaAtual.id // <--- GARANTE A INTEGRAÇÃO COM O PDV
+    };
+    
     await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
     setModalPgtoAberto(false);
     buscarHistoricoPagamento(idEdicao!, "2026");
@@ -543,7 +573,6 @@ export default function AlunosAdminPage() {
       return;
     }
 
-    // Se for professor (visitante), abre o modal exatamente como antes
     setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); setTurno(aluno.turno || "");
     setCep(aluno.cep || ""); setEndereco(aluno.endereco || ""); setNumero(aluno.numero || ""); 
     setBairro(aluno.bairro || ""); setCidade(aluno.cidade || ""); setEstado(aluno.estado || "");

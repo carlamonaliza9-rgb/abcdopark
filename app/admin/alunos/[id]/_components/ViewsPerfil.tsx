@@ -35,7 +35,6 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
                 ✏️ Editar Ficha
               </button>
               
-              {/* NOVO: Botão de Exclusão da Ficha do Aluno */}
               {onExcluir && (
                 <button 
                   onClick={onExcluir} 
@@ -71,7 +70,6 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <p className={`text-xl lg:text-2xl font-black ${saldoCreditoVisivel > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
         
-        {/* CORREÇÃO DO BLOCO DÍVIDA ATIVA - Exibe condicionalmente e usa a prop ajustada no painel principal */}
         <div onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }} className={`p-4 rounded-3xl border transition-all ${totalPendenteGeral > 0 ? 'bg-rose-50 border-rose-200 cursor-pointer hover:shadow-md hover:-translate-y-1' : 'bg-white border-slate-100 opacity-60'}`}>
           <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${totalPendenteGeral > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Dívida Ativa</span>
           <p className={`text-xl lg:text-2xl font-black ${totalPendenteGeral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
@@ -195,9 +193,6 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
 }
 
 export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, setModalPDVAberto, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
-  // FILTRO: Só renderizamos o que está de fato vencido (considerando data local pt-BR). 
-  // Na props "listaPendenciasGerais" os dados já devem vir calculados pela página pai.
-  
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-6">
@@ -473,12 +468,56 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA }: any) {
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, setModalPDVAberto }: any) {
+  
   const historicoFiltrado = historicoLocal.filter((h: any) => 
     (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
     h.status !== 'renegociado' && 
+    h.status !== 'cancelado' &&
+    h.status !== 'estornado' &&
     h.tipo?.toLowerCase() !== 'credito'
   );
+
+  const higienizarFormaPagamento = (detalhes: any, stringLegado?: string | null) => {
+    let limpa = String(stringLegado || "").toUpperCase().trim();
+    if (limpa === 'UNDEFINED' || limpa === 'NULL') limpa = '';
+    
+    if (limpa.includes("PIX") || limpa.includes("DINHEIRO") || limpa.includes("BOLETO") || limpa.includes("DÉBITO")) {
+        if (!limpa.includes("CRÉDITO") && !limpa.includes("CARTÃO")) {
+            limpa = limpa.replace(/\s*\+?\s*PARCELAS?/gi, '').trim();
+            if (limpa.endsWith('+')) limpa = limpa.slice(0, -1).trim();
+        }
+    }
+    
+    if (limpa && limpa !== 'INDEFINIDA' && limpa !== 'NÃO REGISTRADA') {
+        return limpa;
+    }
+
+    if (detalhes) {
+        const permitidos = ['pix', 'pix_editora', 'dinheiro', 'credito', 'credito_editora', 'debito', 'debito_editora', 'boleto', 'credito_aluno'];
+        const metodosReais = Object.keys(detalhes).filter(key => permitidos.includes(key) && clean(detalhes[key]) > 0);
+        
+        if (metodosReais.length > 0) {
+            let resultadoFinal = metodosReais.map(m => {
+                if (m === 'pix' || m === 'pix_editora') return 'PIX';
+                if (m === 'dinheiro') return 'DINHEIRO';
+                if (m === 'credito' || m === 'credito_editora') {
+                    const parc = parseInt(detalhes.parcelas) || 1;
+                    return parc > 1 ? `CARTÃO DE CRÉDITO ${parc}X` : 'CARTÃO DE CRÉDITO';
+                }
+                if (m === 'debito' || m === 'debito_editora') return 'CARTÃO DE DÉBITO';
+                if (m === 'boleto') return 'BOLETO';
+                if (m === 'credito_aluno') return 'SALDO VIRTUAL';
+                return '';
+            }).filter(Boolean).join(' + ');
+
+            resultadoFinal = Array.from(new Set(resultadoFinal.split(' + '))).join(' + ');
+            return resultadoFinal;
+        }
+    }
+
+    return null;
+  };
 
   function gerarPDFHistorico() {
     const doc = new jsPDF();
@@ -502,30 +541,69 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     doc.text("TELEFONE (91) 3268-3484 / (91) 98622-7715", 52, 33);
     doc.text("INEP - 15159213", 52, 37);
     doc.line(20, 50, 190, 50);
-    doc.setFontSize(12); doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 57, { align: "center" });
-    doc.setFontSize(10); doc.text(`Aluno: ${aluno?.nome?.toUpperCase()}`, 15, 62);
+    doc.setFontSize(12); doc.text("EXTRATO FINANCEIRO DETALHADO - ESCOLA ABC DO PARK", 105, 57, { align: "center" });
+    doc.setFontSize(10); doc.text(`Aluno: ${aluno?.nome?.toUpperCase()}`, 15, 65);
     
-    const historicoFiltradoParaPDF = historicoLocal.filter((h: any) => 
-      (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
-      h.status !== 'renegociado'
-    );
+    const linhasTabela: any[] = [];
+    
+    historicoFiltrado.forEach((h: any) => {
+      let f = null;
+      if (clean(h.valor_pago) > 0) {
+          f = h.detalhes_metodos?.formas || h.detalhes_metodos?.forma_geradora;
+          if (!f && h.detalhes_metodos?.historico_parciais?.length > 0) {
+            const formasVistas = new Set(h.detalhes_metodos.historico_parciais.map((p:any) => higienizarFormaPagamento(null, p.formas)));
+            f = Array.from(formasVistas).join(' + ');
+          } else {
+            f = higienizarFormaPagamento(h.detalhes_metodos, f);
+          }
+      }
+      
+      linhasTabela.push([
+        new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+        h.descricao.toUpperCase(),
+        f || "-",
+        `R$ ${clean(h.valor_total).toFixed(2)}`,
+        `R$ ${clean(h.valor_pago).toFixed(2)}`
+      ]);
+
+      const parciais = h.detalhes_metodos?.historico_parciais || [];
+      const temMultaOuDesconto = parciais.some((p:any) => clean(p.desconto) > 0 || clean(p.multa) > 0 || clean(p.juros_cartao) > 0);
+      const mostrarSubTabela = parciais.length > 1 || temMultaOuDesconto;
+
+      if (mostrarSubTabela) {
+        parciais.forEach((parcial: any) => {
+          linhasTabela.push([
+            new Date(parcial.data_recebimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+            `   ↳ Pagamento Parcial Aplicado`,
+            higienizarFormaPagamento(null, parcial.formas) || "-",
+            "-",
+            `R$ ${clean(parcial.valor_pago_rodada).toFixed(2)}`
+          ]);
+        });
+      }
+    });
 
     autoTable(doc, {
-      startY: 66,
-      head: [['DATA', 'DESCRIÇÃO', 'FORMA', 'VALOR']],
-      body: historicoFiltradoParaPDF.map((h: any) => {
-        let f = h.detalhes_metodos?.formas || (h.detalhes_metodos?.historico_parciais?.length > 0 ? h.detalhes_metodos.historico_parciais[h.detalhes_metodos.historico_parciais.length - 1].formas : null) || h.detalhes_metodos?.forma_geradora;
-        if (!f) f = extrairFormaPagamento(h.detalhes_metodos);
-
-        return [
-          new Date(h.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-          h.descricao.toUpperCase(),
-          f,
-          `${h.detalhes_metodos?.e_subtracao ? '- ' : ''}R$ ${Math.abs(clean(h.valor_total)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-        ];
-      }),
-      headStyles: { fillColor: [37, 99, 235] }
+      startY: 70,
+      head: [['DATA', 'DESCRIÇÃO', 'FORMA DE PAGAMENTO', 'VALOR TOTAL', 'VALOR PAGO']],
+      body: linhasTabela,
+      headStyles: { fillColor: [37, 99, 235], fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: { 
+        0: { cellWidth: 20 }, 
+        3: { halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'right', fontStyle: 'bold', textColor: [22, 163, 74] } 
+      },
+      didParseCell: function (data: any) {
+        const rawRow = data.row.raw as any[];
+        if (rawRow && rawRow[1] && String(rawRow[1]).includes('↳')) {
+          data.cell.styles.fillColor = [248, 250, 252];
+          data.cell.styles.textColor = [100, 116, 139];
+          data.cell.styles.fontStyle = 'italic';
+        }
+      }
     });
+
     doc.save(`Extrato_${aluno?.nome?.replace(/\s+/g, '_')}_${anoPagamentoSelecionado}.pdf`);
   }
 
@@ -548,32 +626,61 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
       <div className="space-y-4">
         {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
-          let forma = pgto.detalhes_metodos?.formas || (pgto.detalhes_metodos?.historico_parciais?.length > 0 ? pgto.detalhes_metodos.historico_parciais[pgto.detalhes_metodos.historico_parciais.length - 1].formas : null) || pgto.detalhes_metodos?.forma_geradora;
-          if (!forma) forma = extrairFormaPagamento(pgto.detalhes_metodos);
+          
+          let formaPrincipal = null;
+          if (clean(pgto.valor_pago) > 0) {
+              formaPrincipal = pgto.detalhes_metodos?.formas || pgto.detalhes_metodos?.forma_geradora;
+              if (!formaPrincipal && pgto.detalhes_metodos?.historico_parciais?.length > 0) {
+                  const formasVistas = new Set(pgto.detalhes_metodos.historico_parciais.map((p:any) => higienizarFormaPagamento(null, p.formas)));
+                  formaPrincipal = Array.from(formasVistas).join(' + ');
+              } else {
+                  formaPrincipal = higienizarFormaPagamento(pgto.detalhes_metodos, formaPrincipal);
+              }
+          }
 
+          const parciais = pgto.detalhes_metodos?.historico_parciais || [];
+          
+          let totalDescontoAplicado = clean(pgto.detalhes_metodos?.desconto);
+          parciais.forEach((p:any) => totalDescontoAplicado += clean(p.desconto));
+
+          let devedorRestante = clean(pgto.valor_total) - clean(pgto.valor_pago) - totalDescontoAplicado;
+          if (devedorRestante < 0.01) devedorRestante = 0; 
+
+          const isVisualmentePago = pgto.status === 'pago' || devedorRestante === 0;
           const podeGerenciar = !ehVisitante;
-          const devedorRestante = clean(pgto.valor_total) - clean(pgto.valor_pago);
+          
+          const temMultaOuDesconto = parciais.some((p:any) => clean(p.desconto) > 0 || clean(p.multa) > 0 || clean(p.juros_cartao) > 0);
+          const mostrarHistoricoParcial = parciais.length > 1 || temMultaOuDesconto;
           
           return (
             <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+              
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1.5">
                   <span className="text-base font-bold text-slate-800">{pgto.descricao}</span>
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs font-semibold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">🗓️ {new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                    {forma && <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">💳 {forma}</span>}
+                    {formaPrincipal && <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">💳 {formaPrincipal}</span>}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-none border-slate-100 pt-4 md:pt-0 mt-2 md:mt-0">
                   <div className="text-left md:text-right space-y-0.5">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Original: R$ {clean(pgto.valor_total).toFixed(2)}</span>
-                    <span className={`text-lg font-black block ${pgto.status === 'pago' ? 'text-emerald-600' : pgto.status === 'parcial' ? 'text-amber-500' : 'text-rose-600'}`}>Pago: R$ {clean(pgto.valor_pago).toFixed(2)}</span>
+                    <span className={`text-lg font-black block ${isVisualmentePago ? 'text-emerald-600' : 'text-rose-600'}`}>Pago: R$ {clean(pgto.valor_pago).toFixed(2)}</span>
                     {devedorRestante > 0 && <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wider">Aberto: R$ {devedorRestante.toFixed(2)}</span>}
                   </div>
 
                   {podeGerenciar && (
                     <div className="flex gap-2 pl-4 border-l border-slate-200 h-full items-center">
+                      
+                      {/* NOVO: Botão QUITAR / PAGAR abre o Modal PDV se houver dívida */}
+                      {devedorRestante > 0 && setModalPDVAberto && (
+                        <button onClick={() => setModalPDVAberto(true)} className="mr-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase" title="Pagar Dívida">
+                          💵 Quitar
+                        </button>
+                      )}
+
                       <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
                       <button onClick={() => processarAcaoPagamento(pgto, 'estornar')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
                       {userEmail === 'carlamonaliza9@gmail.com' && (
@@ -584,29 +691,41 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                 </div>
               </div>
 
-              {pgto.detalhes_metodos?.historico_parciais && pgto.detalhes_metodos.historico_parciais.length > 0 && (
+              {mostrarHistoricoParcial && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 bg-slate-50/50 p-4 rounded-xl">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Histórico de Recebimentos Parciais</span>
-                  {pgto.detalhes_metodos.historico_parciais.map((parcial: any, idx: number) => (
-                    <div key={idx} className="flex flex-col sm:flex-row justify-between sm:items-center text-xs bg-white p-3 rounded-lg border border-slate-200 shadow-sm gap-2">
-                      <span className="font-semibold text-slate-600">📅 {new Date(parcial.data_recebimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})} <span className="text-slate-300 mx-2">|</span> 💳 {parcial.formas}</span>
-                      <div className="flex gap-4 items-center sm:justify-end">
-                        {(parseFloat(parcial.desconto) > 0 || parseFloat(parcial.multa) > 0 || parseFloat(parcial.juros_cartao) > 0) && (
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                            {parseFloat(parcial.desconto) > 0 ? `DESC: -R$ ${parseFloat(parcial.desconto).toFixed(2)} ` : ''} 
-                            {parseFloat(parcial.multa) > 0 ? `MULTA: +R$ ${parseFloat(parcial.multa).toFixed(2)} ` : ''}
-                            {parseFloat(parcial.juros_cartao) > 0 ? `JUROS MAQ: +R$ ${parseFloat(parcial.juros_cartao).toFixed(2)}` : ''}
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Detalhamento Financeiro (Baixas Parciais)</span>
+                  {parciais.map((parcial: any, idx: number) => {
+                    const formaParcialLimpa = higienizarFormaPagamento(null, parcial.formas) || "Não Registrada";
+                    return (
+                      <div key={idx} className="flex flex-col sm:flex-row justify-between sm:items-center text-xs bg-white p-3 rounded-lg border border-slate-200 shadow-sm gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span className="font-semibold text-slate-700">Baixa #{idx + 1} em <span className="font-black">{new Date(parcial.data_recebimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span></span>
+                          <span className="hidden sm:inline text-slate-300">|</span>
+                          <span className="font-semibold text-indigo-600">Forma: {formaParcialLimpa}</span>
+                        </div>
+                        
+                        <div className="flex gap-4 items-center sm:justify-end">
+                          {(parseFloat(parcial.desconto) > 0 || parseFloat(parcial.multa) > 0 || parseFloat(parcial.juros_cartao) > 0) && (
+                            <div className="flex flex-col text-[9px] font-bold text-slate-400 text-right">
+                              {parseFloat(parcial.desconto) > 0 && <span>Desconto: -R$ {parseFloat(parcial.desconto).toFixed(2)}</span>}
+                              {parseFloat(parcial.multa) > 0 && <span>Multa/Juros: +R$ {parseFloat(parcial.multa).toFixed(2)}</span>}
+                              {parseFloat(parcial.juros_cartao) > 0 && <span>Taxa Maq: +R$ {parseFloat(parcial.juros_cartao).toFixed(2)}</span>}
+                            </div>
+                          )}
+                          <span className="font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                            R$ {clean(parcial.valor_pago_rodada).toFixed(2)}
                           </span>
-                        )}
-                        <span className="font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">+ R$ {clean(parcial.valor_pago_rodada).toFixed(2)}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
+
             </div>
           );
-        }) : <div className="p-10 text-center bg-slate-50 rounded-3xl border border-slate-100 text-slate-500 font-bold">Nenhum extrato referenciado encontrado.</div>}
+        }) : <div className="p-10 text-center bg-slate-50 rounded-3xl border border-slate-100 text-slate-500 font-bold">Nenhum extrato referenciado encontrado para o período selecionado.</div>}
       </div>
     </div>
   );

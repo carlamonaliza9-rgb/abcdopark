@@ -86,12 +86,37 @@ export function ModalPagamento({
 
   if (!aberto) return null;
 
-  const valorCartaoCredito = parseFloat(pagamentosMetodos.cartao_credito ?? pagamentosMetodos.credito) || 0;
-  const valorCartaoCreditoEditora = parseFloat(pagamentosMetodos.cartao_credito_editora ?? pagamentosMetodos.credito_editora) || 0;
+  // Lógica Matemática Rigorosa da Balança Financeira
+  const cleanNum = (val: any) => parseFloat(String(val).replace(',', '.')) || 0;
+
+  const valorCartaoCredito = cleanNum(pagamentosMetodos.cartao_credito ?? pagamentosMetodos.credito);
+  const valorCartaoCreditoEditora = cleanNum(pagamentosMetodos.cartao_credito_editora ?? pagamentosMetodos.credito_editora);
   const temValorNoCredito = valorCartaoCredito > 0 || valorCartaoCreditoEditora > 0;
 
+  const somaValoresRecebidos = 
+    cleanNum(pagamentosMetodos.pix) + 
+    cleanNum(pagamentosMetodos.dinheiro) + 
+    cleanNum(pagamentosMetodos.cartao_debito ?? pagamentosMetodos.debito) + 
+    cleanNum(pagamentosMetodos.boleto) + 
+    cleanNum(pagamentosMetodos.credito_aluno) + 
+    cleanNum(pagamentosMetodos.pix_editora) + 
+    cleanNum(pagamentosMetodos.cartao_debito_editora ?? pagamentosMetodos.debito_editora) +
+    valorCartaoCredito + valorCartaoCreditoEditora;
+
+  const totalDesconto = cleanNum(pagamentosMetodos.desconto);
+  const totalMulta = cleanNum(pagamentosMetodos.multa);
+
+  // Calcula quanto da dívida foi efetivamente abatida na balança
   const dividasSelecionadasObjetos = dividasAbertas.filter(d => itensCarrinho.includes(d.id));
   const valorTotalCarrinho = dividasSelecionadasObjetos.reduce((acc, d) => acc + ((parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0)), 0);
+  
+  // Dívida líquida = (Valor da Fatura - Descontos Amigáveis) + Multas Adicionadas
+  const totalDevidoAjustado = valorTotalCarrinho > 0 ? (valorTotalCarrinho - totalDesconto + totalMulta) : 0;
+  
+  // Calcula o Troco (Excesso) ou Faltante (Parcial)
+  const saldoDiferenca = somaValoresRecebidos - totalDevidoAjustado;
+  const isPagamentoParcial = somaValoresRecebidos > 0 && saldoDiferenca < -0.01;
+  const temTrocoGuardar = somaValoresRecebidos > 0 && saldoDiferenca > 0.01;
 
   const handleToggleCarrinho = (id: string) => {
     if (itensCarrinho.includes(id)) {
@@ -104,8 +129,17 @@ export function ModalPagamento({
   const confirmarAcao = () => {
     if (tipoPagamento === 'pdv' && onConfirmarPDV) {
       if (itensCarrinho.length === 0) return alert("Selecione ao menos uma dívida para quitar.");
+      // Limpa dados de parcelamento "invisíveis" se o utilizador não usou o cartão, mas deixou lixo na memória
+      if (!temValorNoCredito) {
+          pagamentosMetodos.parcelas = "1";
+          pagamentosMetodos.juros_cartao = "";
+      }
       onConfirmarPDV(dividasSelecionadasObjetos);
     } else {
+      if (!temValorNoCredito) {
+          pagamentosMetodos.parcelas = "1";
+          pagamentosMetodos.juros_cartao = "";
+      }
       onConfirmar();
     }
   };
@@ -156,7 +190,10 @@ export function ModalPagamento({
           {/* TELA EXCLUSIVA DO CARRINHO PDV */}
           {tipoPagamento === "pdv" ? (
             <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-200">
-              <h3 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Selecione as Dívidas:</h3>
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Selecione as Dívidas:</h3>
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Aberto: R$ {dividasAbertas.reduce((acc, d) => acc + ((parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0)), 0).toFixed(2)}</span>
+              </div>
               <div className="flex flex-col gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                 {dividasAbertas.map(d => {
                   const restante = (parseFloat(d.valor_total) || 0) - (parseFloat(d.valor_pago) || 0);
@@ -178,8 +215,8 @@ export function ModalPagamento({
                 })}
               </div>
               <div className="mt-4 pt-4 border-t-2 border-dashed border-slate-200 flex justify-between items-center">
-                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Selecionado:</span>
-                <span className="text-2xl font-black text-emerald-500">R$ {valorTotalCarrinho.toFixed(2)}</span>
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Alvo da Baixa:</span>
+                <span className="text-2xl font-black text-emerald-600">R$ {valorTotalCarrinho.toFixed(2)}</span>
               </div>
             </div>
           ) : (
@@ -217,7 +254,7 @@ export function ModalPagamento({
               )}
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Observações</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Observações / Lançamento Fixo</label>
                 <input 
                   type="text" 
                   placeholder={tipoPagamento === 'mensalidade' ? "" : "Ex: Camisa Tam M, etc."} 
@@ -239,7 +276,6 @@ export function ModalPagamento({
             <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-[0.2em] mb-4 pb-4 border-b border-slate-200">Valores Recebidos (R$)</h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Inputs Padrões Blindados */}
               {[
                 { label: "Pix", key: "pix" },
                 { label: "Dinheiro (Espécie)", key: "dinheiro" },
@@ -295,12 +331,12 @@ export function ModalPagamento({
                 </>
               )}
 
-              {/* SELETOR DE PARCELAS E JUROS CONDICIONAL (ATUALIZADO) */}
+              {/* SELETOR DE PARCELAS: Agora EXCLUSIVO para uso com Cartão de Crédito! */}
               {temValorNoCredito && (
-                <div className="col-span-1 sm:col-span-2 bg-blue-50/70 p-4 rounded-2xl border border-blue-200 mt-2">
+                <div className="col-span-1 sm:col-span-2 bg-blue-50/70 p-4 rounded-2xl border border-blue-200 mt-2 animate-in slide-in-from-top-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block mb-2">Parcelamento (Cartão)</label>
+                      <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block mb-2">Parcelamento (Cartão Crédito)</label>
                       <select 
                         value={pagamentosMetodos.parcelas || "1"} 
                         onChange={(e) => setPagamentosMetodos({ ...pagamentosMetodos, parcelas: e.target.value })} 
@@ -329,7 +365,7 @@ export function ModalPagamento({
               
               {/* Desconto e Multa */}
               <div>
-                <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Desconto Aplicado</label>
+                <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Desconto Aplicado (- R$)</label>
                 <input 
                   type="number" 
                   step="0.01" min="0"
@@ -340,7 +376,7 @@ export function ModalPagamento({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Outras Multas / Acréscimos</label>
+                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-1">Outras Multas/Taxas (+ R$)</label>
                 <input 
                   type="number" 
                   step="0.01" min="0"
@@ -354,23 +390,45 @@ export function ModalPagamento({
           </div>
         </div>
 
-        {/* Rodapé Fixo do Modal */}
+        {/* Rodapé Fixo do Modal com a Balança Financeira Ativa */}
         <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-4 shrink-0 bg-white rounded-b-[2.5rem]">
           <button 
             onClick={onFechar} 
-            className="w-full sm:w-1/2 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all text-xs"
+            className="w-full sm:w-1/3 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all text-xs"
           >
             Cancelar
           </button>
-          <button 
-            onClick={confirmarAcao} 
-            disabled={btnDesativado}
-            className={`w-full sm:w-1/2 py-4 rounded-2xl text-white font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs ${
-              btnDesativado ? 'bg-slate-300 shadow-none cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'
-            }`}
-          >
-            {tipoPagamento === 'pdv' ? "Quitar Selecionadas" : editando ? "Atualizar" : btnDesativado ? "Ano Quitado" : "Confirmar Recebimento"}
-          </button>
+
+          {/* Lógica do Botão de Ação - Se for edição, mantém estático. Se for baixar dívidas no PDV, fica dinâmico e inteligente. */}
+          {editando ? (
+              <button onClick={confirmarAcao} className="w-full sm:w-2/3 py-4 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs hover:bg-indigo-700 shadow-indigo-200">
+                Atualizar Valores
+              </button>
+          ) : btnDesativado ? (
+              <button disabled className="w-full sm:w-2/3 py-4 rounded-2xl bg-slate-300 text-white font-black uppercase tracking-widest shadow-none cursor-not-allowed text-xs">
+                Ano Quitado
+              </button>
+          ) : (
+              <button 
+                onClick={confirmarAcao} 
+                disabled={tipoPagamento === 'pdv' && itensCarrinho.length === 0}
+                className={`w-full sm:w-2/3 py-4 rounded-2xl text-white font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs flex flex-col items-center justify-center leading-tight ${
+                  (tipoPagamento === 'pdv' && itensCarrinho.length === 0) ? 'bg-slate-300 shadow-none cursor-not-allowed' :
+                  isPagamentoParcial ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' :
+                  temTrocoGuardar ? 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-200' : 
+                  'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'
+                }`}
+              >
+                {tipoPagamento === 'pdv' ? (
+                   itensCarrinho.length === 0 ? "Selecione Dívidas Acima" :
+                   isPagamentoParcial ? (<span>⚠️ Baixa Parcial <span className="block text-[9px] opacity-80 mt-0.5">R$ {Math.abs(saldoDiferenca).toFixed(2)} ficarão pendentes</span></span>) :
+                   temTrocoGuardar ? (<span>Quitar e Gerar Troco <span className="block text-[9px] opacity-80 mt-0.5">+R$ {saldoDiferenca.toFixed(2)} para o aluno</span></span>) : 
+                   "Quitação Integral"
+                ) : (
+                   "Confirmar Recebimento"
+                )}
+              </button>
+          )}
         </div>
 
       </div>

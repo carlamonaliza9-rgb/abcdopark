@@ -116,9 +116,12 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     
     if (historicoCompleto) {
       // ==========================================
-      // MOTOR DE DESDUPLICAÇÃO (Antecipações e Conflitos)
+      // MOTOR DE DESDUPLICAÇÃO E LIMITE TEMPORAL
       // ==========================================
       const mesesPagos = new Set();
+      const dataAtual = new Date();
+      const mesAtualNum = dataAtual.getMonth(); 
+      const anoAtual = dataAtual.getFullYear().toString();
       
       // 1. Rastreador de meses pagos
       historicoCompleto.forEach(h => {
@@ -136,7 +139,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
           if (!anoRef && h.data_pagamento) {
             const dPgto = new Date(h.data_pagamento);
-            if (dPgto.getMonth() >= 9) { // Se pagou no final do ano
+            if (dPgto.getMonth() >= 9) { 
               const mesesInicio = ["janeiro", "fevereiro", "março", "abril"];
               anoRef = mesesInicio.includes(mes) ? (dPgto.getFullYear() + 1).toString() : dPgto.getFullYear().toString();
             } else {
@@ -148,26 +151,30 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         }
       });
 
-      // 2. Filtra o histórico físico apagando as duplicidades pendentes de meses já pagos e ANEXA OS DESCONTOS NA DESCRIÇÃO
+      // 2. Filtro Rigoroso do Histórico
       const historicoSemDuplicatas = historicoCompleto.filter(h => {
-        if ((h.status === 'pendente' || h.status === 'atrasado') && h.tipo?.toLowerCase() === 'mensalidade') {
-          const desc = (h.descricao || "").toLowerCase();
-          let mes = (h.mes_referencia || "").toLowerCase().trim();
-          
-          if (!mes) {
-            const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            mes = nomesMeses.find(m => desc.includes(m)) || "";
-          }
-          
-          const anoMatch = desc.match(/(20\d{2})/);
-          let anoRef = anoMatch ? anoMatch[0] : (h.data_vencimento || h.data_pagamento)?.substring(0, 4);
+        // Bloqueio A: Ocultar as dívidas "físicas" do banco de dados que sejam de meses que ainda não chegaram.
+        if (h.tipo?.toLowerCase() === 'mensalidade' && h.status !== 'pago' && h.status !== 'cancelado' && h.status !== 'estornado') {
+           const desc = (h.descricao || "").toLowerCase();
+           let mesBanco = (h.mes_referencia || "").toLowerCase().trim();
+           if (!mesBanco) {
+              const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+              mesBanco = nomesMeses.find(m => desc.includes(m)) || "";
+           }
+           const idxMesBanco = mesesAno.findIndex(m => m.toLowerCase() === mesBanco);
+           const anoMatch = desc.match(/(20\d{2})/);
+           let anoRef = anoMatch ? anoMatch[0] : (h.data_vencimento || h.data_pagamento)?.substring(0, 4);
 
-          // Se a chave "mes_ano" já foi paga, descarta a versão pendente da tela/extrato
-          if (mes && anoRef && mesesPagos.has(`${mes}_${anoRef}`)) return false; 
+           // Se a fatura pendente for do ano atual, mas de um mês no futuro, NÃO RENDERIZA
+           if (anoRef === anoAtual && idxMesBanco > mesAtualNum) {
+               return false; 
+           }
+           
+           // Se a chave "mes_ano" já foi paga, descarta a versão pendente
+           if (mesBanco && anoRef && mesesPagos.has(`${mesBanco}_${anoRef}`)) return false; 
         }
         return true;
       }).map(h => {
-          // Extrai descontos aplicados (via pdv ou avulso) e anexa na descrição para renderizar em toda a aplicação
           let novaDesc = h.descricao || "";
           let descontoAplicado = 0;
           
@@ -187,18 +194,15 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const hojeStr = new Date();
       hojeStr.setHours(0,0,0,0);
 
-      // 3. Verifica pendências físicas limpas, exigindo que estejam em atraso real
+      // 3. Verifica pendências físicas limpas
       const pendenciasRegistradas = historicoSemDuplicatas.filter(h => {
         if (h.status === 'renegociado' || h.status === 'cancelado' || h.status === 'estornado' || h.status === 'pago') return false;
-        
         const devedor = clean(h.valor_total) - clean(h.valor_pago);
         if (devedor <= 0) return false;
-
-        // Se for mensalidade (cadastrada fisicamente), exige atraso
         if (h.tipo?.toLowerCase() === 'mensalidade') {
           const dataVenc = new Date(h.data_vencimento || h.vencimento || h.data_pagamento);
           dataVenc.setHours(0,0,0,0);
-          if (dataVenc >= hojeStr) return false; // Ignora se o vencimento é hoje ou futuro (Pendente)
+          if (dataVenc >= hojeStr) return false; 
         }
         return true;
       });
@@ -208,26 +212,22 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         listaDívida.push({ ...pend, atraso_automatico: pend.tipo?.toLowerCase() === 'mensalidade' }); 
       });
 
-      // 4. Varredura Virtual de Mensalidades (Atrasos Faltantes e Bolsas Integrais 100%)
-      const dataAtual = new Date();
-      const mesAtualNum = dataAtual.getMonth(); 
-      const anoAtual = dataAtual.getFullYear().toString();
+      // 4. Varredura Virtual de Mensalidades (Gera APENAS ATÉ O MÊS ATUAL)
       const diaVencimentoAluno = parseInt(aluno.vencimento);
       const valorMensalidadeBase = clean(aluno.valor);
       const alunoTemValorCadastrado = aluno.valor !== null && aluno.valor !== undefined && aluno.valor !== "";
 
       if (alunoTemValorCadastrado && !isNaN(diaVencimentoAluno)) {
+        // MUDANÇA CIRÚRGICA AQUI: O laço 'for' trava RIGOROSAMENTE no mês atual. (i <= mesAtualNum)
         for (let i = 0; i <= mesAtualNum; i++) {
           const isVencido = (i < mesAtualNum) || (i === mesAtualNum && dataAtual.getDate() > diaVencimentoAluno);
-          if (!isVencido) continue; // Pula os meses futuros ou o mês atual não vencido
+          if (!isVencido) continue; 
 
           const nomeMes = mesesAno[i];
           const chaveBusca = `${nomeMes.toLowerCase()}_${anoAtual}`;
 
-          // Se já está no caderninho de pagos (antecipado ou normal), ignora
           if (mesesPagos.has(chaveBusca)) continue;
 
-          // Se já tem uma dívida física gerada para esse mês, ignora para não duplicar
           const jaTemDividaFisica = pendenciasRegistradas.some(h => {
             const isMensalidade = h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo';
             const isMesCorreto = h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() || (h.descricao||"").toLowerCase().includes(nomeMes.toLowerCase());
@@ -237,7 +237,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
           if (!jaTemDividaFisica) {
             if (valorMensalidadeBase === 0) {
-              // Registro de Bolsista 100%: Lança no extrato como mensalidade isenta/paga
               historicoSemDuplicatas.push({
                 id: `bolsa_${nomeMes}`, 
                 descricao: `Mensalidade (Bolsa Integral 100%) - ${nomeMes}/${anoAtual}`, 
@@ -266,13 +265,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           }
         }
 
-        // Reordena o histórico cronologicamente caso tenhamos inserido mensalidades bolsistas
         if (valorMensalidadeBase === 0) {
             historicoSemDuplicatas.sort((a, b) => new Date(b.data_pagamento).getTime() - new Date(a.data_pagamento).getTime());
         }
       }
 
-      // Atualiza o estado global final
       setHistoricoLocal(historicoSemDuplicatas);
       setTotalPendenteGeral(dividaCalculada);
       setListaPendenciasGerais(listaDívida as any[]);
@@ -527,7 +524,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
     if (valorPagoFinal + 0.01 < totalDividasAjustado) {
       setIsProcessandoAcao(false);
-      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Desmarque algo no carrinho ou faça baixas individuais.");
     }
 
     if (creditoUtilizado > saldoCreditoVisivel) {
@@ -761,7 +758,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         ) : verBoletim ? (
           <BoletimAluno aluno={aluno} anoSelecionado={anoSelecionado} setAnoSelecionado={setAnoSelecionado} notas={notas} setVerBoletim={setVerBoletim} />
         ) : verHistorico ? (
-          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} gerarPDFHistorico={gerarPDFHistorico} />
+          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} gerarPDFHistorico={gerarPDFHistorico} clean={clean} />
         ) : (
           <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} />
         )}
