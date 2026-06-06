@@ -192,7 +192,8 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
   );
 }
 
-export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, setModalPDVAberto, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
+// CORREÇÃO: Recebe onAbrirPDV nas props para abrir o modal de forma inteligente
+export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, onAbrirPDV, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-6">
@@ -206,9 +207,9 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
           <p className="text-3xl font-black text-rose-700 mt-1">R$ {totalPendenteGeral.toFixed(2)}</p>
         </div>
         {!ehVisitante && (
-          <button onClick={() => setModalPDVAberto(true)} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
+          <button onClick={() => onAbrirPDV && onAbrirPDV(null)} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
-            RECEBER DÍVIDAS
+            RECEBER MÚLTIPLAS DÍVIDAS
           </button>
         )}
       </div>
@@ -220,8 +221,19 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
           const restante = valorTotal - valorPago;
           const renegociandoEste = idRenegociacao === pend.id;
 
+          // CORREÇÃO UX: O cartão inteiro é clicável se não estiver a ser renegociado.
           return (
-            <div key={i} className={`p-5 rounded-2xl border transition-all ${renegociandoEste ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-rose-300'}`}>
+            <div 
+              key={i} 
+              onClick={(e) => { 
+                // Evita que o clique abra o modal caso o utilizador clique num botão específico
+                if (!renegociandoEste && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'INPUT') {
+                  onAbrirPDV(pend.id); 
+                }
+              }} 
+              className={`p-5 rounded-2xl border transition-all ${renegociandoEste ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer'}`}
+              title={!renegociandoEste ? "Clique para pagar esta fatura" : ""}
+            >
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
                   <span className="text-base font-bold text-slate-800">{pend.descricao}</span>
@@ -232,14 +244,26 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
                     </span>
                   </div>
                 </div>
-                <div className="text-left md:text-right">
+                <div className="text-left md:text-right flex flex-col items-end gap-2">
                   <span className="text-lg font-black text-rose-600 block">R$ {restante.toFixed(2)}</span>
-                  {!renegociandoEste && <button onClick={() => setIdRenegociacao(pend.id)} className="mt-1 bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1 rounded-lg hover:bg-amber-50 transition-colors">🔄 RENEGOCIAR / DIVIDIR</button>}
+                  
+                  {!renegociandoEste && (
+                     <div className="flex gap-2">
+                        {onAbrirPDV && (
+                           <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pend.id); }} className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors uppercase shadow-sm flex items-center gap-1">
+                             💵 Quitar Fatura
+                           </button>
+                        )}
+                        <button onClick={(e) => { e.stopPropagation(); setIdRenegociacao(pend.id); }} className="bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center gap-1">
+                           🔄 Dividir / Acordo
+                        </button>
+                     </div>
+                  )}
                 </div>
               </div>
 
               {renegociandoEste && (
-                <div className="mt-5 pt-5 border-t border-amber-200 border-dashed flex flex-col sm:flex-row gap-4 items-end animate-in fade-in">
+                <div className="mt-5 pt-5 border-t border-amber-200 border-dashed flex flex-col sm:flex-row gap-4 items-end animate-in fade-in" onClick={(e) => e.stopPropagation()}>
                   <div className="flex-1 w-full">
                     <label className="text-[10px] font-black text-amber-800 mb-1 block uppercase">Número de Parcelas</label>
                     <input type="number" value={formRenegociacao.parcelas} onChange={(e) => setFormRenegociacao({...formRenegociacao, parcelas: e.target.value})} className="w-full p-2.5 rounded-xl border border-amber-300 outline-none text-sm font-bold text-slate-700" />
@@ -468,7 +492,8 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, setModalPDVAberto }: any) {
+// CORREÇÃO: Recebe onAbrirPDV nas props para abrir o modal no Extrato também
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, onAbrirPDV }: any) {
   
   const historicoFiltrado = historicoLocal.filter((h: any) => 
     (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
@@ -516,7 +541,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
         }
     }
 
-    return null;
+    return "Baixa Manual / Legado";
   };
 
   function gerarPDFHistorico() {
@@ -568,7 +593,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
       const parciais = h.detalhes_metodos?.historico_parciais || [];
       const temMultaOuDesconto = parciais.some((p:any) => clean(p.desconto) > 0 || clean(p.multa) > 0 || clean(p.juros_cartao) > 0);
-      const mostrarSubTabela = parciais.length > 1 || temMultaOuDesconto;
+      const mostrarSubTabela = parciais.length > 1; 
 
       if (mostrarSubTabela) {
         parciais.forEach((parcial: any) => {
@@ -649,11 +674,20 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
           const isVisualmentePago = pgto.status === 'pago' || devedorRestante === 0;
           const podeGerenciar = !ehVisitante;
           
-          const temMultaOuDesconto = parciais.some((p:any) => clean(p.desconto) > 0 || clean(p.multa) > 0 || clean(p.juros_cartao) > 0);
-          const mostrarHistoricoParcial = parciais.length > 1 || temMultaOuDesconto;
+          const mostrarHistoricoParcial = parciais.length > 1;
           
           return (
-            <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div 
+              key={i} 
+              // UX CORREÇÃO: Torna a fatura pendente inteira clicável no Extrato também.
+              onClick={(e) => { 
+                if (devedorRestante > 0 && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON') {
+                  onAbrirPDV(pgto.id); 
+                }
+              }}
+              className={`p-5 rounded-2xl border transition-all ${devedorRestante > 0 && onAbrirPDV ? 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer' : 'bg-white border-slate-200 shadow-sm'}`}
+              title={devedorRestante > 0 ? "Clique para quitar a pendência" : ""}
+            >
               
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1.5">
@@ -674,17 +708,16 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                   {podeGerenciar && (
                     <div className="flex gap-2 pl-4 border-l border-slate-200 h-full items-center">
                       
-                      {/* NOVO: Botão QUITAR / PAGAR abre o Modal PDV se houver dívida */}
-                      {devedorRestante > 0 && setModalPDVAberto && (
-                        <button onClick={() => setModalPDVAberto(true)} className="mr-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase" title="Pagar Dívida">
+                      {devedorRestante > 0 && onAbrirPDV && (
+                        <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pgto.id); }} className="mr-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Pagar Dívida">
                           💵 Quitar
                         </button>
                       )}
 
-                      <button onClick={() => { if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
-                      <button onClick={() => processarAcaoPagamento(pgto, 'estornar')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
+                      <button onClick={(e) => { e.stopPropagation(); if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
+                      <button onClick={(e) => { e.stopPropagation(); processarAcaoPagamento(pgto, 'estornar'); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
                       {userEmail === 'carlamonaliza9@gmail.com' && (
-                          <button onClick={() => processarAcaoPagamento(pgto, 'excluir')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
+                          <button onClick={(e) => { e.stopPropagation(); processarAcaoPagamento(pgto, 'excluir'); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
                       )}
                     </div>
                   )}
@@ -692,7 +725,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
               </div>
 
               {mostrarHistoricoParcial && (
-                <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 bg-slate-50/50 p-4 rounded-xl">
+                <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 bg-slate-50/50 p-4 rounded-xl" onClick={(e) => e.stopPropagation()}>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Detalhamento Financeiro (Baixas Parciais)</span>
                   {parciais.map((parcial: any, idx: number) => {
                     const formaParcialLimpa = higienizarFormaPagamento(null, parcial.formas) || "Não Registrada";

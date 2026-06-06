@@ -2,6 +2,29 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
+// Dicionário de abreviações das disciplinas
+const mapaAbreviacoes: Record<string, string> = {
+  'ARTES': 'Art',
+  'CIÊNCIAS': 'Cie',
+  'ED.FÍSICA': 'EdF',
+  'GEOGRAFIA': 'Geo',
+  'HISTÓRIA': 'His',
+  'INGLÊS': 'Ing',
+  'MATEMÁTICA': 'Mat',
+  'MÚSICA': 'Mús',
+  'PORTUGUÊS': 'Por',
+  'XADREZ': 'Xad',
+};
+
+// Função auxiliar que abrevia ou corta as 3 primeiras letras como garantia
+function abreviarMateria(nome: string) {
+  const nomeUpper = nome.toUpperCase().trim();
+  if (mapaAbreviacoes[nomeUpper]) return mapaAbreviacoes[nomeUpper];
+  
+  // Fallback: se houver uma matéria nova não mapeada, pega as 3 primeiras letras
+  return nome.substring(0, 3).charAt(0).toUpperCase() + nome.substring(1, 3).toLowerCase();
+}
+
 export default function FechamentoLetivo() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -15,17 +38,15 @@ export default function FechamentoLetivo() {
   async function carregarDados() {
     setCarregando(true);
     try {
-      // 1. Adicionado tratamento de erro na busca de alunos
       const { data: listaAlunos, error: erroAlunos } = await supabase.from('alunos').select('*').order('nome');
       
       if (erroAlunos) {
         console.error("Erro ao buscar alunos:", erroAlunos);
-        alert("Erro ao carregar alunos. Verifique o console (F12).");
+        alert("Erro ao carregar alunos. Verifique o console.");
         return;
       }
       
       if (listaAlunos) {
-        // 2. Adicionado tratamento de erro na busca de notas
         const { data: todasNotas, error: erroNotas } = await supabase.from('boletins').select('*');
 
         if (erroNotas) {
@@ -34,29 +55,66 @@ export default function FechamentoLetivo() {
           return;
         }
 
-        const alunosComMedias = listaAlunos.map(aluno => {
-          const notasDoAluno = todasNotas?.filter(n => n.aluno_id === aluno.id) || [];
-          let somaTotal = 0;
-          let contagemNotas = 0;
+        const promessasDeAtualizacao: any[] = [];
 
-          notasDoAluno.forEach(disciplina => {
+        const alunosProcessados = listaAlunos.map(aluno => {
+          const notasDoAluno = todasNotas?.filter(n => n.aluno_id === aluno.id) || [];
+          
+          const mediasMaterias = notasDoAluno.map(disciplina => {
+            let soma = 0;
+            let contBimestresPreenchidos = 0;
+
             ['bimestre1', 'bimestre2', 'bimestre3', 'bimestre4'].forEach(b => {
-              if (disciplina[b] !== null && disciplina[b] !== undefined) {
-                somaTotal += parseFloat(disciplina[b]);
-                contagemNotas++;
+              const valor = parseFloat(disciplina[b]);
+              if (!isNaN(valor)) {
+                soma += valor;
+                contBimestresPreenchidos++;
               }
             });
-          });
 
-          const mediaCalculada = contagemNotas > 0 ? (somaTotal / contagemNotas).toFixed(1) : "0.0";
+            const mediaAnual = soma / 4;
+
+            return {
+              id: disciplina.id,
+              nome: disciplina.disciplina || 'Desconhecida',
+              media: mediaAnual,
+              notasLancadas: contBimestresPreenchidos
+            };
+          }).sort((a, b) => a.nome.localeCompare(b.nome));
+
+          let situacaoCalculada = aluno.situacao_academica;
+
+          if (!situacaoCalculada || situacaoCalculada === 'Em curso') {
+            if (mediasMaterias.length > 0) {
+              const anoConcluido = mediasMaterias.every(m => m.notasLancadas === 4);
+              
+              if (anoConcluido) {
+                const passouEmTodas = mediasMaterias.every(m => m.media >= 7);
+                situacaoCalculada = passouEmTodas ? 'Aprovado' : 'Reprovado';
+                
+                promessasDeAtualizacao.push(
+                  supabase.from('alunos').update({ situacao_academica: situacaoCalculada }).eq('id', aluno.id)
+                );
+              } else {
+                situacaoCalculada = 'Em curso';
+              }
+            } else {
+              situacaoCalculada = 'Em curso';
+            }
+          }
 
           return {
             ...aluno,
-            media_calculada: mediaCalculada
+            mediasMaterias,
+            situacao_academica: situacaoCalculada
           };
         });
 
-        setAlunos(alunosComMedias);
+        if (promessasDeAtualizacao.length > 0) {
+          Promise.all(promessasDeAtualizacao).catch(e => console.error("Erro ao salvar status automáticos:", e));
+        }
+
+        setAlunos(alunosProcessados);
       }
     } catch (err) {
       console.error("Erro inesperado no carregamento:", err);
@@ -88,10 +146,9 @@ export default function FechamentoLetivo() {
     if (!confirm("Isso moverá os alunos 'APROVADOS' para a próxima série. Os boletins atuais SERÃO MANTIDOS no histórico do aluno. Continuar?")) return;
 
     setUltimoBackup([...alunos]);
-    setCarregando(true); // Mostra o loading durante a promoção
+    setCarregando(true);
 
     try {
-      // 3. Uso do Promise.all para evitar gargalo de requisições no Supabase
       const promessas = alunos
         .filter(aluno => aluno.situacao_academica === 'Aprovado')
         .map(aluno => {
@@ -106,7 +163,7 @@ export default function FechamentoLetivo() {
           }
           return null;
         })
-        .filter(Boolean); // Remove os nulos da lista
+        .filter(Boolean);
 
       await Promise.all(promessas);
       alert("Alunos promovidos com sucesso! O histórico de boletins foi preservado.");
@@ -125,7 +182,6 @@ export default function FechamentoLetivo() {
     setCarregando(true);
 
     try {
-      // 4. Uso do Promise.all no desfazimento também
       const promessas = ultimoBackup
         .filter(alunoOriginal => alunoOriginal.situacao_academica === 'Aprovado')
         .map(alunoOriginal => {
@@ -151,10 +207,10 @@ export default function FechamentoLetivo() {
 
   return (
     <div style={{ width: '100%', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1f2937' }}>🎓 Fechamento Letivo</h1>
-          <p style={{ color: '#6b7280' }}>Média anual automática. Os boletins são mantidos no histórico por ano.</p>
+          <p style={{ color: '#6b7280' }}>Médias anuais por disciplina e cálculo automático de aprovação.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
             {ultimoBackup && (
@@ -178,38 +234,78 @@ export default function FechamentoLetivo() {
         const alunosDaTurma = alunos.filter(a => a.turma === turmaNome);
         if (alunosDaTurma.length === 0) return null;
 
+        // 1. Descobrir todas as matérias únicas dessa turma para montar as colunas
+        const materiasSet = new Set<string>();
+        alunosDaTurma.forEach(aluno => {
+          if (aluno.mediasMaterias) {
+            aluno.mediasMaterias.forEach((mat: any) => materiasSet.add(mat.nome));
+          }
+        });
+        // Ordena as matérias em ordem alfabética para os cabeçalhos ficarem padronizados
+        const materiasDaTurma = Array.from(materiasSet).sort((a, b) => a.localeCompare(b));
+
         return (
           <div key={turmaNome} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '20px', marginBottom: '25px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', borderBottom: '2px solid #f3f4f6', paddingBottom: '10px', marginBottom: '15px', color: '#2563eb' }}>{turmaNome}</h2>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
                 <thead>
                   <tr style={{ fontSize: '12px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>
-                    <th style={{ padding: '12px' }}>NOME DO ALUNO</th>
-                    <th style={{ padding: '12px', width: '150px', textAlign: 'center' }}>MÉDIA DO BOLETIM</th>
-                    <th style={{ padding: '12px', width: '200px' }}>SITUAÇÃO ACADÊMICA</th>
+                    <th style={{ padding: '12px', width: '25%' }}>NOME DO ALUNO</th>
+                    
+                    {/* 2. Gerar uma coluna para cada matéria encontrada na turma */}
+                    {materiasDaTurma.map(nomeMateria => (
+                      <th key={nomeMateria} style={{ padding: '12px', textAlign: 'center' }} title={nomeMateria}>
+                        {abreviarMateria(nomeMateria)}
+                      </th>
+                    ))}
+
+                    <th style={{ padding: '12px', width: '20%', textAlign: 'center' }}>SITUAÇÃO</th>
                   </tr>
                 </thead>
                 <tbody>
                   {alunosDaTurma.map(aluno => (
-                    <tr key={aluno.id} style={{ borderBottom: '1px solid #f9fafb' }}>
+                    <tr key={aluno.id} style={{ borderBottom: '1px solid #f9fafb', transition: 'background-color 0.2s' }}>
                       <td style={{ padding: '12px', fontWeight: '600', color: '#374151' }}>{aluno.nome}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <div style={{ 
-                          padding: '8px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
-                          fontWeight: '800', color: parseFloat(aluno.media_calculada) >= 7 ? '#15803d' : '#b91c1c', fontSize: '16px'
-                        }}>
-                          {aluno.media_calculada}
-                        </div>
-                      </td>
+                      
+                      {/* 3. Para cada matéria da tabela, procuramos a nota do aluno */}
+                      {materiasDaTurma.map(nomeMateria => {
+                        const mat = aluno.mediasMaterias?.find((m: any) => m.nome === nomeMateria);
+                        
+                        return (
+                          <td key={nomeMateria} style={{ padding: '12px', textAlign: 'center' }}>
+                            {mat ? (
+                              <span style={{ 
+                                display: 'inline-block',
+                                padding: '4px 10px', 
+                                borderRadius: '999px',
+                                backgroundColor: mat.media >= 7 ? '#f0fdf4' : '#fef2f2', 
+                                border: `1px solid ${mat.media >= 7 ? '#bbf7d0' : '#fecaca'}`,
+                                color: mat.media >= 7 ? '#15803d' : '#b91c1c',
+                                fontWeight: '800',
+                                fontSize: '12px',
+                                minWidth: '40px'
+                              }} 
+                              title={`${mat.notasLancadas} bimestre(s) lançado(s)`}>
+                                {mat.media.toFixed(1)}
+                              </span>
+                            ) : (
+                              // Se o aluno ainda não tem nota nessa matéria, exibe um traço
+                              <span style={{ color: '#d1d5db', fontWeight: 'bold' }}>-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+
                       <td style={{ padding: '12px' }}>
                         <select 
                           value={aluno.situacao_academica || 'Em curso'} 
                           onChange={(e) => atualizarAluno(aluno.id, 'situacao_academica', e.target.value)}
                           style={{ 
-                            padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', fontWeight: 'bold',
+                            padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', fontWeight: 'bold', fontSize: '13px',
                             backgroundColor: aluno.situacao_academica === 'Aprovado' ? '#dcfce7' : aluno.situacao_academica === 'Reprovado' ? '#fee2e2' : 'white',
-                            color: aluno.situacao_academica === 'Aprovado' ? '#166534' : aluno.situacao_academica === 'Reprovado' ? '#991b1b' : '#374151'
+                            color: aluno.situacao_academica === 'Aprovado' ? '#166534' : aluno.situacao_academica === 'Reprovado' ? '#991b1b' : '#374151',
+                            cursor: 'pointer', outline: 'none'
                           }}
                         >
                           <option value="Em curso">🟡 Em curso</option>

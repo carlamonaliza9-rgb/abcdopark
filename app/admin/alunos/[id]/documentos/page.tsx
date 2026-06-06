@@ -1,25 +1,23 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
-// Lista imutável dos documentos exigidos pela escola
+// Lista imutável dos documentos exigidos pela escola - HIGIENIZADA (RG e CPF Unificados)
 const DOCUMENTOS_EXIGIDOS = [
-  { id: "rg_responsavel", nome: "RG do Responsável", descricao: "Frente e verso legíveis" },
-  { id: "cpf_responsavel", nome: "CPF do Responsável", descricao: "Comprovante de situação cadastral" },
-  { id: "rg_aluno", nome: "RG do Aluno", descricao: "Documento de identidade do estudante" },
-  { id: "cpf_aluno", nome: "CPF do Aluno", descricao: "Documento do estudante" },
+  { id: "rg_cpf_responsavel", nome: "RG e CPF do Responsável", descricao: "Frente e verso legíveis (juntos no mesmo arquivo ou CNH)" },
+  { id: "rg_cpf_aluno", nome: "RG e CPF do Aluno", descricao: "Documentos de identidade do estudante (juntos no mesmo arquivo)" },
   { id: "certidao_nascimento", nome: "Certidão de Nascimento", descricao: "Certidão de nascimento do aluno" },
   { id: "comprovante_residencia", nome: "Comprovante de Residência", descricao: "Atualizado (últimos 3 meses)" },
   { id: "historico_escolar", nome: "Histórico Escolar", descricao: "Documentação de transferência ou anos anteriores" },
   { id: "ressalva", nome: "Ressalva", descricao: "Termo de pendência ou declaração provisória" }
 ];
 
-export default function PastaDocumentosAlunoPage({ params }: { params: Promise<{ id: string }> }) {
+export default function PastaDocumentosAlunoPage() {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const alunoId = resolvedParams.id;
+  const params = useParams();
+  const alunoId = params.id as string;
 
   const [aluno, setAluno] = useState<any>(null);
   const [arquivosEnviados, setArquivosEnviados] = useState<any[]>([]);
@@ -29,7 +27,9 @@ export default function PastaDocumentosAlunoPage({ params }: { params: Promise<{
   const [ehVisitante, setEhVisitante] = useState(true);
 
   useEffect(() => {
-    initPage();
+    if (alunoId) {
+      initPage();
+    }
   }, [alunoId]);
 
   async function initPage() {
@@ -96,7 +96,7 @@ export default function PastaDocumentosAlunoPage({ params }: { params: Promise<{
 
       // 3. Salva a referência na tabela para sabermos que ele entregou
       const { error: dbError } = await supabase.from('documentos_alunos').upsert({
-        aluno_id: alunoId,
+        aluno_id: parseInt(alunoId), // Garante que é tratado como número (BIGINT)
         tipo_documento: tipoDocumentoId,
         url_arquivo: urlPublica,
         status: "Entregue",
@@ -138,7 +138,7 @@ export default function PastaDocumentosAlunoPage({ params }: { params: Promise<{
     return <div className="flex justify-center items-center h-screen bg-slate-50 text-slate-500 font-bold tracking-wide">Acessando Pasta Digital...</div>;
   }
 
-  const quantidadeEntregue = arquivosEnviados.length;
+  const quantidadeEntregue = arquivosEnviados.filter(arq => DOCUMENTOS_EXIGIDOS.some(d => d.id === arq.tipo_documento)).length;
   const totalExigido = DOCUMENTOS_EXIGIDOS.length;
   const porcentagem = Math.round((quantidadeEntregue / totalExigido) * 100);
 

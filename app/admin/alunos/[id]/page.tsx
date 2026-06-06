@@ -20,6 +20,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [ehVisitante, setEhVisitante] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [isProcessandoAcao, setIsProcessandoAcao] = useState(false);
+  const [caixaAtual, setCaixaAtual] = useState<any>(null);
 
   // --- ESTADOS DA FICHA ---
   const [verBoletim, setVerBoletim] = useState(false);
@@ -46,10 +47,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState(new Date().getFullYear().toString());
 
   // --- ESTADOS DO PDV INLINE E EDIÇÃO DE PAGAMENTO ---
-  const [modalPDVAberto, setModalPDVAberto] = useState(false);
+  // CORREÇÃO: O Modal PDV agora aceita boolean ou string (ID da dívida clicada)
+  const [modalPDVAberto, setModalPDVAberto] = useState<boolean | string>(false);
   const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
   const [tipoPagamentoPDV, setTipoPagamentoPDV] = useState("pdv");
-  const [pagamentosMetodosPDV, setPagamentosMetodosPDV] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "" });
+  const [pagamentosMetodosPDV, setPagamentosMetodosPDV] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "", juros_cartao: "", parcelas: "1" });
   
   const [modalPgtoAberto, setModalPgtoAberto] = useState(false);
   const [idPagamentoEdicao, setIdPagamentoEdicao] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [tipoPagamento, setTipoPagamento] = useState("mensalidade");
   const [descricaoOutro, setDescricaoOutro] = useState("");
   const [mesReferencia, setMesReferencia] = useState("");
-  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+  const [pagamentosMetodos, setPagamentosMetodos] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" });
 
   const [modoEdicao, setModoEdicao] = useState(false);
   const [formEdicao, setFormEdicao] = useState<any>({});
@@ -75,6 +77,10 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       
       const isVisitante = emailAtual !== 'carlamonaliza9@gmail.com' && emailAtual !== 'diretoria@abcdopark.com' && perfil?.cargo !== 'Admin' && perfil?.cargo !== 'Direção';
       setEhVisitante(isVisitante);
+
+      // BUSCA O CAIXA ABERTO NO PDV
+      const { data: sessoesAtivas } = await supabase.from('sessoes_caixa').select('*').eq('status', 'aberto').order('data_abertura', { ascending: false }).limit(1);
+      setCaixaAtual(sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null);
 
       await buscarAlunoBase();
     }
@@ -115,15 +121,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     const { data: historicoCompleto } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', aluno.id).order('data_pagamento', { ascending: false });
     
     if (historicoCompleto) {
-      // ==========================================
-      // MOTOR DE DESDUPLICAÇÃO E LIMITE TEMPORAL
-      // ==========================================
       const mesesPagos = new Set();
       const dataAtual = new Date();
       const mesAtualNum = dataAtual.getMonth(); 
       const anoAtual = dataAtual.getFullYear().toString();
       
-      // 1. Rastreador de meses pagos
       historicoCompleto.forEach(h => {
         if (h.status === 'pago' && (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo')) {
           const desc = (h.descricao || "").toLowerCase();
@@ -151,9 +153,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         }
       });
 
-      // 2. Filtro Rigoroso do Histórico
       const historicoSemDuplicatas = historicoCompleto.filter(h => {
-        // Bloqueio A: Ocultar as dívidas "físicas" do banco de dados que sejam de meses que ainda não chegaram.
         if (h.tipo?.toLowerCase() === 'mensalidade' && h.status !== 'pago' && h.status !== 'cancelado' && h.status !== 'estornado') {
            const desc = (h.descricao || "").toLowerCase();
            let mesBanco = (h.mes_referencia || "").toLowerCase().trim();
@@ -165,12 +165,10 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
            const anoMatch = desc.match(/(20\d{2})/);
            let anoRef = anoMatch ? anoMatch[0] : (h.data_vencimento || h.data_pagamento)?.substring(0, 4);
 
-           // Se a fatura pendente for do ano atual, mas de um mês no futuro, NÃO RENDERIZA
            if (anoRef === anoAtual && idxMesBanco > mesAtualNum) {
                return false; 
            }
            
-           // Se a chave "mes_ano" já foi paga, descarta a versão pendente
            if (mesBanco && anoRef && mesesPagos.has(`${mesBanco}_${anoRef}`)) return false; 
         }
         return true;
@@ -194,7 +192,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const hojeStr = new Date();
       hojeStr.setHours(0,0,0,0);
 
-      // 3. Verifica pendências físicas limpas
       const pendenciasRegistradas = historicoSemDuplicatas.filter(h => {
         if (h.status === 'renegociado' || h.status === 'cancelado' || h.status === 'estornado' || h.status === 'pago') return false;
         const devedor = clean(h.valor_total) - clean(h.valor_pago);
@@ -212,13 +209,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         listaDívida.push({ ...pend, atraso_automatico: pend.tipo?.toLowerCase() === 'mensalidade' }); 
       });
 
-      // 4. Varredura Virtual de Mensalidades (Gera APENAS ATÉ O MÊS ATUAL)
       const diaVencimentoAluno = parseInt(aluno.vencimento);
       const valorMensalidadeBase = clean(aluno.valor);
       const alunoTemValorCadastrado = aluno.valor !== null && aluno.valor !== undefined && aluno.valor !== "";
 
       if (alunoTemValorCadastrado && !isNaN(diaVencimentoAluno)) {
-        // MUDANÇA CIRÚRGICA AQUI: O laço 'for' trava RIGOROSAMENTE no mês atual. (i <= mesAtualNum)
         for (let i = 0; i <= mesAtualNum; i++) {
           const isVencido = (i < mesAtualNum) || (i === mesAtualNum && dataAtual.getDate() > diaVencimentoAluno);
           if (!isVencido) continue; 
@@ -483,16 +478,48 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   function handleEditarPagamento(pgto: any) {
     setIdPagamentoEdicao(pgto.id); setDataPagamento(pgto.data_pagamento); setTipoPagamento(pgto.tipo);
-    setDescricaoOutro(pgto.descricao); setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", multa: "" });
+    setDescricaoOutro(pgto.descricao); 
+    setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" });
     setModalPgtoAberto(true);
   }
 
   async function handleSalvarPgtoEditado() {
     if (isProcessandoAcao) return;
+
+    if (!caixaAtual) {
+      return alert("ATENÇÃO: Não há nenhum Caixa Aberto! Vá ao módulo 'Frente de Caixa (PDV)' e abra o turno antes de realizar ou modificar pagamentos.");
+    }
+
     setIsProcessandoAcao(true);
 
-    const soma = Object.values(pagamentosMetodos).reduce((acc, val) => acc + (parseFloat(val as string) || 0), 0);
-    const dados = { tipo: tipoPagamento, descricao: descricaoOutro, valor_total: soma, data_pagamento: dataPagamento, detalhes_metodos: pagamentosMetodos };
+    const limpa = (v: any) => parseFloat(String(v).replace(',', '.')) || 0;
+    
+    const somaRecebida = 
+      limpa(pagamentosMetodos.pix) + 
+      limpa(pagamentosMetodos.dinheiro) + 
+      limpa(pagamentosMetodos.credito) + 
+      limpa(pagamentosMetodos.debito) + 
+      limpa(pagamentosMetodos.boleto) +
+      limpa(pagamentosMetodos.credito_aluno);
+
+    const { data: pgtoOriginal } = await supabase.from('historico_pagamentos').select('valor_total').eq('id', idPagamentoEdicao).single();
+    const valorOriginalDaDivida = pgtoOriginal ? limpa(pgtoOriginal.valor_total) : somaRecebida;
+
+    const totalDesconto = limpa(pagamentosMetodos.desconto);
+    const devedorRestante = valorOriginalDaDivida - somaRecebida - totalDesconto;
+
+    const novoStatus = devedorRestante <= 0.01 ? 'pago' : 'parcial';
+
+    const dados = { 
+      tipo: tipoPagamento, 
+      descricao: descricaoOutro, 
+      valor_pago: somaRecebida, 
+      status: novoStatus,
+      data_pagamento: dataPagamento, 
+      detalhes_metodos: pagamentosMetodos,
+      caixa_id: caixaAtual.id
+    };
+    
     await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
     
     const checkTroco = historicoLocal.filter(h => Array.isArray(h.detalhes_metodos?.ids_origem) && h.detalhes_metodos.ids_origem.map(String).includes(String(idPagamentoEdicao)));
@@ -505,6 +532,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   async function handleConfirmarPDV(dividasSelecionadas: any[]) {
     if (isProcessandoAcao) return;
+
+    if (!caixaAtual) {
+      return alert("ATENÇÃO: Não há nenhum Caixa Aberto! Vá ao módulo 'Frente de Caixa (PDV)' e abra o turno antes de realizar ou modificar pagamentos.");
+    }
+
     setIsProcessandoAcao(true);
 
     const valorPix = clean(pagamentosMetodosPDV.pix);
@@ -524,7 +556,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
     if (valorPagoFinal + 0.01 < totalDividasAjustado) {
       setIsProcessandoAcao(false);
-      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas. Desmarque algo no carrinho ou faça baixas individuais.");
+      return alert("O valor inserido é insuficiente para quitar as dívidas selecionadas.");
     }
 
     if (creditoUtilizado > saldoCreditoVisivel) {
@@ -572,12 +604,14 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       if (idString.startsWith('temp_')) {
         const { data } = await supabase.from('historico_pagamentos').insert({
           aluno_id: aluno.id, tipo: 'mensalidade', descricao: div.descricao, mes_referencia: div.mes_referencia,
-          valor_total: valorOriginalTotal, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, detalhes_metodos: jsonMetodos
+          valor_total: valorOriginalTotal, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, detalhes_metodos: jsonMetodos,
+          caixa_id: caixaAtual.id
         }).select('id').single();
         if (data) savedId = data.id;
       } else {
         await supabase.from('historico_pagamentos').update({ 
-          status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : div.data_pagamento, detalhes_metodos: jsonMetodos 
+          status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : div.data_pagamento, detalhes_metodos: jsonMetodos,
+          caixa_id: caixaAtual.id
         }).eq('id', div.id);
       }
       if (savedId) idsProcessados.push(String(savedId));
@@ -599,7 +633,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       await supabase.from('historico_pagamentos').insert({
         aluno_id: aluno.id, tipo: 'credito', descricao: descricaoTroco, mes_referencia: 'Avulso',
         valor_total: trocoGlobal, valor_pago: trocoGlobal, status: 'pago', data_pagamento: dataPagamentoPDV,
-        detalhes_metodos: { forma_geradora: formaTexto, ids_origem: idsProcessados }
+        detalhes_metodos: { forma_geradora: formaTexto, ids_origem: idsProcessados },
+        caixa_id: caixaAtual.id
       });
     }
 
@@ -752,13 +787,13 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         />
 
         {verDividasGlobais ? (
-          <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} setModalPDVAberto={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
+          <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} onAbrirPDV={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
         ) : verCreditoGlobal ? (
           <CreditoAluno historicoLocal={historicoLocal} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} editandoCredito={editandoCredito} setEditandoCredito={setEditandoCredito} novoValorCredito={novoValorCredito} setNovoValorCredito={setNovoValorCredito} handleSalvarCredito={handleSalvarCredito} handleZerarCredito={handleZerarCredito} isProcessandoAcao={isProcessandoAcao} ehVisitante={ehVisitante} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} />
         ) : verBoletim ? (
           <BoletimAluno aluno={aluno} anoSelecionado={anoSelecionado} setAnoSelecionado={setAnoSelecionado} notas={notas} setVerBoletim={setVerBoletim} />
         ) : verHistorico ? (
-          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} gerarPDFHistorico={gerarPDFHistorico} clean={clean} />
+          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} onAbrirPDV={setModalPDVAberto} clean={clean} />
         ) : (
           <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} />
         )}
@@ -779,10 +814,27 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         />
       )}
 
+      {/* MODAL PDV: Passando dividaPreSelecionada se modalPDVAberto for uma string (ID da dívida) */}
       <ModalPagamento 
-        aberto={modalPDVAberto} onFechar={() => setModalPDVAberto(false)} aluno={aluno} dataPagamento={dataPagamentoPDV} setDataPagamento={setDataPagamentoPDV}
-        tipoPagamento={tipoPagamentoPDV} setTipoPagamento={setTipoPagamentoPDV} mesReferencia={""} setMesReferencia={() => {}} mesesAno={mesesAno} descricaoOutro={""} setDescricaoOutro={() => {}}
-        pagamentosMetodos={pagamentosMetodosPDV} setPagamentosMetodos={setPagamentosMetodosPDV} editando={false} onConfirmar={() => {}} dividasAbertas={listaPendenciasGerais} onConfirmarPDV={handleConfirmarPDV}
+        aberto={!!modalPDVAberto} 
+        onFechar={() => setModalPDVAberto(false)} 
+        aluno={aluno} 
+        dataPagamento={dataPagamentoPDV} 
+        setDataPagamento={setDataPagamentoPDV}
+        tipoPagamento={tipoPagamentoPDV} 
+        setTipoPagamento={setTipoPagamentoPDV} 
+        mesReferencia={""} 
+        setMesReferencia={() => {}} 
+        mesesAno={mesesAno} 
+        descricaoOutro={""} 
+        setDescricaoOutro={() => {}}
+        pagamentosMetodos={pagamentosMetodosPDV} 
+        setPagamentosMetodos={setPagamentosMetodosPDV} 
+        editando={false} 
+        onConfirmar={() => {}} 
+        dividasAbertas={listaPendenciasGerais} 
+        onConfirmarPDV={handleConfirmarPDV}
+        dividaPreSelecionada={typeof modalPDVAberto === 'string' ? modalPDVAberto : null}
       />
 
       <ModalPagamento 

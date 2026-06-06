@@ -507,7 +507,6 @@ export default function AlunosAdminPage() {
     setTipoPagamento(pgto.tipo);
     setDescricaoOutro(pgto.descricao);
     
-    // Reseta o form para garantir que chaves como desconto e multa apareçam
     setPagamentosMetodos(pgto.detalhes_metodos || { pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" });
     setModalPgtoAberto(true);
   }
@@ -531,7 +530,6 @@ export default function AlunosAdminPage() {
 
     const novoStatus = devedorRestante <= 0.01 ? 'pago' : 'parcial';
 
-    // VERIFICAÇÃO DE CAIXA: Toda atualização de saldo financeiro na Ficha deve pertencer ao caixa do dia
     if (!caixaAtual) {
       return alert("ATENÇÃO: Não há nenhum Caixa Aberto! Vá ao módulo 'Frente de Caixa (PDV)' e abra o turno antes de realizar ou modificar pagamentos.");
     }
@@ -543,7 +541,7 @@ export default function AlunosAdminPage() {
       status: novoStatus,
       data_pagamento: dataPagamento, 
       detalhes_metodos: pagamentosMetodos,
-      caixa_id: caixaAtual.id // <--- GARANTE A INTEGRAÇÃO COM O PDV
+      caixa_id: caixaAtual.id 
     };
     
     await supabase.from('historico_pagamentos').update(dados).eq('id', idPagamentoEdicao);
