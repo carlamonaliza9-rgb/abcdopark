@@ -68,7 +68,6 @@ export default function TurmasAdminPage() {
   const [modalTurmaAberto, setModalTurmaAberto] = useState(false);
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   const [modalFichaAberto, setModalFichaAberto] = useState(false);
-  const [historico, setHistorico] = useState<any[]>([]);
 
   const [modalHorarioAberto, setModalHorarioAberto] = useState(false);
   const [turmaParaHorario, setTurmaParaHorario] = useState<any>(null);
@@ -80,6 +79,12 @@ export default function TurmasAdminPage() {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false);
   const [turmaParaAgenda, setTurmaParaAgenda] = useState<any>(null);
   const [modoAgenda, setModoAgenda] = useState<'registrar' | 'consultar'>('registrar');
+
+  // --- NOVOS ESTADOS PARA VINCULAÇÃO GRANULAR DE PROFESSORES ---
+  const [modalVincularAberto, setModalVincularAberto] = useState(false);
+  const [turmaVincular, setTurmaVincular] = useState<string>("");
+  const [disciplinasTurma, setDisciplinasTurma] = useState<any[]>([]);
+  const [infoTurmaAtual, setInfoTurmaAtual] = useState<any>({});
 
   const estiloFixoTurmas: any = {
     "Maternal": { icone: "👶", texto: "#0369a1" },
@@ -116,26 +121,66 @@ export default function TurmasAdminPage() {
     const coresAtuais = coresData?.reduce((acc: any, item: any) => { acc[item.nome_turma] = item.cor_hex; return acc; }, {}) || {};
     setCoresConfig(coresAtuais);
 
-    const [resAlunos, resInfos, resFuncs] = await Promise.all([
+    const [resAlunos, resInfos, resFuncs, resDisc] = await Promise.all([
       supabase.from('alunos').select('*'),
       supabase.from('turmas_info').select('*'),
-      supabase.from('funcionarios').select('nome').eq('cargo', 'Professor').order('nome')
+      supabase.from('funcionarios').select('nome, cargo').in('cargo', ['Professor', 'Auxiliar']).order('nome'),
+      supabase.from('turma_disciplinas').select('*').eq('ano', '2026')
     ]);
 
     if (resFuncs.data) setListaProfessores(resFuncs.data);
+    
     if (resAlunos.data) {
       setTodosAlunos(resAlunos.data);
       const contagem = resAlunos.data.reduce((acc: any, curr: any) => { acc[curr.turma] = (acc[curr.turma] || 0) + 1; return acc; }, {});
+      
       const listaTurmasCompilada = Object.keys(estiloFixoTurmas).map(nome => {
         const infoExtra = resInfos.data?.find(i => i.nome_turma === nome);
         const corFundo = coresAtuais[nome] || "#ffffff";
+        
+        // --- MOTOR DE TRIAGEM HIERÁRQUICA ---
+        const discTurma = (resDisc.data || []).filter(d => d.nome_turma === nome && d.professor_vinculado);
+        
+        // 1. Conta quem dá mais aulas
+        const contagemProfs = discTurma.reduce((acc: any, curr: any) => {
+            acc[curr.professor_vinculado] = (acc[curr.professor_vinculado] || 0) + 1;
+            return acc;
+        }, {});
+        
+        // 2. Acha o número máximo de matérias que um professor tem
+        let maxMaterias = 0;
+        for (const p in contagemProfs) {
+            if (contagemProfs[p] > maxMaterias) maxMaterias = contagemProfs[p];
+        }
+
+        // 3. Separa Regentes (quem tem maxMaterias) dos Especialistas
+        let regentesLista: string[] = [];
+        let especialistasMap = new Map<string, string[]>(); // Map de Professor -> [Música, Xadrez...]
+
+        discTurma.forEach(d => {
+            const prof = d.professor_vinculado;
+            if (contagemProfs[prof] === maxMaterias) {
+                if (!regentesLista.includes(prof)) regentesLista.push(prof);
+            } else {
+                const matAtual = especialistasMap.get(prof) || [];
+                matAtual.push(d.disciplina);
+                especialistasMap.set(prof, matAtual);
+            }
+        });
+
+        const arrayEspecialistasFormatado = Array.from(especialistasMap.entries()).map(([prof, mat]) => {
+             return `${prof} (${mat.join(", ")})`;
+        });
+
         return {
-          nome, totalAlunos: contagem[nome] || 0,
-          profFixo1: infoExtra?.prof_fixo_1 || "Não definido", profFixo2: infoExtra?.prof_fixo_2 || "",
-          profEspec1: infoExtra?.prof_especifico_1 || "", profEspec2: infoExtra?.prof_especifico_2 || "",
-          emailFixo1: infoExtra?.email_prof_fixo_1 || "", emailFixo2: infoExtra?.email_prof_fixo_2 || "",
-          emailEspec1: infoExtra?.email_prof_especifico_1 || "", emailEspec2: infoExtra?.email_prof_especifico_2 || "",
-          horario_url: infoExtra ? infoExtra.horario_url : null, cor: corFundo, borda: escurecerCor(corFundo, 35),
+          nome, 
+          totalAlunos: contagem[nome] || 0,
+          regentes: regentesLista,
+          especialistas: arrayEspecialistasFormatado,
+          auxiliar: infoExtra?.auxiliar || "",
+          horario_url: infoExtra ? infoExtra.horario_url : null, 
+          cor: corFundo, 
+          borda: escurecerCor(corFundo, 35),
           ...estiloFixoTurmas[nome]
         };
       });
@@ -160,20 +205,36 @@ export default function TurmasAdminPage() {
 
   async function editarProfessor(e: React.MouseEvent, nomeTurma: string) {
     e.stopPropagation();
-    const slot = prompt("Qual cargo deseja preencher?\n1 - Prof. Fixo 1\n2 - Prof. Fixo 2\n3 - Matéria Específica 1\n4 - Matéria Específica 2");
-    const mapeamentoCampos: any = { "1": { nome: "prof_fixo_1", email: "email_prof_fixo_1" }, "2": { nome: "prof_fixo_2", email: "email_prof_fixo_2" }, "3": { nome: "prof_especifico_1", email: "email_prof_especifico_1" }, "4": { nome: "prof_especifico_2", email: "email_prof_especifico_2" } };
-    const alvo = mapeamentoCampos[slot || ""];
-    if (!alvo) return;
-    const nomesProfs = listaProfessores.map((p, i) => `${i + 1} - ${p.nome}`).join('\n');
-    const escolha = prompt(`Vincular professor para ${nomeTurma}:\n\n${nomesProfs}\n\nDigite o NÚMERO:`);
-    if (escolha) {
-      const index = parseInt(escolha) - 1;
-      const profSelecionado = listaProfessores[index];
-      if (profSelecionado) {
-        const emailProf = prompt(`Confirme o E-MAIL do(a) prof. ${profSelecionado.nome}:`, "");
-        const { error } = await supabase.from('turmas_info').upsert({ nome_turma: nomeTurma, [alvo.nome]: profSelecionado.nome, [alvo.email]: emailProf || null }, { onConflict: 'nome_turma' });
-        if (!error) carregarDados();
+    setTurmaVincular(nomeTurma);
+    const { data: discData } = await supabase.from('turma_disciplinas').select('*').eq('nome_turma', nomeTurma).eq('ano', '2026');
+    setDisciplinasTurma(discData || []);
+    const { data: infoData } = await supabase.from('turmas_info').select('*').eq('nome_turma', nomeTurma).single();
+    setInfoTurmaAtual(infoData || { nome_turma: nomeTurma });
+    setModalVincularAberto(true);
+  }
+
+  async function salvarVinculos(e: React.FormEvent) {
+    e.preventDefault();
+    setCarregando(true);
+    try {
+      await supabase.from('turmas_info').upsert({
+          nome_turma: turmaVincular,
+          auxiliar: infoTurmaAtual.auxiliar || null
+      }, { onConflict: 'nome_turma' });
+
+      for (const disc of disciplinasTurma) {
+          await supabase.from('turma_disciplinas').update({
+              professor_vinculado: disc.professor_vinculado || null
+          }).eq('id', disc.id);
       }
+      
+      await carregarDados();
+      setModalVincularAberto(false);
+      alert("Equipe vinculada com sucesso!");
+    } catch (error: any) {
+      alert("Erro ao vincular equipe: " + error.message);
+    } finally {
+      setCarregando(false);
     }
   }
 
@@ -248,8 +309,6 @@ export default function TurmasAdminPage() {
       let publicUrl = previewHorario;
       if (arquivoHorario) {
         const fileExt = arquivoHorario.name.split('.').pop();
-        
-        // HIGIENIZAÇÃO DO CAMINHO/NOME DO ARQUIVO (Remove º, acentos e espaços)
         const nomeTurmaLimpo = turmaParaHorario.nome
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
@@ -304,7 +363,8 @@ export default function TurmasAdminPage() {
 
       <TurmasHeader ehAdmin={true} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' }}>
+      {/* GRADE COM LARGURA MÍNIMA AUMENTADA */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '25px' }}>
         {turmas.map((turma) => (
           <TurmaCard
             key={turma.nome}
@@ -335,6 +395,74 @@ export default function TurmasAdminPage() {
       {modalAgendaAberto && (
         <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={true} onClose={() => setModalAgendaAberto(false)} />
       )}
+
+      {/* NOVO MODAL: VINCULAR EQUIPE PEDAGÓGICA */}
+      {modalVincularAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)', padding: '15px' }}>
+           <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+              <h2 style={{ textAlign: 'center', fontWeight: '900', marginTop: 0, color: '#0f172a', fontSize: '22px', marginBottom: '4px' }}>Equipe Pedagógica</h2>
+              <p style={{ textAlign: 'center', color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>Turma: {turmaVincular}</p>
+              
+              <form onSubmit={salvarVinculos} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {(turmaVincular.includes("Maternal") || turmaVincular.includes("Jardim")) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                          <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>👩‍🏫 Auxiliar de Sala</label>
+                          <select 
+                              value={infoTurmaAtual.auxiliar || ""} 
+                              onChange={(e) => setInfoTurmaAtual({...infoTurmaAtual, auxiliar: e.target.value})}
+                              style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
+                          >
+                              <option value="">Sem auxiliar vinculada</option>
+                              {listaProfessores.filter(p => p.cargo === 'Auxiliar').map(p => (
+                                  <option key={p.nome} value={p.nome}>{p.nome}</option>
+                              ))}
+                          </select>
+                      </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                      <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155', marginBottom: '8px' }}>📚 Professores por Disciplina</label>
+                      
+                      {disciplinasTurma.length === 0 ? (
+                          <div style={{ padding: '15px', backgroundColor: '#fee2e2', borderRadius: '10px', border: '1px solid #fca5a5' }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#b91c1c', fontWeight: 'bold' }}>Nenhuma matéria cadastrada para esta turma.</p>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#991b1b' }}>Use o botão "Matérias da Turma" no card primeiro.</p>
+                          </div>
+                      ) : (
+                          disciplinasTurma.map((disc, idx) => (
+                              <div key={disc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#475569', flex: 1 }}>{disc.disciplina}</span>
+                                  <select 
+                                      value={disc.professor_vinculado || ""} 
+                                      onChange={(e) => {
+                                          const novas = [...disciplinasTurma];
+                                          novas[idx].professor_vinculado = e.target.value;
+                                          setDisciplinasTurma(novas);
+                                      }}
+                                      style={{ flex: 2, padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '13px', backgroundColor: 'white' }}
+                                  >
+                                      <option value="">Professor não definido...</option>
+                                      {listaProfessores.filter(p => p.cargo === 'Professor').map(p => (
+                                          <option key={p.nome} value={p.nome}>{p.nome}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                          ))
+                      )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                      <button type="button" onClick={() => setModalVincularAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer', color: '#475569' }}>FECHAR</button>
+                      <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                          {carregando ? "SALVANDO..." : "SALVAR VÍNCULOS"}
+                      </button>
+                  </div>
+              </form>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }

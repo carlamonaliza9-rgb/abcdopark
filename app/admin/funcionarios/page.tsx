@@ -5,6 +5,18 @@ import { useRouter } from "next/navigation";
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 
+// A MESMA LISTA ESTRUTURAL DA PÁGINA DE TURMAS PARA GARANTIR CONEXÃO PERFEITA
+const LISTA_OFICIAL_TURMAS = [
+  "Maternal",
+  "Jardim I",
+  "Jardim II",
+  "1º Ano",
+  "2º Ano",
+  "3º Ano",
+  "4º Ano",
+  "5º Ano"
+];
+
 // --- FUNÇÕES AUXILIARES DE CORTE ---
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number) {
   return centerCrop(
@@ -61,7 +73,7 @@ export default function FuncionariosAdminPage() {
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   
-  // NOVO: Estados de Endereço
+  // Estados de Endereço
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
 
@@ -82,7 +94,7 @@ export default function FuncionariosAdminPage() {
   const [docCertidao, setDocCertidao] = useState<File | null>(null);
   const [urlsDocs, setUrlsDocs] = useState({ rg: "", comprovante: "", certidao: "" });
 
-  // --- TRAVA DE SEGURANÇA ---
+  // --- TRAVA DE SEGURANÇA E BUSCA INICIAL ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -100,11 +112,12 @@ export default function FuncionariosAdminPage() {
         return router.push("/dashboard");
       }
 
-      await buscarFuncionarios();
+      await buscarFuncionariosETurmas();
       setVerificandoAcesso(false);
     }
     verificarAcesso();
   }, [router]);
+
 
   // --- MÁSCARAS ---
   const mWhatsApp = (v: string) => {
@@ -130,7 +143,6 @@ export default function FuncionariosAdminPage() {
     return v;
   };
 
-  // --- BUSCA VIACEP ---
   const buscarEnderecoPorCep = async (cepBuscado: string) => {
     const cepLimpo = cepBuscado.replace(/\D/g, "");
     if (cepLimpo.length === 8) {
@@ -146,13 +158,38 @@ export default function FuncionariosAdminPage() {
     }
   };
 
-  async function buscarFuncionarios() {
-    const { data } = await supabase.from('funcionarios').select('*').order('nome', { ascending: true });
-    if (data) setFuncionarios(data);
+  // --- BUSCA INTELIGENTE (FUNCIONÁRIOS + CRUZAMENTO COM TURMAS) ---
+  async function buscarFuncionariosETurmas() {
+    const [resFuncs, resTurmasInfo] = await Promise.all([
+      supabase.from('funcionarios').select('*').order('nome', { ascending: true }),
+      supabase.from('turmas_info').select('*')
+    ]);
+
+    if (resFuncs.data) {
+      const funcionariosComTurmas = resFuncs.data.map(func => {
+        const turmasVinculadas = (resTurmasInfo.data || [])
+          .filter(t => 
+            t.prof_fixo_1 === func.nome || 
+            t.prof_fixo_2 === func.nome || 
+            t.prof_especifico_1 === func.nome || 
+            t.prof_especifico_2 === func.nome
+          )
+          .map(t => t.nome_turma);
+
+        return {
+          ...func,
+          turmas_dinamicas: turmasVinculadas 
+        };
+      });
+
+      setFuncionarios(funcionariosComTurmas);
+    }
   }
 
   const funcionariosFiltrados = funcionarios.filter(f => 
-    f.nome.toLowerCase().includes(busca.toLowerCase())
+    f.nome.toLowerCase().includes(busca.toLowerCase()) || 
+    (f.cargo && f.cargo.toLowerCase().includes(busca.toLowerCase())) ||
+    (f.turmas_dinamicas && f.turmas_dinamicas.some((t: string) => t.toLowerCase().includes(busca.toLowerCase())))
   );
 
   // --- LÓGICA DE CORTE ---
@@ -217,7 +254,6 @@ export default function FuncionariosAdminPage() {
         if (uploadData) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
 
-      // NOVO: cep e endereco inseridos no payload
       const dados = { 
         nome, 
         cpf: cpf || null, 
@@ -243,7 +279,7 @@ export default function FuncionariosAdminPage() {
       }
 
       setModalAberto(false); 
-      buscarFuncionarios(); 
+      await buscarFuncionariosETurmas(); 
       limparFormulario();
     } catch (error: any) { 
       alert("Erro ao salvar: " + (error.message || "Erro desconhecido")); 
@@ -260,7 +296,7 @@ export default function FuncionariosAdminPage() {
       } else {
         await registrarLog("EXCLUSÃO", `Excluiu permanentemente o colaborador: ${nome}`);
         setModalAberto(false); 
-        buscarFuncionarios();
+        await buscarFuncionariosETurmas();
       }
     }
   }
@@ -287,7 +323,7 @@ export default function FuncionariosAdminPage() {
         if (error) throw error;
         
         await registrarLog("ATUALIZAÇÃO DE DOCUMENTOS", `Atualizou documentos do colaborador: ${nome}`);
-        await buscarFuncionarios();
+        await buscarFuncionariosETurmas();
         
         setUrlsDocs(prev => ({
           ...prev,
@@ -306,8 +342,9 @@ export default function FuncionariosAdminPage() {
   }
 
   function limparFormulario() {
-    setIdEdicao(null); setNome(""); setCpf(""); setDataNascimento(""); setCargo(""); setWhatsapp(""); setEmail("");
-    setCep(""); setEndereco(""); // NOVO: Limpar CEP e Endereço
+    setIdEdicao(null); setNome(""); setCpf(""); setDataNascimento(""); 
+    setCargo(""); setWhatsapp(""); setEmail("");
+    setCep(""); setEndereco(""); 
     setArquivoFoto(null); setPreviewUrl(null); setModoEdicao(false);
     setDocRG(null); setDocComprovante(null); setDocCertidao(null);
     setFotoOriginal(null); setCompletedCrop(undefined);
@@ -316,7 +353,7 @@ export default function FuncionariosAdminPage() {
   function abrirFicha(f: any) {
     setIdEdicao(f.id); setNome(f.nome); setCpf(f.cpf || ""); setDataNascimento(f.data_nascimento || "");
     setCargo(f.cargo || ""); setWhatsapp(f.whatsapp || ""); setEmail(f.email || "");
-    setCep(f.cep || ""); setEndereco(f.endereco || ""); // NOVO: Setar CEP e Endereço
+    setCep(f.cep || ""); setEndereco(f.endereco || ""); 
     setPreviewUrl(f.foto_url); setModoEdicao(false); setModalAberto(true);
     setUrlsDocs({
       rg: f.rg_url || "",
@@ -330,73 +367,118 @@ export default function FuncionariosAdminPage() {
     setModalDocsAberto(true);
   }
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center' }}>Validando acesso à equipe...</div>;
+  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>Validando acesso à equipe...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '25px', fontFamily: 'sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ width: '100%', padding: '30px', fontFamily: 'Inter, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Gestão de Equipe</h1>
-          <p style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>Controle de colaboradores ABC DO PARK</p>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Gestão de Equipe</h1>
+          <p style={{ fontSize: '15px', color: '#64748b', marginTop: '4px' }}>Controle central de colaboradores ABC DO PARK</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '12px' }}>
           <input 
             type="text" 
             placeholder="🔍 Pesquisar colaborador..." 
             value={busca} 
             onChange={(e)=>setBusca(e.target.value)} 
-            style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', width: '250px', backgroundColor: 'white' }} 
+            style={{ padding: '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', width: '280px', backgroundColor: 'white', fontSize: '14px', transition: 'border-color 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }} 
+            onFocus={(e) => e.target.style.borderColor = '#94a3b8'}
+            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
           />
           <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
-            style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)' }}
+            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; e.currentTarget.style.transform = 'translateY(0)'; }}
           >
-            + NOVO FUNCIONÁRIO
+            + NOVO COLABORADOR
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
-        {funcionariosFiltrados.map((f) => (
-          <div key={f.id} onClick={() => abrirFicha(f)} 
-            style={{ 
-              backgroundColor: 'white', 
-              borderRadius: '24px', 
-              overflow: 'hidden', 
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', 
-              cursor: 'pointer', 
-              border: '1px solid #e2e8f0', 
-              display: 'flex', 
-              flexDirection: 'column',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'; }}
-            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'; }}
-          >
-            <div style={{ width: '100%', height: '140px', backgroundColor: '#f1f5f9', position: 'relative' }}>
-              {f.foto_url ? (
-                <img src={f.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px' }}>👤</div>
-              )}
-              <div style={{ position: 'absolute', bottom: '12px', left: '16px' }}>
-                <span style={{ fontSize: '11px', color: '#1e40af', fontWeight: '800', backgroundColor: 'rgba(239, 246, 255, 0.9)', padding: '6px 14px', borderRadius: '20px', backdropFilter: 'blur(4px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  {f.cargo || "NÃO DEFINIDO"}
-                </span>
-              </div>
-            </div>
-            
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{f.nome}</h3>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '16px' }}>
-                    <span style={{ fontSize: '16px' }}>📱</span> {mWhatsApp(f.whatsapp || "--")}
-                </div>
-            </div>
-          </div>
-        ))}
+      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <th style={{ width: '35%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Colaborador</th>
+              <th style={{ width: '40%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cargo & Turmas</th>
+              <th style={{ width: '20%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contato</th>
+              <th style={{ width: '5%', padding: '16px 24px' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {funcionariosFiltrados.length > 0 ? (
+              funcionariosFiltrados.map((f) => (
+                <tr 
+                  key={f.id} 
+                  onClick={() => abrirFicha(f)}
+                  style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background-color 0.2s' }} 
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="Clique para ver a ficha completa"
+                >
+                  <td style={{ padding: '20px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#e2e8f0', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                        {f.foto_url ? (
+                          <img src={f.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={f.nome} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%)', fontSize: '20px' }}>👤</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '15px', marginBottom: '2px' }}>{f.nome}</div>
+                        <div style={{ color: '#64748b', fontSize: '13px' }}>{f.cpf ? mCPF(f.cpf) : 'CPF não informado'}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td style={{ padding: '20px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '12px', fontWeight: '600', color: '#1e40af', backgroundColor: '#eff6ff', padding: '6px 12px', borderRadius: '20px', border: '1px solid #bfdbfe' }}>
+                        {f.cargo || "Não Definido"}
+                      </span>
+                      
+                      {f.turmas_dinamicas && f.turmas_dinamicas.length > 0 && (
+                        <>
+                          <span style={{ color: '#cbd5e1', margin: '0 4px' }}>|</span>
+                          {f.turmas_dinamicas.map((tNome: string, idx: number) => (
+                            <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: '600', color: '#047857', backgroundColor: '#d1fae5', padding: '5px 10px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                              📚 {tNome}
+                            </span>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </td>
+
+                  <td style={{ padding: '20px 24px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#334155', fontWeight: '500' }}>
+                        <span>📱</span> {f.whatsapp ? mWhatsApp(f.whatsapp) : '--'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b' }}>
+                        <span>✉️</span> {f.email || '--'}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td style={{ padding: '20px 24px', textAlign: 'right', color: '#cbd5e1', fontSize: '18px' }}>
+                    <span style={{ display: 'inline-block', transform: 'scaleY(1.5)' }}>›</span>
+                  </td>
+
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '15px' }}>
+                  Nenhum colaborador encontrado com essa busca.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* MODAL PRINCIPAL (FICHA/EDIÇÃO) */}
@@ -432,7 +514,20 @@ export default function FuncionariosAdminPage() {
                 </div>
 
                 <h2 style={{ margin: '0 0 4px', fontWeight: '900', fontSize: '24px', color: '#0f172a' }}>{nome}</h2>
-                <span style={{ display: 'inline-block', color: '#1e40af', fontWeight: '800', fontSize: '12px', backgroundColor: '#eff6ff', padding: '6px 16px', borderRadius: '20px' }}>{cargo}</span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                  <span style={{ display: 'inline-block', color: '#1e40af', fontWeight: '800', fontSize: '12px', backgroundColor: '#eff6ff', padding: '6px 16px', borderRadius: '20px' }}>{cargo}</span>
+                  
+                  {funcionarios.find(f => f.id === idEdicao)?.turmas_dinamicas?.length > 0 && (
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      {funcionarios.find(f => f.id === idEdicao).turmas_dinamicas.map((tNome: string, idx: number) => (
+                        <span key={idx} style={{ display: 'inline-block', color: '#047857', fontWeight: '800', fontSize: '11px', backgroundColor: '#d1fae5', padding: '4px 10px', borderRadius: '12px' }}>
+                          📚 {tNome}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 
                 <div style={{ textAlign: 'left', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid #f1f5f9' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
@@ -451,7 +546,6 @@ export default function FuncionariosAdminPage() {
                     <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>E-mail</span>
                     <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{email || '--'}</span>
                   </div>
-                  {/* NOVO: Exibição de CEP e Endereço */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
                     <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CEP</span>
                     <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mCEP(cep) || '--'}</span>
@@ -495,19 +589,26 @@ export default function FuncionariosAdminPage() {
                     <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
                 </div>
 
-                <select value={cargo} onChange={(e)=>setCargo(e.target.value)} required style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: 'white', fontSize: '15px', color: cargo ? '#0f172a' : '#94a3b8' }}>
-                  <option value="" disabled>Selecione o Cargo...</option>
-                  <option value="Professor">Professor(a)</option>
-                  <option value="Auxiliar">Auxiliar</option>
-                  <option value="Coordenação">Coordenação</option>
-                  <option value="Serviços Gerais">Serviços Gerais</option>
-                  <option value="Outro">Outro</option>
-                </select>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <select value={cargo} onChange={(e)=>setCargo(e.target.value)} required style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: 'white', fontSize: '15px', color: cargo ? '#0f172a' : '#94a3b8' }}>
+                    <option value="" disabled>Selecione o Cargo...</option>
+                    <option value="Professor">Professor(a)</option>
+                    <option value="Auxiliar">Auxiliar</option>
+                    <option value="Coordenação">Coordenação</option>
+                    <option value="Serviços Gerais">Serviços Gerais</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+                
+                {cargo === "Professor" && (
+                  <div style={{ fontSize: '12px', color: '#059669', backgroundColor: '#d1fae5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+                    💡 <b>Dica:</b> O vínculo das turmas deste professor é feito automaticamente pela aba <b>"Turmas"</b>. 
+                  </div>
+                )}
 
                 <input type="text" placeholder="WhatsApp" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
                 <input type="email" placeholder="E-mail" value={email} onChange={(e)=>setEmail(e.target.value)} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
 
-                {/* NOVO: Campos de CEP e Endereço */}
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <input 
                     type="text" 

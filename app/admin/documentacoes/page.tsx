@@ -10,6 +10,7 @@ import { gerarPDFImpostoRenda } from "@/app/dashboard/documentacoes/_lib/gerador
 import { gerarPDFRessalva } from "@/app/dashboard/documentacoes/_lib/geradorRessalva";
 import { gerarDocumentoCodes } from "@/app/dashboard/documentacoes/_lib/geradorCodes"; 
 import { gerarNotificacaoExtrajudicial } from "@/app/dashboard/documentacoes/_lib/geradorNotificacaoExtrajudicial"; 
+import { gerarTextoWhatsAppProvas, gerarPDFCronogramaProvas, obterMateriasPadrao } from "@/app/dashboard/documentacoes/_lib/geradorProvas";
 
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
@@ -36,7 +37,7 @@ export default function DocumentacoesAdminPage() {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [boletins, setBoletins] = useState<any[]>([]);
   const [abaTurmaAtiva, setAbaTurmaAtiva] = useState<string>("");
-  const [carregandoCodes, setCarregandoCodes] = useState(false); // Novo estado de carregamento leve
+  const [carregandoCodes, setCarregandoCodes] = useState(false);
 
   // --- ESTADOS PARA A NOTIFICAÇÃO EXTRAJUDICIAL ---
   const [dataReferencia, setDataReferencia] = useState("");
@@ -47,6 +48,12 @@ export default function DocumentacoesAdminPage() {
   const [cidadeData, setCidadeData] = useState(`Belém, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`);
   const [itensNotificacao, setItensNotificacao] = useState<{descricao: string, valor: string}[]>([
     { descricao: "", valor: "" }
+  ]);
+
+  // --- ESTADOS PARA CONTEÚDO DE PROVAS ---
+  const [turmaProvas, setTurmaProvas] = useState<string>("");
+  const [listaProvas, setListaProvas] = useState<{materia: string, data: string, conteudo: string}[]>([
+    { materia: "", data: "", conteudo: "" }
   ]);
 
   // --- MÁSCARAS DE FORMATAÇÃO EM TEMPO REAL ---
@@ -117,7 +124,6 @@ export default function DocumentacoesAdminPage() {
         return router.push("/dashboard");
       }
 
-      // Inicia a busca de alunos de forma assíncrona para não travar a tela
       buscarAlunos(); 
       setVerificandoAcesso(false);
     }
@@ -285,6 +291,14 @@ export default function DocumentacoesAdminPage() {
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Notificação Extrajudicial</h3>
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Cobrança formal de débitos em aberto.</p>
           </div>
+
+          {/* NOVO CARD: CRONOGRAMA DE PROVAS */}
+          <div onClick={() => setDocumentoAtivo('provas')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontSize: '40px', marginBottom: '15px' }}>📝</span>
+            <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Cronograma de Provas</h3>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Gera PDF e texto para WhatsApp com os conteúdos.</p>
+          </div>
+
         </div>
       ) : (
         <div style={{ animation: 'fadeIn 0.3s' }}>
@@ -353,6 +367,122 @@ export default function DocumentacoesAdminPage() {
                   </table>
                 </div>
               )
+            ) : documentoAtivo === 'provas' ? (
+              // --- INTERFACE NOVA: CRONOGRAMA DE PROVAS --- //
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
+                  Gerar Cronograma de Avaliações
+                </h2>
+                
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SELECIONE A TURMA</label>
+                <select 
+  value={turmaProvas} 
+  onChange={(e) => {
+    const turmaSelecionada = e.target.value;
+    setTurmaProvas(turmaSelecionada);
+    
+    // Auto-preenche as matérias baseadas na turma selecionada
+    if(turmaSelecionada) {
+      setListaProvas(obterMateriasPadrao(turmaSelecionada));
+    } else {
+      setListaProvas([{ materia: "", data: "", conteudo: "" }]);
+    }
+  }} 
+  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', outline: 'none', fontSize: '14px', color: '#1e293b', backgroundColor: 'white' }}
+>
+  <option value="">Escolha a turma...</option>
+  <option value="Maternal">Maternal</option>
+  <option value="Jardim I">Jardim I</option>
+  <option value="Jardim II">Jardim II</option>
+  <option value="1º Ano">1º Ano</option>
+  <option value="2º Ano">2º Ano</option>
+  <option value="3º Ano">3º Ano</option>
+  <option value="4º Ano">4º Ano</option>
+  <option value="5º Ano">5º Ano</option>
+</select>
+
+
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>CONTEÚDO DAS AVALIAÇÕES</label>
+                {listaProvas.map((prova, index) => (
+                  <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Matéria (ex: Língua Portuguesa)" 
+                        value={prova.materia} 
+                        onChange={(e) => {
+                          const novas = [...listaProvas];
+                          novas[index].materia = e.target.value;
+                          setListaProvas(novas);
+                        }}
+                        style={{ flex: 1, minWidth: '150px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="Data (ex: 15/06/2026)" 
+                        value={prova.data} 
+                        onChange={(e) => handleDataChange(e.target.value, (val) => {
+                          const novas = [...listaProvas];
+                          novas[index].data = val;
+                          setListaProvas(novas);
+                        })}
+                        maxLength={10}
+                        style={{ flex: 1, minWidth: '150px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                      />
+                    </div>
+                    <textarea 
+                      placeholder="Descreva os conteúdos que cairão na prova..." 
+                      value={prova.conteudo} 
+                      onChange={(e) => {
+                        const novas = [...listaProvas];
+                        novas[index].conteudo = e.target.value;
+                        setListaProvas(novas);
+                      }}
+                      rows={3} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit', outline: 'none' }}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setListaProvas(listaProvas.filter((_, i) => i !== index))}
+                      style={{ alignSelf: 'flex-end', padding: '8px 15px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+
+                <button 
+                  type="button" 
+                  onClick={() => setListaProvas([...listaProvas, { materia: "", data: "", conteudo: "" }])} 
+                  style={{ width: '100%', padding: '12px', backgroundColor: '#f1f5f9', border: '1px dashed #94a3b8', borderRadius: '12px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#475569', marginBottom: '25px' }}
+                >
+                  + Adicionar Outra Matéria
+                </button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button 
+                    onClick={async () => {
+                      if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar o documento.');
+                      await gerarPDFCronogramaProvas(turmaProvas, listaProvas);
+                    }} 
+                    style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                  >
+                    BAIXAR CRONOGRAMA EM PDF
+                  </button>
+                  
+                  <button 
+                    onClick={() => {
+                      if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a mensagem.');
+                      const txt = gerarTextoWhatsAppProvas(turmaProvas, listaProvas);
+                      navigator.clipboard.writeText(txt);
+                      alert('Mensagem formatada copiada com sucesso! Vá no WhatsApp e aperte Colar.');
+                    }} 
+                    style={{ width: '100%', padding: '16px', backgroundColor: '#22c55e', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                  >
+                    COPIAR TEXTO PARA WHATSAPP 📱
+                  </button>
+                </div>
+              </div>
             ) : (
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
