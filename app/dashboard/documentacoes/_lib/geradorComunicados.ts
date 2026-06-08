@@ -1,6 +1,5 @@
 import { jsPDF } from "jspdf";
 
-// 1. Interfaces e Definições de Tipos Meticulosas
 export interface IlustracaoConfig {
   imgElement: HTMLImageElement | string;
   x: number;
@@ -15,25 +14,24 @@ export interface Comunicado {
   saudacao?: string;
   conteudo: string;
   telefoneContato?: string;
-  ilustracao?: IlustracaoConfig | null;
+  ilustracoes?: IlustracaoConfig[]; 
 }
 
-// Configuração de Paleta de Cores Estrita da Escola ABC do Park
 const CORES = {
   interno: {
-    primaria: "#0f5132",   // Verde Escuro (Aviso, Traços)
-    secundaria: "#198754", // Verde Médio (Caixinhas, Rodapé)
+    primaria: "#0f5132",   
+    secundaria: "#054728", 
     fundoBarra: "#198754",
     textoAviso: "#0f5132"
   },
   externo: {
-    primaria: "#000000",   // Preto para o Título (conforme a imagem)
-    secundaria: "#15438c", // Azul Médio/Escuro (Meia-lua, Caixinhas, Rodapé)
+    primaria: "#000000",   
+    secundaria: "#15438c", 
     fundoBarra: "#15438c",
-    textoAviso: "#15438c"  // Cor do ícone de aviso
+    textoAviso: "#15438c"  
   },
   aviso_curto: {
-    primaria: "#A7C7E7", // Azul Bebê
+    primaria: "#A7C7E7", 
     secundaria: "#89CFF0",
     fundoBarra: "transparent",
     textoAviso: "#0f172a"
@@ -41,7 +39,7 @@ const CORES = {
   neutras: {
     textoPrincipal: "#1e293b", 
     textoMutado: "#475569",
-    fundoPapel: "#f8fafc", // Fundo levemente cinza/gelo
+    fundoPapel: "#f8fafc", 
     bordaFina: "#e2e8f0"
   }
 };
@@ -49,7 +47,6 @@ const CORES = {
 const LOGO_URL = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
 const ESTAMPA_ESCOLAR_URL = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/estampa_escolar.png";
 
-// 2. Auxiliares Avançados de Layout
 const quebrarTextoMeticuloso = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
   const palavras = text.split(' ');
   const linhas: string[] = [];
@@ -69,7 +66,6 @@ const quebrarTextoMeticuloso = (ctx: CanvasRenderingContext2D, text: string, max
   return linhas;
 };
 
-// Auxiliar para desenhar retângulos com bordas arredondadas no Canvas
 const desenharFundoArredondado = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -85,7 +81,6 @@ const desenharFundoArredondado = (ctx: CanvasRenderingContext2D, x: number, y: n
   ctx.fill();
 };
 
-// Desenha a caixinha arredondada (Pill) para datas e destaques no JPG
 const desenharCaixaTexto = (ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, corFundo: string) => {
   ctx.font = "bold 22px Helvetica";
   const textMetricas = ctx.measureText(texto);
@@ -122,220 +117,15 @@ const carregarImagemAsync = (src: string | HTMLImageElement): Promise<HTMLImageE
 };
 
 /**
- * GERA ARQUIVO PDF (PADRÃO A4) - GEOMETRIA METICULOSAMENTE AJUSTADA
+ * MOTOR DE RENDERIZAÇÃO COMPARTILHADO (Usado pelo Preview do Front-end e pela Geração do JPG)
  */
-export const gerarPDFComunicado = async (comunicado: Comunicado) => {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const corAtiva = CORES[comunicado.tipo];
-  
-  // --- LAYOUT AVISO CURTO ---
-  if (comunicado.tipo === 'aviso_curto') {
-    doc.setFillColor(corAtiva.primaria);
-    doc.rect(0, 0, 210, 297, "F");
-
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(12, 12, 186, 273, 5, 5, "F");
-
-    try {
-      const imgEstampa = await carregarImagemAsync(ESTAMPA_ESCOLAR_URL);
-      doc.addImage(imgEstampa, "PNG", 55, 20, 100, 40); 
-    } catch (e) { console.warn("Estampa escolar não encontrada."); }
-
-    let atualY = 80;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.setTextColor(CORES.neutras.textoPrincipal);
-    doc.text(comunicado.titulo.toUpperCase(), 105, atualY, { align: "center" });
-    atualY += 15;
-
-    if (comunicado.saudacao) {
-      doc.setFontSize(16);
-      doc.text(comunicado.saudacao, 105, atualY, { align: "center" });
-      atualY += 15;
-    }
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(14);
-    const paragrafos = comunicado.conteudo.split('\n');
-    
-    paragrafos.forEach((paragrafo) => {
-      const textoLimpo = paragrafo.replace(/\[(.*?)\]/g, '$1 -'); // Limpa colchetes
-      const linhasAjustadas = doc.splitTextToSize(textoLimpo, 150);
-      linhasAjustadas.forEach((linha: string) => {
-        if (atualY > 240) { doc.addPage(); atualY = 30; }
-        doc.text(linha, 105, atualY, { align: "center" });
-        atualY += 8;
-      });
-      atualY += 6;
-    });
-
-    try { doc.addImage(LOGO_URL, "PNG", 20, 245, 35, 35); } catch (e) {}
-    
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Atenciosamente, a direção.", 185, 265, { align: "right" });
-
-  } else {
-    // --- LAYOUTS ORIGINAIS (INTERNO / EXTERNO) TOTALMENTE REESCRITOS ---
-    try {
-      doc.saveGraphicsState();
-      const gState = new (doc as any).GState({ opacity: 0.03 });
-      doc.setGState(gState);
-      doc.addImage(LOGO_URL, "PNG", 35, 85, 140, 140, undefined, 'FAST');
-      doc.restoreGraphicsState();
-    } catch (e) {}
-
-    if (comunicado.tipo === 'externo') {
-      // Correção: Círculo grande no canto para fazer uma meia-lua idêntica ao JPG
-      doc.setFillColor(corAtiva.secundaria);
-      doc.circle(210, 0, 65, "F"); 
-      try { doc.addImage(LOGO_URL, "PNG", 162, 8, 40, 40); } catch (e) {}
-    } else {
-      // Correção: Borda verde contornando a folha e detalhe superior (Badge)
-      doc.setDrawColor(corAtiva.secundaria);
-      doc.setLineWidth(1.5);
-      doc.rect(8, 8, 194, 281);
-      
-      doc.setFillColor(corAtiva.secundaria);
-      doc.circle(175, 0, 40, "F");
-      try { doc.addImage(LOGO_URL, "PNG", 157, 4, 36, 36); } catch (e) {}
-    }
-
-    // Vetorização manual do Ícone de Alerta (!) idêntico ao JPG
-    doc.setDrawColor(corAtiva.textoAviso);
-    doc.setFillColor(corAtiva.textoAviso);
-    doc.setLineWidth(0.8);
-    doc.triangle(28, 12, 38, 28, 18, 28, "S"); // Triângulo
-    doc.rect(27.2, 16, 1.6, 5, "F"); // Corpo da exclamação
-    doc.circle(28, 24, 1, "F"); // Ponto da exclamação
-    doc.line(16, 14, 12, 11); // Raios
-    doc.line(40, 14, 44, 11);
-    doc.line(14, 22, 10, 22);
-
-    // Título Grande e Impactante
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(32);
-    doc.setTextColor(0, 0, 0);
-    doc.text(comunicado.titulo.toUpperCase(), 20, 38);
-
-    // Traços estéticos sob o título (Swish)
-    const larguraTit = doc.getTextWidth(comunicado.titulo.toUpperCase());
-    doc.setDrawColor(corAtiva.secundaria);
-    doc.setLineWidth(1.2);
-    doc.line(20, 42, 20 + larguraTit + 10, 42);
-    doc.setLineWidth(0.4);
-    doc.line(24, 44, 20 + larguraTit + 5, 44);
-
-    let atualY = 62;
-
-    if (comunicado.saudacao) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(CORES.neutras.textoPrincipal);
-      doc.text(comunicado.saudacao, 20, atualY);
-      atualY += 15;
-    }
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setLineHeightFactor(1.4);
-    
-    const paragrafos = comunicado.conteudo.split('\n');
-    paragrafos.forEach((paragrafo) => {
-      if (!paragrafo.trim()) { atualY += 8; return; }
-
-      // Suporte no PDF para as "Caixinhas Coloridas" [DD/MM]
-      const match = paragrafo.match(/^\[(.*?)\]\s*(.*)$/);
-
-      if (match) {
-        const textoPill = match[1];
-        const textoRestante = match[2];
-
-        doc.setFont("helvetica", "bold");
-        const pillWidth = doc.getTextWidth(textoPill) + 6;
-        
-        // Desenha a caixa colorida com borda arredondada
-        doc.setFillColor(corAtiva.secundaria);
-        doc.roundedRect(20, atualY - 5, pillWidth, 7, 2.5, 2.5, "F");
-        
-        doc.setTextColor(255, 255, 255);
-        doc.text(textoPill, 23, atualY);
-        
-        // Desenha o restante do texto ao lado da caixinha
-        doc.setTextColor(CORES.neutras.textoPrincipal);
-        doc.setFont("helvetica", "normal");
-        
-        const linhasRestantes = doc.splitTextToSize(textoRestante, 170 - pillWidth - 5);
-        linhasRestantes.forEach((linha: string, idx: number) => {
-          if (atualY > 260) { doc.addPage(); atualY = 30; }
-          doc.text(linha, 20 + pillWidth + 5, atualY);
-          atualY += 6;
-        });
-        atualY += 4; // Margem extra após um item com caixinha
-
-      } else {
-        const linhasAjustadas = doc.splitTextToSize(paragrafo, 170);
-        linhasAjustadas.forEach((linha: string) => {
-          if (atualY > 260) { doc.addPage(); atualY = 30; }
-          doc.text(linha, 20, atualY);
-          atualY += 7;
-        });
-        atualY += 5;
-      }
-    });
-
-    const fimY = 275;
-    
-    // Rodapé estilizado com bordas levemente arredondadas no PDF
-    doc.setFillColor(corAtiva.fundoBarra);
-    doc.roundedRect(10, fimY, 190, 14, 3, 3, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor("#ffffff");
-    
-    if (comunicado.tipo === 'interno') {
-      doc.text("Atenciosamente, a direção.", 105, fimY + 8.5, { align: "center" });
-    } else {
-      doc.setFontSize(9);
-      doc.text("Qualquer dúvida favor entrar em contato com a direção.", 15, fimY + 8.5);
-      if (comunicado.telefoneContato) {
-        doc.text(`Tel: ${comunicado.telefoneContato}`, 195, fimY + 8.5, { align: "right" });
-      }
-    }
-  }
-
-  // --- INJEÇÃO DA ILUSTRAÇÃO CUSTOMIZADA COMUM A TODOS ---
-  if (comunicado.ilustracao) {
-    try {
-      const imgCarg = await carregarImagemAsync(comunicado.ilustracao.imgElement);
-      const xMM = (comunicado.ilustracao.x / 1240) * 210;
-      const yMM = (comunicado.ilustracao.y / 1754) * 297;
-      const largMM = (comunicado.ilustracao.largura / 1240) * 210;
-      const altMM = (comunicado.ilustracao.altura / 1754) * 297;
-      doc.addImage(imgCarg, "PNG", xMM, yMM, largMM, altMM);
-    } catch (e) { console.warn("Falha ao renderizar a ilustração no PDF.", e); }
-  }
-
-  doc.save(`Comunicado_${comunicado.tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
-};
-
-/**
- * GERA ARQUIVO IMAGEM JPG COM DESIGN IDÊNTICO AOS MODELOS
- */
-export const gerarJPGComunicado = async (comunicado: Comunicado) => {
+export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comunicado: Omit<Comunicado, 'ilustracoes'>) => {
   const LARGURA_A4 = 1240;
   const ALTURA_A4 = 1754;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = LARGURA_A4;
-  canvas.height = ALTURA_A4;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
   const corAtiva = CORES[comunicado.tipo];
+
+  // Limpa o canvas para o Preview não sobrepor quadros
+  ctx.clearRect(0, 0, LARGURA_A4, ALTURA_A4);
 
   if (comunicado.tipo === 'aviso_curto') {
     ctx.fillStyle = corAtiva.primaria;
@@ -375,7 +165,6 @@ export const gerarJPGComunicado = async (comunicado: Comunicado) => {
       if (!paragrafo.trim()) { atualY += 30; return; }
       
       const textoLimpo = paragrafo.replace(/\[(.*?)\]/g, '$1 -');
-
       const linhasQuebradas = quebrarTextoMeticuloso(ctx, textoLimpo, larguraTextoUtil);
       linhasQuebradas.forEach(linha => {
         ctx.fillText(linha, LARGURA_A4 / 2, atualY);
@@ -394,67 +183,90 @@ export const gerarJPGComunicado = async (comunicado: Comunicado) => {
     ctx.fillText("Atenciosamente, a direção.", LARGURA_A4 - margemQuadro - 60, ALTURA_A4 - margemQuadro - 100);
 
   } else {
+    // LAYOUTS INTERNO E EXTERNO
     ctx.fillStyle = CORES.neutras.fundoPapel;
     ctx.fillRect(0, 0, LARGURA_A4, ALTURA_A4);
 
-    ctx.fillStyle = corAtiva.secundaria;
-    ctx.beginPath();
-    ctx.arc(LARGURA_A4 - 50, 0, 350, 0, Math.PI * 2); 
-    ctx.fill();
+    if (comunicado.tipo === 'interno') {
+      // Borda verde contornando
+      ctx.strokeStyle = corAtiva.primaria;
+      ctx.lineWidth = 10;
+      ctx.strokeRect(30, 30, LARGURA_A4 - 60, ALTURA_A4 - 60);
 
-    try {
-      const logoImg = await carregarImagemAsync(LOGO_URL);
-      ctx.drawImage(logoImg, LARGURA_A4 - 310, 50, 200, 200);
-    } catch (e) {}
+      // Badge (Selo) Verde caindo do topo direito
+      ctx.fillStyle = corAtiva.secundaria;
+      ctx.beginPath();
+      ctx.roundRect(LARGURA_A4 - 350, 0, 260, 320, [0, 0, 130, 130]);
+      ctx.fill();
 
-    const margemEsquerda = 120;
-    let atualY = 180;
+      try {
+        const logoImg = await carregarImagemAsync(LOGO_URL);
+        ctx.drawImage(logoImg, LARGURA_A4 - 325, 40, 210, 210);
+      } catch (e) {}
+    } else {
+      // Meia Lua Azul no canto superior direito
+      ctx.fillStyle = corAtiva.secundaria;
+      ctx.beginPath();
+      ctx.arc(LARGURA_A4, 0, 400, 0, Math.PI * 2); 
+      ctx.fill();
 
+      try {
+        const logoImg = await carregarImagemAsync(LOGO_URL);
+        ctx.drawImage(logoImg, LARGURA_A4 - 340, 40, 240, 240);
+      } catch (e) {}
+    }
+
+    const margemEsquerda = 100;
+    
+    // Ícone de Alerta (!) reposicionado para não encavalar
     const drawWarningIcon = (x: number, y: number, color: string) => {
       ctx.strokeStyle = color;
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 5;
       ctx.lineJoin = "round";
       ctx.beginPath();
-      ctx.moveTo(x + 35, y);
-      ctx.lineTo(x + 70, y + 60);
-      ctx.lineTo(x, y + 60);
+      ctx.moveTo(x + 40, y);
+      ctx.lineTo(x + 80, y + 70);
+      ctx.lineTo(x, y + 70);
       ctx.closePath();
       ctx.stroke();
       ctx.fillStyle = color;
-      ctx.fillRect(x + 32, y + 20, 6, 20);
+      ctx.fillRect(x + 36, y + 25, 8, 25);
       ctx.beginPath();
-      ctx.arc(x + 35, y + 50, 4, 0, Math.PI * 2);
+      ctx.arc(x + 40, y + 60, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.beginPath(); ctx.moveTo(x - 10, y + 10); ctx.lineTo(x - 25, y - 5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x + 80, y + 10); ctx.lineTo(x + 95, y - 5); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x - 20, y + 40); ctx.lineTo(x - 40, y + 40); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 10, y + 15); ctx.lineTo(x - 30, y - 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 90, y + 15); ctx.lineTo(x + 110, y - 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 20, y + 45); ctx.lineTo(x - 45, y + 45); ctx.stroke();
     };
 
-    drawWarningIcon(margemEsquerda, atualY - 110, corAtiva.textoAviso);
+    drawWarningIcon(margemEsquerda, 80, corAtiva.textoAviso);
 
+    // Título reposicionado para baixo (Y = 240)
     ctx.fillStyle = corAtiva.primaria;
-    ctx.font = "900 85px 'Arial Black', Impact, sans-serif";
+    ctx.font = "500 75px Impact, sans-serif";
     ctx.textAlign = "left";
     ctx.letterSpacing = "2px"; 
-    ctx.fillText(comunicado.titulo.toUpperCase(), margemEsquerda, atualY);
+    ctx.fillText(comunicado.titulo.toUpperCase(), margemEsquerda, 240);
     ctx.letterSpacing = "0px";
 
     const larguraTitulo = ctx.measureText(comunicado.titulo.toUpperCase()).width;
     ctx.strokeStyle = corAtiva.secundaria;
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
     
+    // Traços ajustados proporcionalmente abaixo do título
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(margemEsquerda + 10, atualY + 25);
-    ctx.quadraticCurveTo(margemEsquerda + (larguraTitulo / 2), atualY + 10, margemEsquerda + larguraTitulo + 20, atualY + 25);
+    ctx.moveTo(margemEsquerda + 10, 270);
+    ctx.quadraticCurveTo(margemEsquerda + (larguraTitulo / 2), 250, margemEsquerda + larguraTitulo + 20, 270);
     ctx.stroke();
     
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(margemEsquerda + 30, atualY + 35);
-    ctx.quadraticCurveTo(margemEsquerda + (larguraTitulo / 2), atualY + 50, margemEsquerda + larguraTitulo - 10, atualY + 20);
+    ctx.moveTo(margemEsquerda + 30, 285);
+    ctx.quadraticCurveTo(margemEsquerda + (larguraTitulo / 2), 300, margemEsquerda + larguraTitulo - 10, 265);
     ctx.stroke();
 
-    atualY += 120;
+    let atualY = 380; // Texto desce bem mais para não encostar
 
     if (comunicado.saudacao) {
       ctx.fillStyle = CORES.neutras.textoPrincipal;
@@ -478,13 +290,11 @@ export const gerarJPGComunicado = async (comunicado: Comunicado) => {
       if (match) {
         const textoPill = match[1];
         const textoRestante = match[2];
-
         const larguraCaixaOcupada = desenharCaixaTexto(ctx, textoPill, margemEsquerda, atualY, corAtiva.secundaria);
         
         ctx.fillStyle = CORES.neutras.textoPrincipal;
         ctx.font = "26px Helvetica";
         ctx.fillText(textoRestante, margemEsquerda + larguraCaixaOcupada + 20, atualY);
-        
         atualY += alturaLinha + 15; 
       } else {
         ctx.fillStyle = CORES.neutras.textoPrincipal;
@@ -499,12 +309,12 @@ export const gerarJPGComunicado = async (comunicado: Comunicado) => {
     });
 
     const alturaRodape = 120;
-    const margemRodape = 50;
+    const margemRodape = comunicado.tipo === 'interno' ? 40 : 50;
     const yRodape = ALTURA_A4 - alturaRodape - margemRodape;
     
     ctx.fillStyle = corAtiva.secundaria;
     ctx.beginPath();
-    ctx.roundRect(margemRodape, yRodape, LARGURA_A4 - (margemRodape * 2), alturaRodape, 25);
+    ctx.roundRect(margemRodape, yRodape, LARGURA_A4 - (margemRodape * 2), alturaRodape, 20);
     ctx.fill();
 
     ctx.fillStyle = "#ffffff";
@@ -518,22 +328,234 @@ export const gerarJPGComunicado = async (comunicado: Comunicado) => {
       ctx.fillText("Qualquer dúvida favor entrar em contato com a direção.", LARGURA_A4 / 2, yRodape + 50);
       if (comunicado.telefoneContato) {
         ctx.font = "bold 26px Helvetica";
-        ctx.fillText(`📞 ${comunicado.telefoneContato}`, LARGURA_A4 / 2, yRodape + 95);
+        ctx.fillText(`📞 ${comunicado.telefoneContato}`, LARGURA_A4 / 2, yRodape + 90);
+      }
+    }
+  }
+};
+
+/**
+ * GERA ARQUIVO PDF (PADRÃO A4) COM A MESMA GEOMETRIA
+ */
+export const gerarPDFComunicado = async (comunicado: Comunicado) => {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const corAtiva = CORES[comunicado.tipo];
+  
+  if (comunicado.tipo === 'aviso_curto') {
+    doc.setFillColor(corAtiva.primaria);
+    doc.rect(0, 0, 210, 297, "F");
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(12, 12, 186, 273, 5, 5, "F");
+
+    try {
+      const imgEstampa = await carregarImagemAsync(ESTAMPA_ESCOLAR_URL);
+      doc.addImage(imgEstampa, "PNG", 55, 20, 100, 40); 
+    } catch (e) {}
+
+    let atualY = 80;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(CORES.neutras.textoPrincipal);
+    doc.text(comunicado.titulo.toUpperCase(), 105, atualY, { align: "center" });
+    atualY += 15;
+
+    if (comunicado.saudacao) {
+      doc.setFontSize(16);
+      doc.text(comunicado.saudacao, 105, atualY, { align: "center" });
+      atualY += 15;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(14);
+    const paragrafos = comunicado.conteudo.split('\n');
+    
+    paragrafos.forEach((paragrafo) => {
+      const textoLimpo = paragrafo.replace(/\[(.*?)\]/g, '$1 -'); 
+      const linhasAjustadas = doc.splitTextToSize(textoLimpo, 150);
+      linhasAjustadas.forEach((linha: string) => {
+        if (atualY > 240) { doc.addPage(); atualY = 30; }
+        doc.text(linha, 105, atualY, { align: "center" });
+        atualY += 8;
+      });
+      atualY += 6;
+    });
+
+    try { doc.addImage(LOGO_URL, "PNG", 20, 245, 35, 35); } catch (e) {}
+    
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Atenciosamente, a direção.", 185, 265, { align: "right" });
+
+  } else {
+    // LAYOUTS INTERNO E EXTERNO - PDF
+    try {
+      doc.saveGraphicsState();
+      const gState = new (doc as any).GState({ opacity: 0.03 });
+      doc.setGState(gState);
+      doc.addImage(LOGO_URL, "PNG", 35, 85, 140, 140, undefined, 'FAST');
+      doc.restoreGraphicsState();
+    } catch (e) {}
+
+    if (comunicado.tipo === 'externo') {
+      doc.setFillColor(corAtiva.secundaria);
+      doc.circle(210, 0, 65, "F"); 
+      try { doc.addImage(LOGO_URL, "PNG", 162, 8, 40, 40); } catch (e) {}
+    } else {
+      doc.setDrawColor(corAtiva.primaria);
+      doc.setLineWidth(1.5);
+      doc.rect(5, 5, 200, 287);
+      
+      doc.setFillColor(corAtiva.secundaria);
+      doc.roundedRect(150, 0, 45, 55, 22, 22, "F");
+      try { doc.addImage(LOGO_URL, "PNG", 154, 8, 36, 36); } catch (e) {}
+    }
+
+    doc.setDrawColor(corAtiva.textoAviso);
+    doc.setFillColor(corAtiva.textoAviso);
+    doc.setLineWidth(0.8);
+    doc.triangle(24, 14, 31, 26, 17, 26, "S"); 
+    doc.rect(23.2, 17, 1.6, 4, "F"); 
+    doc.circle(24, 23.5, 1, "F"); 
+    doc.line(16, 16, 13, 14); 
+    doc.line(32, 16, 35, 14);
+    doc.line(14, 21, 11, 21);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.setTextColor(0, 0, 0);
+    doc.text(comunicado.titulo.toUpperCase(), 17, 40);
+
+    const larguraTit = doc.getTextWidth(comunicado.titulo.toUpperCase());
+    doc.setDrawColor(corAtiva.secundaria);
+    
+    doc.setLineWidth(1.2);
+    doc.line(17, 45, 17 + larguraTit + 10, 45);
+    doc.setLineWidth(0.5);
+    doc.line(20, 48, 17 + larguraTit + 5, 48);
+
+    let atualY = 65;
+
+    if (comunicado.saudacao) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(CORES.neutras.textoPrincipal);
+      doc.text(comunicado.saudacao, 17, atualY);
+      atualY += 15;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setLineHeightFactor(1.4);
+    
+    const paragrafos = comunicado.conteudo.split('\n');
+    paragrafos.forEach((paragrafo) => {
+      if (!paragrafo.trim()) { atualY += 8; return; }
+
+      const match = paragrafo.match(/^\[(.*?)\]\s*(.*)$/);
+
+      if (match) {
+        const textoPill = match[1];
+        const textoRestante = match[2];
+
+        doc.setFont("helvetica", "bold");
+        const pillWidth = doc.getTextWidth(textoPill) + 6;
+        
+        doc.setFillColor(corAtiva.secundaria);
+        doc.roundedRect(17, atualY - 5, pillWidth, 7, 2.5, 2.5, "F");
+        
+        doc.setTextColor(255, 255, 255);
+        doc.text(textoPill, 20, atualY);
+        
+        doc.setTextColor(CORES.neutras.textoPrincipal);
+        doc.setFont("helvetica", "normal");
+        
+        const linhasRestantes = doc.splitTextToSize(textoRestante, 170 - pillWidth - 5);
+        linhasRestantes.forEach((linha: string) => {
+          if (atualY > 260) { doc.addPage(); atualY = 30; }
+          doc.text(linha, 17 + pillWidth + 5, atualY);
+          atualY += 6;
+        });
+        atualY += 4; 
+
+      } else {
+        const linhasAjustadas = doc.splitTextToSize(paragrafo, 175);
+        linhasAjustadas.forEach((linha: string) => {
+          if (atualY > 260) { doc.addPage(); atualY = 30; }
+          doc.text(linha, 17, atualY);
+          atualY += 7;
+        });
+        atualY += 5;
+      }
+    });
+
+    const fimY = 270;
+    
+    doc.setFillColor(corAtiva.fundoBarra);
+    const margemR = comunicado.tipo === 'interno' ? 7 : 10;
+    doc.roundedRect(margemR, fimY, 210 - (margemR * 2), 16, 3, 3, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor("#ffffff");
+    
+    if (comunicado.tipo === 'interno') {
+      doc.text("Atenciosamente, a direção.", 105, fimY + 9.5, { align: "center" });
+    } else {
+      doc.setFontSize(9);
+      doc.text("Qualquer dúvida favor entrar em contato com a direção.", 15, fimY + 9.5);
+      if (comunicado.telefoneContato) {
+        doc.text(`Tel: ${comunicado.telefoneContato}`, 195, fimY + 9.5, { align: "right" });
       }
     }
   }
 
-  if (comunicado.ilustracao) {
-    try {
-      const imgIlustracao = await carregarImagemAsync(comunicado.ilustracao.imgElement);
-      ctx.drawImage(
-        imgIlustracao, 
-        comunicado.ilustracao.x, 
-        comunicado.ilustracao.y, 
-        comunicado.ilustracao.largura, 
-        comunicado.ilustracao.altura
-      );
-    } catch (e) {}
+  if (comunicado.ilustracoes && comunicado.ilustracoes.length > 0) {
+    for (const ilustracao of comunicado.ilustracoes) {
+      try {
+        const imgCarg = await carregarImagemAsync(ilustracao.imgElement);
+        const xMM = (ilustracao.x / 1240) * 210;
+        const yMM = (ilustracao.y / 1754) * 297;
+        const largMM = (ilustracao.largura / 1240) * 210;
+        const altMM = (ilustracao.altura / 1754) * 297;
+        doc.addImage(imgCarg, "PNG", xMM, yMM, largMM, altMM);
+      } catch (e) { 
+        console.warn("Falha ao renderizar uma ilustração no PDF.", e); 
+      }
+    }
+  }
+
+  doc.save(`Comunicado_${comunicado.tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
+};
+
+export const gerarJPGComunicado = async (comunicado: Comunicado) => {
+  const LARGURA_A4 = 1240;
+  const ALTURA_A4 = 1754;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = LARGURA_A4;
+  canvas.height = ALTURA_A4;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Usa o motor base que criamos acima
+  await desenharDocumentoBase(ctx, comunicado);
+
+  if (comunicado.ilustracoes && comunicado.ilustracoes.length > 0) {
+    for (const ilustracao of comunicado.ilustracoes) {
+      try {
+        const imgCarg = await carregarImagemAsync(ilustracao.imgElement);
+        ctx.drawImage(
+          imgCarg, 
+          ilustracao.x, 
+          ilustracao.y, 
+          ilustracao.largura, 
+          ilustracao.altura
+        );
+      } catch (e) {
+        console.error("Erro ao desenhar imagem extra no Canvas JPG", e);
+      }
+    }
   }
 
   const urlFinalJpg = canvas.toDataURL("image/jpeg", 0.95);
