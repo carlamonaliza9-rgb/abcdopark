@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-// Importação das bibliotecas da pasta original
+// Importações originais
 import { gerarPDFMatricula } from "@/app/dashboard/documentacoes/_lib/geradorMatricula";
 import { gerarPDFImpostoRenda } from "@/app/dashboard/documentacoes/_lib/geradorImpostoRenda";
 import { gerarPDFRessalva } from "@/app/dashboard/documentacoes/_lib/geradorRessalva";
@@ -13,9 +13,11 @@ import { gerarNotificacaoExtrajudicial } from "@/app/dashboard/documentacoes/_li
 import { 
   gerarTextoWhatsAppProvas, 
   gerarPDFCronogramaProvas, 
-  gerarImagemCronogramaProvas, // <-- NOVA FUNÇÃO IMPORTADA AQUI
+  gerarImagemCronogramaProvas,
   obterMateriasPadrao 
 } from "@/app/dashboard/documentacoes/_lib/geradorProvas";
+
+import { gerarPDFComunicado, gerarJPGComunicado } from "@/app/dashboard/documentacoes/_lib/geradorComunicados";
 
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
@@ -57,9 +59,78 @@ export default function DocumentacoesAdminPage() {
 
   // --- ESTADOS PARA CONTEÚDO DE PROVAS ---
   const [turmaProvas, setTurmaProvas] = useState<string>("");
+  const [tituloAvaliacao, setTituloAvaliacao] = useState<string>("1ª AVALIAÇÃO"); // NOVO: Estado para a Avaliação
   const [listaProvas, setListaProvas] = useState<{materia: string, data: string, conteudo: string}[]>([
     { materia: "", data: "", conteudo: "" }
   ]);
+
+  // =========================================================
+  // --- ESTADOS ATUALIZADOS PARA SUPORTAR 'aviso_curto' ---
+  // =========================================================
+  const [comunicadoTipo, setComunicadoTipo] = useState<'interno' | 'externo' | 'aviso_curto'>('interno');
+  const [comunicadoTitulo, setComunicadoTitulo] = useState('COMUNICADO INTERNO');
+  const [comunicadoSaudacao, setComunicadoSaudacao] = useState('Bom dia professores!');
+  const [comunicadoConteudo, setComunicadoConteudo] = useState('');
+  const [comunicadoTelefone, setComunicadoTelefone] = useState('(91) 98622-7715');
+  
+  // Controle de Ilustração Livre
+  const [ilustracaoSrc, setIlustracaoSrc] = useState<string | null>(null);
+  const [ilusX, setIlusX] = useState<number>(750);
+  const [ilusY, setIlusY] = useState<number>(1000);
+  const [ilusLargura, setIlusLargura] = useState<number>(350);
+  const [ilusAltura, setIlusAltura] = useState<number>(350);
+
+  // Função adaptada para gerenciar as sugestões automáticas dos 3 tipos
+  const handleTipoComunicadoChange = (tipo: 'interno' | 'externo' | 'aviso_curto') => {
+    setComunicadoTipo(tipo);
+    if (tipo === 'interno') {
+      setComunicadoTitulo('COMUNICADO INTERNO');
+      setComunicadoSaudacao('Bom dia professores!');
+    } else if (tipo === 'externo') {
+      setComunicadoTitulo('INFORMATIVO');
+      setComunicadoSaudacao('Srs. pais e responsáveis,');
+    } else {
+      setComunicadoTitulo('AVISO!');
+      setComunicadoSaudacao('Prezados pais e responsáveis,');
+    }
+  };
+
+  const handleImagemUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setIlustracaoSrc(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const executarGeracaoComunicado = async (formato: 'pdf' | 'jpg') => {
+    if (!comunicadoConteudo.trim()) return alert("Digite o conteúdo da mensagem.");
+    
+    const payload = {
+      tipo: comunicadoTipo,
+      titulo: comunicadoTitulo,
+      saudacao: comunicadoSaudacao,
+      conteudo: comunicadoConteudo,
+      telefoneContato: comunicadoTelefone,
+      ilustracao: ilustracaoSrc ? {
+        imgElement: ilustracaoSrc,
+        x: ilusX,
+        y: ilusY,
+        largura: ilusLargura,
+        altura: ilusAltura
+      } : null
+    };
+
+    if (formato === 'pdf') {
+      await gerarPDFComunicado(payload);
+    } else {
+      await gerarJPGComunicado(payload);
+    }
+  };
+  // =========================================================
 
   // --- MÁSCARAS DE FORMATAÇÃO EM TEMPO REAL ---
   const handleDataChange = (value: string, setter: (val: string) => void) => {
@@ -135,13 +206,11 @@ export default function DocumentacoesAdminPage() {
     verificarAcesso();
   }, [router]);
 
-  // --- CARREGADORES SEPARADOS ---
   async function buscarAlunos() {
     const { data } = await supabase.from("alunos").select("*").order("nome");
     if (data) setAlunos(data);
   }
 
-  // --- CARREGADOR SOB DEMANDA (LAZY LOAD) APENAS PARA O CODES ---
   useEffect(() => {
     async function carregarDadosCodes() {
       if (documentoAtivo === 'codes' && turmas.length === 0) {
@@ -297,13 +366,17 @@ export default function DocumentacoesAdminPage() {
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Cobrança formal de débitos em aberto.</p>
           </div>
 
-          {/* NOVO CARD: CRONOGRAMA DE PROVAS */}
           <div onClick={() => setDocumentoAtivo('provas')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center' }}>
             <span style={{ fontSize: '40px', marginBottom: '15px' }}>📝</span>
             <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Cronograma de Provas</h3>
             <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Gera PDF e texto para WhatsApp com os conteúdos.</p>
           </div>
 
+          <div onClick={() => setDocumentoAtivo('comunicados')} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'center', border: '2px solid #e2e8f0' }}>
+            <span style={{ fontSize: '40px', marginBottom: '15px', display: 'block' }}>📢</span>
+            <h3 style={{ color: '#1e293b', fontWeight: '800', fontSize: '16px', margin: 0 }}>Avisos e Comunicados</h3>
+            <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>Avisos formatados para Pais (Azul) e Equipe (Verde).</p>
+          </div>
         </div>
       ) : (
         <div style={{ animation: 'fadeIn 0.3s' }}>
@@ -313,7 +386,124 @@ export default function DocumentacoesAdminPage() {
 
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: documentoAtivo === 'codes' ? '1200px' : '600px', width: '100%', overflowX: 'auto' }}>
             
-            {documentoAtivo === 'codes' ? (
+            {documentoAtivo === 'comunicados' ? (
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
+                  Gerar Comunicado Oficial
+                </h2>
+
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>1. PÚBLICO ALVO / MODELO DE DESIGN</label>
+                
+                {/* GRUPO DE BOTÕES DE SELEÇÃO ADAPTADO COM A TERCEIRA OPÇÃO */}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => handleTipoComunicadoChange('interno')}
+                    style={{ flex: 1, minWidth: '130px', padding: '12px', borderRadius: '12px', fontWeight: 'bold', border: comunicadoTipo === 'interno' ? '2px solid #166534' : '1px solid #e2e8f0', backgroundColor: comunicadoTipo === 'interno' ? '#dcfce7' : 'white', color: comunicadoTipo === 'interno' ? '#166534' : '#64748b', cursor: 'pointer', transition: '0.2s' }}
+                  >
+                    🟢 Equipe (Interno)
+                  </button>
+                  <button 
+                    onClick={() => handleTipoComunicadoChange('externo')}
+                    style={{ flex: 1, minWidth: '130px', padding: '12px', borderRadius: '12px', fontWeight: 'bold', border: comunicadoTipo === 'externo' ? '2px solid #1e40af' : '1px solid #e2e8f0', backgroundColor: comunicadoTipo === 'externo' ? '#dbeafe' : 'white', color: comunicadoTipo === 'externo' ? '#1e40af' : '#64748b', cursor: 'pointer', transition: '0.2s' }}
+                  >
+                    🔵 Pais (Externo)
+                  </button>
+                  
+                  {/* TERCEIRO BOTÃO INSERIDO ADAPTADO AO BANNER DE REGRAS CURTAS */}
+                  <button 
+                    onClick={() => handleTipoComunicadoChange('aviso_curto')}
+                    style={{ flex: 1, minWidth: '130px', padding: '12px', borderRadius: '12px', fontWeight: 'bold', border: comunicadoTipo === 'aviso_curto' ? '2px solid #2563eb' : '1px solid #e2e8f0', backgroundColor: comunicadoTipo === 'aviso_curto' ? '#e0f2fe' : 'white', color: comunicadoTipo === 'aviso_curto' ? '#1e40af' : '#64748b', cursor: 'pointer', transition: '0.2s' }}
+                  >
+                    🟡 Avisos Curtos (Azul Bebê)
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>TÍTULO PRINCIPAL</label>
+                    <input type="text" value={comunicadoTitulo} onChange={e => setComunicadoTitulo(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', color: '#1e293b' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SAUDAÇÃO INICIAL</label>
+                    <input type="text" value={comunicadoSaudacao} onChange={e => setComunicadoSaudacao(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', color: '#1e293b' }} />
+                  </div>
+                </div>
+
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>CORPO DA MENSAGEM</label>
+                <textarea 
+                  value={comunicadoConteudo} 
+                  onChange={e => setComunicadoConteudo(e.target.value)} 
+                  placeholder="Escreva aqui os detalhes do comunicado..."
+                  rows={8} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '15px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', color: '#1e293b' }} 
+                />
+
+                {comunicadoTipo === 'externo' && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>TELEFONE NO RODAPÉ</label>
+                    <input type="text" value={comunicadoTelefone} onChange={e => setComunicadoTelefone(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', color: '#1e293b' }} />
+                  </div>
+                )}
+
+                {/* CONTROLE MÓVEL DA ILUSTRAÇÃO LIVRE */}
+                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '25px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}>🎨 INSERIR ILUSTRAÇÃO ADICIONAL (OPCIONAL)</label>
+                  <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>Envie um arquivo PNG sem fundo (como um triângulo de alerta, exclamação ou mascote) se desejar incluir elementos extras sobrepostos.</p>
+                  
+                  <input type="file" accept="image/png" onChange={handleImagemUpload} style={{ fontSize: '12px', marginBottom: ilustracaoSrc ? '15px' : '0' }} />
+                  
+                  {ilustracaoSrc && (
+                    <div style={{ marginTop: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '10px' }}>AJUSTE DE POSIÇÃO E TAMANHO DA IMAGEM EXTRA</label>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '12px', width: '80px', color: '#475569' }}>↔️ Eixo X</span>
+                          <input type="range" min="0" max="1240" value={ilusX} onChange={e => setIlusX(Number(e.target.value))} style={{ flex: 1 }} />
+                          <span style={{ fontSize: '12px', width: '35px', fontWeight: 'bold', textAlign: 'right' }}>{ilusX}</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '12px', width: '80px', color: '#475569' }}>↕️ Eixo Y</span>
+                          <input type="range" min="0" max="1754" value={ilusY} onChange={e => setIlusY(Number(e.target.value))} style={{ flex: 1 }} />
+                          <span style={{ fontSize: '12px', width: '35px', fontWeight: 'bold', textAlign: 'right' }}>{ilusY}</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: '11px', color: '#475569', display: 'block', marginBottom: '3px' }}>Largura (px)</span>
+                            <input type="number" value={ilusLargura} onChange={e => setIlusLargura(Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: '11px', color: '#475569', display: 'block', marginBottom: '3px' }}>Altura (px)</span>
+                            <input type="number" value={ilusAltura} onChange={e => setIlusAltura(Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                          </div>
+                        </div>
+
+                        <button onClick={() => setIlustracaoSrc(null)} style={{ alignSelf: 'flex-start', padding: '6px 12px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', marginTop: '5px' }}>
+                          Remover Imagem
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button 
+                    onClick={() => executarGeracaoComunicado('pdf')}
+                    style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                  >
+                    BAIXAR COMUNICADO EM PDF 📄
+                  </button>
+                  <button 
+                    onClick={() => executarGeracaoComunicado('jpg')}
+                    style={{ width: '100%', padding: '16px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                  >
+                    BAIXAR COMUNICADO EM IMAGEM 🖼️
+                  </button>
+                </div>
+              </div>
+            ) : documentoAtivo === 'codes' ? (
               carregandoCodes ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontWeight: 'bold' }}>
                    A processar boletins e montar matriz curricular...
@@ -373,11 +563,23 @@ export default function DocumentacoesAdminPage() {
                 </div>
               )
             ) : documentoAtivo === 'provas' ? (
-              // --- INTERFACE NOVA: CRONOGRAMA DE PROVAS --- //
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
                   Gerar Cronograma de Avaliações
                 </h2>
+
+                {/* NOVO SELETOR DE AVALIAÇÃO CONECTADO À INTERFACE */}
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SELECIONE A AVALIAÇÃO</label>
+                <select 
+                  value={tituloAvaliacao} 
+                  onChange={(e) => setTituloAvaliacao(e.target.value)} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', outline: 'none', fontSize: '14px', color: '#1e293b', backgroundColor: 'white' }}
+                >
+                  <option value="1ª AVALIAÇÃO">1ª Avaliação</option>
+                  <option value="2ª AVALIAÇÃO">2ª Avaliação</option>
+                  <option value="3ª AVALIAÇÃO">3ª Avaliação</option>
+                  <option value="4ª AVALIAÇÃO">4ª Avaliação</option>
+                </select>
                 
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SELECIONE A TURMA</label>
                 <select 
@@ -386,7 +588,6 @@ export default function DocumentacoesAdminPage() {
                     const turmaSelecionada = e.target.value;
                     setTurmaProvas(turmaSelecionada);
                     
-                    // Auto-preenche as matérias baseadas na turma selecionada
                     if(turmaSelecionada) {
                       setListaProvas(obterMateriasPadrao(turmaSelecionada));
                     } else {
@@ -464,21 +665,21 @@ export default function DocumentacoesAdminPage() {
                 </button>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* BOTÕES AGORA PASSAM A VARIÁVEL tituloAvaliacao */}
                   <button 
                     onClick={async () => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar o documento.');
-                      await gerarPDFCronogramaProvas(turmaProvas, listaProvas);
+                      await gerarPDFCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao);
                     }} 
                     style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                   >
                     BAIXAR CRONOGRAMA EM PDF 📄
                   </button>
 
-                  {/* NOVO BOTÃO: GERAR IMAGEM */}
                   <button 
                     onClick={async () => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a imagem.');
-                      await gerarImagemCronogramaProvas(turmaProvas, listaProvas);
+                      await gerarImagemCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao);
                     }} 
                     style={{ width: '100%', padding: '16px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                   >
@@ -488,7 +689,7 @@ export default function DocumentacoesAdminPage() {
                   <button 
                     onClick={() => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a mensagem.');
-                      const txt = gerarTextoWhatsAppProvas(turmaProvas, listaProvas);
+                      const txt = gerarTextoWhatsAppProvas(turmaProvas, listaProvas, tituloAvaliacao);
                       navigator.clipboard.writeText(txt);
                       alert('Mensagem formatada copiada com sucesso! Vá no WhatsApp e aperte Colar.');
                     }} 

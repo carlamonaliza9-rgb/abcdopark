@@ -61,12 +61,18 @@ export const obterMateriasPadrao = (turma: string): Prova[] => {
 
 /**
  * 1. GERADOR PARA WHATSAPP
+ * (Agora inclui o título da avaliação dinamicamente)
  */
-export const gerarTextoWhatsAppProvas = (turma: string, provas: Prova[]): string => {
+export const gerarTextoWhatsAppProvas = (
+  turma: string, 
+  provas: Prova[],
+  tituloAvaliacao: string = "1ª AVALIAÇÃO"
+): string => {
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
 
   let texto = `🏫 *ESCOLA ABC DO PARK*\n`;
-  texto += `📅 *CRONOGRAMA DE PROVAS - ${turma.toUpperCase()}*\n\n`;
+  texto += `📅 *CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()}*\n`;
+  texto += `📍 *Turma:* ${turma.toUpperCase()}\n\n`;
   texto += `Olá, senhores pais, responsáveis e alunos!\n`;
   texto += `Fiquem atentos às datas e conteúdos das próximas avaliações:\n\n`;
 
@@ -95,16 +101,19 @@ export const gerarPDFCronogramaProvas = async (
   const doc = new jsPDF();
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
-  const segmentoEnsino = turmasInfantil.includes(turma) ? "EDUCAÇÃO INFANTIL" : "ENSINO FUNDAMENTAL";
 
   let y = 0;
 
+  // Renderiza cabeçalho e marca d'água perfeitamente centralizada na página A4 (210x297mm)
   const renderizarEstruturaBase = () => {
     try {
       doc.saveGraphicsState();
-      const gState = new (doc as any).GState({ opacity: 0.05 });
+      const gState = new (doc as any).GState({ opacity: 0.04 });
       doc.setGState(gState);
-      doc.addImage(logoUrl, "PNG", 30, 80, 150, 150, undefined, 'FAST'); 
+      
+      const tamanhoLogoBg = 150;
+      // Posiciona exatamente no centro (210/2 = 105; 297/2 = 148.5)
+      doc.addImage(logoUrl, "PNG", 105 - (tamanhoLogoBg / 2), 148.5 - (tamanhoLogoBg / 2), tamanhoLogoBg, tamanhoLogoBg, undefined, 'FAST'); 
       doc.restoreGraphicsState();
     } catch (e) {}
 
@@ -114,7 +123,7 @@ export const gerarPDFCronogramaProvas = async (
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(`CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()} DA ${segmentoEnsino}`, 50, 23);
+    doc.text(`CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()}`, 50, 23);
     
     doc.setTextColor(180, 0, 0); 
     doc.setFontSize(12);
@@ -206,7 +215,6 @@ export const gerarImagemCronogramaProvas = async (
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
   
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
-  const segmentoEnsino = turmasInfantil.includes(turma) ? "EDUCAÇÃO INFANTIL" : "ENSINO FUNDAMENTAL";
 
   // Criação de um canvas virtual para medição inicial de texto
   const canvasMedicao = document.createElement("canvas");
@@ -244,7 +252,7 @@ export const gerarImagemCronogramaProvas = async (
   // --- PASSO 2: CONSTRUÇÃO REAL DA IMAGEM ---
   const canvas = document.createElement("canvas");
   canvas.width = larguraImagem;
-  canvas.height = alturaCalculada;
+  canvas.height = Math.max(alturaCalculada, 800); // Garante altura mínima para ficar bonito mesmo vazio
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
@@ -266,11 +274,15 @@ export const gerarImagemCronogramaProvas = async (
   try {
     const logoImg = await carregarLogo();
     
-    // Desenhar Marca d'água centralizada de fundo (Opacidade reduzida)
+    // ----------------------------------------------------
+    // NOVO: Desenhar Marca d'água perfeitamente centralizada
+    // ----------------------------------------------------
     ctx.save();
     ctx.globalAlpha = 0.04;
-    const tamMarcaAgua = 400;
-    ctx.drawImage(logoImg, (larguraImagem - tamMarcaAgua) / 2, (alturaCalculada - tamMarcaAgua) / 2, tamMarcaAgua, tamMarcaAgua);
+    const tamMarcaAgua = Math.min(canvas.width, canvas.height) * 0.7; // Fica grande mas proporcional
+    const centroX = (canvas.width - tamMarcaAgua) / 2;
+    const centroY = (canvas.height - tamMarcaAgua) / 2;
+    ctx.drawImage(logoImg, centroX, centroY, tamMarcaAgua, tamMarcaAgua);
     ctx.restore();
 
     // Desenhar Logo do Cabeçalho
@@ -293,7 +305,7 @@ export const gerarImagemCronogramaProvas = async (
   if (nomeProfessora) {
     ctx.fillStyle = "#475569";
     ctx.font = "14px Helvetica";
-    ctx.fillText(`PROFESSORA: ${nomeProfessora.toUpperCase()}`, xTextoCabecalho, 124);
+    ctx.fillText(`PROFESSORA: ${nomeProfessora.toUpperCase()}`, xTextoCabecalho, 105);
   }
 
   // --- RENDERIZAÇÃO DA PARTE 1: RESUMO DO CRONOGRAMA ---
