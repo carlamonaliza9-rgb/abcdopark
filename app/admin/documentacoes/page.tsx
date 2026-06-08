@@ -59,10 +59,11 @@ export default function DocumentacoesAdminPage() {
 
   // --- ESTADOS PARA CONTEÚDO DE PROVAS ---
   const [turmaProvas, setTurmaProvas] = useState<string>("");
-  const [tituloAvaliacao, setTituloAvaliacao] = useState<string>("1ª AVALIAÇÃO"); // NOVO: Estado para a Avaliação
+  const [tituloAvaliacao, setTituloAvaliacao] = useState<string>("1ª AVALIAÇÃO");
   const [listaProvas, setListaProvas] = useState<{materia: string, data: string, conteudo: string}[]>([
     { materia: "", data: "", conteudo: "" }
   ]);
+  const [observacoesProvas, setObservacoesProvas] = useState<string>(""); // NOVO: Estado para as Observações de Prova
 
   // =========================================================
   // --- ESTADOS ATUALIZADOS PARA SUPORTAR 'aviso_curto' ---
@@ -568,7 +569,6 @@ export default function DocumentacoesAdminPage() {
                   Gerar Cronograma de Avaliações
                 </h2>
 
-                {/* NOVO SELETOR DE AVALIAÇÃO CONECTADO À INTERFACE */}
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SELECIONE A AVALIAÇÃO</label>
                 <select 
                   value={tituloAvaliacao} 
@@ -664,12 +664,22 @@ export default function DocumentacoesAdminPage() {
                   + Adicionar Outra Matéria
                 </button>
 
+                {/* ADICIONADO: SEÇÃO INTERFICIAL DE OBSERVAÇÕES PARA O CRONOGRAMA */}
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>OBSERVAÇÕES GERAIS (OPCIONAL)</label>
+                <textarea 
+                  placeholder="Insira observações complementares (Ex: Horários de plantão, datas de segunda chamada, fardamento...)" 
+                  value={observacoesProvas} 
+                  onChange={(e) => setObservacoesProvas(e.target.value)} 
+                  rows={4} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', fontSize: '14px', color: '#1e293b' }} 
+                />
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* BOTÕES AGORA PASSAM A VARIÁVEL tituloAvaliacao */}
                   <button 
                     onClick={async () => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar o documento.');
-                      await gerarPDFCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao);
+                      // ALTERADO: Adicionado envio das observações no 5º argumento
+                      await gerarPDFCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao, "", observacoesProvas);
                     }} 
                     style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                   >
@@ -679,7 +689,8 @@ export default function DocumentacoesAdminPage() {
                   <button 
                     onClick={async () => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a imagem.');
-                      await gerarImagemCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao);
+                      // ALTERADO: Adicionado envio das observações no 5º argumento
+                      await gerarImagemCronogramaProvas(turmaProvas, listaProvas, tituloAvaliacao, "", observacoesProvas);
                     }} 
                     style={{ width: '100%', padding: '16px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                   >
@@ -689,7 +700,8 @@ export default function DocumentacoesAdminPage() {
                   <button 
                     onClick={() => {
                       if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a mensagem.');
-                      const txt = gerarTextoWhatsAppProvas(turmaProvas, listaProvas, tituloAvaliacao);
+                      // ALTERADO: Adicionado envio das observações no 4º argumento
+                      const txt = gerarTextoWhatsAppProvas(turmaProvas, listaProvas, tituloAvaliacao, observacoesProvas);
                       navigator.clipboard.writeText(txt);
                       alert('Mensagem formatada copiada com sucesso! Vá no WhatsApp e aperte Colar.');
                     }} 

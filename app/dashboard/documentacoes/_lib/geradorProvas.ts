@@ -29,7 +29,7 @@ const quebrarTextoCanvas = (ctx: CanvasRenderingContext2D, text: string, maxWidt
   let linhaAtual = '';
 
   for (let i = 0; i < palavras.length; i++) {
-    const testeLinha = linhaAtual + (linhaAtual ? ' ' : '') + palavras[i];
+    const testeLinha = staticLintText(linhaAtual, palavras[i]);
     const metricas = ctx.measureText(testeLinha);
     if (metricas.width > maxWidth && i > 0) {
       linhas.push(linhaAtual);
@@ -41,6 +41,9 @@ const quebrarTextoCanvas = (ctx: CanvasRenderingContext2D, text: string, maxWidt
   if (linhaAtual) linhas.push(linhaAtual);
   return linhas;
 };
+
+// Helper auxiliar para legibilidade do splitter de palavras
+const staticLintText = (atual: string, proxima: string) => atual ? `${atual} ${proxima}` : proxima;
 
 /**
  * RETORNA AS MATÉRIAS PADRÃO BASEADAS NA TURMA
@@ -61,12 +64,13 @@ export const obterMateriasPadrao = (turma: string): Prova[] => {
 
 /**
  * 1. GERADOR PARA WHATSAPP
- * (Agora inclui o título da avaliação dinamicamente)
+ * Inclui o bloco de observações antes da mensagem final, se preenchido.
  */
 export const gerarTextoWhatsAppProvas = (
   turma: string, 
   provas: Prova[],
-  tituloAvaliacao: string = "1ª AVALIAÇÃO"
+  tituloAvaliacao: string = "1ª AVALIAÇÃO",
+  observacoes: string = ""
 ): string => {
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
 
@@ -84,27 +88,33 @@ export const gerarTextoWhatsAppProvas = (
     texto += `────────────────────\n\n`;
   });
 
+  // Bloco de Observações Opcional
+  if (observacoes.trim()) {
+    texto += `📌 *OBSERVAÇÕES:* \n${observacoes.trim()}\n`;
+    texto += `────────────────────\n\n`;
+  }
+
   texto += `💪 *Bons estudos! Estamos torcendo pelo sucesso de cada um!*`;
   return texto;
 };
 
 /**
  * 2. GERADOR PARA PDF
+ * Monitora o limite da página para renderizar a seção de observações com quebra automática de páginas.
  */
 export const gerarPDFCronogramaProvas = async (
   turma: string, 
   provas: Prova[], 
   tituloAvaliacao: string = "1ª AVALIAÇÃO", 
-  nomeProfessora: string = ""
+  nomeProfessora: string = "",
+  observacoes: string = ""
 ) => {
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
   const doc = new jsPDF();
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-  const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
 
   let y = 0;
 
-  // Renderiza cabeçalho e marca d'água perfeitamente centralizada na página A4 (210x297mm)
   const renderizarEstruturaBase = () => {
     try {
       doc.saveGraphicsState();
@@ -112,7 +122,6 @@ export const gerarPDFCronogramaProvas = async (
       doc.setGState(gState);
       
       const tamanhoLogoBg = 150;
-      // Posiciona exatamente no centro (210/2 = 105; 297/2 = 148.5)
       doc.addImage(logoUrl, "PNG", 105 - (tamanhoLogoBg / 2), 148.5 - (tamanhoLogoBg / 2), tamanhoLogoBg, tamanhoLogoBg, undefined, 'FAST'); 
       doc.restoreGraphicsState();
     } catch (e) {}
@@ -197,45 +206,72 @@ export const gerarPDFCronogramaProvas = async (
     y += 5; 
   });
 
+  // --- SEÇÃO DE OBSERVAÇÕES NO PDF ---
+  if (observacoes.trim()) {
+    if (y > 240) { // Garante margem para não deixar o título órfão no fim da página
+      doc.addPage();
+      renderizarEstruturaBase();
+      y = 50;
+    }
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("OBSERVAÇÕES", 20, y);
+    y += 8;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    
+    const paragrafosObs = observacoes.split('\n');
+    paragrafosObs.forEach(paragrafo => {
+      const linhasAjustadas = doc.splitTextToSize(paragrafo, 170); // Margem mais larga para observações gerais
+      linhasAjustadas.forEach((textoLinha: string) => {
+        if (y > 270) {
+          doc.addPage();
+          renderizarEstruturaBase();
+          y = 50;
+        }
+        doc.text(textoLinha, 20, y);
+        y += 5;
+      });
+    });
+  }
+
   const nomeArquivo = `Cronograma_${tituloAvaliacao.replace(/\s+/g, '_')}_${turma.replace(/\s+/g, '_')}.pdf`;
   doc.save(nomeArquivo);
 };
 
 /**
- * 3. NOVO GERADOR PARA IMAGEM COMPLETA (SINGLE-IMAGE)
- * Calcula dinamicamente o tamanho do canvas para evitar cortes e garantir legibilidade total.
+ * 3. GERADOR PARA IMAGEM COMPLETA (SINGLE-IMAGE)
+ * Calcula dinamicamente o tamanho do canvas considerando também a seção de observações.
  */
 export const gerarImagemCronogramaProvas = async (
   turma: string, 
   provas: Prova[], 
   tituloAvaliacao: string = "1ª AVALIAÇÃO", 
-  nomeProfessora: string = ""
+  nomeProfessora: string = "",
+  observacoes: string = ""
 ) => {
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-  
-  const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
 
-  // Criação de um canvas virtual para medição inicial de texto
   const canvasMedicao = document.createElement("canvas");
   const ctxMedicao = canvasMedicao.getContext("2d");
   if (!ctxMedicao) return;
 
-  const larguraImagem = 800; // Largura ideal para visualização móvel clara
+  const larguraImagem = 800; 
   const margemEsquerda = 50;
   const larguraDisponivelTexto = larguraImagem - (margemEsquerda * 2) - 40;
 
   // --- PASSO 1: CALCULAR ALTURA DINÂMICA DO CANVAS ---
-  let alturaCalculada = 160; // Espaço fixo do cabeçalho inicial
+  let alturaCalculada = 160; 
 
-  // Adiciona espaço do resumo cronológico
   alturaCalculada += provasOrdenadas.length * 26;
-  alturaCalculada += 60; // Espaçamento e título da seção "CONTEÚDOS"
+  alturaCalculada += 60; 
 
-  // Simulação e cálculo de linhas da seção de conteúdos
   ctxMedicao.font = "16px Helvetica";
   provasOrdenadas.forEach((prova) => {
-    alturaCalculada += 30; // Título da disciplina (+ data - dia)
+    alturaCalculada += 30; 
     
     const conteudoSeguro = prova.conteudo || "Conteúdo não informado.";
     const paragrafos = conteudoSeguro.split('\n');
@@ -244,23 +280,31 @@ export const gerarImagemCronogramaProvas = async (
       const linhasQuebradas = quebrarTextoCanvas(ctxMedicao, paragrafo, larguraDisponivelTexto);
       alturaCalculada += linhasQuebradas.length * 22;
     });
-    alturaCalculada += 25; // Margem entre disciplinas
+    alturaCalculada += 25; 
   });
+
+  // Inclusão do cálculo de altura para as Observações na Imagem
+  if (observacoes.trim()) {
+    alturaCalculada += 50; // Título, espaçamento e linha divisória
+    const paragrafosObs = observacoes.split('\n');
+    paragrafosObs.forEach(paragrafo => {
+      const linhasQuebradas = quebrarTextoCanvas(ctxMedicao, paragrafo, larguraImagem - (margemEsquerda * 2));
+      alturaCalculada += linhasQuebradas.length * 22;
+    });
+  }
   
-  alturaCalculada += 50; // Margem de segurança inferior
+  alturaCalculada += 50; 
 
   // --- PASSO 2: CONSTRUÇÃO REAL DA IMAGEM ---
   const canvas = document.createElement("canvas");
   canvas.width = larguraImagem;
-  canvas.height = Math.max(alturaCalculada, 800); // Garante altura mínima para ficar bonito mesmo vazio
+  canvas.height = Math.max(alturaCalculada, 800); 
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // Renderizar Fundo Branco Limpo
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Função interna para carregar a logo de forma assíncrona com tratamento de CORS
   const carregarLogo = (): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -274,31 +318,26 @@ export const gerarImagemCronogramaProvas = async (
   try {
     const logoImg = await carregarLogo();
     
-    // ----------------------------------------------------
-    // NOVO: Desenhar Marca d'água perfeitamente centralizada
-    // ----------------------------------------------------
     ctx.save();
     ctx.globalAlpha = 0.04;
-    const tamMarcaAgua = Math.min(canvas.width, canvas.height) * 0.7; // Fica grande mas proporcional
+    const tamMarcaAgua = Math.min(canvas.width, canvas.height) * 0.7; 
     const centroX = (canvas.width - tamMarcaAgua) / 2;
     const centroY = (canvas.height - tamMarcaAgua) / 2;
     ctx.drawImage(logoImg, centroX, centroY, tamMarcaAgua, tamMarcaAgua);
     ctx.restore();
 
-    // Desenhar Logo do Cabeçalho
     ctx.drawImage(logoImg, margemEsquerda, 30, 80, 80);
   } catch (error) {
     console.warn("Não foi possível renderizar o logotipo na imagem devido a restrições de rede.");
   }
 
-  // --- RENDERIZAÇÃO DO TEXTO DO CABEÇALHO ---
   const xTextoCabecalho = margemEsquerda + 100;
   
-  ctx.fillStyle = "#1E293B"; // Slate escuro para melhor legibilidade
+  ctx.fillStyle = "#1E293B"; 
   ctx.font = "bold 20px Helvetica";
   ctx.fillText(`CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()}`, xTextoCabecalho, 65);
 
-  ctx.fillStyle = "#B40000"; // Vermelho institucional para a turma
+  ctx.fillStyle = "#B40000"; 
   ctx.font = "bold 18px Helvetica";
   ctx.fillText(turma.toUpperCase(), xTextoCabecalho, 85);
 
@@ -308,7 +347,6 @@ export const gerarImagemCronogramaProvas = async (
     ctx.fillText(`PROFESSORA: ${nomeProfessora.toUpperCase()}`, xTextoCabecalho, 105);
   }
 
-  // --- RENDERIZAÇÃO DA PARTE 1: RESUMO DO CRONOGRAMA ---
   let atualY = 170;
   ctx.fillStyle = "#1E293B";
   ctx.font = "bold 15px Helvetica";
@@ -324,7 +362,6 @@ export const gerarImagemCronogramaProvas = async (
 
   atualY += 25;
 
-  // Linha divisória sutil
   ctx.strokeStyle = "#E2E8F0";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -332,7 +369,6 @@ export const gerarImagemCronogramaProvas = async (
   ctx.lineTo(larguraImagem - margemEsquerda, atualY - 10);
   ctx.stroke();
 
-  // --- RENDERIZAÇÃO DA PARTE 2: DETALHAMENTO DE CONTEÚDOS ---
   ctx.fillStyle = "#0F172A";
   ctx.font = "bold 18px Helvetica";
   ctx.fillText("CONTEÚDOS DAS AVALIAÇÕES", margemEsquerda, atualY + 15);
@@ -343,13 +379,11 @@ export const gerarImagemCronogramaProvas = async (
     const dataStr = prova.data ? prova.data : "___/___/___";
     const diaStr = diaSemana ? diaSemana : "________";
 
-    // Cabeçalho da Disciplina
     ctx.fillStyle = "#B40000";
     ctx.font = "bold 15px Helvetica";
     ctx.fillText(`▶  ${dataStr} - ${diaStr} - ${prova.materia.toUpperCase()}`, margemEsquerda, atualY);
     atualY += 24;
 
-    // Linhas de Conteúdo
     ctx.fillStyle = "#334155";
     ctx.font = "15px Helvetica";
 
@@ -360,15 +394,46 @@ export const gerarImagemCronogramaProvas = async (
       const linhasAjustadas = quebrarTextoCanvas(ctx, paragrafo, larguraDisponivelTexto);
       
       linhasAjustadas.forEach((linhaTexto, index) => {
-        // Marcador visual apenas no início do parágrafo, recuo fluido nas linhas seguintes
         const marcador = index === 0 ? "–  " : "    ";
         ctx.fillText(`${marcador}${linhaTexto}`, margemEsquerda + 25, atualY);
         atualY += 22;
       });
     });
 
-    atualY += 15; // Espaçador entre blocos de disciplinas
+    atualY += 15; 
   });
+
+  // --- SEÇÃO DE OBSERVAÇÕES NA IMAGEM ---
+  if (observacoes.trim()) {
+    atualY += 10;
+    
+    // Linha divisória sutil para as observações
+    ctx.strokeStyle = "#E2E8F0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(margemEsquerda, atualY);
+    ctx.lineTo(larguraImagem - margemEsquerda, atualY);
+    ctx.stroke();
+    
+    atualY += 35;
+    ctx.fillStyle = "#0F172A";
+    ctx.font = "bold 18px Helvetica";
+    ctx.fillText("OBSERVAÇÕES", margemEsquerda, atualY);
+    atualY += 26;
+
+    ctx.fillStyle = "#475569"; 
+    ctx.font = "15px Helvetica";
+    
+    const paragrafosObs = observacoes.split('\n');
+    paragrafosObs.forEach(paragrafo => {
+      // Usa uma largura maior já que não possui recuo de marcador de disciplina
+      const linhasAjustadas = quebrarTextoCanvas(ctx, paragrafo, larguraImagem - (margemEsquerda * 2));
+      linhasAjustadas.forEach(linhaTexto => {
+        ctx.fillText(linhaTexto, margemEsquerda, atualY);
+        atualY += 22;
+      });
+    });
+  }
 
   // --- DISPARAR DOWNLOAD AUTOMÁTICO DA IMAGEM ---
   const urlImagemFinal = canvas.toDataURL("image/png");
