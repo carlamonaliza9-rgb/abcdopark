@@ -22,8 +22,28 @@ const obterDiaSemana = (dataStr: string) => {
   return dias[data.getDay()];
 };
 
+// Helper interno para quebrar linhas de texto no Canvas de forma precisa
+const quebrarTextoCanvas = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+  const palavras = text.split(' ');
+  const linhas: string[] = [];
+  let linhaAtual = '';
+
+  for (let i = 0; i < palavras.length; i++) {
+    const testeLinha = linhaAtual + (linhaAtual ? ' ' : '') + palavras[i];
+    const metricas = ctx.measureText(testeLinha);
+    if (metricas.width > maxWidth && i > 0) {
+      linhas.push(linhaAtual);
+      linhaAtual = palavras[i];
+    } else {
+      linhaAtual = testeLinha;
+    }
+  }
+  if (linhaAtual) linhas.push(linhaAtual);
+  return linhas;
+};
+
 /**
- * FUNÇÃO NOVA: Retorna as matérias padrão baseadas na turma
+ * RETORNA AS MATÉRIAS PADRÃO BASEADAS NA TURMA
  */
 export const obterMateriasPadrao = (turma: string): Prova[] => {
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
@@ -43,7 +63,6 @@ export const obterMateriasPadrao = (turma: string): Prova[] => {
  * 1. GERADOR PARA WHATSAPP
  */
 export const gerarTextoWhatsAppProvas = (turma: string, provas: Prova[]): string => {
-  // Ordenar cronologicamente
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
 
   let texto = `🏫 *ESCOLA ABC DO PARK*\n`;
@@ -72,20 +91,15 @@ export const gerarPDFCronogramaProvas = async (
   tituloAvaliacao: string = "1ª AVALIAÇÃO", 
   nomeProfessora: string = ""
 ) => {
-  // Ordenar cronologicamente
   const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
-
   const doc = new jsPDF();
-  
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
-
   const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
   const segmentoEnsino = turmasInfantil.includes(turma) ? "EDUCAÇÃO INFANTIL" : "ENSINO FUNDAMENTAL";
 
   let y = 0;
 
   const renderizarEstruturaBase = () => {
-    // Marca d'água
     try {
       doc.saveGraphicsState();
       const gState = new (doc as any).GState({ opacity: 0.05 });
@@ -94,7 +108,6 @@ export const gerarPDFCronogramaProvas = async (
       doc.restoreGraphicsState();
     } catch (e) {}
 
-    // Cabeçalho da Escola
     try { 
       doc.addImage(logoUrl, "PNG", 20, 15, 25, 25); 
     } catch (e) {}
@@ -103,10 +116,10 @@ export const gerarPDFCronogramaProvas = async (
     doc.setFontSize(14);
     doc.text(`CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()} DA ${segmentoEnsino}`, 50, 23);
     
-    doc.setTextColor(180, 0, 0); // Cor vermelha para a turma
+    doc.setTextColor(180, 0, 0); 
     doc.setFontSize(12);
     doc.text(`${turma.toUpperCase()}`, 50, 30);
-    doc.setTextColor(0, 0, 0); // Resetar cor
+    doc.setTextColor(0, 0, 0); 
 
     if (nomeProfessora) {
       doc.setFontSize(10);
@@ -117,7 +130,6 @@ export const gerarPDFCronogramaProvas = async (
   renderizarEstruturaBase();
   y = 50;
 
-  // --- PARTE 1: RESUMO DO CRONOGRAMA ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   
@@ -125,15 +137,12 @@ export const gerarPDFCronogramaProvas = async (
     const diaSemana = obterDiaSemana(prova.data);
     const dataStr = prova.data ? prova.data : "___/___/___";
     const diaStr = diaSemana ? diaSemana : "________";
-    
-    // Substituído o símbolo especial por um asterisco normal para evitar erro de encoding
     doc.text(`* ${dataStr} - ${diaStr} - ${prova.materia.toUpperCase()}`, 40, y);
     y += 6;
   });
 
   y += 8;
 
-  // --- PARTE 2: CONTEÚDOS DETALHADOS ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("CONTEÚDOS", 20, y);
@@ -154,39 +163,207 @@ export const gerarPDFCronogramaProvas = async (
     const dataStr = prova.data ? prova.data : "___/___/___";
     const diaStr = diaSemana ? diaSemana : "________";
     
-    // Substituído o símbolo especial por um sinal de +
     doc.text(`+ ${dataStr} - ${diaStr} - ${prova.materia.toUpperCase()}`, 25, y);
     doc.setTextColor(0, 0, 0); 
-    
     y += 6;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     
-    // Evita bug caso o conteúdo esteja vazio
     const conteudoSeguro = prova.conteudo || "Conteúdo não informado.";
     const linhasDoTextarea = conteudoSeguro.split('\n');
     
     linhasDoTextarea.forEach(linha => {
       const linhasAjustadas = doc.splitTextToSize(linha, 150);
-      
       linhasAjustadas.forEach((textoLinha: string) => {
         if (y > 270) {
           doc.addPage();
           renderizarEstruturaBase();
           y = 50;
         }
-        // Substituído o símbolo de seta por um travessão padrao
         doc.text(`-  ${textoLinha}`, 35, y);
         y += 5;
       });
     });
-
     y += 5; 
   });
 
-  // ASSINATURAS REMOVIDAS DAQUI!
-
   const nomeArquivo = `Cronograma_${tituloAvaliacao.replace(/\s+/g, '_')}_${turma.replace(/\s+/g, '_')}.pdf`;
   doc.save(nomeArquivo);
+};
+
+/**
+ * 3. NOVO GERADOR PARA IMAGEM COMPLETA (SINGLE-IMAGE)
+ * Calcula dinamicamente o tamanho do canvas para evitar cortes e garantir legibilidade total.
+ */
+export const gerarImagemCronogramaProvas = async (
+  turma: string, 
+  provas: Prova[], 
+  tituloAvaliacao: string = "1ª AVALIAÇÃO", 
+  nomeProfessora: string = ""
+) => {
+  const provasOrdenadas = [...provas].sort((a, b) => parseDataParaOrdem(a.data) - parseDataParaOrdem(b.data));
+  const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+  
+  const turmasInfantil = ["Maternal", "Jardim I", "Jardim II"];
+  const segmentoEnsino = turmasInfantil.includes(turma) ? "EDUCAÇÃO INFANTIL" : "ENSINO FUNDAMENTAL";
+
+  // Criação de um canvas virtual para medição inicial de texto
+  const canvasMedicao = document.createElement("canvas");
+  const ctxMedicao = canvasMedicao.getContext("2d");
+  if (!ctxMedicao) return;
+
+  const larguraImagem = 800; // Largura ideal para visualização móvel clara
+  const margemEsquerda = 50;
+  const larguraDisponivelTexto = larguraImagem - (margemEsquerda * 2) - 40;
+
+  // --- PASSO 1: CALCULAR ALTURA DINÂMICA DO CANVAS ---
+  let alturaCalculada = 160; // Espaço fixo do cabeçalho inicial
+
+  // Adiciona espaço do resumo cronológico
+  alturaCalculada += provasOrdenadas.length * 26;
+  alturaCalculada += 60; // Espaçamento e título da seção "CONTEÚDOS"
+
+  // Simulação e cálculo de linhas da seção de conteúdos
+  ctxMedicao.font = "16px Helvetica";
+  provasOrdenadas.forEach((prova) => {
+    alturaCalculada += 30; // Título da disciplina (+ data - dia)
+    
+    const conteudoSeguro = prova.conteudo || "Conteúdo não informado.";
+    const paragrafos = conteudoSeguro.split('\n');
+    
+    paragrafos.forEach(paragrafo => {
+      const linhasQuebradas = quebrarTextoCanvas(ctxMedicao, paragrafo, larguraDisponivelTexto);
+      alturaCalculada += linhasQuebradas.length * 22;
+    });
+    alturaCalculada += 25; // Margem entre disciplinas
+  });
+  
+  alturaCalculada += 50; // Margem de segurança inferior
+
+  // --- PASSO 2: CONSTRUÇÃO REAL DA IMAGEM ---
+  const canvas = document.createElement("canvas");
+  canvas.width = larguraImagem;
+  canvas.height = alturaCalculada;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Renderizar Fundo Branco Limpo
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Função interna para carregar a logo de forma assíncrona com tratamento de CORS
+  const carregarLogo = (): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = (e) => reject(e);
+      img.src = logoUrl;
+    });
+  };
+
+  try {
+    const logoImg = await carregarLogo();
+    
+    // Desenhar Marca d'água centralizada de fundo (Opacidade reduzida)
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    const tamMarcaAgua = 400;
+    ctx.drawImage(logoImg, (larguraImagem - tamMarcaAgua) / 2, (alturaCalculada - tamMarcaAgua) / 2, tamMarcaAgua, tamMarcaAgua);
+    ctx.restore();
+
+    // Desenhar Logo do Cabeçalho
+    ctx.drawImage(logoImg, margemEsquerda, 30, 80, 80);
+  } catch (error) {
+    console.warn("Não foi possível renderizar o logotipo na imagem devido a restrições de rede.");
+  }
+
+  // --- RENDERIZAÇÃO DO TEXTO DO CABEÇALHO ---
+  const xTextoCabecalho = margemEsquerda + 100;
+  
+  ctx.fillStyle = "#1E293B"; // Slate escuro para melhor legibilidade
+  ctx.font = "bold 20px Helvetica";
+  ctx.fillText(`CALENDÁRIO DA ${tituloAvaliacao.toUpperCase()}`, xTextoCabecalho, 65);
+
+  ctx.fillStyle = "#B40000"; // Vermelho institucional para a turma
+  ctx.font = "bold 18px Helvetica";
+  ctx.fillText(turma.toUpperCase(), xTextoCabecalho, 85);
+
+  if (nomeProfessora) {
+    ctx.fillStyle = "#475569";
+    ctx.font = "14px Helvetica";
+    ctx.fillText(`PROFESSORA: ${nomeProfessora.toUpperCase()}`, xTextoCabecalho, 124);
+  }
+
+  // --- RENDERIZAÇÃO DA PARTE 1: RESUMO DO CRONOGRAMA ---
+  let atualY = 170;
+  ctx.fillStyle = "#1E293B";
+  ctx.font = "bold 15px Helvetica";
+
+  provasOrdenadas.forEach((prova) => {
+    const diaSemana = obterDiaSemana(prova.data);
+    const dataStr = prova.data ? prova.data : "___/___/___";
+    const diaStr = diaSemana ? diaSemana : "________";
+    
+    ctx.fillText(`•  ${dataStr}  -  ${diaStr.padEnd(13, ' ')}  -  ${prova.materia.toUpperCase()}`, margemEsquerda + 20, atualY);
+    atualY += 26;
+  });
+
+  atualY += 25;
+
+  // Linha divisória sutil
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(margemEsquerda, atualY - 10);
+  ctx.lineTo(larguraImagem - margemEsquerda, atualY - 10);
+  ctx.stroke();
+
+  // --- RENDERIZAÇÃO DA PARTE 2: DETALHAMENTO DE CONTEÚDOS ---
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "bold 18px Helvetica";
+  ctx.fillText("CONTEÚDOS DAS AVALIAÇÕES", margemEsquerda, atualY + 15);
+  atualY += 45;
+
+  provasOrdenadas.forEach((prova) => {
+    const diaSemana = obterDiaSemana(prova.data);
+    const dataStr = prova.data ? prova.data : "___/___/___";
+    const diaStr = diaSemana ? diaSemana : "________";
+
+    // Cabeçalho da Disciplina
+    ctx.fillStyle = "#B40000";
+    ctx.font = "bold 15px Helvetica";
+    ctx.fillText(`▶  ${dataStr} - ${diaStr} - ${prova.materia.toUpperCase()}`, margemEsquerda, atualY);
+    atualY += 24;
+
+    // Linhas de Conteúdo
+    ctx.fillStyle = "#334155";
+    ctx.font = "15px Helvetica";
+
+    const conteudoSeguro = prova.conteudo || "Conteúdo não informado.";
+    const paragrafos = conteudoSeguro.split('\n');
+
+    paragrafos.forEach(paragrafo => {
+      const linhasAjustadas = quebrarTextoCanvas(ctx, paragrafo, larguraDisponivelTexto);
+      
+      linhasAjustadas.forEach((linhaTexto, index) => {
+        // Marcador visual apenas no início do parágrafo, recuo fluido nas linhas seguintes
+        const marcador = index === 0 ? "–  " : "    ";
+        ctx.fillText(`${marcador}${linhaTexto}`, margemEsquerda + 25, atualY);
+        atualY += 22;
+      });
+    });
+
+    atualY += 15; // Espaçador entre blocos de disciplinas
+  });
+
+  // --- DISPARAR DOWNLOAD AUTOMÁTICO DA IMAGEM ---
+  const urlImagemFinal = canvas.toDataURL("image/png");
+  const linkDownload = document.createElement("a");
+  linkDownload.href = urlImagemFinal;
+  linkDownload.download = `Cronograma_${tituloAvaliacao.replace(/\s+/g, '_')}_${turma.replace(/\s+/g, '_')}.png`;
+  document.body.appendChild(linkDownload);
+  linkDownload.click();
+  document.body.removeChild(linkDownload);
 };

@@ -10,7 +10,12 @@ import { gerarPDFImpostoRenda } from "@/app/dashboard/documentacoes/_lib/gerador
 import { gerarPDFRessalva } from "@/app/dashboard/documentacoes/_lib/geradorRessalva";
 import { gerarDocumentoCodes } from "@/app/dashboard/documentacoes/_lib/geradorCodes"; 
 import { gerarNotificacaoExtrajudicial } from "@/app/dashboard/documentacoes/_lib/geradorNotificacaoExtrajudicial"; 
-import { gerarTextoWhatsAppProvas, gerarPDFCronogramaProvas, obterMateriasPadrao } from "@/app/dashboard/documentacoes/_lib/geradorProvas";
+import { 
+  gerarTextoWhatsAppProvas, 
+  gerarPDFCronogramaProvas, 
+  gerarImagemCronogramaProvas, // <-- NOVA FUNÇÃO IMPORTADA AQUI
+  obterMateriasPadrao 
+} from "@/app/dashboard/documentacoes/_lib/geradorProvas";
 
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
@@ -376,31 +381,30 @@ export default function DocumentacoesAdminPage() {
                 
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SELECIONE A TURMA</label>
                 <select 
-  value={turmaProvas} 
-  onChange={(e) => {
-    const turmaSelecionada = e.target.value;
-    setTurmaProvas(turmaSelecionada);
-    
-    // Auto-preenche as matérias baseadas na turma selecionada
-    if(turmaSelecionada) {
-      setListaProvas(obterMateriasPadrao(turmaSelecionada));
-    } else {
-      setListaProvas([{ materia: "", data: "", conteudo: "" }]);
-    }
-  }} 
-  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', outline: 'none', fontSize: '14px', color: '#1e293b', backgroundColor: 'white' }}
->
-  <option value="">Escolha a turma...</option>
-  <option value="Maternal">Maternal</option>
-  <option value="Jardim I">Jardim I</option>
-  <option value="Jardim II">Jardim II</option>
-  <option value="1º Ano">1º Ano</option>
-  <option value="2º Ano">2º Ano</option>
-  <option value="3º Ano">3º Ano</option>
-  <option value="4º Ano">4º Ano</option>
-  <option value="5º Ano">5º Ano</option>
-</select>
-
+                  value={turmaProvas} 
+                  onChange={(e) => {
+                    const turmaSelecionada = e.target.value;
+                    setTurmaProvas(turmaSelecionada);
+                    
+                    // Auto-preenche as matérias baseadas na turma selecionada
+                    if(turmaSelecionada) {
+                      setListaProvas(obterMateriasPadrao(turmaSelecionada));
+                    } else {
+                      setListaProvas([{ materia: "", data: "", conteudo: "" }]);
+                    }
+                  }} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', outline: 'none', fontSize: '14px', color: '#1e293b', backgroundColor: 'white' }}
+                >
+                  <option value="">Escolha a turma...</option>
+                  <option value="Maternal">Maternal</option>
+                  <option value="Jardim I">Jardim I</option>
+                  <option value="Jardim II">Jardim II</option>
+                  <option value="1º Ano">1º Ano</option>
+                  <option value="2º Ano">2º Ano</option>
+                  <option value="3º Ano">3º Ano</option>
+                  <option value="4º Ano">4º Ano</option>
+                  <option value="5º Ano">5º Ano</option>
+                </select>
 
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>CONTEÚDO DAS AVALIAÇÕES</label>
                 {listaProvas.map((prova, index) => (
@@ -467,7 +471,18 @@ export default function DocumentacoesAdminPage() {
                     }} 
                     style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                   >
-                    BAIXAR CRONOGRAMA EM PDF
+                    BAIXAR CRONOGRAMA EM PDF 📄
+                  </button>
+
+                  {/* NOVO BOTÃO: GERAR IMAGEM */}
+                  <button 
+                    onClick={async () => {
+                      if(!turmaProvas) return alert('Por favor, selecione a turma antes de gerar a imagem.');
+                      await gerarImagemCronogramaProvas(turmaProvas, listaProvas);
+                    }} 
+                    style={{ width: '100%', padding: '16px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                  >
+                    BAIXAR CRONOGRAMA EM IMAGEM 🖼️
                   </button>
                   
                   <button 
