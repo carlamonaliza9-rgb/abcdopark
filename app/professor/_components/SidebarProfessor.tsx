@@ -121,7 +121,7 @@ export function SidebarProfessor() {
             >
               <div className={`p-2 rounded-full transition-all duration-300 ${isActive ? 'bg-blue-100/60 scale-105' : 'bg-transparent active:bg-slate-100'}`}>
                 {/* ÍCONE DOBRADO (Tamanho 56) */}
-                <item.icon size={56} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
+                <item.icon size={100} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
               </div>
               {/* TEXTO PROPORCIONAL AO NOVO ÍCONE */}
               <span className={`text-[10px] font-black uppercase tracking-wider truncate mt-1.5 transition-colors ${isActive ? "text-blue-600" : "text-slate-400"}`}>
@@ -137,8 +137,8 @@ export function SidebarProfessor() {
           className="flex flex-col items-center justify-center flex-1 py-1 rounded-2xl group active:opacity-70 transition-opacity"
         >
           <div className="p-2 rounded-full bg-transparent">
-            {/* ÍCONE DOBRADO (Tamanho 42) */}
-            <LogOut size={42} strokeWidth={2} className="text-rose-400" />
+            {/* ÍCONE DOBRADO (Tamanho 56) */}
+            <LogOut size={100} strokeWidth={2} className="text-rose-400" />
           </div>
           <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1.5 text-rose-400">Sair</span>
         </button>
