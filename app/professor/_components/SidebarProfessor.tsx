@@ -1,16 +1,39 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, BookOpen, BarChart3, ClipboardCheck, LogOut } from "lucide-react";
+import { Home, BookOpen, BarChart3, ClipboardCheck, LogOut, User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export function SidebarProfessor() {
   const pathname = usePathname();
   const router = useRouter();
   const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+  
+  const [nomeProfessor, setNomeProfessor] = useState<string>("Professor(a)");
 
-  // Rotas específicas do portal do professor
+  // Conexão com os dados de Admin: Busca quem é o professor logado
+  useEffect(() => {
+    async function buscarDadosProfessor() {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        const { data: perfil } = await supabase
+          .from('perfis')
+          .select('nome')
+          .eq('id', authData.user.id)
+          .single();
+        
+        if (perfil?.nome) {
+          // Pega apenas o primeiro e o último nome para caber na interface
+          const nomes = perfil.nome.split(" ");
+          setNomeProfessor(nomes.length > 1 ? `${nomes[0]} ${nomes[nomes.length - 1]}` : nomes[0]);
+        }
+      }
+    }
+    buscarDadosProfessor();
+  }, []);
+
   const menuItems = [
     { name: "Painel", icon: Home, path: "/professor/dashboard" },
     { name: "Diário", icon: BookOpen, path: "/professor/diario" },
@@ -25,84 +48,91 @@ export function SidebarProfessor() {
 
   return (
     <>
-      {/* INJEÇÃO DE ESTILO GLOBAL PARA MOBILE: Evita de forma definitiva que a barra fixa cubra o final das páginas */}
       <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 767px) {
-          body, main, .animate-in { padding-bottom: 100px !important; }
-        }
+        @media (max-width: 767px) { body, main { padding-bottom: 90px !important; } }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
 
       {/* ========================================================= */}
-      {/* VISUALIZAÇÃO DESKTOP: Mantida 100% idêntica e visível apenas em telas grandes */}
+      {/* DESKTOP SIDEBAR */}
       {/* ========================================================= */}
-      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-100 p-6 flex-col shadow-sm z-50">
+      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-200/50 p-5 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50">
         
-        {/* Logo Centralizada */}
-        <div className="mb-10 flex flex-col items-center">
-          <img src={logoUrl} alt="Logo ABC DO PARK" className="w-32 h-auto object-contain mb-2" />
-          <p className="text-[8px] text-slate-400 font-black uppercase tracking-[0.3em]">Portal do Professor</p>
+        <div className="mb-6 mt-4 flex flex-col items-center">
+          <img src={logoUrl} alt="Logo ABC DO PARK" className="w-28 h-auto object-contain mb-3 drop-shadow-sm" />
+          <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] text-center bg-slate-100 px-3 py-1 rounded-full">
+            Portal do Professor
+          </p>
         </div>
 
-        {/* Navegação */}
-        <nav className="flex-1 space-y-2">
+        {/* Info do Usuário Logado (Conectado ao Banco) */}
+        <div className="mb-6 flex items-center gap-3 px-2 py-3 bg-[#f8fafc] border border-slate-100 rounded-xl">
+          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <User size={20} strokeWidth={2.5} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Bem-vindo(a)</p>
+            <p className="text-xs font-black text-slate-700 truncate">{nomeProfessor}</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1.5 overflow-y-auto hide-scrollbar pr-2">
           {menuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
             return (
               <Link
                 key={item.name}
                 href={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide transition-all duration-300 ${
                   isActive 
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-100" 
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 translate-x-1" 
                   : "text-slate-500 hover:bg-slate-50 hover:text-blue-600"
                 }`}
               >
-                <item.icon size={16} strokeWidth={2.5} />
+                <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                 {item.name}
               </Link>
             );
           })}
         </nav>
 
-        {/* Botão Sair */}
         <button 
           onClick={handleLogout}
-          className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase text-rose-500 hover:bg-rose-50 transition-all"
+          className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-xs uppercase text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all border border-rose-100/60"
         >
-          <LogOut size={16} strokeWidth={2.5} />
+          <LogOut size={18} strokeWidth={2.5} />
           Sair do Sistema
         </button>
       </aside>
 
       {/* ========================================================= */}
-      {/* VISUALIZAÇÃO PORTÁTIL (CELULAR/TABLET): Menu ampliado (h-[85px]) */}
+      {/* MOBILE BOTTOM BAR (App-Like nativo) */}
       {/* ========================================================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-2 flex items-center justify-around z-[9999] h-[85px] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200/60 px-2 pb-safe pt-1 flex items-center justify-around z-[9999] shadow-[0_-8px_30px_rgba(0,0,0,0.04)]">
         {menuItems.map((item) => {
           const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <Link
               key={item.name}
               href={item.path}
-              className={`flex flex-col items-center justify-center gap-1 min-w-[72px] px-2 py-2 rounded-2xl transition-all ${
-                isActive 
-                ? "text-blue-600 bg-blue-50/50" 
-                : "text-slate-400 hover:text-blue-600 hover:bg-slate-50"
-              }`}
+              className="flex flex-col items-center justify-center flex-1 py-2 rounded-2xl relative group"
             >
-              <item.icon size={26} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[9px] font-black uppercase tracking-wider truncate w-full text-center mt-1">{item.name}</span>
+              <div className={`p-1.5 rounded-full transition-all duration-300 ${isActive ? 'bg-blue-100/50 scale-110' : 'bg-transparent group-hover:bg-slate-50'}`}>
+                <item.icon size={24} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-wider truncate mt-0.5 transition-colors ${isActive ? "text-blue-600" : "text-slate-400"}`}>
+                {item.name}
+              </span>
             </Link>
           );
         })}
         
-        {/* Botão Sair integrado na navegação móvel */}
-        <button 
-          onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 min-w-[72px] px-2 py-2 rounded-2xl text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
-        >
-          <LogOut size={26} strokeWidth={2} />
-          <span className="text-[9px] font-black uppercase tracking-wider truncate w-full text-center mt-1">Sair</span>
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center flex-1 py-2 rounded-2xl group">
+          <div className="p-1.5 rounded-full bg-transparent group-hover:bg-rose-50 transition-all duration-300">
+            <LogOut size={24} strokeWidth={2} className="text-rose-400 group-hover:text-rose-500" />
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-wider truncate mt-0.5 text-rose-400 group-hover:text-rose-500">Sair</span>
         </button>
       </div>
     </>

@@ -7,18 +7,13 @@ import { supabase } from "@/lib/supabase";
 import { 
   LayoutDashboard, GraduationCap, School, BookOpen, 
   BarChart3, FileText, Briefcase, CreditCard, 
-  Receipt, Award, LogOut 
+  Receipt, Award, LogOut, Loader2
 } from "lucide-react";
 
-// Caminhos atualizados para buscar os alertas na pasta original sem erro
 import { AlertaVencimento } from "@/app/dashboard/_components/AlertaVencimento";
 import { AlertaEvasao } from "@/app/dashboard/_components/AlertaEvasao"; 
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ehAdmin, setEhAdmin] = useState(false);
@@ -31,7 +26,6 @@ export default function DashboardLayout({
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         const email = authData.user.email;
-        
         const { data: perfil } = await supabase
           .from('perfis')
           .select('cargo')
@@ -56,7 +50,6 @@ export default function DashboardLayout({
     router.push("/");
   };
 
-  // Menu Dinâmico: Filtra automaticamente o que o Professor e o Admin podem ver
   const getMenuItems = () => {
     const items = [
       { name: "Painel", icon: LayoutDashboard, path: "/dashboard", adminOnly: false },
@@ -75,107 +68,102 @@ export default function DashboardLayout({
 
   const menuItems = getMenuItems();
 
-  if (carregando) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-bold text-slate-400 tracking-widest uppercase text-sm animate-pulse">Sincronizando...</div>;
+  if (carregando) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-blue-600 gap-3">
+        <Loader2 size={32} className="animate-spin" strokeWidth={3} />
+        <span className="font-bold uppercase tracking-widest text-xs">Sincronizando...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 relative">
+    <div className="flex min-h-screen bg-[#f4f7f9] relative">
       
-      {/* Alertas Globais Mantidos */}
-      <AlertaVencimento />
-      {ehAdmin && <AlertaEvasao />}
+      <div className="absolute top-0 w-full z-[100]">
+        <AlertaVencimento />
+        {ehAdmin && <AlertaEvasao />}
+      </div>
 
-      {/* ESTILOS GLOBAIS MOBILE (Impede o rodapé de cobrir o conteúdo e oculta a barra de rolagem horizontal) */}
       <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 767px) {
-          body, main, .animate-in { padding-bottom: 100px !important; }
-        }
+        @media (max-width: 767px) { body, main { padding-bottom: 90px !important; } }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
 
       {/* ========================================================= */}
-      {/* VISUALIZAÇÃO DESKTOP: Barra Lateral Fixa (Oculta no Celular) */}
+      {/* DESKTOP SIDEBAR: Clean, sombras suaves e tipografia nítida */}
       {/* ========================================================= */}
-      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-100 p-6 flex-col shadow-sm z-50">
+      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-200/50 p-5 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50">
         
-        {/* Logo */}
-        <div className="mb-10 flex flex-col items-center">
-          <img src={logoUrl} alt="Logo ABC DO PARK" className="w-32 h-auto object-contain mb-2" />
-          <p className="text-[8px] text-slate-400 font-black uppercase tracking-[0.3em] text-center">
+        <div className="mb-8 mt-4 flex flex-col items-center">
+          <img src={logoUrl} alt="Logo ABC DO PARK" className="w-28 h-auto object-contain mb-3 drop-shadow-sm" />
+          <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] text-center bg-slate-100 px-3 py-1 rounded-full">
             {ehAdmin ? "Gestão Escolar" : "Portal do Professor"}
           </p>
         </div>
 
-        {/* Navegação Desktop */}
-        <nav className="flex-1 space-y-2 overflow-y-auto hide-scrollbar pr-2">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto hide-scrollbar pr-2">
           {menuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
             return (
               <Link
                 key={item.name}
                 href={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide transition-all duration-300 ${
                   isActive 
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-100" 
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 translate-x-1" 
                   : "text-slate-500 hover:bg-slate-50 hover:text-blue-600"
                 }`}
               >
-                <item.icon size={18} strokeWidth={2.5} />
+                <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                 {item.name}
               </Link>
             );
           })}
         </nav>
 
-        {/* Botão Sair Desktop */}
         <button 
           onClick={handleLogout}
-          className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase text-rose-500 hover:bg-rose-50 transition-all border border-rose-100/50"
+          className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-xs uppercase text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all border border-rose-100/60"
         >
           <LogOut size={18} strokeWidth={2.5} />
           Sair do Sistema
         </button>
       </aside>
 
-      {/* ========================================================= */}
       {/* MAIN CONTENT AREA */}
-      {/* ========================================================= */}
-      <main className="flex-1 w-full overflow-y-auto">
+      <main className="flex-1 w-full overflow-y-auto relative">
         {children}
       </main>
 
       {/* ========================================================= */}
-      {/* VISUALIZAÇÃO MOBILE (CELULAR/TABLET): Bottom Bar App-Like */}
-      {/* Exatamente o mesmo estilo espaçado e sem scroll do Portal dos Pais */}
+      {/* MOBILE BOTTOM BAR: Efeito Glassmorphism e Ícones Otimizados */}
       {/* ========================================================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-[9999] h-[85px] shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
-        
-        {/* Renderiza APENAS os itens principais no celular para não quebrar a tela (se for Admin, esconde alguns) */}
-        {menuItems.slice(0, ehAdmin ? 4 : 5).map((item) => {
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200/60 px-2 pb-safe pt-1 flex items-center justify-around z-[9999] shadow-[0_-8px_30px_rgba(0,0,0,0.04)]">
+        {menuItems.slice(0, ehAdmin ? 4 : 4).map((item) => {
           const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <Link
               key={item.name}
               href={item.path}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl transition-all ${
-                isActive 
-                ? "text-blue-600" 
-                : "text-slate-400 hover:text-blue-600"
-              }`}
+              className="flex flex-col items-center justify-center flex-1 py-2 rounded-2xl relative"
             >
-              <item.icon size={26} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 3 : 2.5} />
-              <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1">{item.name}</span>
+              <div className={`p-1.5 rounded-full transition-all duration-300 ${isActive ? 'bg-blue-100/50' : 'bg-transparent'}`}>
+                <item.icon size={24} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-wider truncate mt-0.5 transition-colors ${isActive ? "text-blue-600" : "text-slate-400"}`}>
+                {item.name}
+              </span>
             </Link>
           );
         })}
         
-        {/* Botão Sair Mobile Integrado */}
-        <button 
-          onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-rose-400 hover:text-rose-600 transition-all"
-        >
-          <LogOut size={26} strokeWidth={2.5} />
-          <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1">Sair</span>
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center flex-1 py-2 rounded-2xl group">
+          <div className="p-1.5 rounded-full bg-transparent group-hover:bg-rose-50 transition-all duration-300">
+            <LogOut size={24} strokeWidth={2} className="text-rose-400 group-hover:text-rose-500" />
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-wider truncate mt-0.5 text-rose-400 group-hover:text-rose-500">Sair</span>
         </button>
       </div>
 
