@@ -48,8 +48,8 @@ export function SidebarProfessor() {
 
   return (
     <>
-      {/* INJEÇÃO DE ESTILO GLOBAL PARA MOBILE: Atualizado para 120px devido à nova barra maior */}
       <style dangerouslySetInnerHTML={{__html: `
+        /* AJUSTADO: padding-bottom aumentado para 120px para acomodar a barra maior */
         @media (max-width: 767px) { body, main { padding-bottom: 120px !important; } }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -108,9 +108,9 @@ export function SidebarProfessor() {
       </aside>
 
       {/* ========================================================= */}
-      {/* MOBILE BOTTOM BAR (App-Like com ÍCONES GIGANTES) */}
+      {/* MOBILE BOTTOM BAR (App-Like nativo) - ACESSIBILIDADE MELHORADA */}
       {/* ========================================================= */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/60 px-2 pb-4 pt-3 flex items-center justify-around z-[9999] shadow-[0_-10px_40px_rgba(0,0,0,0.06)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/60 px-2 pb-4 pt-3 flex items-center justify-around z-[9999] shadow-[0_-10px_40px_rgba(0,0,0,0.06)] min-h-[90px]">
         {menuItems.map((item) => {
           const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
@@ -120,27 +120,24 @@ export function SidebarProfessor() {
               className="flex flex-col items-center justify-center flex-1 py-1 rounded-2xl relative group"
             >
               <div className={`p-2 rounded-full transition-all duration-300 ${isActive ? 'bg-blue-100/60 scale-105' : 'bg-transparent active:bg-slate-100'}`}>
-                {/* ÍCONE DOBRADO (Tamanho 56) */}
-                <item.icon size={100} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
+                {/* AJUSTADO: Ícones gigantes (size 40) */}
+                <item.icon size={40} className={isActive ? "text-blue-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
               </div>
-              {/* TEXTO PROPORCIONAL AO NOVO ÍCONE */}
-              <span className={`text-[10px] font-black uppercase tracking-wider truncate mt-1.5 transition-colors ${isActive ? "text-blue-600" : "text-slate-400"}`}>
+              {/* AJUSTADO: Fonte maior (text-[11px]) */}
+              <span className={`text-[11px] font-black uppercase tracking-wider truncate mt-1.5 transition-colors ${isActive ? "text-blue-600" : "text-slate-400"}`}>
                 {item.name}
               </span>
             </Link>
           );
         })}
         
-        {/* Botão Sair Mobile Integrado */}
-        <button 
-          onClick={handleLogout} 
-          className="flex flex-col items-center justify-center flex-1 py-1 rounded-2xl group active:opacity-70 transition-opacity"
-        >
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center flex-1 py-1 rounded-2xl group active:opacity-70 transition-opacity">
           <div className="p-2 rounded-full bg-transparent">
-            {/* ÍCONE DOBRADO (Tamanho 56) */}
-            <LogOut size={100} strokeWidth={2} className="text-rose-400" />
+            {/* AJUSTADO: Ícone de sair gigante (size 40) */}
+            <LogOut size={40} strokeWidth={2} className="text-rose-400" />
           </div>
-          <span className="text-[10px] font-black uppercase tracking-wider truncate mt-1.5 text-rose-400">Sair</span>
+          {/* AJUSTADO: Fonte maior (text-[11px]) */}
+          <span className="text-[11px] font-black uppercase tracking-wider truncate mt-1.5 text-rose-400">Sair</span>
         </button>
       </div>
     </>
