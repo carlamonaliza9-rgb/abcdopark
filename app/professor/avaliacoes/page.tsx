@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
+import { Save, Filter, BookOpenCheck, Loader2 } from "lucide-react";
 
 export default function AvaliacoesProfessorPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [nomeLogado, setNomeLogado] = useState(""); // NOVO: Guarda o nome oficial do professor
   const [ehAdmin, setEhAdmin] = useState(false);
   
   const [listaTurmas, setListaTurmas] = useState<string[]>([]);
@@ -41,31 +43,39 @@ export default function AvaliacoesProfessorPage() {
       const email = user.email || "";
       setUserEmail(email);
 
-      // 1. Verifica se o usuário é Admin
+      // 1. Busca o nome oficial do professor usando o email logado
+      const { data: funcData } = await supabase.from('funcionarios').select('nome').eq('email', email).single();
+      const nomeDoProf = funcData?.nome || "";
+      setNomeLogado(nomeDoProf);
+
+      // 2. Verifica se o usuário é Admin
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const adminVerificado = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
       setEhAdmin(adminVerificado);
 
       if (adminVerificado) {
-        // Se for Admin, carrega os nomes das turmas fixas para o seletor
+        // Se for Admin, carrega os nomes de todas as turmas
         const nomesTurmas = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
         setListaTurmas(nomesTurmas);
       } else {
-        // 2. Lógica para Professores (Fixos e Especialistas)
-        // Busca todas as turmas onde o e-mail aparece em qualquer um dos campos de professor
-        const { data: turmasData } = await supabase
-          .from('turmas_info')
-          .select('nome_turma')
-          .or(`email_prof_fixo_1.eq.${email},email_prof_fixo_2.eq.${email},email_prof_especifico_1.eq.${email},email_prof_especifico_2.eq.${email}`);
+        // --- NOVO BLOQUEIO RBAC PARA PROFESSORES ---
+        // Procura na nova matriz disciplinar em quais turmas este professor específico dá aula
+        if (nomeDoProf) {
+            const { data: turmasDoProf } = await supabase
+              .from('turma_disciplinas')
+              .select('nome_turma')
+              .eq('professor_vinculado', nomeDoProf)
+              .eq('ano', '2026');
 
-        if (turmasData && turmasData.length > 0) {
-          const nomesEncontrados = turmasData.map(t => t.nome_turma);
-          setListaTurmas(nomesEncontrados);
-          
-          // Se o professor só tiver uma turma, já seleciona automaticamente
-          if (nomesEncontrados.length === 1) {
-            setTurmaSelecionada(nomesEncontrados[0]);
-          }
+            if (turmasDoProf && turmasDoProf.length > 0) {
+              // Remove nomes duplicados de turmas (ex: se ele dá PT e MAT na mesma turma)
+              const nomesUnicos = Array.from(new Set(turmasDoProf.map(t => t.nome_turma)));
+              setListaTurmas(nomesUnicos);
+              
+              if (nomesUnicos.length === 1) {
+                setTurmaSelecionada(nomesUnicos[0]);
+              }
+            }
         }
       }
       setCarregando(false);
@@ -78,11 +88,18 @@ export default function AvaliacoesProfessorPage() {
     async function buscarMateriasDaTurma() {
       if (!turmaSelecionada) return;
       
-      const { data: discData } = await supabase
+      let query = supabase
         .from('turma_disciplinas')
-        .select('disciplina')
+        .select('disciplina, professor_vinculado')
         .eq('nome_turma', turmaSelecionada)
         .eq('ano', '2026');
+      
+      // Se NÃO FOR ADMIN, aplica o filtro de visão por matéria também
+      if (!ehAdmin && nomeLogado) {
+          query = query.eq('professor_vinculado', nomeLogado);
+      }
+
+      const { data: discData } = await query;
       
       if (discData && discData.length > 0) {
         setDisciplinas(discData);
@@ -93,7 +110,7 @@ export default function AvaliacoesProfessorPage() {
       }
     }
     buscarMateriasDaTurma();
-  }, [turmaSelecionada]);
+  }, [turmaSelecionada, ehAdmin, nomeLogado]);
 
   // Carrega alunos e notas sempre que mudar a turma, matéria ou o bimestre
   useEffect(() => {
@@ -129,7 +146,7 @@ export default function AvaliacoesProfessorPage() {
         mapaNotas[String(aluno.id)] = valorNota !== null ? String(valorNota) : "";
       });
       setNotasLocais(mapaNotas);
-      setNotasOriginais({ ...mapaNotas }); // Salva cópia imutável para a checagem posterior
+      setNotasOriginais({ ...mapaNotas });
     }
   }
 
@@ -137,7 +154,6 @@ export default function AvaliacoesProfessorPage() {
     setNotasLocais(prev => ({ ...prev, [alunoId]: valor.replace(',', '.') }));
   };
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -163,16 +179,14 @@ export default function AvaliacoesProfessorPage() {
 
       for (const alunoId of Object.keys(notasLocais)) {
         const valorNota = notasLocais[alunoId] === "" ? null : parseFloat(notasLocais[alunoId]);
-        
         const valorAntigo = notasOriginais[alunoId] || "";
         const valorNovo = notasLocais[alunoId] || "";
 
-        // Se o valor digitado mudou em relação ao banco, estruturamos a linha
         if (valorAntigo !== valorNovo) {
           temAlteracaoReal = true;
           const nomeAluno = alunos.find(a => String(a.id) === alunoId)?.nome || `ID ${alunoId}`;
           const exibicaoAntes = valorAntigo === "" ? "(Sem nota)" : valorAntigo;
-          const exibicaoDepois = valorNovo === "" ? "(Nota excluída)" : valorNovo;
+          const exibicaoDepois = valorNovo === "" ? "(Excluída)" : valorNovo;
           
           mudancasOcorridas.push(`• ${nomeAluno}:\n  Antes: ${exibicaoAntes} ➔ Depois: ${exibicaoDepois}`);
         }
@@ -189,17 +203,14 @@ export default function AvaliacoesProfessorPage() {
         if (error) throw error;
       }
       
-      // Só dispara o gatilho de gravação de log caso alguma nota tenha de fato mudado
       if (temAlteracaoReal) {
         const bimestreLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
-        const textoRelatorio = `📊 Alterou/Lançou a pauta de notas de ${disciplinaSelecionada} da turma ${turmaSelecionada} (${bimestreLabel}):\n` + 
+        const textoRelatorio = `📊 Alterou a pauta de notas de ${disciplinaSelecionada} da turma ${turmaSelecionada} (${bimestreLabel}):\n` + 
                               mudancasOcorridas.join('\n');
-
         await registrarLog("EDIÇÃO", textoRelatorio);
       }
 
-      alert(`Notas de ${disciplinaSelecionada} salvas com sucesso!`);
-      setNotasOriginais({ ...notasLocais }); // Sincroniza o estado original com os novos dados salvos
+      setNotasOriginais({ ...notasLocais });
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
     } finally {
@@ -207,174 +218,189 @@ export default function AvaliacoesProfessorPage() {
     }
   }
 
-  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando pauta...</div>;
+  if (carregando) return (
+    <div className="min-h-screen bg-[#f4f7f9] flex flex-col items-center justify-center text-blue-600 gap-3">
+      <Loader2 size={32} className="animate-spin" strokeWidth={3} />
+      <span className="font-bold uppercase tracking-widest text-xs">Sincronizando Pauta...</span>
+    </div>
+  );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-4 md:max-w-4xl md:mx-auto md:p-8 font-sans">
-      <header className="mb-10">
-        <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">Lançamento de Notas</h1>
-        <div className="h-1 w-20 bg-indigo-600 mt-2 rounded-full mb-2"></div>
-        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-          {ehAdmin ? "Painel Administrativo" : `Professor(a): ${userEmail}`}
-        </p>
+    <div className="animate-in fade-in duration-700 pb-32 w-full px-4 md:px-8 py-6 relative min-h-screen bg-[#f4f7f9] overflow-x-hidden">
+      
+      {/* Container Full Width para Aproveitamento da Tela */}
+      <div className="w-full max-w-[1600px] mx-auto space-y-6">
         
-        {/* Painel de Filtros (Responsivo) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
+        {/* ============================================== */}
+        {/* HEADER & FILTROS (Grid Responsivo) */}
+        {/* ============================================== */}
+        <header className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2.5 rounded-2xl"><BookOpenCheck size={28} strokeWidth={2.5}/></span> 
+              Avaliações
+            </h1>
+            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-3">
+              {ehAdmin ? "Administração Global de Pautas" : `Portal do Professor • ${nomeLogado}`}
+            </p>
+          </div>
           
-          {/* Seletor de Turma */}
-          {(ehAdmin || listaTurmas.length > 1) ? (
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selecione a Turma</label>
+          <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full xl:w-auto">
+            <div className="flex items-center gap-2 text-slate-400 shrink-0 hidden lg:flex">
+              <Filter size={18} strokeWidth={2.5} />
+            </div>
+
+            {/* Seletor de Turma */}
+            <div className="flex flex-col gap-1.5 flex-1 xl:w-48">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Minhas Turmas</label>
+              {(ehAdmin || listaTurmas.length > 1) ? (
+                <select 
+                  value={turmaSelecionada} 
+                  onChange={(e) => setTurmaSelecionada(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors shadow-sm"
+                >
+                  <option value="">Escolha...</option>
+                  {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              ) : (
+                <div className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-slate-700 shadow-sm truncate">
+                  {turmaSelecionada || "Nenhuma turma vinculada"}
+                </div>
+              )}
+            </div>
+
+            {/* Seletor de Matéria */}
+            <div className="flex flex-col gap-1.5 flex-1 xl:w-48">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Disciplina</label>
               <select 
-                value={turmaSelecionada} 
-                onChange={(e) => setTurmaSelecionada(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors"
+                value={disciplinaSelecionada} 
+                onChange={(e) => setDisciplinaSelecionada(e.target.value)}
+                disabled={disciplinas.length === 0}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors disabled:opacity-50 shadow-sm"
               >
-                <option value="">Escolha uma turma...</option>
-                {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
+                {disciplinas.length > 0 ? (
+                  disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
+                ) : (
+                  <option value="">Sem matérias</option>
+                )}
               </select>
             </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Turma Vinculada</label>
-              <div className="w-full px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100 font-black text-indigo-700">
-                {turmaSelecionada || "Nenhuma turma"}
-              </div>
+
+            {/* Seletor de Bimestre */}
+            <div className="flex flex-col gap-1.5 flex-1 xl:w-48">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Período Letivo</label>
+              <select 
+                value={bimestreSelecionado} 
+                onChange={(e) => setBimestreSelecionado(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors shadow-sm"
+              >
+                {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
+              </select>
             </div>
-          )}
-
-          {/* Seletor de Matéria */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Matéria</label>
-            <select 
-              value={disciplinaSelecionada} 
-              onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-              disabled={disciplinas.length === 0}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors disabled:opacity-50"
-            >
-              {disciplinas.length > 0 ? (
-                disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
-              ) : (
-                <option value="">Sem matérias</option>
-              )}
-            </select>
           </div>
+        </header>
 
-          {/* Seletor de Bimestre */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bimestre</label>
-            <select 
-              value={bimestreSelecionado} 
-              onChange={(e) => setBimestreSelecionado(e.target.value)}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 text-slate-700 font-bold outline-none focus:border-indigo-300 transition-colors"
-            >
-              {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
-            </select>
-          </div>
-        </div>
-      </header>
-
-      {turmaSelecionada && disciplinas.length > 0 ? (
-        <>
-          {/* ======================= */}
-          {/* VISUALIZAÇÃO DESKTOP    */}
-          {/* Mantém a tabela clássica */}
-          {/* ======================= */}
-          <div className="hidden md:block bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="pb-4 text-xs font-black text-slate-400 uppercase tracking-widest">Aluno</th>
-                  <th className="pb-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center w-32">Nota</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {alunos.map((aluno) => {
-                  const notaAtualStr = notasLocais[String(aluno.id)] || "";
-                  const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
-                  
-                  return (
-                    <tr key={aluno.id} className="group hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 font-bold text-slate-700">{aluno.nome}</td>
-                      <td className="py-4 text-center">
-                        <input 
-                          type="text"
-                          value={notaAtualStr}
-                          onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                          placeholder="0.0"
-                          className={`w-20 p-2 text-center rounded-xl border-2 font-black outline-none transition-colors ${
-                            isVermelha 
-                              ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
-                              : 'border-slate-100 bg-slate-50 text-indigo-600 focus:border-indigo-400 focus:bg-white'
-                          }`}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ======================= */}
-          {/* VISUALIZAÇÃO MOBILE     */}
-          {/* Estilo App/Portal Pais  */}
-          {/* ======================= */}
-          <div className="md:hidden space-y-4">
-            {alunos.map((aluno) => {
-              const notaAtualStr = notasLocais[String(aluno.id)] || "";
-              const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
-              
-              return (
-                <div key={aluno.id} className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-50 flex items-center justify-between gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Aluno</span>
-                    <span className="text-sm font-bold text-slate-700 leading-tight">{aluno.nome}</span>
+        {/* ============================================== */}
+        {/* ÁREA DE LANÇAMENTO DE NOTAS */}
+        {/* ============================================== */}
+        {turmaSelecionada && disciplinas.length > 0 ? (
+          <div className="space-y-6">
+            
+            {/* GRID DESKTOP (Aproveitamento total da tela: 3 ou 4 alunos por linha) */}
+            <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {alunos.map((aluno) => {
+                const notaAtualStr = notasLocais[String(aluno.id)] || "";
+                const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
+                const foiAlterada = notasLocais[String(aluno.id)] !== notasOriginais[String(aluno.id)];
+                
+                return (
+                  <div key={aluno.id} className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100 flex items-center justify-between gap-4 hover:border-blue-200 transition-colors relative overflow-hidden group">
+                    {foiAlterada && <div className="absolute top-0 right-0 w-2 h-2 m-3 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
+                    <div className="flex flex-col flex-1 overflow-hidden">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aluno</span>
+                      <span className="text-sm font-bold text-slate-700 truncate" title={aluno.nome}>{aluno.nome}</span>
+                    </div>
+                    <div className="shrink-0">
+                      <input 
+                        type="text"
+                        inputMode="decimal"
+                        value={notaAtualStr}
+                        onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
+                        placeholder="--"
+                        className={`w-16 h-12 text-center rounded-[1rem] border-2 font-black text-lg outline-none transition-all shadow-inner ${
+                          isVermelha 
+                            ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
+                            : 'border-slate-100 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
+                        }`}
+                      />
+                    </div>
                   </div>
-                  
-                  <div className="flex-shrink-0">
-                    <input 
-                      type="text"
-                      inputMode="decimal"
-                      value={notaAtualStr}
-                      onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                      placeholder="--"
-                      className={`w-16 h-12 text-center rounded-[1rem] border-2 font-black text-lg outline-none transition-all shadow-inner ${
-                        isVermelha 
-                          ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 focus:bg-white' 
-                          : 'border-slate-100 bg-slate-50 text-indigo-600 focus:border-indigo-400 focus:bg-white'
-                      }`}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* BOTÃO SALVAR (Responsivo) */}
-          <div className="mt-8 flex justify-end">
-            <button 
-              onClick={salvarNotas}
-              disabled={salvando}
-              className={`w-full md:w-auto px-8 py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${
-                salvando 
-                  ? 'bg-indigo-300 text-indigo-50 cursor-not-allowed shadow-none' 
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
-              }`}
-            >
-              {salvando ? "Sincronizando..." : "Salvar Pauta"}
-            </button>
+            {/* LISTA MOBILE (1 aluno por linha, otimizado para o polegar) */}
+            <div className="md:hidden space-y-3">
+              {alunos.map((aluno) => {
+                const notaAtualStr = notasLocais[String(aluno.id)] || "";
+                const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
+                
+                return (
+                  <div key={aluno.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                        {aluno.foto_url ? <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-black text-slate-400">{aluno.nome.charAt(0)}</div>}
+                      </div>
+                      <span className="text-sm font-bold text-slate-700 leading-tight truncate">{aluno.nome}</span>
+                    </div>
+                    
+                    <div className="shrink-0">
+                      <input 
+                        type="text"
+                        inputMode="decimal"
+                        value={notaAtualStr}
+                        onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
+                        placeholder="--"
+                        className={`w-14 h-12 text-center rounded-xl border-2 font-black text-base outline-none transition-all shadow-inner ${
+                          isVermelha 
+                            ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
+                            : 'border-slate-100 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* BOTÃO SALVAR GLOBAL */}
+            <div className="mt-8 flex justify-end sticky bottom-24 md:bottom-8 z-40">
+              <button 
+                onClick={salvarNotas}
+                disabled={salvando}
+                className={`w-full md:w-auto px-10 py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 ${
+                  salvando 
+                    ? 'bg-blue-300 text-blue-50 cursor-not-allowed shadow-none' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95 hover:-translate-y-1'
+                }`}
+              >
+                {salvando ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} strokeWidth={2.5} />}
+                {salvando ? "Salvando..." : "Salvar Pauta"}
+              </button>
+            </div>
+            
           </div>
-        </>
-      ) : (
-        <div className="bg-white rounded-[2.5rem] p-10 text-center border border-slate-50 shadow-sm mt-8">
-          <p className="text-lg md:text-[10px] font-black uppercase text-slate-300 tracking-widest">
-            {!turmaSelecionada 
-              ? "Selecione a turma para visualizar a pauta." 
-              : "Sem matérias cadastradas para esta turma."}
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="bg-white rounded-[2.5rem] p-10 text-center border border-slate-50 shadow-sm mt-8">
+            <p className="text-xs font-black uppercase text-slate-400 tracking-widest">
+              {!turmaSelecionada 
+                ? "Aguardando seleção..." 
+                : "Seu perfil não possui disciplinas vinculadas a esta turma."}
+            </p>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }

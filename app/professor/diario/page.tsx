@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase"; // Alterado para usar a conexão segura com cookies
+import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
+import { 
+  CalendarDays, Save, Trash2, Edit3, ClipboardList, 
+  Undo2, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, 
+  Cake, Smartphone, BookOpen, MessageSquareText
+} from "lucide-react";
 
 export default function DiarioClassePage() {
   const router = useRouter();
@@ -24,21 +29,26 @@ export default function DiarioClassePage() {
 
   const [alertaEvasao, setAlertaEvasao] = useState<{ aberto: boolean; nomeAluno: string } | null>(null);
 
+  // NOVO ESTADO: Controle do Modal de Observações
+  const [modalObsAberto, setModalObsAberto] = useState(false);
+  const [obsAtual, setObsAtual] = useState({ alunoId: 0, nomeAluno: "", texto: "", metricaContexto: "" });
+
   const [registrosLocal, setRegistrosLocal] = useState<{[key: string]: { 
     presenca: boolean | null, 
     participacao: number,
     comportamento: number,
     atividades: number,
-    socioemocional: number
+    socioemocional: number,
+    comentario: string
   }}>({});
 
-  // Estado interno para armazenar o snapshot original vindo do banco (Antes x Depois)
   const [registrosOriginais, setRegistrosOriginais] = useState<{[key: string]: { 
     presenca: boolean | null, 
     participacao: number,
     comportamento: number,
     atividades: number,
-    socioemocional: number
+    socioemocional: number,
+    comentario: string
   }}>({});
 
   useEffect(() => {
@@ -52,7 +62,6 @@ export default function DiarioClassePage() {
           const emailAtual = user.email || "";
           setUserEmail(emailAtual);
 
-          // Dados para o acolhimento de aniversário
           const metadata = user.user_metadata;
           let nome = metadata?.nome || metadata?.name || metadata?.full_name;
           if (!nome && emailAtual) {
@@ -64,7 +73,6 @@ export default function DiarioClassePage() {
             setNomeUsuario(nome.split(' ')[0]);
           }
 
-          // BUSCA DE TURMA: Verifica as 4 colunas de professores
           const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
           const minhaTurma = (turmasInfo || []).find(t => 
             t.email_prof_fixo_1 === emailAtual || 
@@ -77,7 +85,6 @@ export default function DiarioClassePage() {
             setTurmaSelecionada(minhaTurma.nome_turma);
           }
 
-          // LÓGICA DE ANIVERSÁRIO (1x por login)
           const { data: todosFuncs } = await supabase.from('funcionarios').select('*');
           const { data: todosAlus } = await supabase.from('alunos').select('*');
 
@@ -123,7 +130,7 @@ export default function DiarioClassePage() {
   async function buscarAlunos() {
     const { data } = await supabase
       .from('alunos')
-      .select('id, nome, foto_url')
+      .select('id, nome, foto_url, turma')
       .eq('turma', turmaSelecionada)
       .order('nome', { ascending: true });
     if (data) setAlunos(data);
@@ -131,7 +138,7 @@ export default function DiarioClassePage() {
 
   async function carregarDadosSalvosDoDia() {
     const { data: freq } = await supabase.from('frequencias').select('aluno_id, presente').eq('data', dataLancamento);
-    const { data: aval } = await supabase.from('avaliacoes').select('aluno_id, participacao, comportamento, atividades, socioemocional').eq('data_avaliacao', dataLancamento);
+    const { data: aval } = await supabase.from('avaliacoes').select('aluno_id, participacao, comportamento, atividades, socioemocional, comentario').eq('data_avaliacao', dataLancamento);
 
     const estadoInicial: any = {};
     alunos.forEach(aluno => {
@@ -142,11 +149,11 @@ export default function DiarioClassePage() {
         participacao: v ? v.participacao : 0,
         comportamento: v ? v.comportamento : 0,
         atividades: v ? v.atividades : 0,
-        socioemocional: v ? v.socioemocional : 0
+        socioemocional: v ? v.socioemocional : 0,
+        comentario: v?.comentario || ""
       };
     });
     setRegistrosLocal(estadoInicial);
-    // Realiza um clone profundo independente para servir de comparador estático de alterações
     setRegistrosOriginais(JSON.parse(JSON.stringify(estadoInicial)));
   }
 
@@ -158,7 +165,6 @@ export default function DiarioClassePage() {
     return true;
   }
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -183,26 +189,24 @@ export default function DiarioClassePage() {
       const dataFormatada = new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR');
       const dadosPedagogicosRemovidos: string[] = [];
 
-      // Mapeia os dados atuais que serão limpos para auditoria detalhada de exclusão
       alunos.forEach(aluno => {
-        const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0 };
+        const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0, comentario: "" };
         const textoPresenca = reg.presenca === null ? "Sem pauta" : (reg.presenca ? "Presença (P)" : "Falta (F)");
         dadosPedagogicosRemovidos.push(
           `• ${aluno.nome}:\n` +
           `  - Frequência: ${textoPresenca}\n` +
-          `  - Avaliação: [🎯 Participação: ${reg.participacao}★] [🤝 Comportamento: ${reg.comportamento}★] [📝 Atividades: ${reg.atividades}★] [🧠 Socioemocional: ${reg.socioemocional}★]`
+          `  - Avaliação: [🎯 Part: ${reg.participacao}★] [🤝 Comp: ${reg.comportamento}★] [📝 Ativ: ${reg.atividades}★] [🧠 Socio: ${reg.socioemocional}★]` +
+          (reg.comentario ? `\n  - Observação: "${reg.comentario}"` : "")
         );
       });
 
       const textoDetalhesExclusao = `🗑️ Excluiu permanentemente os registros do diário de classe da turma ${turmaSelecionada} na data ${dataFormatada}.\n` +
-                                    `• Histórico pedagógico removido do sistema:\n` + 
-                                    dadosPedagogicosRemovidos.join('\n');
+                                    `• Histórico pedagógico removido:\n` + dadosPedagogicosRemovidos.join('\n');
 
       const ids = alunos.map(a => a.id);
       await supabase.from('frequencias').delete().in('aluno_id', ids).eq('data', dataLancamento);
       await supabase.from('avaliacoes').delete().in('aluno_id', ids).eq('data_avaliacao', dataLancamento);
       
-      // Envia o log completo de exclusão
       await registrarLog("EXCLUSÃO", textoDetalhesExclusao);
 
       setModalSeguranca(false);
@@ -236,27 +240,28 @@ export default function DiarioClassePage() {
 
       for (const alunoId in registrosLocal) {
         const reg = registrosLocal[alunoId];
-        const orig = registrosOriginais[alunoId] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0 };
+        const orig = registrosOriginais[alunoId] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0, comentario: "" };
         const alunoInfo = alunos.find(a => a.id === Number(alunoId));
 
-        // Verificação comparativa de todos os campos pedagógicos do aluno
         const mudouPresenca = reg.presenca !== orig.presenca;
         const mudouParticipacao = reg.participacao !== orig.participacao;
         const mudouComportamento = reg.comportamento !== orig.comportamento;
         const mudouAtividades = reg.atividades !== orig.atividades;
         const mudouSocioemocional = reg.socioemocional !== orig.socioemocional;
+        const mudouComentario = reg.comentario !== orig.comentario;
 
-        if (mudouPresenca || mudouParticipacao || mudouComportamento || mudouAtividades || mudouSocioemocional) {
+        if (mudouPresenca || mudouParticipacao || mudouComportamento || mudouAtividades || mudouSocioemocional || mudouComentario) {
           possuiMudancaEfetiva = true;
           const nomeAluno = alunoInfo?.nome || `ID ${alunoId}`;
           const formatarP = (p: boolean | null) => p === null ? "(Sem pauta)" : (p ? "Presença (P)" : "Falta (F)");
           
           let logAluno = `• ${nomeAluno}:\n`;
-          if (mudouPresenca) logAluno += `  - Frequência: Antes: ${formatarP(orig.presenca)} ➔ Depois: ${formatarP(reg.presenca)}\n`;
-          if (mudouParticipacao) logAluno += `  - Participação: Antes: ${orig.participacao}★ ➔ Depois: ${reg.participacao}★\n`;
-          if (mudouComportamento) logAluno += `  - Comportamento: Antes: ${orig.comportamento}★ ➔ Depois: ${reg.comportamento}★\n`;
-          if (mudouAtividades) logAluno += `  - Atividades: Antes: ${orig.atividades}★ ➔ Depois: ${reg.atividades}★\n`;
-          if (mudouSocioemocional) logAluno += `  - Socioemocional: Antes: ${orig.socioemocional}★ ➔ Depois: ${reg.socioemocional}★\n`;
+          if (mudouPresenca) logAluno += `  - Freq: Antes: ${formatarP(orig.presenca)} ➔ Depois: ${formatarP(reg.presenca)}\n`;
+          if (mudouParticipacao) logAluno += `  - Part: Antes: ${orig.participacao}★ ➔ Depois: ${reg.participacao}★\n`;
+          if (mudouComportamento) logAluno += `  - Comp: Antes: ${orig.comportamento}★ ➔ Depois: ${reg.comportamento}★\n`;
+          if (mudouAtividades) logAluno += `  - Ativ: Antes: ${orig.atividades}★ ➔ Depois: ${reg.atividades}★\n`;
+          if (mudouSocioemocional) logAluno += `  - Socio: Antes: ${orig.socioemocional}★ ➔ Depois: ${reg.socioemocional}★\n`;
+          if (mudouComentario) logAluno += `  - Obs: Antes: "${orig.comentario}" ➔ Depois: "${reg.comentario}"\n`;
           
           mudancasFiltradas.push(logAluno.trimEnd());
         }
@@ -272,20 +277,16 @@ export default function DiarioClassePage() {
           comportamento: Number(reg.comportamento),
           atividades: Number(reg.atividades),
           socioemocional: Number(reg.socioemocional),
-          comentario: ""
+          comentario: reg.comentario || ""
         }, { onConflict: 'aluno_id, data_avaliacao' });
       }
 
-      // Dispara a gravação do histórico apenas se houver diferença de Antes x Depois
       if (possuiMudancaEfetiva) {
         const tipoAcao = acaoPendente === 'editar' ? "EDIÇÃO" : "INSERÇÃO";
-        const textoRelatorio = `📒 Alterou/Registrou a pauta diária da turma ${turmaSelecionada} na data ${dataFormatada}:\n` + 
-                              mudancasFiltradas.join('\n');
-
+        const textoRelatorio = `📒 Alterou/Registrou a pauta diária da turma ${turmaSelecionada} na data ${dataFormatada}:\n` + mudancasFiltradas.join('\n');
         await registrarLog(tipoAcao, textoRelatorio);
       }
 
-      // Atualiza o snapshot original para sincronizar a memória com o banco de dados
       setRegistrosOriginais(JSON.parse(JSON.stringify(registrosLocal)));
 
     } catch (error) { alert("Erro ao salvar lançamento."); } finally { setSalvando(false); }
@@ -301,69 +302,339 @@ export default function DiarioClassePage() {
   }
 
   const handlePresencaLocal = (alunoId: number, status: boolean | null) => { setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], presenca: status } })); };
-  const handleParametroLocal = (alunoId: number, campo: string, qtd: number) => { setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [campo]: qtd } })); };
-  const obterCores = (turmaNome: string) => {
-    const cores: { [key: string]: { border: string; bg: string; text: string } } = { 
-      "Maternal": { border: "#b9e2f5", bg: "#f0f9ff", text: "#0369a1" }, 
-      "Jardim I": { border: "#c2f0d5", bg: "#f0fdf4", text: "#15803d" }, 
-      "Jardim II": { border: "#f7c8e0", bg: "#fdf2f8", text: "#9d174d" },
-      "1º Ano": { border: "#d7c0f0", bg: "#f5f3ff", text: "#6d28d9" }
-    };
-    return cores[turmaNome] || { border: "#e2e8f0", bg: "#ffffff", text: "#1e293b" };
+  
+  // NOVA LÓGICA DE AVALIAÇÃO E GATILHO DE MODAL
+  const handleParametroLocal = (alunoId: number, nomeAluno: string, campo: string, labelContexto: string, qtd: number) => { 
+    setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [campo]: qtd } })); 
+    
+    // Dispara o modal se a nota for 3 ou menor e se ainda não houver um comentário sendo digitado
+    if (qtd <= 3) {
+      abrirModalObs(alunoId, nomeAluno, labelContexto);
+    }
   };
-  const corAtual = obterCores(turmaSelecionada);
+  
+  function abrirModalObs(alunoId: number, nomeAluno: string, metrica: string) {
+    const textoExistente = registrosLocal[alunoId]?.comentario || "";
+    setObsAtual({ alunoId, nomeAluno, texto: textoExistente, metricaContexto: metrica });
+    setModalObsAberto(true);
+  }
+
+  function salvarModalObs() {
+    setRegistrosLocal(prev => ({
+      ...prev,
+      [obsAtual.alunoId]: {
+        ...prev[obsAtual.alunoId],
+        comentario: obsAtual.texto
+      }
+    }));
+    setModalObsAberto(false);
+  }
+
   const parabensWhatsApp = (persona: any) => {
     const msg = `Parabéns, ${persona.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso! 🎂🎈`;
     window.open(`https://wa.me/55${persona.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando diário...</div>;
+  const getCorTurmaInfo = (turma: string) => {
+    const cores: Record<string, string> = {
+      "Maternal": "border-sky-200 bg-sky-50 text-sky-700",
+      "Jardim I": "border-emerald-200 bg-emerald-50 text-emerald-700",
+      "Jardim II": "border-pink-200 bg-pink-50 text-pink-700",
+      "1º Ano": "border-purple-200 bg-purple-50 text-purple-700"
+    };
+    return cores[turma] || "border-slate-200 bg-slate-50 text-slate-700";
+  };
+  const temaTurmaAtual = getCorTurmaInfo(turmaSelecionada);
+
+  if (carregando) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-blue-500 tracking-widest animate-pulse text-xs">Carregando diário...</div>;
 
   return (
-    <div style={{ padding: '32px 20px', maxWidth: '1000px', margin: '0 auto', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <div className="w-full min-h-screen bg-[#f4f7f9] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
       
-      {/* MODAL BDAY */}
-      {modalBdayAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '100%', maxWidth: '480px', overflow: 'hidden', textAlign: 'center' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%)', padding: '40px 20px', color: 'white' }}>
-              <span style={{ fontSize: '50px' }}>🎂</span>
-              <h2 style={{ fontSize: '24px', fontWeight: '800', marginTop: '10px' }}>
-                {aniversariantesHoje.some(p => p.email === userEmail) ? `Parabéns, ${nomeUsuario}! ✨` : "Aniversariante(s) do Dia!"}
-              </h2>
-              {aniversariantesHoje.some(p => p.email === userEmail) ? (
-                <div style={{ padding: '0 20px', marginTop: '15px' }}>
-                  <p style={{ opacity: 0.95, fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>
-                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
-                    Que este novo ciclo seja repleto de paz, saúde e conquistas. Você é fundamental na nossa escola. Celebre muito!
-                  </p>
-                  <p style={{ marginTop: '15px', fontSize: '13px', fontWeight: 'bold', fontStyle: 'italic' }}>— Com carinho, Família ABC DO PARK ❤️</p>
+      <div className="w-full max-w-[1600px] mx-auto space-y-8">
+        
+        {/* ================= HEADER DO DIÁRIO ================= */}
+        <header className="bg-white rounded-[2.5rem] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2.5 rounded-2xl"><BookOpen size={28} strokeWidth={2.5}/></span> 
+              Meu Diário de Classe
+            </h1>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-5">
+              <div className={`px-4 py-2.5 rounded-xl border-2 font-black uppercase tracking-widest text-[10px] ${temaTurmaAtual}`}>
+                Turma: {turmaSelecionada || "Não localizada"}
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                <CalendarDays size={18} className="text-slate-400" />
+                <input 
+                  type="date" 
+                  value={dataLancamento} 
+                  onChange={(e) => setDataLancamento(e.target.value)} 
+                  className="bg-transparent border-none font-bold text-slate-700 outline-none w-full sm:w-auto"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button 
+              onClick={() => router.push('/professor/frequencia')} 
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-6 py-4 rounded-2xl border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+            >
+              <ClipboardList size={18} strokeWidth={2.5} /> Relatório Mês
+            </button>
+            <button 
+              onClick={() => { setAcaoPendente('excluir'); setModalSeguranca(true); }} 
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+            >
+              <Trash2 size={18} strokeWidth={2.5} /> Limpar
+            </button>
+            <button 
+              onClick={() => { setAcaoPendente('editar'); setModalSeguranca(true); }} 
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-600 hover:bg-amber-100 px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+            >
+              <Edit3 size={18} strokeWidth={2.5} /> Editar
+            </button>
+            <button 
+              onClick={handleSalvarNovo} 
+              disabled={salvando} 
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-500 text-white px-8 py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-600 font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 disabled:opacity-50"
+            >
+              <Save size={20} strokeWidth={2.5} /> {salvando ? "Salvando..." : "Salvar Pauta"}
+            </button>
+          </div>
+        </header>
+
+        {/* ================= GRID DE ALUNOS ================= */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {alunos.map((aluno) => {
+            const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0, comentario: "" };
+            const isFalta = reg.presenca === false;
+            const isPresente = reg.presenca === true;
+            const temComentario = reg.comentario.trim().length > 0;
+
+            return (
+              <div 
+                key={aluno.id} 
+                className={`bg-white p-5 rounded-[2rem] border-2 shadow-sm flex flex-col justify-between transition-all duration-300 ${isFalta ? 'border-rose-200 bg-rose-50/30' : isPresente ? 'border-green-200' : 'border-slate-100'}`}
+              >
+                
+                {/* TOPO: Avatar, Nome, Botão de Comentário e Frequência */}
+                <div className="flex items-start justify-between mb-6 gap-4">
+                  <div className="flex items-center gap-4 overflow-hidden flex-1">
+                    <img src={aluno.foto_url || 'https://via.placeholder.com/60'} className="w-14 h-14 shrink-0 rounded-[1.2rem] object-cover border border-slate-100 shadow-sm" alt="" />
+                    <div className="flex flex-col">
+                      <span className="font-black text-slate-800 text-base leading-tight line-clamp-1" title={aluno.nome}>{aluno.nome}</span>
+                      
+                      {/* Botão de Observação Pedagógica (Abre manualmente) */}
+                      <button 
+                        onClick={() => abrirModalObs(aluno.id, aluno.nome, "Geral")}
+                        className={`mt-1 flex items-center gap-1.5 w-fit px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors ${
+                          temComentario 
+                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
+                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                        }`}
+                      >
+                        <MessageSquareText size={12} strokeWidth={2.5} />
+                        {temComentario ? 'Obs. Adicionada' : 'Add Observação'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {reg.presenca === null ? (
+                      <div className="flex bg-slate-100 p-1 rounded-2xl">
+                        <button 
+                          onClick={() => handlePresencaLocal(aluno.id, true)} 
+                          className="w-10 h-10 rounded-xl bg-white text-slate-400 hover:text-green-600 hover:shadow-sm font-black transition-all flex items-center justify-center"
+                        >
+                          P
+                        </button>
+                        <button 
+                          onClick={() => handlePresencaLocal(aluno.id, false)} 
+                          className="w-10 h-10 rounded-xl bg-white text-slate-400 hover:text-rose-600 hover:shadow-sm font-black transition-all flex items-center justify-center"
+                        >
+                          F
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${isPresente ? 'bg-green-500 text-white' : 'bg-rose-500 text-white'}`}>
+                          {isPresente ? <CheckCircle2 size={24} strokeWidth={3} /> : <XCircle size={24} strokeWidth={3} />}
+                        </div>
+                        <button 
+                          onClick={() => handlePresencaLocal(aluno.id, null)} 
+                          className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 mt-1"
+                        >
+                          <Undo2 size={10} /> Desfazer
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <p style={{ opacity: 0.9, fontSize: '14px', marginTop: '10px' }}>Hoje o dia é de festa e gratidão na nossa escola!</p>
+
+                {/* BASE: Avaliação 2x2 Grid */}
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50/80 rounded-[1.5rem] border border-slate-100">
+                  {[
+                    { label: "Participação", key: "participacao", icon: "🎯" }, 
+                    { label: "Comportamento", key: "comportamento", icon: "🤝" }, 
+                    { label: "Atividades", key: "atividades", icon: "📝" }, 
+                    { label: "Socioemoc.", key: "socioemocional", icon: "🧠" }
+                  ].map((item) => (
+                    <div key={item.key} className="flex flex-col gap-1.5 bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 truncate">
+                        <span>{item.icon}</span> {item.label}
+                      </span>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map(num => {
+                          const ativo = num <= (reg as any)[item.key];
+                          return (
+                            <span 
+                              key={num} 
+                              onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
+                              className={`cursor-pointer text-lg transition-colors hover:scale-110 active:scale-90 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
+                            >
+                              ★
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            );
+          })}
+        </div>
+
+        {alunos.length === 0 && !carregando && (
+          <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+             <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum aluno encontrado para a turma selecionada.</p>
+          </div>
+        )}
+
+      </div>
+
+      {/* ================= MODAL DE OBSERVAÇÃO PEDAGÓGICA ================= */}
+      {modalObsAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 flex flex-col">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                <MessageSquareText size={24} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">Observação Diária</h3>
+                <p className="text-xs font-bold text-slate-500 line-clamp-1">{obsAtual.nomeAluno}</p>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl mb-6">
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhes para o Relatório dos Pais</p>
+              <textarea 
+                rows={4}
+                placeholder={`Registre aqui o motivo da avaliação ou uma observação geral sobre o aluno no dia de hoje...`}
+                value={obsAtual.texto}
+                onChange={(e) => setObsAtual({ ...obsAtual, texto: e.target.value })}
+                className="w-full bg-transparent border-none text-sm font-bold text-slate-700 outline-none resize-none placeholder:text-slate-300"
+              />
+            </div>
+            
+            <div className="flex gap-3 mt-auto">
+              <button onClick={() => setModalObsAberto(false)} className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={salvarModalObs} className="flex-[2] py-4 rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all active:scale-95">
+                Confirmar Observação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= OUTROS MODAIS ================= */}
+      {modalSeguranca && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+            <ShieldAlert size={48} className="mx-auto text-amber-500 mb-4" strokeWidth={2} />
+            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Confirmação de Segurança</h3>
+            <p className="text-xs font-bold text-slate-500 mb-6">Insira sua senha para confirmar a {acaoPendente === 'excluir' ? 'exclusão' : 'edição'}.</p>
+            <input 
+              type="password" 
+              placeholder="Sua senha" 
+              value={senhaConfirmacao} 
+              onChange={(e) => setSenhaConfirmacao(e.target.value)} 
+              className="w-full px-4 py-3 rounded-2xl border-2 border-slate-100 mb-6 text-center font-bold text-slate-700 outline-none focus:border-amber-400" 
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setModalSeguranca(false); setSenhaConfirmacao(""); }} className="flex-1 py-4 rounded-xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-colors">Cancelar</button>
+              <button onClick={acaoPendente === 'excluir' ? handleExcluirDiario : handleEditarDiario} className={`flex-1 py-4 rounded-xl text-white font-black uppercase tracking-widest text-[10px] transition-colors shadow-md ${acaoPendente === 'excluir' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-amber-500 hover:bg-amber-600'}`}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alertaEvasao?.aberto && (
+        <div className="fixed inset-0 bg-rose-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white p-10 rounded-[3rem] w-full max-w-md text-center shadow-2xl animate-in slide-in-from-bottom-8">
+            <AlertTriangle size={64} className="mx-auto text-rose-500 mb-6 animate-pulse" strokeWidth={2} />
+            <h2 className="text-2xl font-black text-rose-600 uppercase tracking-tighter mb-4">Atenção Professor(a)!</h2>
+            <p className="text-slate-700 font-bold text-base mb-6">O aluno <span className="text-rose-600">{alertaEvasao.nomeAluno}</span> faltou ontem e hoje.</p>
+            <div className="bg-rose-50 p-4 rounded-2xl mb-8">
+              <p className="text-rose-500 font-black uppercase tracking-widest text-[9px]">Rastreamento preventivo acionado na secretaria.</p>
+            </div>
+            <button onClick={() => setAlertaEvasao(null)} className="w-full py-4 rounded-2xl bg-slate-800 text-white font-black uppercase tracking-widest text-xs hover:bg-slate-900 transition-transform active:scale-95 shadow-lg">Ciente</button>
+          </div>
+        </div>
+      )}
+
+      {modalBdayAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 text-center">
+            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 text-white relative">
+              <Cake size={48} className="mx-auto mb-4 drop-shadow-md animate-bounce" strokeWidth={2} />
+              <h2 className="text-2xl font-black tracking-tight leading-tight">
+                {aniversariantesHoje.some(p => p.email === userEmail) ? `Parabéns, ${nomeUsuario}! ✨` : "Aniversariantes do Dia!"}
+              </h2>
+              {aniversariantesHoje.some(p => p.email === userEmail) && (
+                <p className="mt-4 text-blue-50 text-sm font-medium leading-relaxed px-4">
+                  Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈 Que este novo ciclo seja repleto de paz, saúde e conquistas.
+                </p>
               )}
             </div>
-            <div style={{ padding: '30px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div className="p-6 bg-slate-50">
+              <div className="flex flex-col gap-3">
                 {aniversariantesHoje.map(pessoa => {
                   const ehVoce = pessoa.email === userEmail;
                   return (
-                    <div key={`${pessoa.tipo}-${pessoa.id}`} style={{ display: 'flex', alignItems: 'center', gap: '15px', textAlign: 'left', backgroundColor: ehVoce ? '#f0f9ff' : '#f8fafc', padding: '15px', borderRadius: '22px', border: `2px solid ${ehVoce ? '#3b82f6' : '#e5e7eb'}` }}>
-                      <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff', overflow: 'hidden' }}>
-                        {pessoa.foto_url ? <img src={pessoa.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{pessoa.nome.charAt(0)}</div>}
+                    <div key={`${pessoa.tipo}-${pessoa.id}`} className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${ehVoce ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 shadow-sm'}`}>
+                      <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        {pessoa.foto_url ? (
+                          <img src={pessoa.foto_url} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <span className="font-black text-slate-400 text-lg">{pessoa.nome.charAt(0)}</span>
+                        )}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>{ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}</h4>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>
-                          {ehVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
+                      <div className="flex-1">
+                        <h4 className="text-base font-black text-slate-800 line-clamp-1">{ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}</h4>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${ehVoce ? 'text-blue-600' : 'text-slate-500'}`}>
+                          {ehVoce ? '🌟 Celebrando sua vida' : `📚 ${pessoa.tipo === 'funcionario' ? 'Equipe' : 'Aluno - ' + pessoa.turma}`}
                         </span>
                       </div>
-                      {!ehVoce && <button onClick={() => parabensWhatsApp(pessoa)} style={{ background: '#22c55e', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: 'white', cursor: 'pointer' }}>📱</button>}
+                      {!ehVoce && (
+                        <button onClick={() => parabensWhatsApp(pessoa)} className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95">
+                          <Smartphone size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              <button onClick={() => setModalBdayAberto(false)} style={{ marginTop: '25px', width: '100%', padding: '16px', borderRadius: '18px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', cursor: 'pointer' }}>
+              <button onClick={() => setModalBdayAberto(false)} className="w-full mt-6 py-4 rounded-2xl bg-slate-800 text-white font-black uppercase tracking-widest transition-all active:scale-95 shadow-md text-[11px]">
                 {aniversariantesHoje.some(p => p.email === userEmail) ? 'RECEBER COM CARINHO ❤️' : 'FECHAR'}
               </button>
             </div>
@@ -371,89 +642,6 @@ export default function DiarioClassePage() {
         </div>
       )}
 
-      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#1e3a8a' }}>Meu Diário de Classe 📒</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '15px' }}>
-            <div style={{ backgroundColor: corAtual.bg, border: `2px solid ${corAtual.border}`, color: corAtual.text, padding: '10px 20px', borderRadius: '12px', fontWeight: '800' }}>
-              Turma: {turmaSelecionada || "Não localizada"}
-            </div>
-            <input type="date" value={dataLancamento} onChange={(e) => setDataLancamento(e.target.value)} style={{ padding: '10px', borderRadius: '12px', border: '2px solid #e2e8f0', fontWeight: '600', color: '#475569' }} />
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => router.push('/professor/frequencia')} style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '12px 20px', borderRadius: '14px', border: '2px solid #dbeafe', fontWeight: '800', cursor: 'pointer' }}>📋 Ver Frequência</button>
-          <button onClick={() => { setAcaoPendente('excluir'); setModalSeguranca(true); }} style={{ backgroundColor: '#ef4444', color: 'white', padding: '12px 20px', borderRadius: '14px', border: 'none', fontWeight: '800', cursor: 'pointer' }}>🗑️ Excluir</button>
-          <button onClick={() => { setAcaoPendente('editar'); setModalSeguranca(true); }} style={{ backgroundColor: '#f59e0b', color: 'white', padding: '12px 20px', borderRadius: '14px', border: 'none', fontWeight: '800', cursor: 'pointer' }}>✏️ Editar</button>
-          <button onClick={handleSalvarNovo} disabled={salvando} style={{ backgroundColor: '#22c55e', color: 'white', padding: '12px 24px', borderRadius: '14px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{salvando ? "Salvando..." : "💾 Salvar"}</button>
-        </div>
-      </header>
-
-      {modalSeguranca && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '400px', textAlign: 'center' }}>
-            <h3 style={{ color: '#1e3a8a', marginBottom: '10px' }}>🔒 Confirmação de Segurança</h3>
-            <input type="password" placeholder="Sua senha" value={senhaConfirmacao} onChange={(e) => setSenhaConfirmacao(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', marginBottom: '20px', textAlign: 'center' }} />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { setModalSeguranca(false); setSenhaConfirmacao(""); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: '#f1f5f9', fontWeight: 'bold' }}>Cancelar</button>
-              <button onClick={acaoPendente === 'excluir' ? handleExcluirDiario : handleEditarDiario} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: acaoPendente === 'excluir' ? '#ef4444' : '#f59e0b', color: 'white', fontWeight: 'bold' }}>Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {alertaEvasao?.aberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(30, 58, 138, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, backdropFilter: 'blur(8px)' }}>
-          <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '32px', width: '90%', maxWidth: '450px', textAlign: 'center' }}>
-            <div style={{ fontSize: '60px', marginBottom: '20px' }}>⚠️</div>
-            <h2 style={{ color: '#1e3a8a', fontWeight: '900', marginBottom: '15px' }}>Atenção Professor(a)!</h2>
-            <p style={{ color: '#475569', fontSize: '16px', marginBottom: '25px' }}>O aluno <b>{alertaEvasao.nomeAluno}</b> faltou ontem e hoje.</p>
-            <p style={{ color: '#64748b', fontSize: '13px', marginTop: '5px' }}>Rastreamento preventivo ativo na unidade Belém.</p>
-            <button onClick={() => setAlertaEvasao(null)} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: '800', cursor: 'pointer' }}>Ciente</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '40px' }}>
-        {alunos.map((aluno) => {
-          const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0 };
-          return (
-            <div key={aluno.id} style={{ backgroundColor: 'white', padding: '24px', borderRadius: '24px', border: `2px solid ${corAtual.border}`, boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <img src={aluno.foto_url || 'https://via.placeholder.com/50'} style={{ width: '60px', height: '60px', borderRadius: '16px', objectFit: 'cover' }} />
-                  <span style={{ fontWeight: '800', color: '#1e3a8a', fontSize: '18px' }}>{aluno.nome}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {reg.presenca === null ? (
-                    <>
-                      <button onClick={() => handlePresencaLocal(aluno.id, true)} style={{ width: '45px', height: '45px', borderRadius: '12px', border: '2px solid #22c55e', backgroundColor: 'white', color: '#15803d', fontWeight: '900', cursor: 'pointer' }}>P</button>
-                      <button onClick={() => handlePresencaLocal(aluno.id, false)} style={{ width: '45px', height: '45px', borderRadius: '12px', border: '2px solid #ef4444', backgroundColor: 'white', color: '#b91c1c', fontWeight: '900', cursor: 'pointer' }}>F</button>
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ width: '45px', height: '45px', borderRadius: '12px', fontWeight: '900', backgroundColor: reg.presenca ? '#22c55e' : '#ef4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{reg.presenca ? 'P' : 'F'}</span>
-                      <button onClick={() => handlePresencaLocal(aluno.id, null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '11px', textDecoration: 'underline', cursor: 'pointer', fontWeight: '800' }}>Desfazer</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '16px' }}>
-                {[{ label: "🎯 Participação", key: "participacao" }, { label: "🤝 Comportamento", key: "comportamento" }, { label: "📝 Atividades", key: "atividades" }, { label: "🧠 Socioemocional", key: "socioemocional" }].map((item) => (
-                  <div key={item.key} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>{item.label}</span>
-                    <div style={{ display: 'flex', gap: '2px' }}>
-                      {[1, 2, 3, 4, 5].map(num => (
-                        <span key={num} onClick={() => handleParametroLocal(aluno.id, item.key, num)} style={{ cursor: 'pointer', fontSize: '20px', color: num <= (reg as any)[item.key] ? '#fbbf24' : '#e2e8f0' }}>★</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
