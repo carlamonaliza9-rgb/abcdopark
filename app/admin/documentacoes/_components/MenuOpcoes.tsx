@@ -11,7 +11,7 @@ export default function MenuOpcoes({ setDocumentoAtivo }: MenuProps) {
     { id: 'ressalva', icone: '🔄', titulo: 'Ressalva', desc: 'Documento de transferência com direito à matrícula.' },
     { id: 'codes', icone: '📋', titulo: 'CODES', desc: 'Relatório oficial (1º ao 5º Ano) exigido pela SEDUC.' },
     { id: 'notificacao', icone: '⚖️', titulo: 'Notificação Extrajudicial', desc: 'Cobrança formal de débitos em aberto.' },
-    { id: 'provas', icone: '📝', titulo: 'Cronograma de Provas', desc: 'Gera PDF e texto para WhatsApp com os conteúdos.' },
+    { id: 'provas', icone: '📝', titulo: 'Cronograma de Provas', desc: 'Datas e Conteúdos.' },
     { id: 'comunicados', icone: '📢', titulo: 'Avisos e Comunicados', desc: 'Avisos formatados para Pais (Azul) e Equipe (Verde).', destaque: true }
   ];
 
