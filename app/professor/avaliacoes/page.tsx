@@ -3,28 +3,27 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
-import { Save, Filter, BookOpenCheck, Loader2 } from "lucide-react";
+import { Save, BookOpenCheck, Loader2, Lock } from "lucide-react";
 
 export default function AvaliacoesProfessorPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const [nomeLogado, setNomeLogado] = useState(""); // NOVO: Guarda o nome oficial do professor
+  const [nomeLogado, setNomeLogado] = useState(""); 
   const [ehAdmin, setEhAdmin] = useState(false);
   
   const [listaTurmas, setListaTurmas] = useState<string[]>([]);
   const [turmaSelecionada, setTurmaSelecionada] = useState("");
-  
-  const [disciplinas, setDisciplinas] = useState<any[]>([]);
-  const [disciplinaSelecionada, setDisciplinaSelecionada] = useState("");
   const [bimestreSelecionado, setBimestreSelecionado] = useState("bimestre1");
   
   const [alunos, setAlunos] = useState<any[]>([]);
-  const [notasLocais, setNotasLocais] = useState<{ [key: string]: string }>({});
+  const [todasDisciplinas, setTodasDisciplinas] = useState<any[]>([]); // Guarda todas as disciplinas da turma
+  const [minhasDisciplinasPermitidas, setMinhasDisciplinasPermitidas] = useState<string[]>([]); // Guarda apenas as que o prof pode editar
   
-  // Estado para persistir e comparar os valores originais das notas (Antes x Depois)
-  const [notasOriginais, setNotasOriginais] = useState<{ [key: string]: string }>({});
+  // O estado de notas agora é 2D: { alunoId: { disciplinaA: "10", disciplinaB: "8" } }
+  const [notasLocais, setNotasLocais] = useState<{ [alunoId: string]: { [disciplina: string]: string } }>({});
+  const [notasOriginais, setNotasOriginais] = useState<{ [alunoId: string]: { [disciplina: string]: string } }>({});
 
   const colunasAvaliacao = [
     { id: "bimestre1", label: "1º Bimestre" },
@@ -43,23 +42,18 @@ export default function AvaliacoesProfessorPage() {
       const email = user.email || "";
       setUserEmail(email);
 
-      // 1. Busca o nome oficial do professor usando o email logado
       const { data: funcData } = await supabase.from('funcionarios').select('nome').eq('email', email).single();
       const nomeDoProf = funcData?.nome || "";
       setNomeLogado(nomeDoProf);
 
-      // 2. Verifica se o usuário é Admin
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const adminVerificado = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
       setEhAdmin(adminVerificado);
 
       if (adminVerificado) {
-        // Se for Admin, carrega os nomes de todas as turmas
         const nomesTurmas = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
         setListaTurmas(nomesTurmas);
       } else {
-        // --- NOVO BLOQUEIO RBAC PARA PROFESSORES ---
-        // Procura na nova matriz disciplinar em quais turmas este professor específico dá aula
         if (nomeDoProf) {
             const { data: turmasDoProf } = await supabase
               .from('turma_disciplinas')
@@ -68,13 +62,9 @@ export default function AvaliacoesProfessorPage() {
               .eq('ano', '2026');
 
             if (turmasDoProf && turmasDoProf.length > 0) {
-              // Remove nomes duplicados de turmas (ex: se ele dá PT e MAT na mesma turma)
               const nomesUnicos = Array.from(new Set(turmasDoProf.map(t => t.nome_turma)));
               setListaTurmas(nomesUnicos);
-              
-              if (nomesUnicos.length === 1) {
-                setTurmaSelecionada(nomesUnicos[0]);
-              }
+              if (nomesUnicos.length === 1) setTurmaSelecionada(nomesUnicos[0]);
             }
         }
       }
@@ -83,134 +73,175 @@ export default function AvaliacoesProfessorPage() {
     inicializar();
   }, [router]);
 
-  // Busca as matérias oficiais sempre que a turma mudar
+  // Busca TODAS as matérias da turma e define permissões
   useEffect(() => {
     async function buscarMateriasDaTurma() {
-      if (!turmaSelecionada) return;
+      if (!turmaSelecionada) {
+        setTodasDisciplinas([]);
+        setMinhasDisciplinasPermitidas([]);
+        return;
+      }
       
-      let query = supabase
+      const { data: discData } = await supabase
         .from('turma_disciplinas')
         .select('disciplina, professor_vinculado')
         .eq('nome_turma', turmaSelecionada)
         .eq('ano', '2026');
       
-      // Se NÃO FOR ADMIN, aplica o filtro de visão por matéria também
-      if (!ehAdmin && nomeLogado) {
-          query = query.eq('professor_vinculado', nomeLogado);
-      }
-
-      const { data: discData } = await query;
-      
       if (discData && discData.length > 0) {
-        setDisciplinas(discData);
-        setDisciplinaSelecionada(discData[0].disciplina);
+        // Ordenação manual para o boletim ficar padronizado
+        const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
+        const discOrdenadas = discData.sort((a, b) => {
+          const idxA = ordemManual.indexOf(a.disciplina);
+          const idxB = ordemManual.indexOf(b.disciplina);
+          return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+        });
+
+        setTodasDisciplinas(discOrdenadas);
+
+        if (ehAdmin) {
+          setMinhasDisciplinasPermitidas(discOrdenadas.map(d => d.disciplina));
+        } else {
+          // O professor só pode editar as disciplinas onde o nome dele consta como vinculado
+          const permitidas = discOrdenadas
+            .filter(d => d.professor_vinculado === nomeLogado)
+            .map(d => d.disciplina);
+          setMinhasDisciplinasPermitidas(permitidas);
+        }
       } else {
-        setDisciplinas([]);
-        setDisciplinaSelecionada("");
+        setTodasDisciplinas([]);
+        setMinhasDisciplinasPermitidas([]);
       }
     }
     buscarMateriasDaTurma();
   }, [turmaSelecionada, ehAdmin, nomeLogado]);
 
-  // Carrega alunos e notas sempre que mudar a turma, matéria ou o bimestre
+  // Carrega alunos e constrói a Matriz de Notas
   useEffect(() => {
-    if (turmaSelecionada && disciplinaSelecionada) {
+    async function carregarDadosLancamento() {
+      if (!turmaSelecionada || todasDisciplinas.length === 0) return;
+
+      setCarregando(true);
+      const { data: listaAlunos } = await supabase
+        .from('alunos')
+        .select('id, nome, foto_url')
+        .eq('turma', turmaSelecionada)
+        .order('nome', { ascending: true });
+
+      if (listaAlunos) {
+        setAlunos(listaAlunos);
+
+        // Busca todas as notas desta turma (todas as disciplinas de uma vez)
+        const listaIds = listaAlunos.map(a => a.id);
+        const { data: notasData } = await supabase
+          .from('boletins')
+          .select('*')
+          .in('aluno_id', listaIds)
+          .eq('ano', '2026');
+
+        const mapaNotas: { [alunoId: string]: { [disciplina: string]: string } } = {};
+        
+        // Inicializa a matriz vazia
+        listaAlunos.forEach(aluno => {
+          mapaNotas[String(aluno.id)] = {};
+          todasDisciplinas.forEach(d => {
+            mapaNotas[String(aluno.id)][d.disciplina] = "";
+          });
+        });
+
+        // Preenche a matriz com os dados do banco
+        if (notasData) {
+          notasData.forEach((notaBD: any) => {
+             const valor = notaBD[bimestreSelecionado as keyof typeof notaBD];
+             if (mapaNotas[String(notaBD.aluno_id)]) {
+                 mapaNotas[String(notaBD.aluno_id)][notaBD.disciplina] = valor !== null ? String(valor) : "";
+             }
+          });
+        }
+
+        setNotasLocais(mapaNotas);
+        // Cópia profunda para as originais
+        setNotasOriginais(JSON.parse(JSON.stringify(mapaNotas)));
+      }
+      setCarregando(false);
+    }
+
+    if (turmaSelecionada && todasDisciplinas.length > 0) {
       carregarDadosLancamento();
     } else {
       setAlunos([]);
       setNotasLocais({});
       setNotasOriginais({});
     }
-  }, [turmaSelecionada, disciplinaSelecionada, bimestreSelecionado]);
+  }, [turmaSelecionada, todasDisciplinas, bimestreSelecionado]);
 
-  async function carregarDadosLancamento() {
-    const { data: listaAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome, foto_url')
-      .eq('turma', turmaSelecionada)
-      .order('nome', { ascending: true });
-
-    if (listaAlunos) {
-      setAlunos(listaAlunos);
-
-      const { data: notasData } = await supabase
-        .from('boletins')
-        .select('*')
-        .eq('disciplina', disciplinaSelecionada)
-        .eq('ano', '2026');
-
-      const mapaNotas: { [key: string]: string } = {};
-      listaAlunos.forEach((aluno) => {
-        const notaReg = notasData?.find((n: any) => n.aluno_id === aluno.id);
-        const valorNota = notaReg ? notaReg[bimestreSelecionado as keyof typeof notaReg] : "";
-        mapaNotas[String(aluno.id)] = valorNota !== null ? String(valorNota) : "";
-      });
-      setNotasLocais(mapaNotas);
-      setNotasOriginais({ ...mapaNotas });
-    }
-  }
-
-  const handleNotaChange = (alunoId: string, valor: string) => {
-    setNotasLocais(prev => ({ ...prev, [alunoId]: valor.replace(',', '.') }));
+  const handleNotaChange = (alunoId: string, disciplina: string, valor: string) => {
+    setNotasLocais(prev => ({
+      ...prev,
+      [alunoId]: {
+        ...prev[alunoId],
+        [disciplina]: valor.replace(',', '.')
+      }
+    }));
   };
 
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from('logs_sistema').insert([{
-          usuario_email: user.email,
-          acao: acao,
-          tabela: 'boletins',
-          detalhes: detalhes
-        }]);
+        await supabase.from('logs_sistema').insert([{ usuario_email: user.email, acao: acao, tabela: 'boletins', detalhes: detalhes }]);
       }
-    } catch (e) {
-      console.error("Erro ao gerar log de auditoria:", e);
-    }
+    } catch (e) { console.error("Erro ao gerar log:", e); }
   }
 
   async function salvarNotas() {
-    if (!disciplinaSelecionada) return alert("Selecione uma matéria.");
     setSalvando(true);
     try {
+      const operacoesUpsert: any[] = [];
       const mudancasOcorridas: string[] = [];
       let temAlteracaoReal = false;
 
+      // Percorre a Matriz 2D
       for (const alunoId of Object.keys(notasLocais)) {
-        const valorNota = notasLocais[alunoId] === "" ? null : parseFloat(notasLocais[alunoId]);
-        const valorAntigo = notasOriginais[alunoId] || "";
-        const valorNovo = notasLocais[alunoId] || "";
-
-        if (valorAntigo !== valorNovo) {
-          temAlteracaoReal = true;
-          const nomeAluno = alunos.find(a => String(a.id) === alunoId)?.nome || `ID ${alunoId}`;
-          const exibicaoAntes = valorAntigo === "" ? "(Sem nota)" : valorAntigo;
-          const exibicaoDepois = valorNovo === "" ? "(Excluída)" : valorNovo;
+        for (const disciplina of Object.keys(notasLocais[alunoId])) {
           
-          mudancasOcorridas.push(`• ${nomeAluno}:\n  Antes: ${exibicaoAntes} ➔ Depois: ${exibicaoDepois}`);
+          // TRAVA DE SEGURANÇA BACKEND-SIDE MOCK: Só permite salvar se estiver na lista de permitidas
+          if (!minhasDisciplinasPermitidas.includes(disciplina)) continue;
+
+          const valorNotaStr = notasLocais[alunoId][disciplina];
+          const valorNotaNum = valorNotaStr === "" ? null : parseFloat(valorNotaStr);
+          const valorAntigo = notasOriginais[alunoId]?.[disciplina] || "";
+
+          if (valorAntigo !== valorNotaStr) {
+            temAlteracaoReal = true;
+            const nomeAluno = alunos.find(a => String(a.id) === alunoId)?.nome || `ID ${alunoId}`;
+            const exibAntes = valorAntigo === "" ? "(S/N)" : valorAntigo;
+            const exibDepois = valorNotaStr === "" ? "(Excluída)" : valorNotaStr;
+            
+            mudancasOcorridas.push(`• ${nomeAluno} (${disciplina}): ${exibAntes} ➔ ${exibDepois}`);
+
+            operacoesUpsert.push({
+              aluno_id: parseInt(alunoId),
+              disciplina: disciplina,
+              ano: "2026",
+              [bimestreSelecionado]: valorNotaNum
+            });
+          }
         }
-
-        const { error } = await supabase
-          .from('boletins')
-          .upsert({
-            aluno_id: parseInt(alunoId),
-            disciplina: disciplinaSelecionada,
-            ano: "2026",
-            [bimestreSelecionado]: valorNota
-          }, { onConflict: 'aluno_id, disciplina, ano' });
-          
+      }
+      
+      if (operacoesUpsert.length > 0) {
+        const { error } = await supabase.from('boletins').upsert(operacoesUpsert, { onConflict: 'aluno_id, disciplina, ano' });
         if (error) throw error;
       }
       
       if (temAlteracaoReal) {
-        const bimestreLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
-        const textoRelatorio = `📊 Alterou a pauta de notas de ${disciplinaSelecionada} da turma ${turmaSelecionada} (${bimestreLabel}):\n` + 
-                              mudancasOcorridas.join('\n');
-        await registrarLog("EDIÇÃO", textoRelatorio);
+        const bLabel = colunasAvaliacao.find(col => col.id === bimestreSelecionado)?.label || bimestreSelecionado;
+        await registrarLog("EDIÇÃO", `📊 Alterou Pauta Matriz - Turma ${turmaSelecionada} (${bLabel}):\n` + mudancasOcorridas.join('\n'));
       }
 
-      setNotasOriginais({ ...notasLocais });
+      setNotasOriginais(JSON.parse(JSON.stringify(notasLocais)));
+      alert("Pauta salva com sucesso!");
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
     } finally {
@@ -218,22 +249,19 @@ export default function AvaliacoesProfessorPage() {
     }
   }
 
-  if (carregando) return (
+  if (carregando && alunos.length === 0 && listaTurmas.length === 0) return (
     <div className="min-h-screen bg-[#f4f7f9] flex flex-col items-center justify-center text-blue-600 gap-3">
       <Loader2 size={32} className="animate-spin" strokeWidth={3} />
-      <span className="font-bold uppercase tracking-widest text-xs">Sincronizando Pauta...</span>
+      <span className="font-bold uppercase tracking-widest text-xs">Sincronizando Matriz...</span>
     </div>
   );
 
   return (
     <div className="animate-in fade-in duration-700 pb-32 w-full px-4 md:px-8 py-6 relative min-h-screen bg-[#f4f7f9] overflow-x-hidden">
       
-      {/* Container Full Width para Aproveitamento da Tela */}
       <div className="w-full max-w-[1600px] mx-auto space-y-6">
         
-        {/* ============================================== */}
-        {/* HEADER & FILTROS (Grid Responsivo) */}
-        {/* ============================================== */}
+        {/* HEADER & FILTROS */}
         <header className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="flex flex-col">
             <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
@@ -241,17 +269,14 @@ export default function AvaliacoesProfessorPage() {
               Avaliações
             </h1>
             <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-3">
-              {ehAdmin ? "Administração Global de Pautas" : `Portal do Professor • ${nomeLogado}`}
+              {ehAdmin ? "Administração Global (Acesso Total)" : `Portal do Professor • ${nomeLogado}`}
             </p>
           </div>
           
-          <div className="flex flex-col md:flex-row gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full xl:w-auto">
-            <div className="flex items-center gap-2 text-slate-400 shrink-0 hidden lg:flex">
-              <Filter size={18} strokeWidth={2.5} />
-            </div>
-
+          <div className="flex flex-col sm:flex-row gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full xl:w-auto">
+            
             {/* Seletor de Turma */}
-            <div className="flex flex-col gap-1.5 flex-1 xl:w-48">
+            <div className="flex flex-col gap-1.5 flex-1 xl:w-60">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Minhas Turmas</label>
               {(ehAdmin || listaTurmas.length > 1) ? (
                 <select 
@@ -259,7 +284,7 @@ export default function AvaliacoesProfessorPage() {
                   onChange={(e) => setTurmaSelecionada(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors shadow-sm"
                 >
-                  <option value="">Escolha...</option>
+                  <option value="">Escolha uma turma...</option>
                   {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               ) : (
@@ -267,23 +292,6 @@ export default function AvaliacoesProfessorPage() {
                   {turmaSelecionada || "Nenhuma turma vinculada"}
                 </div>
               )}
-            </div>
-
-            {/* Seletor de Matéria */}
-            <div className="flex flex-col gap-1.5 flex-1 xl:w-48">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Disciplina</label>
-              <select 
-                value={disciplinaSelecionada} 
-                onChange={(e) => setDisciplinaSelecionada(e.target.value)}
-                disabled={disciplinas.length === 0}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {disciplinas.length > 0 ? (
-                  disciplinas.map(d => <option key={d.disciplina} value={d.disciplina}>{d.disciplina}</option>)
-                ) : (
-                  <option value="">Sem matérias</option>
-                )}
-              </select>
             </div>
 
             {/* Seletor de Bimestre */}
@@ -297,94 +305,117 @@ export default function AvaliacoesProfessorPage() {
                 {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
               </select>
             </div>
+
           </div>
         </header>
 
         {/* ============================================== */}
-        {/* ÁREA DE LANÇAMENTO DE NOTAS */}
+        {/* MATRIZ DE NOTAS (TABELA DE DADOS) */}
         {/* ============================================== */}
-        {turmaSelecionada && disciplinas.length > 0 ? (
-          <div className="space-y-6">
+        {turmaSelecionada && todasDisciplinas.length > 0 ? (
+          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden relative">
             
-            {/* GRID DESKTOP (Aproveitamento total da tela: 3 ou 4 alunos por linha) */}
-            <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {alunos.map((aluno) => {
-                const notaAtualStr = notasLocais[String(aluno.id)] || "";
-                const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
-                const foiAlterada = notasLocais[String(aluno.id)] !== notasOriginais[String(aluno.id)];
+            {/* Overlay de Carregamento Transparente */}
+            {carregando && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+                <Loader2 size={40} className="animate-spin text-blue-600" />
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
                 
-                return (
-                  <div key={aluno.id} className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100 flex items-center justify-between gap-4 hover:border-blue-200 transition-colors relative overflow-hidden group">
-                    {foiAlterada && <div className="absolute top-0 right-0 w-2 h-2 m-3 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
-                    <div className="flex flex-col flex-1 overflow-hidden">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aluno</span>
-                      <span className="text-sm font-bold text-slate-700 truncate" title={aluno.nome}>{aluno.nome}</span>
-                    </div>
-                    <div className="shrink-0">
-                      <input 
-                        type="text"
-                        inputMode="decimal"
-                        value={notaAtualStr}
-                        onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                        placeholder="--"
-                        className={`w-16 h-12 text-center rounded-[1rem] border-2 font-black text-lg outline-none transition-all shadow-inner ${
-                          isVermelha 
-                            ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
-                            : 'border-slate-100 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                {/* CABEÇALHO DA TABELA (STICKY) */}
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th className="p-5 font-black text-xs text-slate-400 uppercase tracking-widest min-w-[250px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                      Aluno
+                    </th>
+                    {todasDisciplinas.map(disc => {
+                      const permiteEdicao = minhasDisciplinasPermitidas.includes(disc.disciplina);
+                      return (
+                        <th key={disc.disciplina} className="p-4 text-center min-w-[110px]">
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${permiteEdicao ? 'text-blue-600' : 'text-slate-400'}`}>
+                              {disc.disciplina}
+                            </span>
+                            {!permiteEdicao && (
+                              <span title="Sem permissão de edição">
+                                <Lock size={12} className="text-slate-300" />
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+
+                {/* CORPO DA TABELA */}
+                <tbody className="divide-y divide-slate-100">
+                  {alunos.map(aluno => (
+                    <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors group">
+                      
+                      {/* COLUNA: ALUNO (Fixa na esquerda no scroll horizontal) */}
+                      <td className="p-4 sticky left-0 bg-white group-hover:bg-slate-50/50 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                            {aluno.foto_url ? <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-black text-slate-400 text-xs">{aluno.nome.charAt(0)}</div>}
+                          </div>
+                          <span className="text-sm font-bold text-slate-700 whitespace-nowrap">{aluno.nome}</span>
+                        </div>
+                      </td>
+
+                      {/* COLUNAS: NOTAS DAS DISCIPLINAS */}
+                      {todasDisciplinas.map(disc => {
+                        const permiteEdicao = minhasDisciplinasPermitidas.includes(disc.disciplina);
+                        const notaAtualStr = notasLocais[String(aluno.id)]?.[disc.disciplina] || "";
+                        const notaOriginalStr = notasOriginais[String(aluno.id)]?.[disc.disciplina] || "";
+                        const foiAlterada = notaAtualStr !== notaOriginalStr;
+                        const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
+
+                        return (
+                          <td key={disc.disciplina} className="p-3 text-center relative">
+                            {foiAlterada && <div className="absolute top-2 right-4 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
+                            
+                            <input 
+                              type="text"
+                              inputMode="decimal"
+                              disabled={!permiteEdicao}
+                              value={notaAtualStr}
+                              onChange={(e) => handleNotaChange(String(aluno.id), disc.disciplina, e.target.value)}
+                              placeholder="--"
+                              className={`w-16 h-10 text-center rounded-xl font-black text-sm outline-none transition-all ${
+                                !permiteEdicao 
+                                  ? 'bg-slate-100/50 border border-transparent text-slate-400 cursor-not-allowed' // ESTILO BLOQUEADO
+                                  : isVermelha 
+                                    ? 'border-2 border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 shadow-inner' // ESTILO VERMELHA
+                                    : 'border-2 border-slate-200 bg-white text-blue-700 focus:border-blue-500 shadow-inner' // ESTILO NORMAL EDITÁVEL
+                              }`}
+                              title={!permiteEdicao ? `Apenas o professor de ${disc.disciplina} pode editar` : "Digite a nota"}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+
+              </table>
             </div>
 
-            {/* LISTA MOBILE (1 aluno por linha, otimizado para o polegar) */}
-            <div className="md:hidden space-y-3">
-              {alunos.map((aluno) => {
-                const notaAtualStr = notasLocais[String(aluno.id)] || "";
-                const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
-                
-                return (
-                  <div key={aluno.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
-                        {aluno.foto_url ? <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-black text-slate-400">{aluno.nome.charAt(0)}</div>}
-                      </div>
-                      <span className="text-sm font-bold text-slate-700 leading-tight truncate">{aluno.nome}</span>
-                    </div>
-                    
-                    <div className="shrink-0">
-                      <input 
-                        type="text"
-                        inputMode="decimal"
-                        value={notaAtualStr}
-                        onChange={(e) => handleNotaChange(String(aluno.id), e.target.value)}
-                        placeholder="--"
-                        className={`w-14 h-12 text-center rounded-xl border-2 font-black text-base outline-none transition-all shadow-inner ${
-                          isVermelha 
-                            ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' 
-                            : 'border-slate-100 bg-slate-50 text-blue-600 focus:border-blue-400 focus:bg-white'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* BOTÃO SALVAR GLOBAL */}
-            <div className="mt-8 flex justify-end sticky bottom-24 md:bottom-8 z-40">
+            {/* BARRA INFERIOR DE SALVAR */}
+            <div className="bg-slate-50 border-t border-slate-200 p-5 flex justify-end sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <button 
                 onClick={salvarNotas}
-                disabled={salvando}
-                className={`w-full md:w-auto px-10 py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 ${
-                  salvando 
-                    ? 'bg-blue-300 text-blue-50 cursor-not-allowed shadow-none' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95 hover:-translate-y-1'
+                disabled={salvando || minhasDisciplinasPermitidas.length === 0}
+                className={`w-full md:w-auto px-8 py-3.5 rounded-xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
+                  (salvando || minhasDisciplinasPermitidas.length === 0)
+                    ? 'bg-slate-300 text-slate-50 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 active:scale-95'
                 }`}
               >
-                {salvando ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} strokeWidth={2.5} />}
+                {salvando ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} strokeWidth={2.5} />}
                 {salvando ? "Salvando..." : "Salvar Pauta"}
               </button>
             </div>
@@ -394,8 +425,8 @@ export default function AvaliacoesProfessorPage() {
           <div className="bg-white rounded-[2.5rem] p-10 text-center border border-slate-50 shadow-sm mt-8">
             <p className="text-xs font-black uppercase text-slate-400 tracking-widest">
               {!turmaSelecionada 
-                ? "Aguardando seleção..." 
-                : "Seu perfil não possui disciplinas vinculadas a esta turma."}
+                ? "Selecione uma turma para visualizar a matriz de pautas." 
+                : "Nenhuma disciplina cadastrada para esta turma."}
             </p>
           </div>
         )}
