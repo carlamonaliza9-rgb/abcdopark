@@ -229,7 +229,7 @@ export default function DashboardProfessorPage() {
       {/* ============================================== */}
       {/* HERO BANNER: Cartão de Apresentação */}
       {/* ============================================== */}
-      <div className="bg-gradient-to-l from-green-900 to-blue-900 rounded-[2.5rem] p-8 text-white mb-8 shadow-xl shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
+      <div className="bg-gradient-to-r from-blue-900 to-green-900 rounded-[2.5rem] p-8 text-white mb-8 shadow-xl shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
         
         {/* Decoração de Fundo (Círculos Translúcidos) */}
         <div className="absolute -top-24 -right-10 w-64 h-64 bg-white opacity-5 rounded-full blur-2xl pointer-events-none"></div>
@@ -399,10 +399,152 @@ export default function DashboardProfessorPage() {
 
       </div>
 
-      {/* MODAL BDAY E MODAL CALENDÁRIO MANTIDOS (IGUAIS AO SEU CÓDIGO ORIGINAL) */}
-      {/* ... Seu modalConfigAberto ... */}
-      {/* ... Seu modalBdayAberto ... */}
-      {/* ... Seu modalCalendarioAberto ... */}
+      {/* ============================================== */}
+      {/* MODAL CONFIGURAÇÕES */}
+      {/* ============================================== */}
+      {modalConfigAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95">
+            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-6 text-center">Configurações</h2>
+            <div className="mb-6">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">NOME COMPLETO</label>
+              <input 
+                type="text" 
+                value={novoNomeInput} 
+                onChange={(e) => setNovoNomeInput(e.target.value)} 
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-slate-700 font-bold outline-none focus:border-indigo-400 transition-colors"
+              />
+            </div>
+            <div className="flex flex-col gap-3">
+              <button onClick={atualizarPerfil} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-wider shadow-lg hover:bg-indigo-700 transition-all active:scale-95">SALVAR</button>
+              <button onClick={() => setModalConfigAberto(false)} className="w-full py-4 rounded-2xl border border-slate-200 text-slate-500 font-black uppercase tracking-wider hover:bg-slate-50 transition-colors active:scale-95">CANCELAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================== */}
+      {/* NOTIFICAÇÃO BDAY PERSONALIZADA */}
+      {/* ============================================== */}
+      {modalBdayAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8">
+            <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 text-center text-white relative">
+              <span className="text-6xl drop-shadow-md mb-4 block animate-bounce">🎂</span>
+              <h2 className="text-2xl font-black tracking-tight leading-tight">
+                {aniversariantesHoje.some(p => p.email === userEmail) 
+                  ? `Parabéns, ${nomeUsuario}! ✨` 
+                  : "Aniversariante(s) do Dia!"}
+              </h2>
+              {aniversariantesHoje.some(p => p.email === userEmail) ? (
+                <div className="mt-4 text-indigo-50">
+                  <p className="text-sm font-medium leading-relaxed">
+                    Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈<br/><br/>
+                    Que este novo ciclo seja repleto de paz, saúde, conquistas e momentos inesquecíveis. Você é uma peça fundamental na nossa escola, e é um privilégio gigante ter o seu brilho e a sua dedicação fazendo parte da nossa história.
+                  </p>
+                  <p className="mt-4 text-[10px] font-black uppercase tracking-widest opacity-90">— Um abraço bem apertado da Família ABC DO PARK ❤️</p>
+                </div>
+              ) : (
+                <p className="text-indigo-100 font-medium text-sm mt-2">Hoje o dia é de festa e gratidão na nossa escola!</p>
+              )}
+            </div>
+            
+            <div className="p-6 bg-slate-50">
+              <div className="flex flex-col gap-3">
+                {aniversariantesHoje.map(pessoa => {
+                  const ehVoce = pessoa.email === userEmail;
+                  return (
+                    <div key={`${pessoa.tipo}-${pessoa.id}`} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${ehVoce ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 shadow-sm'}`}>
+                      <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        {pessoa.foto_url ? (
+                          <img src={pessoa.foto_url} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <span className="font-black text-slate-400 text-lg">{pessoa.nome.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-base font-black text-slate-800 line-clamp-1">
+                          {ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}
+                        </h4>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${ehVoce ? 'text-blue-600' : (pessoa.tipo === 'funcionario' ? 'text-purple-600' : 'text-slate-500')}`}>
+                          {ehVoce ? '🌟 Celebrando sua vida' : (pessoa.tipo === 'funcionario' ? '⭐ Equipe' : `📚 Aluno - ${pessoa.turma}`)}
+                        </span>
+                      </div>
+                      {!ehVoce && (
+                        <button 
+                          onClick={() => parabensWhatsApp(pessoa)} 
+                          className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center text-lg shadow-sm transition-transform active:scale-95"
+                        >
+                          📱
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button 
+                onClick={() => setModalBdayAberto(false)} 
+                className="w-full mt-6 py-4 rounded-2xl bg-slate-800 text-white font-black uppercase tracking-widest transition-all active:scale-95 shadow-md text-xs"
+              >
+                {aniversariantesHoje.some(p => p.email === userEmail) ? 'RECEBER COM CARINHO ❤️' : 'FECHAR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================== */}
+      {/* MODAL CALENDÁRIO */}
+      {/* ============================================== */}
+      {modalCalendarioAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
+          <div className="bg-slate-50 rounded-[3rem] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center p-6 md:p-8 bg-white border-b border-slate-100 shadow-sm z-10">
+              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic flex items-center gap-2">
+                <span>📅</span> Calendário
+              </h2>
+              <button 
+                onClick={() => setModalCalendarioAberto(false)} 
+                className="w-12 h-12 bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-500 rounded-2xl flex items-center justify-center transition-colors"
+              >
+                ✖
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {meses.map((mesNome, index) => {
+                  const eventosDoMes = eventos.filter(ev => new Date(ev.data + "T12:00:00").getUTCMonth() === index);
+                  return (
+                    <div key={index} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col">
+                      <h3 className="text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em] border-b border-slate-100 pb-3 mb-4">{mesNome}</h3>
+                      <div className="flex flex-col gap-3 flex-1">
+                        {eventosDoMes.length > 0 ? (
+                          eventosDoMes.map((ev, i) => {
+                            const estilo = getEventoStyle(ev.titulo);
+                            return (
+                              <div key={i} className={`p-3 rounded-xl border-l-4 flex flex-col gap-1 ${estilo.bg} ${estilo.border}`}>
+                                <span className={`font-black text-[9px] uppercase tracking-widest ${estilo.color}`}>
+                                  Dia {extrairDiaUTC(ev.data)}
+                                </span>
+                                <span className="font-bold text-slate-600 leading-tight text-xs">{ev.titulo}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center min-h-[50px] border border-dashed border-slate-200 rounded-xl">
+                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Sem eventos</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ajuste de scrollbar global */}
       <style dangerouslySetInnerHTML={{__html: `
