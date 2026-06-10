@@ -25,79 +25,72 @@ export function SidebarPais({ alunoId }: { alunoId: string }) {
 
   return (
     <>
-      {/* INJEÇÃO DE ESTILO GLOBAL PARA MOBILE: Evita de forma definitiva que a barra fixa cubra o final das páginas */}
       <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 767px) {
-          body, main, .animate-in { padding-bottom: 100px !important; }
-        }
+        @media (max-width: 767px) { body, main { padding-bottom: 100px !important; } }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
 
-      {/* VISUALIZAÇÃO DESKTOP: Mantida 100% idêntica e visível apenas em telas grandes */}
-      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-100 p-6 flex flex-col shadow-sm">
-        {/* Logo Centralizada */}
-        <div className="mb-10 flex flex-col items-center">
-          <img src={logoUrl} alt="Logo" className="w-32 h-auto object-contain mb-2" />
-          <p className="text-[8px] text-slate-400 font-black uppercase tracking-[0.3em]">Portal da Família</p>
+      {/* DESKTOP SIDEBAR */}
+      <aside className="hidden md:flex w-64 bg-white h-screen sticky top-0 border-r border-slate-200/50 p-5 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50">
+        <div className="mb-6 mt-4 flex flex-col items-center">
+          <img src={logoUrl} alt="Logo ABC DO PARK" className="w-28 h-auto object-contain mb-3 drop-shadow-sm" />
+          <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] text-center bg-slate-100 px-3 py-1 rounded-full">Portal da Família</p>
         </div>
 
-        {/* Navegação */}
-        <nav className="flex-1 space-y-2">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto hide-scrollbar pr-2 mt-4">
           {menuItems.map((item) => {
-            const isActive = pathname === item.path;
+            const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
             return (
               <Link
                 key={item.name}
                 href={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-wide transition-all duration-300 ${
                   isActive 
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" 
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 translate-x-1" 
                   : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"
                 }`}
               >
-                <item.icon size={16} strokeWidth={2.5} />
+                <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                 {item.name}
               </Link>
             );
           })}
         </nav>
 
-        {/* Botão Sair */}
         <button 
           onClick={handleLogout}
-          className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[11px] uppercase text-rose-500 hover:bg-rose-50 transition-all"
+          className="mt-6 flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-xs uppercase text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all border border-rose-100/60"
         >
-          <LogOut size={16} strokeWidth={2.5} />
-          Sair
+          <LogOut size={18} strokeWidth={2.5} /> Sair
         </button>
       </aside>
 
-      {/* VISUALIZAÇÃO PORTÁTIL (CELULAR/TABLET): Menu ampliado (h-20) com fontes e ícones muito maiores para o celular */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/60 px-2 py-1 flex items-center justify-around z-50 h-20 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+      {/* MOBILE BOTTOM BAR (Com sistema de scroll seguro) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/60 px-2 pb-4 pt-3 flex items-center justify-start sm:justify-around z-[9999] shadow-[0_-10px_40px_rgba(0,0,0,0.06)] min-h-[85px] overflow-x-auto hide-scrollbar">
         {menuItems.map((item) => {
-          const isActive = pathname === item.path;
+          const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <Link
               key={item.name}
               href={item.path}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-base sm:text-lg font-black uppercase tracking-wider transition-all ${
-                isActive 
-                ? "text-indigo-600" 
-                : "text-slate-400 hover:text-indigo-600"
-              }`}
+              className="flex flex-col items-center justify-center min-w-[70px] flex-1 py-1 rounded-2xl relative group"
             >
-              <item.icon size={26} className={isActive ? "text-indigo-600" : "text-slate-400"} strokeWidth={isActive ? 3 : 2.5} />
-              <span className="text-xs sm:text-sm font-black truncate">{item.name}</span>
+              <div className={`p-2 rounded-full transition-all duration-300 ${isActive ? 'bg-indigo-100/60 scale-105' : 'bg-transparent active:bg-slate-100'}`}>
+                <item.icon size={26} className={isActive ? "text-indigo-600" : "text-slate-400"} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-wider truncate mt-1 transition-colors ${isActive ? "text-indigo-600" : "text-slate-400"}`}>
+                {item.name}
+              </span>
             </Link>
           );
         })}
         
-        {/* Botão Sair integrado na navegação móvel */}
-        <button 
-          onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl text-base sm:text-lg font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 transition-all"
-        >
-          <LogOut size={26} strokeWidth={2.5} />
-          <span className="text-xs sm:text-sm font-black truncate">Sair</span>
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center min-w-[70px] flex-1 py-1 rounded-2xl group active:opacity-70 transition-opacity">
+          <div className="p-2 rounded-full bg-transparent">
+            <LogOut size={26} strokeWidth={2} className="text-rose-400" />
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-wider truncate mt-1 text-rose-400">Sair</span>
         </button>
       </div>
     </>

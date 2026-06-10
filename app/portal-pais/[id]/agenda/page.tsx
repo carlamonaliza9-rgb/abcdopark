@@ -95,23 +95,23 @@ export default function AgendaPortalPaisPage() {
     setCarregandoAgenda(false);
   }
 
-  if (carregando) return <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando pauta familiar...</div>;
+  if (carregando) return <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando pauta familiar...</div>;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-2 relative min-h-screen">
       
       {/* Cabeçalho */}
       <header className="mb-10">
-        <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">📝 Agenda Escolar Diária</h1>
+        <h1 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tighter italic">📝 Agenda Escolar Diária</h1>
         <div className="h-1 w-20 bg-indigo-600 mt-2 rounded-full"></div>
-        <p className="text-xl md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-3">Acompanhe os conteúdos ministrados e tarefas de casa da plataforma ABC DO PARK</p>
+        <p className="text-xs md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-3">Acompanhe os conteúdos ministrados e tarefas de casa da plataforma ABC DO PARK</p>
       </header>
 
       {meusFilhos.length === 0 ? (
         <div className="bg-white rounded-[2.5rem] p-8 text-center border border-slate-50 shadow-sm max-w-2xl mx-auto">
           <span className="text-4xl block mb-4">🔍</span>
-          <h3 className="text-xl md:text-sm font-black text-slate-700 uppercase italic">Nenhum estudante vinculado</h3>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-wide mt-2">
+          <h3 className="text-sm font-black text-slate-700 uppercase italic">Nenhum estudante vinculado</h3>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-2">
             Seu e-mail de acesso não foi localizado nos cadastros de nenhum aluno. Entre em contato com a coordenação.
           </p>
         </div>
@@ -129,12 +129,12 @@ export default function AgendaPortalPaisPage() {
                 ) : <span className="text-2xl">🧒</span>}
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider block">Estudante Matriculado</span>
+                <span className="text-[10px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider block">Estudante Matriculado</span>
                 {meusFilhos.length > 1 ? (
                   <select
                     value={alunoSelecionado?.id || ""}
                     onChange={(e) => setAlunoSelecionado(meusFilhos.find(f => f.id === Number(e.target.value)))}
-                    className="w-full bg-transparent border-0 text-xl sm:text-2xl md:text-sm font-bold text-slate-700 uppercase p-0 focus:outline-none focus:ring-0 cursor-pointer mt-0.5"
+                    className="w-full bg-transparent border-0 text-sm md:text-xs font-bold text-slate-700 uppercase p-0 focus:outline-none focus:ring-0 cursor-pointer mt-0.5"
                   >
                     {meusFilhos.map(filho => (
                       <option key={filho.id} value={filho.id} className="text-slate-700 font-bold bg-white uppercase">
@@ -143,7 +143,7 @@ export default function AgendaPortalPaisPage() {
                     ))}
                   </select>
                 ) : (
-                  <span className="text-xl sm:text-2xl md:text-sm font-bold text-slate-700 uppercase block truncate mt-0.5">
+                  <span className="text-sm md:text-xs font-bold text-slate-700 uppercase block truncate mt-0.5">
                     {alunoSelecionado?.nome} <span className="text-indigo-600 font-black">({alunoSelecionado?.turma})</span>
                   </span>
                 )}
@@ -152,27 +152,27 @@ export default function AgendaPortalPaisPage() {
 
             {/* Input de Data */}
             <div className="flex flex-col min-w-[200px] border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
-              <span className="text-xl md:text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <span className="text-[10px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                 <Calendar size={18} strokeWidth={2.5} /> Data da Atividade
               </span>
               <input 
                 type="date" 
                 value={dataFiltro}
                 onChange={(e) => setDataFiltro(e.target.value)}
-                className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 font-bold text-sm outline-none focus:border-indigo-500 transition-colors uppercase"
+                className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 font-bold text-sm md:text-xs outline-none focus:border-indigo-500 transition-colors uppercase"
               />
             </div>
           </div>
 
           {/* Exibição dos Blocos de Conteúdo: grid-cols-1 no celular e md:grid-cols-2 no computador */}
           {carregandoAgenda ? (
-            <div className="p-10 text-center text-xl sm:text-2xl md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">
+            <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">
               Buscando caderno virtual...
             </div>
           ) : (!conteudoAula && !tarefaCasa) ? (
             <div className="bg-white rounded-[2.5rem] p-8 text-center border border-slate-50 shadow-sm">
               <span className="text-4xl block mb-4">🍃</span>
-              <h3 className="text-xl md:text-sm font-black text-slate-400 uppercase italic">Nenhuma anotação postada</h3>
+              <h3 className="text-sm font-black text-slate-400 uppercase italic">Nenhuma anotação postada</h3>
               <p className="text-xs font-bold text-slate-300 uppercase tracking-wide mt-2">
                 Não há registros do corpo docente para este dia.
               </p>
@@ -186,9 +186,9 @@ export default function AgendaPortalPaisPage() {
                   <div className="text-indigo-600 flex-shrink-0">
                     <FileText size={18} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xl md:text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Conteúdo em Sala</span>
+                  <span className="text-xs md:text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Conteúdo em Sala</span>
                 </div>
-                <p className="text-xl sm:text-2xl md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
+                <p className="text-sm md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
                   {conteudoAula || "Nenhum conteúdo listado para hoje."}
                 </p>
               </div>
@@ -199,9 +199,9 @@ export default function AgendaPortalPaisPage() {
                   <div className="text-rose-600 flex-shrink-0">
                     <AlertCircle size={18} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xl md:text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Atividade para Casa</span>
+                  <span className="text-xs md:text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Atividade para Casa</span>
                 </div>
-                <p className="text-xl sm:text-2xl md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
+                <p className="text-sm md:text-xs font-bold text-slate-700 uppercase leading-relaxed break-words whitespace-pre-wrap">
                   {tarefaCasa || "Nenhuma lição de casa registrada para hoje!"}
                 </p>
               </div>
