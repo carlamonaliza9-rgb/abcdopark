@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { removerAcentos } from "@/lib/utils"; 
 
 import { TabelaMensalidades } from "@/app/(sistema)/dashboard/financeiro/_components/TabelaMensalidades";
 
@@ -274,9 +275,29 @@ function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
   if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Sincronizando base financeira...</div>;
 
-  const listaTurmasUnicas = Array.from(new Set(alunos.map((aluno: any) => aluno.turma).filter((t: any) => !!t))).sort();
+  // Lógica de ordenação pedagógica para as turmas
+  const ordemHierarquicaTurmas = ["maternal", "jardim i", "jardim 1", "jardim ii", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
+  
+  const obterPesoPedagogico = (turmaNome: string) => {
+    const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
+    const index = ordemHierarquicaTurmas.findIndex(t => nomeMinusculo.includes(t));
+    return index === -1 ? 999 : index;
+  };
+
+  const listaTurmasUnicas = Array.from(new Set(alunos.map((aluno: any) => aluno.turma).filter((t: any) => !!t)))
+    .sort((a: any, b: any) => {
+      const pesoA = obterPesoPedagogico(a);
+      const pesoB = obterPesoPedagogico(b);
+      if (pesoA !== pesoB) return pesoA - pesoB;
+      return a.localeCompare(b, "pt-BR");
+    });
+
+  // Filtro ajustado com ignorância de acentos
   const alunosFiltrados = alunos.filter((aluno: any) => {
-    const correspondeNome = aluno.nome?.toLowerCase().includes(filtroNome.toLowerCase());
+    const nomeLimpo = removerAcentos(aluno.nome?.toLowerCase());
+    const buscaLimpa = removerAcentos(filtroNome.toLowerCase());
+    
+    const correspondeNome = nomeLimpo.includes(buscaLimpa);
     const correspondeTurma = filtroTurma === "" || aluno.turma === filtroTurma;
     return correspondeNome && correspondeTurma;
   });
@@ -489,7 +510,7 @@ function VisaoSaldosCreditos() {
         const { data: listaAlunos } = await supabase.from('alunos').select('*');
         const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
 
-        const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
+        const ordemHierarquicaTurmas = ["maternal", "jardim i", "jardim 1", "jardim ii", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
 
         const obterPesoPedagogico = (turmaNome: string) => {
           const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
@@ -614,8 +635,12 @@ function VisaoSaldosCreditos() {
     return { id: aluno.id, alunoRaw: aluno, nome: aluno.nome, turma: aluno.turma, credito, totalDevido, saldoFinal, dividas: listaDividasFormatadas };
   }).filter((item): item is NonNullable<typeof item> => item !== null);
 
+  // Filtro inteligente adicionado aqui
   const registrosFiltrados = alunosConsolidados.filter((item: any) => {
-    const bateNome = item.nome?.toLowerCase().includes(filtroNome.toLowerCase());
+    const nomeLimpo = removerAcentos(item.nome?.toLowerCase());
+    const buscaLimpa = removerAcentos(filtroNome.toLowerCase());
+    const bateNome = nomeLimpo.includes(buscaLimpa);
+    
     if (!bateNome) return false;
     if (abaAtiva === "creditos") return item.saldoFinal > 0;
     if (abaAtiva === "dividas") return item.saldoFinal < 0;
@@ -846,7 +871,12 @@ function VisaoAcordos({ userEmail }: { userEmail: string | null }) {
     carregarDados();
   }
 
-  const dadosFiltrados = acordosAgrupados.filter((a: any) => a.nome.toLowerCase().includes(filtroNome.toLowerCase()));
+  // Filtro inteligente adicionado aqui
+  const dadosFiltrados = acordosAgrupados.filter((a: any) => {
+    const nomeLimpo = removerAcentos(a.nome?.toLowerCase());
+    const buscaLimpa = removerAcentos(filtroNome.toLowerCase());
+    return nomeLimpo.includes(buscaLimpa);
+  });
 
   if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Carregando Dívida Ativa...</div>;
 

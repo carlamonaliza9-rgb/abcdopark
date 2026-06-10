@@ -158,9 +158,16 @@ export default function AlunosAdminPage() {
     if (data) setAlunos(data);
   }
 
-  const alunosFiltrados = alunos.filter(aluno => 
-    aluno.nome?.toLowerCase().includes(busca.toLowerCase())
-  );
+  // NOVA LÓGICA DE PESQUISA (IGNORA ACENTOS E MAIÚSCULAS/MINÚSCULAS)
+  const removerAcentos = (texto: string) => {
+    return texto ? texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+  };
+
+  const alunosFiltrados = alunos.filter(aluno => {
+    const nomeLimpo = removerAcentos(aluno.nome?.toLowerCase());
+    const buscaLimpa = removerAcentos(busca.toLowerCase());
+    return nomeLimpo.includes(buscaLimpa);
+  });
 
   const aplicarOrdenacaoManual = (lista: any[]) => {
     const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];

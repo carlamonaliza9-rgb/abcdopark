@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { removerAcentos } from "@/lib/utils";
 
 // Importações de Componentes de Eventos
 import { GestaoEventos } from "@/app/(sistema)/dashboard/financeiro/_components/GestaoEventos";
@@ -283,14 +284,20 @@ export default function DashboardFinanceiroPage() {
     });
   };
 
+  // FILTRO INTELIGENTE PARA AS TAXAS
   const taxasFiltradas = ordenarLista(historicoTaxas.filter(item => {
     const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
-    return nomeAluno.toLowerCase().includes(buscaTaxa.toLowerCase());
+    const nomeLimpo = removerAcentos(nomeAluno.toLowerCase());
+    const buscaLimpa = removerAcentos(buscaTaxa.toLowerCase());
+    return nomeLimpo.includes(buscaLimpa);
   }));
 
+  // FILTRO INTELIGENTE PARA OS UNIFORMES
   const uniformesFiltrados = ordenarLista(historicoUniformes.filter(item => {
     const nomeAluno = alunos.find(a => a.id === item.aluno_id)?.nome || "";
-    return nomeAluno.toLowerCase().includes(buscaUniforme.toLowerCase());
+    const nomeLimpo = removerAcentos(nomeAluno.toLowerCase());
+    const buscaLimpa = removerAcentos(buscaUniforme.toLowerCase());
+    return nomeLimpo.includes(buscaLimpa);
   }));
 
   // --- CÁLCULO DE MÉTRICAS (UNIFORMES / TAXAS) ---

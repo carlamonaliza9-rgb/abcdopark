@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+// IMPORTAMOS O AVISO DO APP AQUI
+import { InstalarAppAviso } from "@/app/_components/InstalarAppAviso"; 
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,18 +14,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Alterações realizadas nos metadados, ícones e PWA
 export const metadata: Metadata = {
   title: "ABC DO PARK",
   description: "Sistema de Gestão Escolar",
-  manifest: "/manifest.json", // ADICIONADO: Liga o arquivo de App
+  manifest: "/manifest.json", 
   icons: {
-    icon: "/icon.jpg", // Caminho para o seu arquivo .jpg na pasta public
-    apple: "/icon.jpg", // Garante a exibição correta em dispositivos iOS
+    icon: "/icon.jpg", 
+    apple: "/icon.jpg", 
   },
 };
 
-// ADICIONADO: Define a cor da barra do navegador no celular
 export const viewport: Viewport = {
   themeColor: "#1e3a8a",
 };
@@ -35,13 +35,15 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="pt-BR" // Atualizado para português do Brasil
+      lang="pt-BR" 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}
         
-        {/* ADICIONADO: Motor do App (Service Worker) para permitir instalação no celular */}
+        {/* COMPONENTE FLUTUANTE DE INSTALAÇÃO RENDERIZADO AQUI */}
+        <InstalarAppAviso />
+        
         <script
           dangerouslySetInnerHTML={{
             __html: `
