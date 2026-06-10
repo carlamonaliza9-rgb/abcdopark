@@ -1,20 +1,35 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 interface AlunoCardProps {
   aluno: any;
   obterCorTurma: (turma: string) => string;
   mWhatsApp: (v: string) => string;
   onAbrirFicha: (aluno: any) => void;
+  // Nova prop opcional para indicar se a navegação deve ir para a página inteira
+  rotaPaginaCompleta?: boolean; 
 }
 
-export function AlunoCard({ aluno, obterCorTurma, mWhatsApp, onAbrirFicha }: AlunoCardProps) {
+export function AlunoCard({ aluno, obterCorTurma, mWhatsApp, onAbrirFicha, rotaPaginaCompleta }: AlunoCardProps) {
+  const router = useRouter();
   const isTransferido = aluno.status === 'transferido';
   const bgColor = isTransferido ? '#e5e7eb' : obterCorTurma(aluno.turma);
+
+  const lidarComClique = () => {
+    // Se a propriedade rotaPaginaCompleta for enviada como true (Admin), muda de página.
+    if (rotaPaginaCompleta) {
+      router.push(`/admin/alunos/${aluno.id}`);
+    } else {
+      // Se não, abre o Modal rápido (Professor).
+      onAbrirFicha(aluno);
+    }
+  };
 
   return (
     <div 
       key={aluno.id} 
-      onClick={() => onAbrirFicha(aluno)}
+      onClick={lidarComClique}
       style={{ 
         backgroundColor: bgColor, 
         borderRadius: '20px', 
