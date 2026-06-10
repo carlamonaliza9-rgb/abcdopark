@@ -7,11 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { AlertaVencimento } from "./AlertaVencimento";
 import { AlertaEvasao } from "./AlertaEvasao";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function SidebarAdmin({ children }: { children?: React.ReactNode }) {
   const [ehAdmin, setEhAdmin] = useState(false);
   const [carregando, setCarregando] = useState(true);
   
@@ -48,15 +44,15 @@ export default function DashboardLayout({
     verificarAcesso();
   }, []);
 
-  if (carregando) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Carregando menu...</div>;
+  if (carregando) return <div className="w-[296px] bg-gray-50 flex items-center justify-center border-r border-blue-100">Carregando menu...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <>
       <AlertaVencimento />
       
       {ehAdmin && <AlertaEvasao />}
 
-      <aside className="w-74 bg-blue-600/10 backdrop-blur-md flex flex-col shadow-sm border-r border-blue-100">
+      <aside className="w-[296px] bg-blue-600/10 backdrop-blur-md flex flex-col shadow-sm border-r border-blue-100 min-h-screen">
         
         <div className="p-6 border-b border-blue-200 flex flex-col items-center text-center">
           <img
@@ -163,10 +159,6 @@ export default function DashboardLayout({
           </Link>
         </div>
       </aside>
-
-      <main className="flex-1 p-8 overflow-y-auto">
-        {children}
-      </main>
-    </div>
+    </>
   );
 }

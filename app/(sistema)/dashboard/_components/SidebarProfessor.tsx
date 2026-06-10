@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Home, BookOpen, BarChart3, LogOut, User, BrainCircuit, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-export function SidebarProfessor() {
+export function SidebarProfessor({ children }: { children?: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [nomeProfessor, setNomeProfessor] = useState<string>("Professor(a)");
