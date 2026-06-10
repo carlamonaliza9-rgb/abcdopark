@@ -83,8 +83,14 @@ export function ModalDetalhesTurma({ turma, onClose, onAbrirFichaAluno }: ModalD
   const nomeMes = new Date(anoAtual, mesAtual).toLocaleString('pt-BR', { month: 'long' });
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '95%', maxWidth: '850px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div 
+        style={{ backgroundColor: 'white', borderRadius: '24px', width: '95%', maxWidth: '850px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         <div style={{ backgroundColor: turma.cor, padding: '20px', textAlign: 'center' }}>
           <h2 style={{ margin: 0, color: turma.texto }}>{turma.nome}</h2>

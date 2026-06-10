@@ -11,8 +11,14 @@ export function ModalExclusaoConta({ aberto, contaParaExcluir, onProcessarExclus
   if (!aberto || !contaParaExcluir) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '400px', textAlign: 'center' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+      onClick={onFechar}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '400px', textAlign: 'center' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 style={{ margin: '0 0 15px', fontSize: '20px', color: '#111827' }}>Excluir Conta</h3>
         <p style={{ color: '#4b5563', marginBottom: '25px', fontSize: '14px' }}>
           A conta <strong>{contaParaExcluir.descricao}</strong> faz parte de uma recorrência. Como deseja prosseguir?

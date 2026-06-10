@@ -1,5 +1,7 @@
 "use client";
+
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { UploadComprovante } from "./UploadComprovante";
 
 interface ModalConfirmarPagamentoProps {
@@ -28,8 +30,14 @@ export function ModalConfirmarPagamento({ aberto, contaParaPagar, salvandoPgto, 
   const ehEdicao = !!contaParaPagar.pago;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '30px', width: '90%', maxWidth: '450px', textAlign: 'center' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+      onClick={onFechar}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '40px', borderRadius: '30px', width: '90%', maxWidth: '450px', textAlign: 'center' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 style={{ margin: '0 0 10px' }}>{ehEdicao ? "Editar Pagamento" : "Confirmar Pagamento"}</h2>
         <p style={{ color: '#64748b', marginBottom: '20px' }}>
           {ehEdicao ? "Atualizando registro de:" : "Registrando pagamento para:"} <br/>

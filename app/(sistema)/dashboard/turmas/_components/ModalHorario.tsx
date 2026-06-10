@@ -18,8 +18,14 @@ export function ModalHorario(props: ModalHorarioProps) {
   const { turma, previewHorario, arrastandoHorario, salvandoHorario, onClose, onDragEnter, onDragOver, onDragLeave, onDrop, onFileSelect, onSalvar } = props;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '5px' }}>📅 Horário: {turma?.nome}</h2>
         <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Arraste a imagem do horário para o quadro abaixo.</p>
         

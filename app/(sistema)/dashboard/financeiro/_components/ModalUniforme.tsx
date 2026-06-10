@@ -94,8 +94,14 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
   if (!aberto) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}
+      onClick={onFechar}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>🛍️ Nova Venda de Uniforme avulsa</h2>
           <button onClick={onFechar} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
@@ -118,7 +124,6 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px' }}>QUANTIDADE E TAMANHOS</label>
             
-            {/* Grid Redesenhado: minmax aumentado para 240px para organizar o fluxo horizontal */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
               {[
                 { key: 'camisaPadrao', label: 'Camisa Padrão (R$60)' },
@@ -131,7 +136,6 @@ export function ModalUniforme({ aberto, onFechar, alunos, carregarDados }: Modal
                 <div key={item.key} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '8px' }}>{item.label}</span>
                   
-                  {/* Container Lado a Lado (Tamanho e Quantidade na mesma linha) */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <div style={{ flex: 1.3 }}>
                       <select

@@ -23,8 +23,14 @@ export function ModaisInline({
   return (
     <>
       {modalEdicaoLoteAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4"
+          onClick={() => setModalEdicaoLoteAberto(false)}
+        >
+          <div 
+            className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-center font-black text-slate-800 mb-6 text-xl uppercase tracking-tighter italic">✏️ Editar {taxasSelecionadas.length} Itens</h2>
             <div className="space-y-4">
               <div>
@@ -53,8 +59,14 @@ export function ModaisInline({
       )}
 
       {modalTaxaAvulsaAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl animate-in zoom-in-95">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[4000] backdrop-blur-sm p-4"
+          onClick={() => setModalTaxaAvulsaAberto(false)}
+        >
+          <div 
+            className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-center font-black text-emerald-900 mb-8 text-2xl uppercase tracking-tighter italic">📦 Lançar Taxa</h2>
             <div className="space-y-4">
               <div>

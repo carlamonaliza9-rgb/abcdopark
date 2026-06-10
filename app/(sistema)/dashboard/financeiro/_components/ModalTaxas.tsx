@@ -95,8 +95,14 @@ export function ModalTaxas({ aberto, onFechar, alunos, carregarDados }: ModalTax
   if (!aberto) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}
+      onClick={onFechar}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 style={{ fontSize: '18px', fontWeight: '900', color: '#1e3a8a', margin: '0 0 15px 0' }}>📦 Faturamento de Taxas Anuais Letivas</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div>

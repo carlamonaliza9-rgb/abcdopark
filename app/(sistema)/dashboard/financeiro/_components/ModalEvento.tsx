@@ -18,8 +18,14 @@ interface ModalEventoProps {
 export function ModalEvento({ aberto, onFechar, idEventoEdicao, nomeEvento, setNomeEvento, valorEvento, setValorEvento, alunos, alunosSelecionados, toggleAlunoSelecao, toggleSelecionarTodos, onSalvar }: ModalEventoProps) {
   if (!aberto) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-      <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}
+      onClick={onFechar}
+    >
+      <div 
+        style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '500px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 style={{textAlign:'center', marginBottom:'20px'}}>{idEventoEdicao ? "✏️ Editar Evento" : "🎟️ Novo Evento"}</h2>
         <input type="text" placeholder="Nome" value={nomeEvento} onChange={(e)=>setNomeEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #ddd' }} />
         <input type="number" placeholder="Valor" value={valorEvento} onChange={(e)=>setValorEvento(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd' }} />

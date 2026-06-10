@@ -146,8 +146,14 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(8px)' }}>
-      <div style={{ backgroundColor: 'white', borderRadius: '30px', width: '95%', maxWidth: '500px', padding: '30px', position: 'relative' }}>
+    <div 
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(8px)' }}
+      onClick={onClose}
+    >
+      <div 
+        style={{ backgroundColor: 'white', borderRadius: '30px', width: '95%', maxWidth: '500px', padding: '30px', position: 'relative' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* BOTÃO EXCLUIR: Visível apenas no modo consultar */}
         {modo === 'consultar' && (

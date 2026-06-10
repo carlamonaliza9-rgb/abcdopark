@@ -63,8 +63,14 @@ export function ModalConfiguracoes({ aberto, onFechar, onSalvar }: ModalConfigur
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      onClick={onFechar}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             ⚙️ Configurações do Sistema
