@@ -277,34 +277,10 @@ export function ModalFichaAlunoTurma({ aluno, onClose, ehAdmin, calcularIdade }:
             <p style={{ margin: 0, color: '#991b1b', fontSize: '14px', fontWeight: '600' }}>{aluno.alergia_descricao || "Sim"}</p>
           </div>
         )}
-
-        <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button 
-            onClick={gerarBoletimPDF} 
-            disabled={gerandoPDF}
-            style={{ 
-              width: '100%', 
-              padding: '16px', 
-              borderRadius: '15px', 
-              border: '2px solid #1e3a8a', 
-              backgroundColor: 'white', 
-              color: '#1e3a8a', 
-              fontWeight: 'bold', 
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px'
-            }}
-          >
-            {gerandoPDF ? "GERANDO..." : "🎓 IMPRIMIR BOLETIM"}
-          </button>
-
           <button onClick={onClose} style={{ width: '100%', padding: '16px', borderRadius: '15px', border: 'none', backgroundColor: '#1e3a8a', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
             FECHAR FICHA
           </button>
         </div>
       </div>
-    </div>
   );
 }

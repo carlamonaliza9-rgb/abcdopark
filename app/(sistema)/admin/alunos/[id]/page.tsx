@@ -770,11 +770,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     doc.save(`Extrato_${aluno?.nome?.replace(/\s+/g, '_')}_${anoPagamentoSelecionado}.pdf`);
   }
 
-  if (carregando || !aluno) return <div className="flex justify-center items-center h-screen bg-slate-50 text-slate-500 font-bold">Carregando Perfil...</div>;
+  if (carregando || !aluno) return <div className="flex justify-center items-center h-screen bg-white md:bg-[#f8fafc] text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Carregando Perfil...</div>;
 
   return (
-    <div className="w-full bg-[#f8fafc] min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8">
-      <div className="max-w-[1700px] w-full mx-auto space-y-6 lg:space-y-8 animate-in fade-in duration-300">
+    <div className="w-full min-h-screen bg-white md:bg-[#f8fafc] font-sans antialiased text-slate-800 pb-24 animate-in fade-in duration-300 overflow-x-hidden">
+      <div className="max-w-[1700px] w-full mx-auto space-y-0 md:space-y-6 lg:space-y-8 md:p-6 lg:p-8">
         
         <BannerAluno 
           aluno={aluno} 

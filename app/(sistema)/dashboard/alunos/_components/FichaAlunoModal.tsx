@@ -352,29 +352,34 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   return (
     <div 
-      style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center md:p-4"
       onClick={onFechar}
     >
       <div 
-        style={{ backgroundColor: 'white', padding: '24px', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}
+        className="bg-white w-full max-w-2xl h-[95vh] md:h-auto md:max-h-[90vh] rounded-t-[2.5rem] md:rounded-3xl p-5 md:p-8 overflow-y-auto flex flex-col shadow-2xl animate-in slide-in-from-bottom-full md:zoom-in-95 custom-scrollbar relative"
         onClick={(e) => e.stopPropagation()}
       >
         
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ position: 'relative', marginBottom: '20px' }}>
+        {/* DRAG HANDLE MOBILE (A Pílula que indica que pode arrastar) */}
+        <div className="w-full flex justify-center md:hidden mb-2 sticky top-0 bg-white z-10 pt-2 pb-4">
+          <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+        </div>
+
+        <div className="flex flex-col items-center">
+          <div className="relative mb-4 md:mb-5 mt-2 md:mt-0">
             {aluno.foto_url ? (
-              <img src={aluno.foto_url} style={{ width: '140px', height: '140px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #f1f5f9' }} />
+              <img src={aluno.foto_url} className="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
             ) : (
-              <div style={{ height: '140px', width: '140px', borderRadius: '50%', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '60px' }}>👤</div>
+              <div className="h-28 w-28 md:h-36 md:w-36 rounded-full bg-slate-50 border border-slate-100 shadow-sm flex items-center justify-center text-slate-300 text-5xl md:text-6xl">👤</div>
             )}
-            {aluno.e_autista && <span style={{ position: 'absolute', bottom: '5px', right: '5px', fontSize: '24px', backgroundColor: 'white', borderRadius: '50%', padding: '3px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🧩</span>}
+            {aluno.e_autista && <span className="absolute bottom-1 right-1 text-xl md:text-2xl bg-white rounded-full p-1 shadow-sm">🧩</span>}
           </div>
           
-          <h2 style={{ fontWeight: '800', color: '#0f172a', margin: '0', fontSize: '20px', textAlign: 'center' }}>{aluno.nome}</h2>
+          <h2 className="font-extrabold text-slate-900 m-0 text-xl md:text-2xl text-center leading-tight">{aluno.nome}</h2>
           
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', marginBottom: '24px' }}>
-            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>{calcularIdade(aluno.data_nascimento)}</span>
-            <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '12px', backgroundColor: '#eff6ff', padding: '2px 10px', borderRadius: '10px' }}>{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
+          <div className="flex flex-wrap justify-center gap-2 items-center mt-2 mb-6">
+            <span className="text-xs md:text-sm text-slate-500 font-semibold">{calcularIdade(aluno.data_nascimento)}</span>
+            <span className="text-blue-600 font-bold text-[10px] md:text-xs bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
           </div>
 
           {verDividasGlobais ? (
@@ -421,13 +426,14 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
             />
           )}
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', width: '100%', marginTop: '24px' }}>
-            <button onClick={onFechar} style={{ flex: '1 1 100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: '700', cursor: 'pointer', backgroundColor: 'white', color: '#64748b' }}>FECHAR</button>
+          {/* RODAPÉ E BOTÕES DE AÇÃO */}
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full mt-auto pt-6">
+            <button onClick={onFechar} className="w-full sm:flex-1 p-4 rounded-2xl border border-slate-200 font-bold tracking-widest text-[11px] cursor-pointer bg-white text-slate-500 hover:bg-slate-50 transition-colors order-last sm:order-none">FECHAR</button>
             {!ehVisitante && !verBoletim && !verHistorico && !verDividasGlobais && !verCreditoGlobal && (
-              <>
-                <button onClick={onEditar} style={{ flex: '1 1 70%', padding: '14px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', fontWeight: '700', cursor: 'pointer', border: 'none' }}>EDITAR FICHA</button>
-                <button onClick={onExcluir} style={{ flex: '1 1 20%', padding: '14px', borderRadius: '12px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer' }}>🗑️</button>
-              </>
+              <div className="flex gap-3 w-full sm:w-auto sm:flex-[2]">
+                <button onClick={onEditar} className="flex-1 p-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold tracking-widest text-[11px] cursor-pointer border-none transition-colors shadow-lg shadow-blue-600/20 active:scale-95">EDITAR FICHA</button>
+                <button onClick={onExcluir} className="p-4 rounded-2xl bg-rose-100 hover:bg-rose-200 text-rose-500 border-none cursor-pointer transition-colors flex items-center justify-center active:scale-95">🗑️</button>
+              </div>
             )}
           </div>
         </div>

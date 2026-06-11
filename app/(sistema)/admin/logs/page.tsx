@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { ShieldCheck, Search, X, FileText, Calendar, User, Tag } from "lucide-react";
 
 export default function LogsAdminPage() {
   const router = useRouter();
@@ -10,11 +11,9 @@ export default function LogsAdminPage() {
   const [carregando, setCarregando] = useState(true);
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   
-  // Novos estados para controle do modal de detalhes
   const [modalAberto, setModalAberto] = useState(false);
   const [logSelecionado, setLogSelecionado] = useState<any>(null);
 
-  // --- TRAVA DE SEGURANÇA E CARREGAMENTO ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +42,7 @@ export default function LogsAdminPage() {
     const { data, error } = await supabase
       .from('logs_sistema')
       .select('*')
-      .order('criado_em', { ascending: false }); // Mostra os mais recentes primeiro
+      .order('criado_em', { ascending: false });
 
     if (error) {
       console.error("Erro ao buscar logs:", error.message);
@@ -53,163 +52,169 @@ export default function LogsAdminPage() {
     setCarregando(false);
   }
 
-  // Filtra os logs pelo e-mail do usuário ou pelos detalhes da ação
   const logsFiltrados = logs.filter(log => 
     log.usuario_email.toLowerCase().includes(busca.toLowerCase()) ||
     log.detalhes.toLowerCase().includes(busca.toLowerCase()) ||
     log.acao.toLowerCase().includes(busca.toLowerCase())
   );
 
-  // Função auxiliar para colorir os crachás de ação
   const obterEstiloAcao = (acao: string) => {
     switch (acao) {
       case "INSERÇÃO":
-        return { backgroundColor: '#e6f4ea', color: '#137333' }; // Verde
+        return "bg-green-100 text-green-700";
       case "EDIÇÃO":
-        return { backgroundColor: '#feefe3', color: '#b06000' }; // Laranja
+        return "bg-amber-100 text-amber-800";
       case "EXCLUSÃO":
-        return { backgroundColor: '#fce8e6', color: '#c5221f' }; // Vermelho
+        return "bg-rose-100 text-rose-700";
       default:
-        return { backgroundColor: '#f1f3f4', color: '#3c4043' }; // Cinza
+        return "bg-slate-100 text-slate-600";
     }
   };
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center' }}>Validando credenciais de auditoria...</div>;
+  if (verificandoAcesso) return <div className="p-10 text-center text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Validando credenciais de auditoria...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '25px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+    <div className="w-full min-h-screen bg-[#f4f7f9] p-4 md:p-8 lg:p-10 animate-in fade-in duration-500">
       
       {/* Cabeçalho */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-8 max-w-[1600px] mx-auto">
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#111827', margin: 0 }}>🛡️ Logs do Sistema</h1>
-          <p style={{ fontSize: '14px', color: '#6b7280' }}>Auditoria e histórico de alterações da plataforma ABC DO PARK</p>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
+            <span className="bg-slate-800 text-white p-3 rounded-2xl"><ShieldCheck size={24} /></span>
+            Logs do Sistema
+          </h1>
+          <p className="text-[11px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Auditoria e histórico de alterações</p>
         </div>
-        <div>
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="🔍 Filtrar por e-mail, ação ou detalhe..." 
+            placeholder="Pesquisar logs..." 
             value={busca} 
             onChange={(e) => setBusca(e.target.value)} 
-            style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid #e5e7eb', outline: 'none', width: '320px', fontSize: '14px', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }} 
+            className="w-full pl-12 pr-4 py-4 rounded-2xl border-none shadow-sm text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 bg-white" 
           />
         </div>
       </div>
 
       {/* Tabela de Histórico */}
-      <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', overflowX: 'auto' }}>
+      <div className="bg-white rounded-[2.5rem] p-4 md:p-8 shadow-sm border border-slate-100 max-w-[1600px] mx-auto overflow-hidden">
         {carregando ? (
-          <p style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>Carregando histórico...</p>
+          <p className="text-center text-slate-400 p-10 font-bold text-xs uppercase tracking-widest">Carregando histórico...</p>
         ) : logsFiltrados.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>Nenhum registro de alteração encontrado.</p>
+          <p className="text-center text-slate-400 p-10 font-bold text-xs uppercase tracking-widest">Nenhum registro encontrado.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
-                <th style={{ padding: '12px 16px', fontWeight: '600' }}>Data / Hora</th>
-                <th style={{ padding: '12px 16px', fontWeight: '600' }}>Usuário</th>
-                <th style={{ padding: '12px 16px', fontWeight: '600' }}>Ação</th>
-                <th style={{ padding: '12px 16px', fontWeight: '600' }}>Onde mudou</th>
-                <th style={{ padding: '12px 16px', fontWeight: '600' }}>Detalhes do Evento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logsFiltrados.map((log) => (
-                <tr 
-                  key={log.id} 
-                  onClick={() => { setLogSelecionado(log); setModalAberto(true); }}
-                  style={{ borderBottom: '1px solid #f8fafc', color: '#334155', transition: 'background 0.2s', cursor: 'pointer' }}
-                >
-                  <td style={{ padding: '16px', color: '#64748b', whiteSpace: 'nowrap' }}>
-                    {new Date(log.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Belem' })}
-                  </td>
-                  <td style={{ padding: '16px', fontWeight: '500', color: '#1e293b' }}>
-                    {log.usuario_email}
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '12px', ...obterEstiloAcao(log.acao) }}>
-                      {log.acao}
-                    </span>
-                  </td>
-                  <td style={{ padding: '16px', color: '#475569', textTransform: 'uppercase', fontSize: '12px', fontWeight: '600' }}>
-                    📂 {log.tabela}
-                  </td>
-                  <td style={{ padding: '16px', color: '#334155', lineHeight: '1.4' }}>
-                    {log.detalhes}
-                  </td>
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-widest text-[10px] font-black">
+                  <th className="p-4">Data / Hora</th>
+                  <th className="p-4">Usuário</th>
+                  <th className="p-4">Ação</th>
+                  <th className="p-4">Tabela</th>
+                  <th className="p-4">Detalhes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {logsFiltrados.map((log) => (
+                  <tr 
+                    key={log.id} 
+                    onClick={() => { setLogSelecionado(log); setModalAberto(true); }}
+                    className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer text-sm"
+                  >
+                    <td className="p-4 text-slate-500 font-medium whitespace-nowrap">
+                      {new Date(log.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Belem' })}
+                    </td>
+                    <td className="p-4 font-bold text-slate-800">{log.usuario_email}</td>
+                    <td className="p-4">
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${obterEstiloAcao(log.acao)}`}>
+                        {log.acao}
+                      </span>
+                    </td>
+                    <td className="p-4 font-bold text-slate-600 uppercase text-[11px] tracking-wider">
+                      📂 {log.tabela}
+                    </td>
+                    <td className="p-4 text-slate-600 line-clamp-1 max-w-[300px]">{log.detalhes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* MODAL AMPLO E ELEGANTE DE VISUALIZAÇÃO DETALHADA DO LOG */}
+      {/* MODAL DETALHES */}
       {modalAberto && logSelecionado && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '10px' }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
-              <h2 style={{ margin: 0, fontWeight: '800', fontSize: '20px', color: '#1e293b' }}>Ficha Detalhada de Auditoria</h2>
-              <button onClick={() => setModalAberto(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8', fontWeight: 'bold' }}>✕</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              
-              {/* Crachá e Origem */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Tipo de Movimentação</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '6px 14px', borderRadius: '12px', ...obterEstiloAcao(logSelecionado.acao) }}>
-                    {logSelecionado.acao}
-                  </span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Módulo Modificado</span>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569', backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: '8px', textTransform: 'uppercase' }}>
-                    📂 {logSelecionado.tabela}
-                  </span>
-                </div>
-              </div>
-
-              {/* Usuário Responsável */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Usuário Responsável (E-mail)</span>
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#0f172a' }}>{logSelecionado.usuario_email}</p>
-              </div>
-
-              {/* Data e Hora com Segundos */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Data e Horário Exato</span>
-                <p style={{ margin: 0, fontSize: '14px', color: '#334155', fontWeight: '500' }}>
-                  📅 {new Date(logSelecionado.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Belem', hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
-                </p>
-              </div>
-
-              {/* Histórico e Detalhes do Antes e Depois */}
-              <div style={{ backgroundColor: '#eff6ff', padding: '20px', borderRadius: '16px', border: '1px solid #dbeafe' }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', display: 'block', textTransform: 'uppercase', marginBottom: '8px' }}>Histórico / Detalhes da Ação</span>
-                <p style={{ margin: 0, fontSize: '14px', color: '#1e3a8a', lineHeight: '1.6', fontWeight: '500', whiteSpace: 'pre-wrap' }}>
-                  {logSelecionado.detalhes}
-                </p>
-              </div>
-
-            </div>
-
-            {/* Rodapé do Modal */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #f1f5f9' }}>
-              <button 
-                onClick={() => setModalAberto(false)} 
-                style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer', color: '#475569' }}
-              >
-                FECHAR DETALHES
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setModalAberto(false)}
+        >
+          <div 
+            className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-6">
+              <h2 className="text-xl font-black text-slate-800">Detalhes da Auditoria</h2>
+              <button onClick={() => setModalAberto(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={24} />
               </button>
             </div>
 
+            <div className="space-y-6">
+              <div className="flex justify-between items-center gap-4">
+                <span className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider ${obterEstiloAcao(logSelecionado.acao)}`}>
+                  {logSelecionado.acao}
+                </span>
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                  📂 {logSelecionado.tabela}
+                </span>
+              </div>
+
+              <div className="bg-slate-50 p-5 rounded-2xl">
+                <div className="flex items-center gap-3 mb-3">
+                  <User size={16} className="text-slate-400" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</span>
+                </div>
+                <p className="font-bold text-slate-800">{logSelecionado.usuario_email}</p>
+              </div>
+
+              <div className="bg-slate-50 p-5 rounded-2xl">
+                <div className="flex items-center gap-3 mb-3">
+                  <Calendar size={16} className="text-slate-400" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data / Hora</span>
+                </div>
+                <p className="font-bold text-slate-800">
+                  {new Date(logSelecionado.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Belem' })}
+                </p>
+              </div>
+
+              <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
+                <div className="flex items-center gap-3 mb-3">
+                  <FileText size={16} className="text-blue-500" />
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Detalhes da Ação</span>
+                </div>
+                <p className="text-sm text-blue-900 font-medium whitespace-pre-wrap leading-relaxed">
+                  {logSelecionado.detalhes}
+                </p>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setModalAberto(false)} 
+              className="w-full mt-8 py-4 rounded-2xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-colors"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}
-
+      
+      {/* Ajuste de scrollbar global para tabelas */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}} />
     </div>
   );
 }

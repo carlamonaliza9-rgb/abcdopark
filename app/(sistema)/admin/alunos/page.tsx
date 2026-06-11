@@ -600,132 +600,134 @@ export default function AlunosAdminPage() {
     setModoEdicao(false); setVerHistorico(false); setVerBoletim(false); setModalAberto(true);
   }
 
-  if (verificandoAcesso) return <div className="p-10 text-center">Validando permissões...</div>;
+  if (verificandoAcesso) return <div className="p-10 text-center text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Validando permissões...</div>;
 
   return (
-    <div style={{ width: '100%', padding: 'clamp(10px, 3vw, 25px)', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
+    <div className="w-full min-h-screen bg-slate-50/50 md:bg-[#f4f7f9] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
+      <div className="w-full max-w-[1600px] mx-auto">
+        <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
 
-      {!ehVisitante && (
-        <div style={{ marginBottom: '25px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button 
-            onClick={() => router.push('/admin/frequencia')}
-            style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '4px solid #dbeafe' }}
-          >
-            📊 Relatório de Frequência Geral
-          </button>
+        {!ehVisitante && (
+          <div className="mb-6 flex justify-end px-1 md:px-0 mt-4 md:mt-0">
+            <button 
+              onClick={() => router.push('/admin/frequencia')}
+              className="w-full md:w-auto px-6 py-4 md:py-3 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[11px] md:text-xs flex items-center justify-center gap-2 border-b-4 border-blue-200 hover:bg-blue-100 transition-all active:scale-95 shadow-sm"
+            >
+              📊 <span className="hidden sm:inline">Relatório de Frequência Geral</span><span className="sm:hidden">Frequência Geral</span>
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 pt-2 md:pt-0">
+          {alunosFiltrados.map((aluno) => (
+            <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} rotaPaginaCompleta={!ehVisitante} />
+          ))}
         </div>
-      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
-        {alunosFiltrados.map((aluno) => (
-          <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} rotaPaginaCompleta={!ehVisitante} />
-        ))}
+        {modalAberto && !modoEdicao && (
+          <FichaAlunoModal 
+            aluno={{
+              id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
+              cep, endereco, numero, bairro, cidade, estado,
+              responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, 
+              email_responsavel: emailResponsavel, profissao_responsavel: profissaoResponsavel,
+              responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, 
+              email_responsavel_2: emailResponsavel2, profissao_responsavel2: profissaoResponsavel2,
+              responsavel3, parentesco3, whatsapp3, 
+              email_responsavel_3: emailResponsavel3,
+              valor, vencimento, data_nascimento: dataNascimento, 
+              tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
+              e_artista: eAutista, foto_url: previewUrl, observacoes,
+              saldo_credito: alunos.find(a => a.id === idEdicao)?.saldo_credito || 0
+            }}
+            verBoletim={verBoletim} verHistorico={verHistorico} notas={notes} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
+            onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
+            onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
+            onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
+            onEditarPagamento={handleEditarPagamento} onExcluirPagamento={handleExcluirPagamento}
+            onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
+            onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
+            calcularIdade={calcularIdade}
+          />
+        )}
+
+        {modalAberto && modoEdicao && (
+          <FormAlunoModal 
+            idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
+            form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+            setForm={(d: any) => { 
+              if (d.nome !== undefined) setNome(d.nome);
+              if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
+              if (d.dataNascimento !== undefined) setDataNascimento(d.dataNascimento);
+              if (d.turma !== undefined) setTurma(d.turma);
+              if (d.turno !== undefined) setTurno(d.turno);
+              if (d.cep !== undefined) setCep(d.cep);
+              if (d.endereco !== undefined) setEndereco(d.endereco);
+              if (d.numero !== undefined) setNumero(d.numero);
+              if (d.bairro !== undefined) setBairro(d.bairro);
+              if (d.cidade !== undefined) setCidade(d.cidade);
+              if (d.estado !== undefined) setEstado(d.estado);
+              if (d.valor !== undefined) setValor(d.valor);
+              if (d.vencimento !== undefined) setVencimento(d.vencimento);
+              if (d.responsavel !== undefined) setResponsavel(d.responsavel);
+              if (d.parentesco1 !== undefined) setParentesco1(d.parentesco1);
+              if (d.whatsapp !== undefined) setWhatsapp(d.whatsapp);
+              if (d.cpfResponsavel !== undefined) setCpfResponsavel(d.cpfResponsavel);
+              if (d.emailResponsavel !== undefined) setEmailResponsavel(d.emailResponsavel);
+              if (d.profissaoResponsavel !== undefined) setProfissaoResponsavel(d.profissaoResponsavel);
+              if (d.responsavel2 !== undefined) setResponsavel2(d.responsavel2);
+              if (d.parentesco2 !== undefined) setParentesco2(d.parentesco2);
+              if (d.whatsapp2 !== undefined) setWhatsapp2(d.whatsapp2);
+              if (d.cpfResponsavel2 !== undefined) setCpfResponsavel2(d.cpfResponsavel2);
+              if (d.emailResponsavel2 !== undefined) setEmailResponsavel2(d.emailResponsavel2);
+              if (d.profissaoResponsavel2 !== undefined) setProfissaoResponsavel2(d.profissaoResponsavel2);
+              if (d.responsavel3 !== undefined) setResponsavel3(d.responsavel3);
+              if (d.parentesco3 !== undefined) setParentesco3(d.parentesco3);
+              if (d.whatsapp3 !== undefined) setWhatsapp3(d.whatsapp3);
+              if (d.emailResponsavel3 !== undefined) setEmailResponsavel3(d.emailResponsavel3);
+              if (d.eAutista !== undefined) setEAutista(d.eAutista);
+              if (d.temAlergia !== undefined) setTemAlergia(d.temAlergia);
+              if (d.alergiaDescricao !== undefined) setAlergiaDescricao(d.alergiaDescricao);
+              if (d.observacoes !== undefined) setObservacoes(d.observacoes);
+              if (d.foto_url !== undefined) setPreviewUrl(d.foto_url);
+            }}
+            onTrocarFoto={(e) => { 
+              if (!e.target.files) {
+                setArquivoFoto(null);
+                setPreviewUrl(null);
+                return;
+              }
+              const file = e.target.files?.[0]; 
+              if (file) { 
+                setArquivoFoto(file); 
+                setPreviewUrl(URL.createObjectURL(file)); 
+              } 
+            }}
+            onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
+          />
+        )}
+
+        {/* MODAL PARA EDITAR PAGAMENTO DO HISTÓRICO */}
+        <ModalPagamento 
+          aberto={modalPgtoAberto} 
+          onFechar={() => setModalPgtoAberto(false)}
+          aluno={{ nome }} 
+          dataPagamento={dataPagamento} 
+          setDataPagamento={setDataPagamento}
+          tipoPagamento={tipoPagamento} 
+          setTipoPagamento={setTipoPagamento}
+          mesReferencia={mesReferencia} 
+          setMesReferencia={setMesReferencia} 
+          mesesAno={mesesAno}
+          descricaoOutro={descricaoOutro} 
+          setDescricaoOutro={setDescricaoOutro}
+          pagamentosMetodos={pagamentosMetodos} 
+          setPagamentosMetodos={setPagamentosMetodos}
+          onConfirmar={handleSalvarPgtoEditado} 
+          editando={true}
+          historicoGeral={historico} 
+        />
       </div>
-
-      {modalAberto && !modoEdicao && (
-        <FichaAlunoModal 
-          aluno={{
-            id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
-            cep, endereco, numero, bairro, cidade, estado,
-            responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, 
-            email_responsavel: emailResponsavel, profissao_responsavel: profissaoResponsavel,
-            responsavel2, parentesco2, whatsapp2, cpf_responsavel2: cpfResponsavel2, 
-            email_responsavel_2: emailResponsavel2, profissao_responsavel2: profissaoResponsavel2,
-            responsavel3, parentesco3, whatsapp3, 
-            email_responsavel_3: emailResponsavel3,
-            valor, vencimento, data_nascimento: dataNascimento, 
-            tem_alergia: temAlergia, alergia_descricao: alergiaDescricao, 
-            e_artista: eAutista, foto_url: previewUrl, observacoes,
-            saldo_credito: alunos.find(a => a.id === idEdicao)?.saldo_credito || 0
-          }}
-          verBoletim={verBoletim} verHistorico={verHistorico} notas={notes} historico={historico} ehVisitante={ehVisitante} userEmail={userEmail} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          onFechar={() => setModalAberto(false)} onEditar={() => setModoEdicao(true)}
-          onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
-          onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
-          onEditarPagamento={handleEditarPagamento} onExcluirPagamento={handleExcluirPagamento}
-          onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
-          onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
-          calcularIdade={calcularIdade}
-        />
-      )}
-
-      {modalAberto && modoEdicao && (
-        <FormAlunoModal 
-          idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-          form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
-          setForm={(d: any) => { 
-            if (d.nome !== undefined) setNome(d.nome);
-            if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
-            if (d.dataNascimento !== undefined) setDataNascimento(d.dataNascimento);
-            if (d.turma !== undefined) setTurma(d.turma);
-            if (d.turno !== undefined) setTurno(d.turno);
-            if (d.cep !== undefined) setCep(d.cep);
-            if (d.endereco !== undefined) setEndereco(d.endereco);
-            if (d.numero !== undefined) setNumero(d.numero);
-            if (d.bairro !== undefined) setBairro(d.bairro);
-            if (d.cidade !== undefined) setCidade(d.cidade);
-            if (d.estado !== undefined) setEstado(d.estado);
-            if (d.valor !== undefined) setValor(d.valor);
-            if (d.vencimento !== undefined) setVencimento(d.vencimento);
-            if (d.responsavel !== undefined) setResponsavel(d.responsavel);
-            if (d.parentesco1 !== undefined) setParentesco1(d.parentesco1);
-            if (d.whatsapp !== undefined) setWhatsapp(d.whatsapp);
-            if (d.cpfResponsavel !== undefined) setCpfResponsavel(d.cpfResponsavel);
-            if (d.emailResponsavel !== undefined) setEmailResponsavel(d.emailResponsavel);
-            if (d.profissaoResponsavel !== undefined) setProfissaoResponsavel(d.profissaoResponsavel);
-            if (d.responsavel2 !== undefined) setResponsavel2(d.responsavel2);
-            if (d.parentesco2 !== undefined) setParentesco2(d.parentesco2);
-            if (d.whatsapp2 !== undefined) setWhatsapp2(d.whatsapp2);
-            if (d.cpfResponsavel2 !== undefined) setCpfResponsavel2(d.cpfResponsavel2);
-            if (d.emailResponsavel2 !== undefined) setEmailResponsavel2(d.emailResponsavel2);
-            if (d.profissaoResponsavel2 !== undefined) setProfissaoResponsavel2(d.profissaoResponsavel2);
-            if (d.responsavel3 !== undefined) setResponsavel3(d.responsavel3);
-            if (d.parentesco3 !== undefined) setParentesco3(d.parentesco3);
-            if (d.whatsapp3 !== undefined) setWhatsapp3(d.whatsapp3);
-            if (d.emailResponsavel3 !== undefined) setEmailResponsavel3(d.emailResponsavel3);
-            if (d.eAutista !== undefined) setEAutista(d.eAutista);
-            if (d.temAlergia !== undefined) setTemAlergia(d.temAlergia);
-            if (d.alergiaDescricao !== undefined) setAlergiaDescricao(d.alergiaDescricao);
-            if (d.observacoes !== undefined) setObservacoes(d.observacoes);
-            if (d.foto_url !== undefined) setPreviewUrl(d.foto_url);
-          }}
-          onTrocarFoto={(e) => { 
-            if (!e.target.files) {
-              setArquivoFoto(null);
-              setPreviewUrl(null);
-              return;
-            }
-            const file = e.target.files?.[0]; 
-            if (file) { 
-              setArquivoFoto(file); 
-              setPreviewUrl(URL.createObjectURL(file)); 
-            } 
-          }}
-          onSalvar={salvarAluno} onCancelar={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)}
-        />
-      )}
-
-      {/* MODAL PARA EDITAR PAGAMENTO DO HISTÓRICO - AGORA RECEBE historicoGeral */}
-      <ModalPagamento 
-        aberto={modalPgtoAberto} 
-        onFechar={() => setModalPgtoAberto(false)}
-        aluno={{ nome }} 
-        dataPagamento={dataPagamento} 
-        setDataPagamento={setDataPagamento}
-        tipoPagamento={tipoPagamento} 
-        setTipoPagamento={setTipoPagamento}
-        mesReferencia={mesReferencia} 
-        setMesReferencia={setMesReferencia} 
-        mesesAno={mesesAno}
-        descricaoOutro={descricaoOutro} 
-        setDescricaoOutro={setDescricaoOutro}
-        pagamentosMetodos={pagamentosMetodos} 
-        setPagamentosMetodos={setPagamentosMetodos}
-        onConfirmar={handleSalvarPgtoEditado} 
-        editando={true}
-        historicoGeral={historico} 
-      />
     </div>
   );
 }
