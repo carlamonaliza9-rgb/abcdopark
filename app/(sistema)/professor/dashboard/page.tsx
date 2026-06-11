@@ -58,8 +58,10 @@ export default function DashboardProfessorPage() {
 
       if (ehAdmin) return router.push("/dashboard");
 
-      const { data: func } = await supabase.from('funcionarios').select('foto_url').eq('email', emailAtual).single();
+      // Puxa nome oficial e foto para o vinculo correto
+      const { data: func } = await supabase.from('funcionarios').select('nome, foto_url').eq('email', emailAtual).single();
       if (func?.foto_url) setIlustracaoProfessor(func.foto_url);
+      const nomeDoProf = func?.nome || "";
 
       const metadata = authData.user.user_metadata;
       let nome = metadata?.nome || metadata?.name || metadata?.full_name;
@@ -73,22 +75,48 @@ export default function DashboardProfessorPage() {
         setNovoNomeInput(nome);
       }
 
-      const [resAlunos, resFuncs, resEventos, resTurmasInfo] = await Promise.all([
+      const [resAlunos, resFuncs, resEventos, resTurmasInfo, resTurmasProf] = await Promise.all([
         supabase.from('alunos').select('*'),
         supabase.from('funcionarios').select('*'),
         supabase.from('eventos_calendario').select('*').order('data', { ascending: true }),
-        supabase.from('turmas_info').select('*')
+        supabase.from('turmas_info').select('*'),
+        supabase.from('turma_disciplinas').select('nome_turma').eq('professor_vinculado', nomeDoProf).eq('ano', '2026')
       ]);
 
       const alunos = resAlunos.data;
       const funcionarios = resFuncs.data;
       const listaEventos = resEventos.data;
       const turmasInfo = resTurmasInfo.data;
+      const turmasDisciplinas = resTurmasProf.data;
 
       if (alunos) {
-        const turmasAlocadas = (turmasInfo || [])
-          .filter(t => t.email_prof_fixo_1 === emailAtual || t.email_prof_fixo_2 === emailAtual || t.email_prof_especifico_1 === emailAtual || t.email_prof_especifico_2 === emailAtual)
-          .map(t => t.nome_turma);
+        // Ordenação pedagógica para as turmas atribuídas
+        const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
+        const obterPesoPedagogico = (turmaNome: string) => {
+          const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
+          const index = ordemHierarquicaTurmas.findIndex(t => nomeMinusculo.includes(t));
+          return index === -1 ? 999 : index;
+        };
+
+        // NOVA LÓGICA DE VÍNCULO (Sincronizada com a página Turmas)
+        const turmasNomesBrutos = Array.from(new Set((turmasDisciplinas || []).map(t => t.nome_turma)));
+
+        (turmasInfo || []).forEach(t => {
+          // Adiciona se for Auxiliar da turma ou se usar o e-mail fixo
+          if (
+            t.auxiliar === nomeDoProf ||
+            t.email_prof_fixo_1 === emailAtual || 
+            t.email_prof_fixo_2 === emailAtual || 
+            t.email_prof_especifico_1 === emailAtual || 
+            t.email_prof_especifico_2 === emailAtual
+          ) {
+            if (!turmasNomesBrutos.includes(t.nome_turma)) {
+              turmasNomesBrutos.push(t.nome_turma);
+            }
+          }
+        });
+
+        const turmasAlocadas = turmasNomesBrutos.sort((a, b) => obterPesoPedagogico(a) - obterPesoPedagogico(b) || a.localeCompare(b));
         
         const alunosBase = alunos.filter(a => turmasAlocadas.includes(a.turma));
 
@@ -262,7 +290,7 @@ export default function DashboardProfessorPage() {
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex flex-col justify-center">
               <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Turmas Atribuídas</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
                   <span key={t} className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-md">{t}</span>
                 )) : (
@@ -275,7 +303,7 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* GRID DE INFORMAÇÕES (3 COLUNAS NO DESKTOP) */}
+      {/* GRID DE INFORMAÇÕES REORDENADO (3 COLUNAS) */}
       {/* ============================================== */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
@@ -307,7 +335,62 @@ export default function DashboardProfessorPage() {
           </div>
         </div>
 
-        {/* COLUNA 2: Alertas de Saúde */}
+        {/* COLUNA 2: Aniversariantes */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200/60 lg:col-span-1">
+          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center">
+              <Cake size={20} strokeWidth={2.5} />
+            </div>
+            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
+              Aniversários ({meses[new Date().getUTCMonth()]})
+            </h2>
+          </div>
+          
+          <div className="flex flex-col gap-4">
+            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
+              const dia = extrairDiaUTC(persona.data_nascimento);
+              const isFunc = persona.tipo === 'funcionario';
+              return (
+                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-2xl transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className="text-center w-8 shrink-0">
+                      <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
+                    </div>
+                    {/* Foto Integrada */}
+                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {persona.foto_url ? (
+                        <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
+                      ) : (
+                        <span className="font-black text-slate-400 text-xs">{persona.nome.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-400' : 'text-slate-400'}`}>
+                        {isFunc ? 'Equipe' : `Aluno • ${persona.turma}`}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Botão de Zap flutuante apenas no hover */}
+                  <button 
+                    onClick={() => parabensWhatsApp(persona)} 
+                    className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
+                    title="Mandar Mensagem"
+                  >
+                    <MessageCircleHeart size={14} strokeWidth={2.5} />
+                  </button>
+                </div>
+              );
+            }) : (
+              <div className="p-8 text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Ninguém faz aniversário este mês.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* COLUNA 3: Alertas de Saúde */}
         <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-rose-100 lg:col-span-1 flex flex-col">
           <div className="flex items-center justify-between mb-4 border-b border-rose-50 pb-4">
             <div className="flex items-center gap-3">
@@ -350,61 +433,20 @@ export default function DashboardProfessorPage() {
           </div>
         </div>
 
-        {/* COLUNA 3: Aniversariantes */}
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200/60 lg:col-span-1">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center">
-              <Cake size={20} strokeWidth={2.5} />
-            </div>
-            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
-              Aniversários ({meses[new Date().getUTCMonth()]})
-            </h2>
-          </div>
-          
-          <div className="flex flex-col gap-4">
-            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
-              const dia = extrairDiaUTC(persona.data_nascimento);
-              const isFunc = persona.tipo === 'funcionario';
-              return (
-                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-2xl transition-colors group">
-                  <div className="flex items-center gap-4">
-                    <div className="text-center w-10">
-                      <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-400' : 'text-slate-400'}`}>
-                        {isFunc ? 'Equipe' : `Aluno • ${persona.turma}`}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Botão de Zap flutuante apenas no hover */}
-                  <button 
-                    onClick={() => parabensWhatsApp(persona)} 
-                    className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white"
-                    title="Mandar Mensagem"
-                  >
-                    <MessageCircleHeart size={14} strokeWidth={2.5} />
-                  </button>
-                </div>
-              );
-            }) : (
-              <div className="p-8 text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Ninguém faz aniversário este mês.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
 
       {/* ============================================== */}
       {/* MODAL CONFIGURAÇÕES */}
       {/* ============================================== */}
       {modalConfigAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setModalConfigAberto(false)}
+        >
+          <div 
+            className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-6 text-center">Configurações</h2>
             <div className="mb-6">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">NOME COMPLETO</label>
@@ -427,8 +469,14 @@ export default function DashboardProfessorPage() {
       {/* NOTIFICAÇÃO BDAY PERSONALIZADA */}
       {/* ============================================== */}
       {modalBdayAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setModalBdayAberto(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 text-center text-white relative">
               <span className="text-6xl drop-shadow-md mb-4 block animate-bounce">🎂</span>
               <h2 className="text-2xl font-black tracking-tight leading-tight">
@@ -473,7 +521,7 @@ export default function DashboardProfessorPage() {
                       {!ehVoce && (
                         <button 
                           onClick={() => parabensWhatsApp(pessoa)} 
-                          className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center text-lg shadow-sm transition-transform active:scale-95"
+                          className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center text-lg shadow-sm transition-transform active:scale-95 shrink-0"
                         >
                           📱
                         </button>
@@ -497,8 +545,14 @@ export default function DashboardProfessorPage() {
       {/* MODAL CALENDÁRIO */}
       {/* ============================================== */}
       {modalCalendarioAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-          <div className="bg-slate-50 rounded-[3rem] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4"
+          onClick={() => setModalCalendarioAberto(false)}
+        >
+          <div 
+            className="bg-slate-50 rounded-[3rem] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center p-6 md:p-8 bg-white border-b border-slate-100 shadow-sm z-10">
               <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic flex items-center gap-2">
                 <span>📅</span> Calendário
