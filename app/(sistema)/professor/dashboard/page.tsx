@@ -58,7 +58,6 @@ export default function DashboardProfessorPage() {
 
       if (ehAdmin) return router.push("/dashboard");
 
-      // Puxa nome oficial e foto para o vinculo correto
       const { data: func } = await supabase.from('funcionarios').select('nome, foto_url').eq('email', emailAtual).single();
       if (func?.foto_url) setIlustracaoProfessor(func.foto_url);
       const nomeDoProf = func?.nome || "";
@@ -90,7 +89,6 @@ export default function DashboardProfessorPage() {
       const turmasDisciplinas = resTurmasProf.data;
 
       if (alunos) {
-        // Ordenação pedagógica para as turmas atribuídas
         const ordemHierarquicaTurmas = ["maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
         const obterPesoPedagogico = (turmaNome: string) => {
           const nomeMinusculo = (turmaNome || "").toLowerCase().trim();
@@ -98,11 +96,9 @@ export default function DashboardProfessorPage() {
           return index === -1 ? 999 : index;
         };
 
-        // NOVA LÓGICA DE VÍNCULO (Sincronizada com a página Turmas)
         const turmasNomesBrutos = Array.from(new Set((turmasDisciplinas || []).map(t => t.nome_turma)));
 
         (turmasInfo || []).forEach(t => {
-          // Adiciona se for Auxiliar da turma ou se usar o e-mail fixo
           if (
             t.auxiliar === nomeDoProf ||
             t.email_prof_fixo_1 === emailAtual || 
@@ -117,7 +113,6 @@ export default function DashboardProfessorPage() {
         });
 
         const turmasAlocadas = turmasNomesBrutos.sort((a, b) => obterPesoPedagogico(a) - obterPesoPedagogico(b) || a.localeCompare(b));
-        
         const alunosBase = alunos.filter(a => turmasAlocadas.includes(a.turma));
 
         const hoje = new Date();
@@ -211,43 +206,44 @@ export default function DashboardProfessorPage() {
   const getEventoStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
+    // As cores de fundo e borda pesadas são aplicadas APENAS no desktop (prefixo md:)
     return { 
-      bg: isEspecial ? "bg-fuchsia-50" : "bg-blue-50/70", 
-      border: isEspecial ? "border-fuchsia-400" : "border-blue-500", 
+      bg: isEspecial ? "md:bg-fuchsia-50" : "md:bg-blue-50/70", 
+      border: isEspecial ? "md:border-fuchsia-400" : "md:border-blue-500", 
       color: isEspecial ? "text-fuchsia-600" : "text-blue-600" 
     };
   };
 
-  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-blue-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-[#f4f7f9]">Carregando seu espaço...</div>;
+  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-blue-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-white md:bg-[#f4f7f9]">Carregando seu espaço...</div>;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 w-full px-4 md:px-8 py-6 relative min-h-screen bg-[#f4f7f9] overflow-x-hidden">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-white md:bg-[#f4f7f9] overflow-x-hidden pb-10">
       
       {/* ============================================== */}
-      {/* HEADER DINÂMICO E MÁGICO */}
+      {/* HEADER: Mobile Native App & Desktop Dashboard */}
       {/* ============================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 md:px-8 md:pt-8 md:pb-0 md:mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right">👋</span>
+          <h1 className="text-xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2 md:gap-3">
+            Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-lg md:text-3xl">👋</span>
           </h1>
-          <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+          <p className="hidden md:block text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
             Resumo diário da ABC DO PARK
           </p>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex gap-2 md:gap-3">
           <button 
             onClick={() => setModalCalendarioAberto(true)} 
-            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+            className="flex items-center justify-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl md:rounded-2xl bg-slate-100 md:bg-blue-600 text-slate-600 md:text-white font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 md:hover:bg-blue-700 shadow-sm md:shadow-lg md:shadow-blue-600/20 transition-all active:scale-95"
           >
-            <CalendarDays size={16} strokeWidth={2.5} />
-            Calendário
+            <CalendarDays size={18} strokeWidth={2.5} />
+            <span className="hidden md:inline">Calendário</span>
           </button>
           
           <button 
             onClick={() => setModalConfigAberto(true)} 
-            className="w-11 h-11 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-2xl flex items-center justify-center transition-all shadow-sm active:scale-95"
+            className="w-10 h-10 md:w-11 md:h-11 bg-slate-100 md:bg-white border-none md:border md:border-slate-200 text-slate-500 md:text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-xl md:rounded-2xl flex items-center justify-center transition-all shadow-sm md:shadow-sm active:scale-95"
           >
             <Settings size={18} strokeWidth={2.5} />
           </button>
@@ -255,89 +251,131 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* HERO BANNER: Cartão de Apresentação */}
+      {/* HERO BANNER: Cartão no Desktop / Perfil no Mobile */}
       {/* ============================================== */}
-      <div className="bg-gradient-to-r from-blue-900 to-green-900 rounded-[2.5rem] p-8 text-white mb-8 shadow-xl shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
-        
-        {/* Decoração de Fundo (Círculos Translúcidos) */}
-        <div className="absolute -top-24 -right-10 w-64 h-64 bg-white opacity-5 rounded-full blur-2xl pointer-events-none"></div>
-        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400 opacity-20 rounded-full blur-xl pointer-events-none"></div>
+      <div className="px-0 md:px-8 mb-4 md:mb-8 border-b border-slate-100 md:border-none pb-4 md:pb-0">
+        <div className="md:bg-gradient-to-r md:from-blue-900 md:to-green-900 md:rounded-[2.5rem] md:p-8 md:text-white md:shadow-xl md:shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-8 px-4 md:px-0">
+          
+          {/* Decoração de Fundo (Apenas Desktop) */}
+          <div className="hidden md:block absolute -top-24 -right-10 w-64 h-64 bg-white opacity-5 rounded-full blur-2xl pointer-events-none"></div>
+          <div className="hidden md:block absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400 opacity-20 rounded-full blur-xl pointer-events-none"></div>
 
-        {/* Imagem do Professor */}
-        <div className="w-40 h-40 md:w-48 md:h-48 rounded-full border-4 border-white/20 overflow-hidden bg-white shrink-0 z-10 shadow-lg">
-          <img 
-            src={ilustracaoProfessor || "/image_de2d33.jpg"} 
-            alt="Seu Perfil" 
-            className="w-full h-full object-cover" 
-          />
-        </div>
+          {/* Perfil App Native (Mobile) vs Avatar Desktop */}
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="w-14 h-14 md:w-48 md:h-48 rounded-full md:border-4 md:border-white/20 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm md:shadow-lg">
+              <img 
+                src={ilustracaoProfessor || "/image_de2d33.jpg"} 
+                alt="Seu Perfil" 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+            
+            {/* Infos ao lado da foto (Exclusivo Mobile) */}
+            <div className="flex-1 z-10 md:hidden flex flex-col justify-center">
+              <h2 className="text-base font-black leading-tight text-slate-800">{nomeCompleto || nomeUsuario}</h2>
+              <p className="text-slate-500 font-medium text-[11px] leading-tight mt-0.5">Turmas, diário e programação.</p>
+            </div>
+          </div>
 
-        {/* Informações Pessoais & Turmas */}
-        <div className="flex-1 text-center md:text-left z-10 w-full">
-          <h2 className="text-xl md:text-2xl font-black mb-2 leading-tight">Que bom ter você aqui!</h2>
-          <p className="text-blue-100 font-medium text-sm mb-6 max-w-md mx-auto md:mx-0">
-            Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
-          </p>
+          {/* Informações Pessoais & Turmas (Exclusivo Desktop) */}
+          <div className="hidden md:block flex-1 text-left z-10 w-full">
+            <h2 className="text-2xl font-black mb-2 leading-tight">Que bom ter você aqui!</h2>
+            <p className="text-blue-100 font-medium text-sm mb-6 max-w-md">
+              Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
+            </p>
 
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex items-center gap-3">
-              <Users size={20} className="text-blue-200" />
-              <div>
-                <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">Alunos</p>
-                <p className="text-lg font-black leading-none">{dados.totalAlunos}</p>
+            <div className="flex items-center gap-4">
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex items-center gap-3">
+                <Users size={20} className="text-blue-200" />
+                <div>
+                  <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">Alunos</p>
+                  <p className="text-lg font-black leading-none">{dados.totalAlunos}</p>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex flex-col justify-center">
+                <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Turmas Atribuídas</p>
+                <div className="flex flex-wrap gap-2">
+                  {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
+                    <span key={t} className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-md">{t}</span>
+                  )) : (
+                    <span className="text-xs font-medium text-blue-100">Nenhuma</span>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex flex-col justify-center">
-              <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Turmas Atribuídas</p>
-              <div className="flex flex-wrap gap-2">
+          {/* Estatísticas App Native (Exclusivo Mobile) */}
+          <div className="flex md:hidden items-center justify-around w-full pt-1 pb-1">
+            <div className="text-center">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
+              <p className="text-lg font-black leading-none text-slate-800 mt-1">{dados.totalAlunos}</p>
+            </div>
+            <div className="w-px h-8 bg-slate-100"></div>
+            <div className="text-center flex-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Minhas Turmas</p>
+              <div className="flex flex-wrap gap-1 justify-center px-2">
                 {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                  <span key={t} className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-md">{t}</span>
+                  <span key={t} className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">{t}</span>
                 )) : (
-                  <span className="text-xs font-medium text-blue-100">Nenhuma turma vinculada.</span>
+                  <span className="text-[10px] font-medium text-slate-400">Nenhuma</span>
                 )}
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
       {/* ============================================== */}
-      {/* GRID DE INFORMAÇÕES REORDENADO (3 COLUNAS) */}
+      {/* GRID DE INFORMAÇÕES (Listas Mobile / Cards Desktop) */}
       {/* ============================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:px-8">
         
-        {/* COLUNA 1: Próximos Eventos */}
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200/60 lg:col-span-1">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+        {/* ===================== COLUNA 1: Programação ===================== */}
+        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-slate-200/60 lg:col-span-1 flex flex-col">
+          {/* Header Mobile */}
+          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
+            <h2 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Programação</h2>
+          </div>
+          {/* Header Desktop */}
+          <div className="hidden md:flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <CalendarDays size={20} strokeWidth={2.5} />
             </div>
             <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">Programação</h2>
           </div>
           
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:gap-4">
             {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => {
               const estilo = getEventoStyle(ev.titulo);
               return (
-                <div key={i} className={`p-4 rounded-[1.25rem] border-l-[4px] ${estilo.bg} ${estilo.border}`}>
+                <div key={i} className={`flex flex-col px-4 py-3 border-b border-slate-100 bg-white md:bg-transparent md:p-4 md:rounded-[1.25rem] md:border-b-0 md:border-l-[4px] ${estilo.bg} ${estilo.border}`}>
                   <span className={`text-[9px] font-black uppercase tracking-widest ${estilo.color}`}>
                     {formatarDataLocal(ev.data)}
                   </span>
-                  <p className="mt-1 text-[13px] font-bold text-slate-700 leading-snug">{ev.titulo}</p>
+                  <p className="mt-0.5 md:mt-1 text-[13px] font-bold text-slate-800 md:text-slate-700 leading-snug">{ev.titulo}</p>
                 </div>
               );
             }) : (
-              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <div className="p-6 md:p-8 text-center bg-white md:bg-slate-50 md:rounded-2xl border-b md:border md:border-dashed border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Agenda livre.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* COLUNA 2: Aniversariantes */}
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200/60 lg:col-span-1">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+        {/* ===================== COLUNA 2: Aniversários ===================== */}
+        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-slate-200/60 lg:col-span-1 flex flex-col mt-4 md:mt-0">
+          {/* Header Mobile */}
+          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
+            <h2 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+              Aniversários ({meses[new Date().getUTCMonth()]})
+            </h2>
+          </div>
+          {/* Header Desktop */}
+          <div className="hidden md:flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
             <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center">
               <Cake size={20} strokeWidth={2.5} />
             </div>
@@ -346,17 +384,17 @@ export default function DashboardProfessorPage() {
             </h2>
           </div>
           
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:gap-4">
             {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
               const dia = extrairDiaUTC(persona.data_nascimento);
               const isFunc = persona.tipo === 'funcionario';
               return (
-                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-2xl transition-colors group">
+                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white md:bg-transparent md:p-2 md:border-none md:hover:bg-slate-50 md:rounded-2xl transition-colors group">
                   <div className="flex items-center gap-3">
                     <div className="text-center w-8 shrink-0">
                       <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
                     </div>
-                    {/* Foto Integrada */}
+                    {/* Foto Integrada (Mobile & Desktop) */}
                     <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
                       {persona.foto_url ? (
                         <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
@@ -365,17 +403,17 @@ export default function DashboardProfessorPage() {
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-400' : 'text-slate-400'}`}>
+                      <span className="text-sm font-bold text-slate-800 md:text-slate-700 md:group-hover:text-slate-900 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-500 md:text-purple-400' : 'text-slate-500 md:text-slate-400'}`}>
                         {isFunc ? 'Equipe' : `Aluno • ${persona.turma}`}
                       </span>
                     </div>
                   </div>
                   
-                  {/* Botão de Zap flutuante apenas no hover */}
+                  {/* Botão de Zap visível direto no Mobile, mas via hover no Desktop */}
                   <button 
                     onClick={() => parabensWhatsApp(persona)} 
-                    className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
+                    className="w-8 h-8 rounded-full bg-green-50 text-green-500 md:bg-green-100 md:text-green-600 flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
                     title="Mandar Mensagem"
                   >
                     <MessageCircleHeart size={14} strokeWidth={2.5} />
@@ -383,16 +421,21 @@ export default function DashboardProfessorPage() {
                 </div>
               );
             }) : (
-              <div className="p-8 text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Ninguém faz aniversário este mês.</p>
+              <div className="p-6 md:p-8 text-center bg-white md:bg-transparent">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ninguém faz aniversário este mês.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* COLUNA 3: Alertas de Saúde */}
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-rose-100 lg:col-span-1 flex flex-col">
-          <div className="flex items-center justify-between mb-4 border-b border-rose-50 pb-4">
+        {/* ===================== COLUNA 3: Alertas de Saúde ===================== */}
+        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-rose-100 lg:col-span-1 flex flex-col mt-4 md:mt-0">
+          {/* Header Mobile */}
+          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
+            <h2 className="text-[11px] font-black text-rose-500 uppercase tracking-widest">Saúde & Alergias</h2>
+          </div>
+          {/* Header Desktop */}
+          <div className="hidden md:flex items-center justify-between mb-4 border-b border-rose-50 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
                 <AlertTriangle size={20} strokeWidth={2.5} />
@@ -401,18 +444,20 @@ export default function DashboardProfessorPage() {
             </div>
           </div>
           
-          <input 
-            type="text" 
-            placeholder="Pesquisar alergia..." 
-            value={buscaSaude} 
-            onChange={(e) => setBuscaSaude(e.target.value)} 
-            className="px-4 py-3 mb-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 outline-none focus:border-rose-400 bg-slate-50 w-full"
-          />
+          <div className="px-4 py-2 md:px-0 md:py-0 bg-white md:bg-transparent">
+            <input 
+              type="text" 
+              placeholder="Pesquisar alergia..." 
+              value={buscaSaude} 
+              onChange={(e) => setBuscaSaude(e.target.value)} 
+              className="w-full px-4 py-2 md:py-3 md:mb-4 bg-slate-100 md:bg-slate-50 rounded-xl md:rounded-xl border-none md:border md:border-slate-200 text-xs md:text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 md:focus:ring-0 md:focus:border-rose-400 transition-all"
+            />
+          </div>
 
-          <div className="flex flex-col gap-2 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
+          <div className="flex flex-col md:gap-2 flex-1 md:overflow-y-auto md:max-h-[300px] custom-scrollbar md:pr-2">
             {alertasFiltrados.length > 0 ? alertasFiltrados.map(aluno => (
-              <div key={aluno.id} className="bg-rose-50/50 p-3 rounded-[1.25rem] border border-rose-100/50 flex items-center gap-3 hover:bg-rose-50 transition-colors cursor-pointer group">
-                <div className="w-10 h-10 rounded-full bg-white border border-rose-100 shrink-0 flex items-center justify-center overflow-hidden">
+              <div key={aluno.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-white md:bg-rose-50/50 md:p-3 md:rounded-[1.25rem] md:border md:border-rose-100/50 md:hover:bg-rose-50 cursor-pointer group transition-colors">
+                <div className="w-10 h-10 rounded-full bg-slate-50 md:bg-white border border-rose-100 shrink-0 flex items-center justify-center overflow-hidden">
                   {aluno.foto_url ? (
                     <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" />
                   ) : (
@@ -420,13 +465,13 @@ export default function DashboardProfessorPage() {
                   )}
                 </div>
                 <div className="flex flex-col flex-1">
-                  <span className="text-xs font-bold text-slate-700 line-clamp-1 group-hover:text-rose-600 transition-colors">{aluno.nome}</span>
+                  <span className="text-xs font-bold text-slate-800 md:text-slate-700 line-clamp-1 group-hover:text-rose-600 transition-colors">{aluno.nome}</span>
                   <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 line-clamp-1">{aluno.alergia_descricao || "Atenção médica"}</span>
                 </div>
-                <ChevronRight size={14} className="text-rose-200 group-hover:text-rose-400 transition-colors" />
+                <ChevronRight size={14} className="text-slate-300 md:text-rose-200 md:group-hover:text-rose-400 transition-colors" />
               </div>
             )) : (
-              <div className="p-8 text-center flex-1 flex items-center justify-center">
+              <div className="p-8 text-center flex-1 flex items-center justify-center bg-white md:bg-transparent">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Nenhum alerta encontrado.</p>
               </div>
             )}
