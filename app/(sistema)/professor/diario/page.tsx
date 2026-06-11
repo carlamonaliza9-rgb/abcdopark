@@ -337,36 +337,36 @@ export default function DiarioClassePage() {
 
   const getCorTurmaInfo = (turma: string) => {
     const cores: Record<string, string> = {
-      "Maternal": "border-sky-200 bg-sky-50 text-sky-700",
-      "Jardim I": "border-emerald-200 bg-emerald-50 text-emerald-700",
-      "Jardim II": "border-pink-200 bg-pink-50 text-pink-700",
-      "1º Ano": "border-purple-200 bg-purple-50 text-purple-700"
+      "Maternal": "text-sky-700",
+      "Jardim I": "text-emerald-700",
+      "Jardim II": "text-pink-700",
+      "1º Ano": "text-purple-700"
     };
-    return cores[turma] || "border-slate-200 bg-slate-50 text-slate-700";
+    return cores[turma] || "text-slate-700";
   };
   const temaTurmaAtual = getCorTurmaInfo(turmaSelecionada);
 
-  if (carregando) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-blue-500 tracking-widest animate-pulse text-xs">Carregando diário...</div>;
+  if (carregando) return <div className="min-h-screen bg-white md:bg-[#f4f7f9] flex items-center justify-center font-black uppercase text-blue-500 tracking-widest animate-pulse text-xs">Carregando diário...</div>;
 
   return (
-    <div className="w-full min-h-screen bg-[#f4f7f9] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-white md:bg-[#f4f7f9] pb-24 md:pb-32 font-sans animate-in fade-in duration-500 overflow-x-hidden">
       
-      <div className="w-full max-w-[1600px] mx-auto space-y-8">
+      <div className="w-full max-w-[1600px] mx-auto md:p-8 lg:p-10 md:space-y-8">
         
-        {/* ================= HEADER DO DIÁRIO ================= */}
-        <header className="bg-white rounded-[2.5rem] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+        {/* ================= HEADER DO DIÁRIO (Mobile Native / Desktop Card) ================= */}
+        <header className="bg-white md:rounded-[2.5rem] px-4 pt-6 pb-4 md:p-8 md:shadow-sm border-b md:border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 md:gap-6">
           <div className="flex flex-col">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
-              <span className="bg-blue-100 text-blue-600 p-2.5 rounded-2xl"><BookOpen size={28} strokeWidth={2.5}/></span> 
-              Meu Diário de Classe
+            <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-2 md:gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2 md:p-2.5 rounded-xl md:rounded-2xl shrink-0"><BookOpen className="w-6 h-6 md:w-7 md:h-7" strokeWidth={2.5}/></span> 
+              Diário de Classe
             </h1>
             
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-5">
-              <div className={`px-4 py-2.5 rounded-xl border-2 font-black uppercase tracking-widest text-[10px] ${temaTurmaAtual}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4 mt-4 md:mt-5">
+              <div className={`px-1 md:px-4 md:py-2.5 md:rounded-xl md:border-2 font-black uppercase tracking-widest text-[11px] md:text-[10px] ${temaTurmaAtual}`}>
                 Turma: {turmaSelecionada || "Não localizada"}
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
-                <CalendarDays size={18} className="text-slate-400" />
+              <div className="flex items-center gap-3 bg-slate-50 md:border md:border-slate-200 px-4 py-3 md:py-2 rounded-xl">
+                <CalendarDays size={18} className="text-slate-400 shrink-0" />
                 <input 
                   type="date" 
                   value={dataLancamento} 
@@ -377,37 +377,39 @@ export default function DiarioClassePage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-2 md:mt-0">
             <button 
               onClick={() => router.push('/professor/frequencia')} 
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-6 py-4 rounded-2xl border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl md:border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
             >
-              <ClipboardList size={18} strokeWidth={2.5} /> Relatório Mês
+              <ClipboardList size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> <span className="hidden md:inline">Relatório Mês</span><span className="md:hidden">Relatório</span>
             </button>
             <button 
               onClick={() => { setAcaoPendente('excluir'); setModalSeguranca(true); }} 
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
             >
-              <Trash2 size={18} strokeWidth={2.5} /> Limpar
+              <Trash2 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> Limpar
             </button>
             <button 
               onClick={() => { setAcaoPendente('editar'); setModalSeguranca(true); }} 
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-600 hover:bg-amber-100 px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-600 hover:bg-amber-100 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
             >
-              <Edit3 size={18} strokeWidth={2.5} /> Editar
+              <Edit3 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> Editar
             </button>
+            
+            {/* BOTÃO SALVAR (Apenas visível no Desktop aqui no Header) */}
             <button 
               onClick={handleSalvarNovo} 
               disabled={salvando} 
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-500 text-white px-8 py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-600 font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 disabled:opacity-50"
+              className="hidden md:flex items-center justify-center gap-2 bg-green-500 text-white px-8 py-4 rounded-2xl shadow-lg shadow-green-500/20 hover:bg-green-600 font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 disabled:opacity-50"
             >
               <Save size={20} strokeWidth={2.5} /> {salvando ? "Salvando..." : "Salvar Pauta"}
             </button>
           </div>
         </header>
 
-        {/* ================= GRID DE ALUNOS ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* ================= GRID DE ALUNOS (Mobile Native List / Desktop Cards) ================= */}
+        <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 gap-0 md:gap-6 pt-2 md:pt-0">
           {alunos.map((aluno) => {
             const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0, comentario: "" };
             const isFalta = reg.presenca === false;
@@ -417,20 +419,20 @@ export default function DiarioClassePage() {
             return (
               <div 
                 key={aluno.id} 
-                className={`bg-white p-5 rounded-[2rem] border-2 shadow-sm flex flex-col justify-between transition-all duration-300 ${isFalta ? 'border-rose-200 bg-rose-50/30' : isPresente ? 'border-green-200' : 'border-slate-100'}`}
+                className={`bg-white p-4 md:p-5 border-b border-slate-100 md:border-2 md:rounded-[2rem] md:shadow-sm flex flex-col justify-between transition-all duration-300 ${isFalta ? 'bg-rose-50/30 md:border-rose-200' : isPresente ? 'md:border-green-200' : 'md:border-slate-100'}`}
               >
                 
                 {/* TOPO: Avatar, Nome, Botão de Comentário e Frequência */}
-                <div className="flex items-start justify-between mb-6 gap-4">
-                  <div className="flex items-center gap-4 overflow-hidden flex-1">
-                    <img src={aluno.foto_url || 'https://via.placeholder.com/60'} className="w-14 h-14 shrink-0 rounded-[1.2rem] object-cover border border-slate-100 shadow-sm" alt="" />
+                <div className="flex items-start justify-between mb-4 md:mb-6 gap-3 md:gap-4">
+                  <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
+                    <img src={aluno.foto_url || 'https://via.placeholder.com/60'} className="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full md:rounded-[1.2rem] object-cover border border-slate-100 shadow-sm" alt="" />
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-800 text-base leading-tight line-clamp-1" title={aluno.nome}>{aluno.nome}</span>
+                      <span className="font-black text-slate-800 text-sm md:text-base leading-tight line-clamp-1" title={aluno.nome}>{aluno.nome}</span>
                       
-                      {/* Botão de Observação Pedagógica (Abre manualmente) */}
+                      {/* Botão de Observação Pedagógica */}
                       <button 
                         onClick={() => abrirModalObs(aluno.id, aluno.nome, "Geral")}
-                        className={`mt-1 flex items-center gap-1.5 w-fit px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors ${
+                        className={`mt-1 flex items-center gap-1.5 w-fit px-2 py-1 rounded-md md:rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors ${
                           temComentario 
                             ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
                             : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
@@ -442,30 +444,31 @@ export default function DiarioClassePage() {
                     </div>
                   </div>
 
+                  {/* CONTROLO DE FREQUÊNCIA */}
                   <div className="flex items-center gap-2 shrink-0">
                     {reg.presenca === null ? (
-                      <div className="flex bg-slate-100 p-1 rounded-2xl">
+                      <div className="flex bg-slate-100 p-1 rounded-xl md:rounded-2xl">
                         <button 
                           onClick={() => handlePresencaLocal(aluno.id, true)} 
-                          className="w-10 h-10 rounded-xl bg-white text-slate-400 hover:text-green-600 hover:shadow-sm font-black transition-all flex items-center justify-center"
+                          className="w-8 h-8 md:w-10 md:h-10 rounded-[0.6rem] md:rounded-xl bg-white text-slate-400 hover:text-green-600 hover:shadow-sm font-black transition-all flex items-center justify-center text-sm"
                         >
                           P
                         </button>
                         <button 
                           onClick={() => handlePresencaLocal(aluno.id, false)} 
-                          className="w-10 h-10 rounded-xl bg-white text-slate-400 hover:text-rose-600 hover:shadow-sm font-black transition-all flex items-center justify-center"
+                          className="w-8 h-8 md:w-10 md:h-10 rounded-[0.6rem] md:rounded-xl bg-white text-slate-400 hover:text-rose-600 hover:shadow-sm font-black transition-all flex items-center justify-center text-sm"
                         >
                           F
                         </button>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${isPresente ? 'bg-green-500 text-white' : 'bg-rose-500 text-white'}`}>
-                          {isPresente ? <CheckCircle2 size={24} strokeWidth={3} /> : <XCircle size={24} strokeWidth={3} />}
+                        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-[0.6rem] md:rounded-2xl flex items-center justify-center shadow-sm ${isPresente ? 'bg-green-500 text-white' : 'bg-rose-500 text-white'}`}>
+                          {isPresente ? <CheckCircle2 size={20} strokeWidth={3} className="md:w-6 md:h-6" /> : <XCircle size={20} strokeWidth={3} className="md:w-6 md:h-6" />}
                         </div>
                         <button 
                           onClick={() => handlePresencaLocal(aluno.id, null)} 
-                          className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 mt-1"
+                          className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 mt-0.5 md:mt-1"
                         >
                           <Undo2 size={10} /> Desfazer
                         </button>
@@ -475,25 +478,25 @@ export default function DiarioClassePage() {
                 </div>
 
                 {/* BASE: Avaliação 2x2 Grid */}
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50/80 rounded-[1.5rem] border border-slate-100">
+                <div className="grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4 bg-slate-50/80 rounded-2xl md:rounded-[1.5rem] border border-slate-100">
                   {[
                     { label: "Participação", key: "participacao", icon: "🎯" }, 
                     { label: "Comportamento", key: "comportamento", icon: "🤝" }, 
                     { label: "Atividades", key: "atividades", icon: "📝" }, 
                     { label: "Socioemoc.", key: "socioemocional", icon: "🧠" }
                   ].map((item) => (
-                    <div key={item.key} className="flex flex-col gap-1.5 bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 truncate">
+                    <div key={item.key} className="flex flex-col gap-1.5 bg-white p-2.5 md:p-3 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1 md:gap-1.5 truncate">
                         <span>{item.icon}</span> {item.label}
                       </span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-0.5 md:gap-1">
                         {[1, 2, 3, 4, 5].map(num => {
                           const ativo = num <= (reg as any)[item.key];
                           return (
                             <span 
                               key={num} 
                               onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
-                              className={`cursor-pointer text-lg transition-colors hover:scale-110 active:scale-90 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
+                              className={`cursor-pointer text-base md:text-lg transition-colors hover:scale-110 active:scale-90 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
                             >
                               ★
                             </span>
@@ -510,54 +513,77 @@ export default function DiarioClassePage() {
         </div>
 
         {alunos.length === 0 && !carregando && (
-          <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+          <div className="p-10 mx-4 md:mx-0 text-center bg-white rounded-3xl border border-dashed border-slate-300">
              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum aluno encontrado para a turma selecionada.</p>
           </div>
         )}
 
       </div>
 
+      {/* ================= BARRA INFERIOR DE SALVAR (Flutuante no Mobile) ================= */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-40 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
+        <button 
+          onClick={handleSalvarNovo} 
+          disabled={salvando} 
+          className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-8 py-4 rounded-xl shadow-lg shadow-green-500/20 hover:bg-green-600 font-black uppercase tracking-widest text-[11px] transition-all active:scale-95 disabled:opacity-50"
+        >
+          <Save size={20} strokeWidth={2.5} /> {salvando ? "Salvando..." : "Salvar Pauta Diária"}
+        </button>
+      </div>
+
       {/* ================= MODAL DE OBSERVAÇÃO PEDAGÓGICA ================= */}
       {modalObsAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 flex flex-col">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={() => setModalObsAberto(false)}
+        >
+          <div 
+            className="bg-white p-6 md:p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
                 <MessageSquareText size={24} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">Observação Diária</h3>
-                <p className="text-xs font-bold text-slate-500 line-clamp-1">{obsAtual.nomeAluno}</p>
+                <h3 className="text-lg md:text-xl font-black text-slate-800 tracking-tight">Observação Diária</h3>
+                <p className="text-[11px] md:text-xs font-bold text-slate-500 line-clamp-1">{obsAtual.nomeAluno}</p>
               </div>
             </div>
             
             <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl mb-6">
-              <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhes para o Relatório dos Pais</p>
+              <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhes para o Relatório dos Pais</p>
               <textarea 
                 rows={4}
                 placeholder={`Registre aqui o motivo da avaliação ou uma observação geral sobre o aluno no dia de hoje...`}
                 value={obsAtual.texto}
                 onChange={(e) => setObsAtual({ ...obsAtual, texto: e.target.value })}
-                className="w-full bg-transparent border-none text-sm font-bold text-slate-700 outline-none resize-none placeholder:text-slate-300"
+                className="w-full bg-transparent border-none text-sm font-bold text-slate-700 outline-none resize-none placeholder:text-slate-300 custom-scrollbar"
               />
             </div>
             
-            <div className="flex gap-3 mt-auto">
-              <button onClick={() => setModalObsAberto(false)} className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-colors">
+            <div className="flex gap-2 md:gap-3 mt-auto">
+              <button onClick={() => setModalObsAberto(false)} className="flex-1 py-3.5 md:py-4 rounded-xl md:rounded-2xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-colors">
                 Cancelar
               </button>
-              <button onClick={salvarModalObs} className="flex-[2] py-4 rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all active:scale-95">
-                Confirmar Observação
+              <button onClick={salvarModalObs} className="flex-[2] py-3.5 md:py-4 rounded-xl md:rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all active:scale-95">
+                Confirmar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= OUTROS MODAIS ================= */}
+      {/* ================= MODAL SEGURANÇA ================= */}
       {modalSeguranca && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={() => { setModalSeguranca(false); setSenhaConfirmacao(""); }}
+        >
+          <div 
+            className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <ShieldAlert size={48} className="mx-auto text-amber-500 mb-4" strokeWidth={2} />
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Confirmação de Segurança</h3>
             <p className="text-xs font-bold text-slate-500 mb-6">Insira sua senha para confirmar a {acaoPendente === 'excluir' ? 'exclusão' : 'edição'}.</p>
@@ -578,12 +604,19 @@ export default function DiarioClassePage() {
         </div>
       )}
 
+      {/* ================= ALERTA EVASÃO ================= */}
       {alertaEvasao?.aberto && (
-        <div className="fixed inset-0 bg-rose-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white p-10 rounded-[3rem] w-full max-w-md text-center shadow-2xl animate-in slide-in-from-bottom-8">
-            <AlertTriangle size={64} className="mx-auto text-rose-500 mb-6 animate-pulse" strokeWidth={2} />
-            <h2 className="text-2xl font-black text-rose-600 uppercase tracking-tighter mb-4">Atenção Professor(a)!</h2>
-            <p className="text-slate-700 font-bold text-base mb-6">O aluno <span className="text-rose-600">{alertaEvasao.nomeAluno}</span> faltou ontem e hoje.</p>
+        <div 
+          className="fixed inset-0 bg-rose-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
+          onClick={() => setAlertaEvasao(null)}
+        >
+          <div 
+            className="bg-white p-8 md:p-10 rounded-[3rem] w-full max-w-md text-center shadow-2xl animate-in slide-in-from-bottom-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AlertTriangle size={56} className="mx-auto text-rose-500 mb-6 animate-pulse" strokeWidth={2} />
+            <h2 className="text-xl md:text-2xl font-black text-rose-600 uppercase tracking-tighter mb-4">Atenção Professor(a)!</h2>
+            <p className="text-slate-700 font-bold text-sm md:text-base mb-6">O aluno <span className="text-rose-600">{alertaEvasao.nomeAluno}</span> faltou ontem e hoje.</p>
             <div className="bg-rose-50 p-4 rounded-2xl mb-8">
               <p className="text-rose-500 font-black uppercase tracking-widest text-[9px]">Rastreamento preventivo acionado na secretaria.</p>
             </div>
@@ -592,9 +625,16 @@ export default function DiarioClassePage() {
         </div>
       )}
 
+      {/* ================= MODAL BDAY ================= */}
       {modalBdayAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 text-center">
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={() => setModalBdayAberto(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 text-white relative">
               <Cake size={48} className="mx-auto mb-4 drop-shadow-md animate-bounce" strokeWidth={2} />
               <h2 className="text-2xl font-black tracking-tight leading-tight">
@@ -626,7 +666,7 @@ export default function DiarioClassePage() {
                         </span>
                       </div>
                       {!ehVoce && (
-                        <button onClick={() => parabensWhatsApp(pessoa)} className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95">
+                        <button onClick={() => parabensWhatsApp(pessoa)} className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0">
                           <Smartphone size={18} strokeWidth={2.5} />
                         </button>
                       )}
@@ -642,6 +682,12 @@ export default function DiarioClassePage() {
         </div>
       )}
 
+      {/* Ajuste de scrollbar */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}} />
     </div>
   );
 }

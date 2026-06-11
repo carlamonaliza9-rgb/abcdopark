@@ -250,30 +250,34 @@ export default function AvaliacoesProfessorPage() {
   }
 
   if (carregando && alunos.length === 0 && listaTurmas.length === 0) return (
-    <div className="min-h-screen bg-[#f4f7f9] flex flex-col items-center justify-center text-blue-600 gap-3">
+    <div className="min-h-screen bg-white md:bg-[#f4f7f9] flex flex-col items-center justify-center text-blue-600 gap-3">
       <Loader2 size={32} className="animate-spin" strokeWidth={3} />
       <span className="font-bold uppercase tracking-widest text-xs">Sincronizando Matriz...</span>
     </div>
   );
 
   return (
-    <div className="animate-in fade-in duration-700 pb-32 w-full px-4 md:px-8 py-6 relative min-h-screen bg-[#f4f7f9] overflow-x-hidden">
+    <div className="animate-in fade-in duration-700 w-full relative min-h-screen bg-white md:bg-[#f4f7f9] overflow-x-hidden">
       
-      <div className="w-full max-w-[1600px] mx-auto space-y-6">
+      <div className="w-full max-w-[1600px] mx-auto flex flex-col md:gap-6 pb-24 md:pb-10">
         
-        {/* HEADER & FILTROS */}
-        <header className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+        {/* ============================================== */}
+        {/* HEADER & FILTROS (Mobile Native / Desktop Card) */}
+        {/* ============================================== */}
+        <header className="bg-white md:rounded-[2rem] px-4 pt-4 pb-4 md:p-8 md:shadow-sm border-b md:border md:border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 md:gap-6">
           <div className="flex flex-col">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-3">
-              <span className="bg-blue-100 text-blue-600 p-2.5 rounded-2xl"><BookOpenCheck size={28} strokeWidth={2.5}/></span> 
+            <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-2 md:gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2 md:p-2.5 rounded-xl md:rounded-2xl shrink-0">
+                <BookOpenCheck className="w-6 h-6 md:w-7 md:h-7" strokeWidth={2.5}/>
+              </span> 
               Avaliações
             </h1>
-            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-3">
+            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-2 md:mt-3">
               {ehAdmin ? "Administração Global (Acesso Total)" : `Portal do Professor • ${nomeLogado}`}
             </p>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full xl:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 md:bg-slate-50 md:p-4 md:rounded-2xl md:border md:border-slate-100 w-full xl:w-auto">
             
             {/* Seletor de Turma */}
             <div className="flex flex-col gap-1.5 flex-1 xl:w-60">
@@ -282,13 +286,13 @@ export default function AvaliacoesProfessorPage() {
                 <select 
                   value={turmaSelecionada} 
                   onChange={(e) => setTurmaSelecionada(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors shadow-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 md:bg-white bg-slate-50 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-100 md:focus:border-blue-400 transition-colors shadow-sm md:shadow-sm"
                 >
                   <option value="">Escolha uma turma...</option>
                   {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               ) : (
-                <div className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-slate-700 shadow-sm truncate">
+                <div className="w-full px-4 py-3 rounded-xl bg-slate-50 md:bg-white border border-slate-200 font-bold text-slate-700 shadow-sm md:shadow-sm truncate">
                   {turmaSelecionada || "Nenhuma turma vinculada"}
                 </div>
               )}
@@ -300,7 +304,7 @@ export default function AvaliacoesProfessorPage() {
               <select 
                 value={bimestreSelecionado} 
                 onChange={(e) => setBimestreSelecionado(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold outline-none focus:border-blue-400 transition-colors shadow-sm"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 md:bg-white bg-slate-50 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-100 md:focus:border-blue-400 transition-colors shadow-sm md:shadow-sm"
               >
                 {colunasAvaliacao.map(col => <option key={col.id} value={col.id}>{col.label}</option>)}
               </select>
@@ -313,7 +317,7 @@ export default function AvaliacoesProfessorPage() {
         {/* MATRIZ DE NOTAS (TABELA DE DADOS) */}
         {/* ============================================== */}
         {turmaSelecionada && todasDisciplinas.length > 0 ? (
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden relative">
+          <div className="bg-white md:rounded-[2rem] md:shadow-sm border-t border-b md:border md:border-slate-100 overflow-hidden relative flex flex-col flex-1">
             
             {/* Overlay de Carregamento Transparente */}
             {carregando && (
@@ -322,21 +326,21 @@ export default function AvaliacoesProfessorPage() {
               </div>
             )}
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto flex-1">
               <table className="w-full text-left border-collapse">
                 
                 {/* CABEÇALHO DA TABELA (STICKY) */}
-                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-30">
                   <tr>
-                    <th className="p-5 font-black text-xs text-slate-400 uppercase tracking-widest min-w-[250px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <th className="p-3 md:p-5 font-black text-[10px] md:text-xs text-slate-400 uppercase tracking-widest min-w-[150px] md:min-w-[250px] sticky left-0 bg-slate-50 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       Aluno
                     </th>
                     {todasDisciplinas.map(disc => {
                       const permiteEdicao = minhasDisciplinasPermitidas.includes(disc.disciplina);
                       return (
-                        <th key={disc.disciplina} className="p-4 text-center min-w-[110px]">
+                        <th key={disc.disciplina} className="p-3 md:p-4 text-center min-w-[90px] md:min-w-[110px]">
                           <div className="flex flex-col items-center gap-1.5">
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${permiteEdicao ? 'text-blue-600' : 'text-slate-400'}`}>
+                            <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-wider ${permiteEdicao ? 'text-blue-600' : 'text-slate-400'}`}>
                               {disc.disciplina}
                             </span>
                             {!permiteEdicao && (
@@ -357,12 +361,12 @@ export default function AvaliacoesProfessorPage() {
                     <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors group">
                       
                       {/* COLUNA: ALUNO (Fixa na esquerda no scroll horizontal) */}
-                      <td className="p-4 sticky left-0 bg-white group-hover:bg-slate-50/50 transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
-                            {aluno.foto_url ? <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-black text-slate-400 text-xs">{aluno.nome.charAt(0)}</div>}
+                      <td className="p-3 md:p-4 sticky left-0 bg-white group-hover:bg-slate-50/50 transition-colors z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                        <div className="flex items-center gap-2 md:gap-3">
+                          <div className="w-7 h-7 md:w-9 md:h-9 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 hidden sm:flex items-center justify-center">
+                            {aluno.foto_url ? <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-black text-slate-400 text-[10px] md:text-xs">{aluno.nome.charAt(0)}</div>}
                           </div>
-                          <span className="text-sm font-bold text-slate-700 whitespace-nowrap">{aluno.nome}</span>
+                          <span className="text-xs md:text-sm font-bold text-slate-700 line-clamp-1">{aluno.nome}</span>
                         </div>
                       </td>
 
@@ -375,8 +379,8 @@ export default function AvaliacoesProfessorPage() {
                         const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
 
                         return (
-                          <td key={disc.disciplina} className="p-3 text-center relative">
-                            {foiAlterada && <div className="absolute top-2 right-4 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
+                          <td key={disc.disciplina} className="p-2 md:p-3 text-center relative">
+                            {foiAlterada && <div className="absolute top-1 md:top-2 right-2 md:right-4 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
                             
                             <input 
                               type="text"
@@ -385,12 +389,12 @@ export default function AvaliacoesProfessorPage() {
                               value={notaAtualStr}
                               onChange={(e) => handleNotaChange(String(aluno.id), disc.disciplina, e.target.value)}
                               placeholder="--"
-                              className={`w-16 h-10 text-center rounded-xl font-black text-sm outline-none transition-all ${
+                              className={`w-14 h-9 md:w-16 md:h-10 text-center rounded-xl font-black text-xs md:text-sm outline-none transition-all ${
                                 !permiteEdicao 
                                   ? 'bg-slate-100/50 border border-transparent text-slate-400 cursor-not-allowed' // ESTILO BLOQUEADO
                                   : isVermelha 
-                                    ? 'border-2 border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 shadow-inner' // ESTILO VERMELHA
-                                    : 'border-2 border-slate-200 bg-white text-blue-700 focus:border-blue-500 shadow-inner' // ESTILO NORMAL EDITÁVEL
+                                    ? 'border-2 border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 md:shadow-inner' // ESTILO VERMELHA
+                                    : 'border-2 border-slate-200 bg-white text-blue-700 focus:border-blue-400 md:shadow-inner' // ESTILO NORMAL EDITÁVEL
                               }`}
                               title={!permiteEdicao ? `Apenas o professor de ${disc.disciplina} pode editar` : "Digite a nota"}
                             />
@@ -404,26 +408,26 @@ export default function AvaliacoesProfessorPage() {
               </table>
             </div>
 
-            {/* BARRA INFERIOR DE SALVAR */}
-            <div className="bg-slate-50 border-t border-slate-200 p-5 flex justify-end sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            {/* BARRA INFERIOR DE SALVAR (Flutuante no Mobile, Fixa no Desktop) */}
+            <div className="bg-white md:bg-slate-50 border-t border-slate-100 md:border-slate-200 p-4 md:p-5 flex justify-center md:justify-end sticky bottom-0 z-50 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] md:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <button 
                 onClick={salvarNotas}
                 disabled={salvando || minhasDisciplinasPermitidas.length === 0}
                 className={`w-full md:w-auto px-8 py-3.5 rounded-xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
                   (salvando || minhasDisciplinasPermitidas.length === 0)
-                    ? 'bg-slate-300 text-slate-50 cursor-not-allowed' 
+                    ? 'bg-slate-200 md:bg-slate-300 text-slate-400 md:text-slate-50 cursor-not-allowed' 
                     : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 active:scale-95'
                 }`}
               >
                 {salvando ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} strokeWidth={2.5} />}
-                {salvando ? "Salvando..." : "Salvar Pauta"}
+                {salvando ? "A salvar..." : "Salvar Pauta"}
               </button>
             </div>
             
           </div>
         ) : (
-          <div className="bg-white rounded-[2.5rem] p-10 text-center border border-slate-50 shadow-sm mt-8">
-            <p className="text-xs font-black uppercase text-slate-400 tracking-widest">
+          <div className="bg-white md:rounded-[2.5rem] p-8 md:p-10 text-center border-y md:border md:border-slate-50 md:shadow-sm mt-4 md:mt-8">
+            <p className="text-[10px] md:text-xs font-black uppercase text-slate-400 tracking-widest">
               {!turmaSelecionada 
                 ? "Selecione uma turma para visualizar a matriz de pautas." 
                 : "Nenhuma disciplina cadastrada para esta turma."}
