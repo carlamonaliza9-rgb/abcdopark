@@ -93,27 +93,10 @@ export default function DashboardAdminPage() {
       if (alunos) {
         const hoje = new Date();
         const mesAtual = hoje.getUTCMonth();
-        const anoAtual = hoje.getUTCFullYear();
         const diaAtual = hoje.getDate();
         const hojeString = hoje.toISOString().split('T')[0];
 
-        const eventosFuturos = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString) : [];
-
-        let eventosParaMostrar = eventosFuturos.filter(ev => {
-          const d = new Date(ev.data + "T12:00:00");
-          return d.getUTCMonth() === mesAtual && d.getUTCFullYear() === anoAtual;
-        });
-
-        if (eventosParaMostrar.length === 0 && eventosFuturos.length > 0) {
-          const dataProximo = new Date(eventosFuturos[0].data + "T12:00:00");
-          const proxMes = dataProximo.getUTCMonth();
-          const proxAno = dataProximo.getUTCFullYear();
-          
-          eventosParaMostrar = eventosFuturos.filter(ev => {
-            const d = new Date(ev.data + "T12:00:00");
-            return d.getUTCMonth() === proxMes && d.getUTCFullYear() === proxAno;
-          });
-        }
+        const eventosParaMostrar = listaEventos ? listaEventos.filter(ev => ev.data >= hojeString) : [];
 
         const bdayAlunos = alunos
           .filter(a => a.data_nascimento && new Date(a.data_nascimento + "T12:00:00").getUTCMonth() === mesAtual)
@@ -229,7 +212,6 @@ export default function DashboardAdminPage() {
     } 
   };
 
-  // FUNÇÃO ATUALIZADA COM SUPORTE A IMAGENS VIA CLIPBOARD API
   const enviarAvisoWhatsApp = async () => {
     const iconeAviso = String.fromCodePoint(0x1F4E2); 
     const textoFinal = `${iconeAviso} *AVISO ABC DO PARK*\n\n${mensagemAviso}`;
@@ -461,8 +443,14 @@ export default function DashboardAdminPage() {
 
       {/* MODAL CALENDÁRIO */}
       {modalCalendarioAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div 
+          onClick={() => setModalCalendarioAberto(false)} 
+          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '22px', fontWeight: 'bold' }}>📅 Calendário Escolar</h2>
               <button onClick={() => setModalCalendarioAberto(false)} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>✖</button>
