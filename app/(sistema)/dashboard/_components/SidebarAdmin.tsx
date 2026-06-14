@@ -76,9 +76,9 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
         />
       )}
 
-      {/* BARRA LATERAL (Drawer no Mobile / Fixa no Desktop) */}
+      {/* BARRA LATERAL (Drawer no Mobile / Fixa "Sticky" no Desktop) */}
       <aside 
-        className={`fixed md:relative top-0 left-0 h-[100dvh] w-[296px] bg-white md:bg-blue-600/10 backdrop-blur-md flex flex-col shadow-2xl md:shadow-sm border-r border-blue-100 z-50 md:z-0 transition-transform duration-300 ease-in-out ${
+        className={`fixed md:sticky top-0 left-0 h-[100dvh] w-[296px] bg-white md:bg-blue-600/10 backdrop-blur-md flex flex-col shadow-2xl md:shadow-sm border-r border-blue-100 z-50 md:z-0 transition-transform duration-300 ease-in-out ${
           menuMobileAberto ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -96,7 +96,7 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
           <img
             src="https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png"
             alt="Logo ABC DO PARK"
-            className="h-32 md:h-48 w-auto mb-2 md:mb-4 object-contain mt-4 md:mt-0"
+            className="h-32 md:h-40 w-auto mb-2 md:mb-4 object-contain mt-4 md:mt-0"
           />
           <h2 className="text-xl md:text-2xl font-bold text-blue-900">ABC DO PARK</h2>
           <p className="text-[10px] md:text-xs text-blue-600 mt-1 uppercase tracking-widest font-semibold">Gestão Escolar</p>
