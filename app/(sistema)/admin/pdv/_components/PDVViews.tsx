@@ -80,7 +80,6 @@ export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historico
                 const resumo = caixa.resumo_metodos || {};
                 const quebra = clean(caixa.quebra_caixa);
                 
-                // Filtra os recebimentos atrelados a este caixa
                 const recebimentosDesteCaixa = historicoGeral ? historicoGeral.filter((h: any) => h.caixa_id === caixa.id) : [];
 
                 return (
@@ -130,7 +129,6 @@ export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historico
                           <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Boleto:</span> <span>R$ {clean(resumo.boleto).toFixed(2)}</span></div>
                         </div>
 
-                        {/* LISTA DETALHADA DE RECEBIMENTOS */}
                         <div className="col-span-1 md:col-span-2 mt-2 pt-4 border-t border-slate-200">
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalhamento de Transações (Recebimentos)</h4>
                           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden max-h-[250px] overflow-y-auto custom-scrollbar">
@@ -243,7 +241,7 @@ export function IdentificacaoCliente({ alunoSelecionado, setAlunoSelecionado, bu
           {buscaAluno && (
             <div className="absolute z-20 w-full mt-2 border border-slate-200 rounded-xl overflow-hidden shadow-xl bg-white">
               {alunosFiltrados.map((a: any) => (
-                <div key={a.id} onClick={() => setAlunoSelecionado(a)} className="p-3.5 border-b border-slate-50 hover:bg-indigo-50 cursor-pointer transition-colors flex justify-between items-center group">
+                <div key={a.id} onClick={() => setAlunoSelecionado(a)} className="p-3.5 border-b border-slate-50 hover:bg-indigo-50/50 cursor-pointer transition-colors flex justify-between items-center group">
                   <span className="font-bold text-sm text-slate-700 group-hover:text-indigo-700">{a.nome}</span>
                   <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">{a.turma}</span>
                 </div>
@@ -487,12 +485,52 @@ export function CarrinhoLateral({ caixaAtual, alunoSelecionado, carrinho, remove
   );
 }
 
-export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, acrescimos, setAcrescimos, totalComAcrescimos, pagamentos, setPagamentos, temLivroNoCarrinho, saldoAtualAluno, trocoGerado, acaoTroco, setAcaoTroco, faltaPagar, finalizarVenda, processando, clean, totalPagoRodada }: any) {
+export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, acrescimos, setAcrescimos, totalComAcrescimos, pagamentos, setPagamentos, temLivroNoCarrinho, saldoAtualAluno, trocoGerado, acaoTroco, setAcaoTroco, faltaPagar, finalizarVenda, processando, clean, totalPagoRodada, dataPagamentoPDV, setDataPagamentoPDV }: any) {
+  const [taxaDebito, setTaxaDebito] = useState("");
+  const [taxaCredito, setTaxaCredito] = useState("");
+
   if (!aberto) return null;
+
+  const handleCardChange = (tipo: 'debito' | 'credito', valor: string, taxaMapeada?: string) => {
+    const novaTaxaDebito = tipo === 'debito' ? (taxaMapeada !== undefined ? taxaMapeada : taxaDebito) : taxaDebito;
+    const novaTaxaCredito = tipo === 'credito' ? (taxaMapeada !== undefined ? taxaMapeada : taxaCredito) : taxaCredito;
+    
+    const novoPagamentos = {
+      ...pagamentos,
+      [tipo]: valor
+    };
+    
+    setPagamentos(novoPagamentos);
+
+    const valDeb = clean(novoPagamentos.debito);
+    const tDeb = clean(novaTaxaDebito);
+    const jurosDeb = tDeb > 0 ? (valDeb - (valDeb / (1 + tDeb / 100))) : 0;
+
+    const valCred = clean(novoPagamentos.credito);
+    const tCred = clean(novaTaxaCredito);
+    const jurosCred = tCred > 0 ? (valCred - (valCred / (1 + tCred / 100))) : 0;
+
+    const totalJuros = jurosDeb + jurosCred;
+
+    setAcrescimos({
+      ...acrescimos,
+      juros_cartao: totalJuros > 0 ? totalJuros.toFixed(2) : ""
+    });
+  };
+
+  const handleTaxaChange = (tipo: 'debito' | 'credito', taxa: string) => {
+    if (tipo === 'debito') {
+      setTaxaDebito(taxa);
+      handleCardChange('debito', pagamentos.debito, taxa);
+    } else {
+      setTaxaCredito(taxa);
+      handleCardChange('credito', pagamentos.credito, taxa);
+    }
+  };
   
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
+      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
         
         <div className="p-5 border-b border-slate-100 bg-indigo-600 flex justify-between items-center">
           <h3 className="text-xl font-black text-white flex items-center gap-2">
@@ -507,13 +545,17 @@ export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, a
         <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col lg:flex-row">
           
           <div className="flex-[3] p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Desconto (R$)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block truncate">Data Pagamento</label>
+                <input type="date" value={dataPagamentoPDV} onChange={(e) => setDataPagamentoPDV(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:border-indigo-500 text-sm font-bold text-slate-700" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block truncate">Desconto (R$)</label>
                 <input type="number" step="0.01" min="0" value={acrescimos.desconto} onChange={(e) => setAcrescimos({...acrescimos, desconto: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:border-indigo-500" placeholder="0.00" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Multa/Juros Manual (R$)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block truncate">Multa/Juros (R$)</label>
                 <input type="number" step="0.01" min="0" value={acrescimos.multa} onChange={(e) => setAcrescimos({...acrescimos, multa: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:border-rose-500" placeholder="0.00" />
               </div>
             </div>
@@ -532,7 +574,7 @@ export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, a
                 <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Espécie (Dinheiro Fisico)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                  <input type="number" step="0.01" min="0" value={pagamentos.dinheiro} onChange={e => setPagamentos({...pagamentos, dinheiro: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-xl outline-none focus:border-indigo-500 shadow-sm" placeholder="0.00" />
+                  <input type="number" step="0.01" min="0" value={pagamentos.dinheiro} onChange={e => setPagamentos({...pagamentos, dinero: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-xl outline-none focus:border-indigo-500 shadow-sm" placeholder="0.00" />
                 </div>
               </div>
               
@@ -541,28 +583,63 @@ export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, a
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                    <input type="number" step="0.01" min="0" value={pagamentos.credito} onChange={e => setPagamentos({...pagamentos, credito: e.target.value})} className="w-full pl-9 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500" placeholder="Valor Cobrado" />
+                    <input type="number" step="0.01" min="0" value={pagamentos.credito} onChange={e => handleCardChange('credito', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-bold text-slate-700" placeholder="Valor Total" />
                   </div>
                   <div>
-                    <select value={pagamentos.parcelas} onChange={e => setPagamentos({...pagamentos, parcelas: e.target.value})} className="w-full px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium text-slate-700">
+                    <select value={pagamentos.parcelas} onChange={e => setPagamentos({...pagamentos, parcelas: e.target.value})} className="w-full px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none font-medium text-slate-700 text-sm">
                       <option value="1">À vista</option>
                       {[...Array(11)].map((_, i) => <option key={i+2} value={i+2}>{i+2}x sem juros</option>)}
                     </select>
                   </div>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                    <input type="number" step="0.01" min="0" value={acrescimos.juros_cartao} onChange={e => setAcrescimos({...acrescimos, juros_cartao: e.target.value})} className="w-full pl-9 pr-2 py-2.5 bg-rose-50/50 border border-rose-200 rounded-lg outline-none focus:border-rose-500" placeholder="Juros repassado (+)" title="Juros da maquininha" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">%</span>
+                    <input type="number" step="0.01" min="0" value={taxaCredito} onChange={e => handleTaxaChange('credito', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-bold text-slate-700" placeholder="Taxa %" />
                   </div>
                 </div>
+                {(() => {
+                  const valCred = clean(pagamentos.credito);
+                  const tCred = clean(taxaCredito);
+                  const jurosCred = tCred > 0 ? (valCred - (valCred / (1 + tCred / 100))) : 0;
+                  const liquidoCred = valCred - jurosCred;
+                  if (valCred > 0 && tCred > 0) {
+                    return (
+                      <div className="text-[11px] font-semibold text-slate-400 mt-2">
+                        Separado automaticamente: Líquido R$ {liquidoCred.toFixed(2)} + Juros R$ {jurosCred.toFixed(2)}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Cartão de Débito</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
-                  <input type="number" step="0.01" min="0" value={pagamentos.debito} onChange={e => setPagamentos({...pagamentos, debito: e.target.value})} className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-xl outline-none focus:border-indigo-500 shadow-sm" placeholder="0.00" />
+              <div className="sm:col-span-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="text-[10px] font-bold text-emerald-600 uppercase block mb-3">Cartão de Débito</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">R$</span>
+                    <input type="number" step="0.01" min="0" value={pagamentos.debito} onChange={e => handleCardChange('debito', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-bold text-slate-700" placeholder="Valor Total" />
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">%</span>
+                    <input type="number" step="0.01" min="0" value={taxaDebito} onChange={e => handleTaxaChange('debito', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-bold text-slate-700" placeholder="Taxa %" />
+                  </div>
                 </div>
+                {(() => {
+                  const valDeb = clean(pagamentos.debito);
+                  const tDeb = clean(taxaDebito);
+                  const jurosDeb = tDeb > 0 ? (valDeb - (valDeb / (1 + tDeb / 100))) : 0;
+                  const liquidoDeb = valDeb - jurosDeb;
+                  if (valDeb > 0 && tDeb > 0) {
+                    return (
+                      <div className="text-[11px] font-semibold text-slate-400 mt-2">
+                        Separado automaticamente: Líquido R$ {liquidoDeb.toFixed(2)} + Juros R$ {jurosDeb.toFixed(2)}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
+
               <div>
                 <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Boleto Bancário</label>
                 <div className="relative">
@@ -610,8 +687,20 @@ export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, a
             <div className="p-6 flex-1 space-y-4">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">Resumo Final</h4>
               
+              <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 max-h-[160px] overflow-y-auto custom-scrollbar space-y-2">
+                {carrinho.map((item: any, idx: number) => {
+                  const valorItem = clean(item.valor_total) - clean(item.valor_pago);
+                  return (
+                    <div key={idx} className="flex justify-between text-xs text-slate-600 border-b border-slate-200/60 pb-2 last:border-0 last:pb-0">
+                      <span className="truncate pr-3 font-medium text-slate-700" title={item.descricao}>{item.descricao}</span>
+                      <span className="flex-shrink-0 font-bold">R$ {valorItem.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="space-y-2">
-                <div className="flex justify-between text-sm text-slate-600"><span>Itens no Carrinho:</span> <span>R$ {subtotalCarrinho.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm text-slate-800 font-bold"><span>Subtotal dos Itens:</span> <span>R$ {subtotalCarrinho.toFixed(2)}</span></div>
                 {clean(acrescimos.desconto) > 0 && <div className="flex justify-between text-sm text-emerald-600"><span>Descontos (-):</span> <span>R$ {clean(acrescimos.desconto).toFixed(2)}</span></div>}
                 {clean(acrescimos.multa) > 0 && <div className="flex justify-between text-sm text-rose-600"><span>Multa Aplicada (+):</span> <span>R$ {clean(acrescimos.multa).toFixed(2)}</span></div>}
                 {clean(acrescimos.juros_cartao) > 0 && <div className="flex justify-between text-sm text-rose-600"><span>Juros da Máquina (+):</span> <span>R$ {clean(acrescimos.juros_cartao).toFixed(2)}</span></div>}
