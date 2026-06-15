@@ -33,7 +33,7 @@ export function AlunoCard({ aluno, obterCorTurma, mWhatsApp, onAbrirFicha, rotaP
       style={{ 
         borderRadius: '20px', 
         border: `3px solid ${isTransferido ? '#e2e8f0' : accentColor}`,
-        boxShadow: `0 8px 24px -4px ${accentColor}25` 
+        boxShadow: `0 8px 24px -4px ${accentColor}10` 
       }}
     >
       {/* 1. FAIXA COLORIDA NO TOPO (Capa) */}

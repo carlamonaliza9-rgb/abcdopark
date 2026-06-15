@@ -42,7 +42,7 @@ export default function SistemaLayout({
 
   if (carregando) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-blue-900 font-bold">
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center text-blue-900 font-bold">
         Carregando painel...
       </div>
     );
