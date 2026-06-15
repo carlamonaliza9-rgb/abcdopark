@@ -47,6 +47,98 @@ const CORES = {
 const LOGO_URL = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
 const ESTAMPA_ESCOLAR_URL = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/estampa_escolar.png";
 
+// ============================================================================
+// MOTOR DE RENDERIZAÇÃO ESTILO WYSIWYG
+// ============================================================================
+const renderizarLinhaRica = (
+  ctx: CanvasRenderingContext2D, 
+  paragrafo: string, 
+  x: number, 
+  y: number, 
+  maxWidth: number, 
+  tamanhoBase: number, 
+  cor: string,
+  forcarAlinhamento?: 'left' | 'center' | 'right'
+) => {
+  let align = forcarAlinhamento || 'left';
+  let size = tamanhoBase;
+  let text = paragrafo;
+
+  // Analisa as tags secretas injetadas pelo editor
+  if (text.includes('<C>')) { align = 'center'; text = text.replace(/<C>/g, '').trim(); }
+  if (text.includes('<R>')) { align = 'right'; text = text.replace(/<R>/g, '').trim(); }
+  if (text.includes('<T>')) { size += 10; text = text.replace(/<T>/g, '').trim(); }
+  if (text.includes('<P>')) { size = Math.max(tamanhoBase - 8, 12); text = text.replace(/<P>/g, '').trim(); }
+
+  if (!text.trim()) return y;
+
+  ctx.fillStyle = cor;
+  const alturaLinha = 40; // Mantido restrito para preservar o design original
+  let cursorY = y;
+
+  const partes = text.split(/(\*\*.*?\*\*)/g).filter(Boolean);
+  const wordsList: { txt: string, bold: boolean }[] = [];
+  
+  partes.forEach(part => {
+    const isBold = part.startsWith('**') && part.endsWith('**');
+    const cleanText = isBold ? part.slice(2, -2) : part;
+    
+    const subWords = cleanText.split(/(\s+)/); 
+    subWords.forEach((w) => {
+      if (w !== '') wordsList.push({ txt: w, bold: isBold });
+    });
+  });
+
+  const medirLarguraLinha = (arr: { txt: string, bold: boolean }[]) => {
+    let w = 0;
+    for (let i = 0; i < arr.length; i++) {
+      ctx.font = `${arr[i].bold ? 'bold' : 'normal'} ${size}px Helvetica`;
+      w += ctx.measureText(arr[i].txt).width;
+    }
+    return w;
+  };
+
+  let linhaCorrente: { txt: string, bold: boolean }[] = [];
+  const todasAsLinhas: Array<Array<{ txt: string, bold: boolean }>> = [];
+
+  for (let i = 0; i < wordsList.length; i++) {
+    linhaCorrente.push(wordsList[i]);
+    if (medirLarguraLinha(linhaCorrente) > maxWidth && linhaCorrente.length > 1) {
+      const removida = linhaCorrente.pop()!;
+      if (linhaCorrente.length > 0 && linhaCorrente[linhaCorrente.length - 1].txt.trim() === '') {
+        linhaCorrente.pop();
+      }
+      todasAsLinhas.push([...linhaCorrente]);
+      linhaCorrente = [{ txt: removida.txt.trimStart(), bold: removida.bold }];
+      if (linhaCorrente[0].txt === '') linhaCorrente = [];
+    }
+  }
+  if (linhaCorrente.length > 0) todasAsLinhas.push(linhaCorrente);
+
+  todasAsLinhas.forEach(linha => {
+    const larguraDestalinha = medirLarguraLinha(linha);
+    let cursorX = x;
+    
+    if (align === 'center') {
+      cursorX = x + (maxWidth / 2) - (larguraDestalinha / 2);
+    } else if (align === 'right') {
+      cursorX = x + maxWidth - larguraDestalinha;
+    }
+
+    linha.forEach(pedaco => {
+      ctx.font = `${pedaco.bold ? 'bold' : 'normal'} ${size}px Helvetica`;
+      ctx.fillText(pedaco.txt, cursorX, cursorY);
+      cursorX += ctx.measureText(pedaco.txt).width;
+    });
+    cursorY += alturaLinha;
+  });
+
+  return cursorY - alturaLinha; 
+};
+
+// ============================================================================
+// FUNCÕES ORIGINAIS MANTIDAS
+// ============================================================================
 const quebrarTextoMeticuloso = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
   const palavras = text.split(' ');
   const linhas: string[] = [];
@@ -116,10 +208,6 @@ const carregarImagemAsync = (src: string | HTMLImageElement): Promise<HTMLImageE
   });
 };
 
-/**
- * MOTOR DE RENDERIZAÇÃO ÚNICO (Single Source of Truth)
- * Tela, JPG e PDF usarão exatamente o mesmo motor gráfico.
- */
 export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comunicado: Omit<Comunicado, 'ilustracoes'>) => {
   const LARGURA_A4 = 1240;
   const ALTURA_A4 = 1754;
@@ -144,11 +232,10 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
 
     let atualY = 480;
 
+    // TÍTULO RESTAURADO
     ctx.fillStyle = CORES.neutras.textoPrincipal;
     ctx.textAlign = "center";
     ctx.font = "bold 60px Helvetica";
-    
-    // Quebra do título se for longo demais
     const linhasTituloAviso = quebrarTextoMeticuloso(ctx, comunicado.titulo.toUpperCase(), LARGURA_A4 - 300);
     linhasTituloAviso.forEach(linha => {
         ctx.fillText(linha, LARGURA_A4 / 2, atualY);
@@ -156,27 +243,24 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
     });
     atualY += 20;
 
+    // SAUDAÇÃO RESTAURADA
     if (comunicado.saudacao) {
       ctx.font = "bold 38px Helvetica";
       ctx.fillText(comunicado.saudacao, LARGURA_A4 / 2, atualY);
       atualY += 80;
     }
 
-    ctx.font = "32px Helvetica";
-    const alturaLinha = 45;
     const larguraTextoUtil = LARGURA_A4 - 300;
-
     const paragrafos = comunicado.conteudo.split('\n');
+    
+    ctx.textAlign = "left"; 
     paragrafos.forEach(paragrafo => {
       if (!paragrafo.trim()) { atualY += 30; return; }
       
-      const textoLimpo = paragrafo.replace(/\[(.*?)\]/g, '$1 -');
-      const linhasQuebradas = quebrarTextoMeticuloso(ctx, textoLimpo, larguraTextoUtil);
-      linhasQuebradas.forEach(linha => {
-        ctx.fillText(linha, LARGURA_A4 / 2, atualY);
-        atualY += alturaLinha;
-      });
-      atualY += 30;
+      const textoLimpo = paragrafo.replace(/\[(.*?)\]/g, '$1 -'); 
+      
+      atualY = renderizarLinhaRica(ctx, textoLimpo, 150, atualY, larguraTextoUtil, 32, CORES.neutras.textoPrincipal, 'center');
+      atualY += 45;
     });
 
     try {
@@ -200,13 +284,11 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
 
       ctx.fillStyle = corAtiva.secundaria;
       ctx.beginPath();
-      // Selo verde no canto superior direito
       ctx.roundRect(LARGURA_A4 - 350, 0, 260, 320, [0, 0, 130, 130]);
       ctx.fill();
 
       try {
         const logoImg = await carregarImagemAsync(LOGO_URL);
-        // Centralização perfeita da logo no selo verde
         ctx.drawImage(logoImg, LARGURA_A4 - 325, 50, 210, 210);
       } catch (e) {}
     } else {
@@ -223,7 +305,6 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
 
     const margemEsquerda = 100;
     
-    // Ícone de Alerta
     const drawWarningIcon = (x: number, y: number, color: string) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = 5;
@@ -246,12 +327,12 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
 
     drawWarningIcon(margemEsquerda, 80, corAtiva.textoAviso);
 
-    // Título Principal com Quebra Inteligente (Para não invadir o selo direito)
+    // TÍTULO RESTAURADO
     ctx.fillStyle = corAtiva.primaria;
     ctx.font = "normal 75px Impact, sans-serif";
     ctx.textAlign = "left";
     
-    const limiteLarguraTitulo = 750; // Respeita a margem e o selo na direita
+    const limiteLarguraTitulo = 750;
     const linhasTitulo = quebrarTextoMeticuloso(ctx, comunicado.titulo.toUpperCase(), limiteLarguraTitulo);
     
     let tituloY = 240;
@@ -260,7 +341,6 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
       tituloY += 85;
     });
 
-    // Pega o Y da última linha desenhada para posicionar as linhas decorativas
     const ultimaLinhaY = tituloY - 85;
     const larguraUltimaLinha = ctx.measureText(linhasTitulo[linhasTitulo.length - 1]).width;
     
@@ -278,9 +358,10 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
     ctx.quadraticCurveTo(margemEsquerda + (larguraUltimaLinha / 2), ultimaLinhaY + 55, margemEsquerda + larguraUltimaLinha - 10, ultimaLinhaY + 20);
     ctx.stroke();
 
-    // Início dinâmico do conteúdo baseado no tamanho do título
     let atualY = ultimaLinhaY + 130;
+    const larguraTextoUtil = LARGURA_A4 - (margemEsquerda * 2) - 50;
 
+    // SAUDAÇÃO RESTAURADA
     if (comunicado.saudacao) {
       ctx.fillStyle = CORES.neutras.textoPrincipal;
       ctx.font = "40px Helvetica";
@@ -288,11 +369,7 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
       atualY += 50;
     }
 
-    ctx.fillStyle = CORES.neutras.textoPrincipal;
-    ctx.font = "26px Helvetica";
-    const alturaLinha = 40;
-    const larguraTextoUtil = LARGURA_A4 - (margemEsquerda * 2) - 50;
-
+    ctx.textAlign = "left"; 
     const paragrafos = comunicado.conteudo.split('\n');
     
     paragrafos.forEach(paragrafo => {
@@ -305,19 +382,11 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
         const textoRestante = match[2];
         const larguraCaixaOcupada = desenharCaixaTexto(ctx, textoPill, margemEsquerda, atualY, corAtiva.secundaria);
         
-        ctx.fillStyle = CORES.neutras.textoPrincipal;
-        ctx.font = "26px Helvetica";
-        ctx.fillText(textoRestante, margemEsquerda + larguraCaixaOcupada + 20, atualY);
-        atualY += alturaLinha + 15; 
+        atualY = renderizarLinhaRica(ctx, textoRestante, margemEsquerda + larguraCaixaOcupada + 20, atualY + 2, larguraTextoUtil - larguraCaixaOcupada - 20, 26, CORES.neutras.textoPrincipal);
+        atualY += 40; 
       } else {
-        ctx.fillStyle = CORES.neutras.textoPrincipal;
-        ctx.font = "26px Helvetica";
-        const linhasQuebradas = quebrarTextoMeticuloso(ctx, paragrafo, larguraTextoUtil);
-        linhasQuebradas.forEach(linha => {
-          ctx.fillText(linha, margemEsquerda, atualY);
-          atualY += alturaLinha;
-        });
-        atualY += 15;
+        atualY = renderizarLinhaRica(ctx, paragrafo, margemEsquerda, atualY, larguraTextoUtil, 26, CORES.neutras.textoPrincipal);
+        atualY += 40;
       }
     });
 
@@ -347,11 +416,6 @@ export const desenharDocumentoBase = async (ctx: CanvasRenderingContext2D, comun
   }
 };
 
-/**
- * ORQUESTRADOR CENTRAL:
- * Monta o Canvas completo (Base + Ilustrações) para ser consumido
- * de forma idêntica pelo PDF e pelo JPG.
- */
 const gerarCanvasCompleto = async (comunicado: Comunicado): Promise<HTMLCanvasElement> => {
   const LARGURA_A4 = 1240;
   const ALTURA_A4 = 1754;
@@ -362,10 +426,8 @@ const gerarCanvasCompleto = async (comunicado: Comunicado): Promise<HTMLCanvasEl
   
   if (!ctx) return canvas;
 
-  // 1. Desenha a base fiel
   await desenharDocumentoBase(ctx, comunicado);
 
-  // 2. Desenha as ilustrações (arrastadas pelo usuário)
   if (comunicado.ilustracoes && comunicado.ilustracoes.length > 0) {
     for (const ilustracao of comunicado.ilustracoes) {
       try {
@@ -380,28 +442,16 @@ const gerarCanvasCompleto = async (comunicado: Comunicado): Promise<HTMLCanvasEl
   return canvas;
 };
 
-/**
- * GERA ARQUIVO PDF (100% FIEL AO PREVIEW)
- */
 export const gerarPDFComunicado = async (comunicado: Comunicado) => {
   const canvas = await gerarCanvasCompleto(comunicado);
-  
-  // Converte o canvas fiel para uma imagem JPG de altíssima qualidade (1.0 = 100%)
   const imgData = canvas.toDataURL("image/jpeg", 1.0);
-  
-  // Instancia a folha A4 e cola a imagem ocupando todo o espaço
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-  
   doc.save(`Comunicado_${comunicado.tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
-/**
- * GERA ARQUIVO IMAGEM JPG (100% FIEL AO PREVIEW)
- */
 export const gerarJPGComunicado = async (comunicado: Comunicado) => {
   const canvas = await gerarCanvasCompleto(comunicado);
-  
   const urlFinalJpg = canvas.toDataURL("image/jpeg", 1.0);
   const link = document.createElement("a");
   link.href = urlFinalJpg;

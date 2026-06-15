@@ -12,11 +12,50 @@ interface IlustracaoState {
   height: number;
 }
 
+// Converte o HTML do editor visual para as tags secretas do Canvas
+const parseHtmlToTags = (html: string) => {
+  if (typeof window === 'undefined') return '';
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  let out = '';
+
+  const walk = (node: Node) => {
+      if (node.nodeType === 3) {
+          out += node.textContent;
+      } else if (node.nodeType === 1) {
+          const el = node as HTMLElement;
+          const tag = el.tagName;
+          let prefix = '';
+          let suffix = '';
+
+          const isBlock = tag === 'DIV' || tag === 'P';
+          if (isBlock && out.length > 0 && !out.endsWith('\n')) out += '\n';
+
+          if (tag === 'B' || tag === 'STRONG') { prefix = '**'; suffix = '**'; }
+          if (tag === 'FONT') {
+              if (el.getAttribute('size') === '6') prefix = '<T> ';
+              if (el.getAttribute('size') === '2') prefix = '<P> ';
+          }
+          if (el.style.textAlign === 'center' || el.getAttribute('align') === 'center') prefix += '<C> ';
+          if (el.style.textAlign === 'right' || el.getAttribute('align') === 'right') prefix += '<R> ';
+
+          out += prefix;
+          el.childNodes.forEach(walk);
+          out += suffix;
+
+          if (tag === 'BR') out += '\n';
+          else if (isBlock && !out.endsWith('\n')) out += '\n';
+      }
+  };
+  temp.childNodes.forEach(walk);
+  return out.trim();
+};
+
 export default function PainelComunicados() {
   const [comunicadoTipo, setComunicadoTipo] = useState<'interno' | 'externo' | 'aviso_curto'>('interno');
   const [comunicadoTitulo, setComunicadoTitulo] = useState('COMUNICADO INTERNO');
   const [comunicadoSaudacao, setComunicadoSaudacao] = useState('Bom dia professores!');
-  const [comunicadoConteudo, setComunicadoConteudo] = useState('');
+  const [comunicadoHtml, setComunicadoHtml] = useState(''); // Estado Visual do Editor
   const [comunicadoTelefone, setComunicadoTelefone] = useState('(91) 98622-7715');
   
   const [ilustracoes, setIlustracoes] = useState<IlustracaoState[]>([]);
@@ -24,6 +63,7 @@ export default function PainelComunicados() {
 
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   const LARGURA_A4_REAL = 1240;
   const ALTURA_A4_REAL = 1754;
@@ -33,17 +73,20 @@ export default function PainelComunicados() {
       if (!previewCanvasRef.current) return;
       const ctx = previewCanvasRef.current.getContext('2d');
       if (ctx) {
+        // Converte o visual para as tags do motor no momento do preview
+        const conteudoConvertido = parseHtmlToTags(comunicadoHtml);
         await desenharDocumentoBase(ctx, {
           tipo: comunicadoTipo,
           titulo: comunicadoTitulo,
           saudacao: comunicadoSaudacao,
-          conteudo: comunicadoConteudo,
-          telefoneContato: comunicadoTelefone
-        });
+          conteudo: conteudoConvertido,
+          telefoneContato: comunicadoTelefone,
+          ilustracoes
+        } as any);
       }
     };
     atualizarPreviewVisual();
-  }, [comunicadoTipo, comunicadoTitulo, comunicadoSaudacao, comunicadoConteudo, comunicadoTelefone]);
+  }, [comunicadoTipo, comunicadoTitulo, comunicadoSaudacao, comunicadoHtml, comunicadoTelefone, ilustracoes]);
 
   const handleTipoComunicadoChange = (tipo: 'interno' | 'externo' | 'aviso_curto') => {
     setComunicadoTipo(tipo);
@@ -128,14 +171,25 @@ export default function PainelComunicados() {
   };
 
   const executarGeracaoComunicado = async (formato: 'pdf' | 'jpg') => {
-    if (!comunicadoConteudo.trim()) return alert("Digite o conteúdo da mensagem.");
+    const conteudoTags = parseHtmlToTags(comunicadoHtml);
+    if (!conteudoTags.trim()) return alert("Digite o conteúdo da mensagem.");
+    
     const payloadIlustracoes = ilustracoes.map(img => ({ imgElement: img.src, x: img.x, y: img.y, largura: img.width, altura: img.height }));
     const payload = {
-      tipo: comunicadoTipo, titulo: comunicadoTitulo, saudacao: comunicadoSaudacao, conteudo: comunicadoConteudo, telefoneContato: comunicadoTelefone,
+      tipo: comunicadoTipo, titulo: comunicadoTitulo, saudacao: comunicadoSaudacao, conteudo: conteudoTags, telefoneContato: comunicadoTelefone,
       ilustracoes: payloadIlustracoes.length > 0 ? payloadIlustracoes : undefined
     };
     if (formato === 'pdf') await gerarPDFComunicado(payload);
     else await gerarJPGComunicado(payload);
+  };
+
+  // --- COMANDOS DO EDITOR WYSIWYG ---
+  const execEditorCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+    if (editorRef.current) {
+      setComunicadoHtml(editorRef.current.innerHTML);
+    }
   };
 
   return (
@@ -162,8 +216,34 @@ export default function PainelComunicados() {
           </div>
         </div>
 
-        <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>CORPO DA MENSAGEM</label>
-        <textarea value={comunicadoConteudo} onChange={e => setComunicadoConteudo(e.target.value)} placeholder="Use colchetes para gerar blocos de data azuis/verdes. Ex: [27/04] Ensaio." rows={8} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '15px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', color: '#1e293b' }} />
+        <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>CORPO DA MENSAGEM (EDITOR VISUAL)</label>
+        
+        {/* EDITOR WYSIWYG ESTILO WORD */}
+        <div style={{ border: '1px solid #cbd5e1', borderRadius: '12px', overflow: 'hidden', marginBottom: '15px', backgroundColor: 'white' }}>
+            {/* Toolbar */}
+            <div style={{ display: 'flex', gap: '5px', padding: '8px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => execEditorCommand('bold')} title="Negrito" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', color: '#334155' }}>
+                  <span style={{fontWeight: 900}}>B</span> Negrito
+                </button>
+                <div style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 5px', alignSelf: 'center' }}></div>
+                <button type="button" onClick={() => execEditorCommand('justifyLeft')} title="Esquerda" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', color: '#334155' }}>⇤ Esq</button>
+                <button type="button" onClick={() => execEditorCommand('justifyCenter')} title="Centralizar" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', color: '#334155' }}>≡ Centro</button>
+                <button type="button" onClick={() => execEditorCommand('justifyRight')} title="Direita" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', color: '#334155' }}>⇥ Dir</button>
+                <div style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 5px', alignSelf: 'center' }}></div>
+                <button type="button" onClick={() => execEditorCommand('fontSize', '6')} title="Aumentar Fonte" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', color: '#2563eb' }}>A+</button>
+                <button type="button" onClick={() => execEditorCommand('fontSize', '3')} title="Fonte Normal" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', color: '#475569' }}>A</button>
+                <button type="button" onClick={() => execEditorCommand('fontSize', '2')} title="Diminuir Fonte" style={{ padding: '6px 12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', color: '#dc2626' }}>A-</button>
+            </div>
+            
+            {/* Editable Content */}
+            <div 
+              ref={editorRef}
+              contentEditable
+              onInput={(e) => setComunicadoHtml(e.currentTarget.innerHTML)}
+              style={{ width: '100%', minHeight: '200px', padding: '16px', outline: 'none', color: '#1e293b', fontSize: '14px', lineHeight: '1.6', overflowY: 'auto' }}
+              data-placeholder="Digite sua mensagem aqui... Selecione o texto e use a barra acima para formatar."
+            />
+        </div>
 
         {comunicadoTipo === 'externo' && (
           <div style={{ marginBottom: '20px' }}>
