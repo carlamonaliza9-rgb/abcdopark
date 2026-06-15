@@ -7,8 +7,15 @@ interface ModalListaGastosProps {
   onFechar: () => void;
   mesFiltro: string;
   listaGastos: any[];
-  titulo?: string; // Adicionado para alternar entre Gastos e Receitas
-  onExcluir?: (id: string) => void; // Adicionado para permitir exclusão
+  titulo?: string;
+  onExcluir?: (id: string) => void;
+  // Nova propriedade opcional para receber os dados do gráfico
+  distribuicaoReceitas?: {
+    mensalidades: number;
+    extras: number;
+    pctMensalidades: number;
+    pctExtras: number;
+  };
 }
 
 export function ModalListaGastos({ 
@@ -17,11 +24,12 @@ export function ModalListaGastos({
   mesFiltro, 
   listaGastos, 
   titulo, 
-  onExcluir 
+  onExcluir,
+  distribuicaoReceitas
 }: ModalListaGastosProps) {
   if (!aberto) return null;
 
-  // Lógica cirúrgica para identificar se estamos vendo Receitas ou Gastos para ajustar a cor
+  // Lógica cirúrgica para identificar se estamos vendo Receitas ou Gastos para ajustar a cor e o gráfico
   const ehReceita = titulo?.toLowerCase().includes("receita");
 
   return (
@@ -37,6 +45,35 @@ export function ModalListaGastos({
           <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>{titulo || `Gastos de ${mesFiltro}`}</h2>
           <button onClick={onFechar} style={{ fontSize: '24px', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
         </div>
+
+        {/* GRÁFICO SINGELO DE RECEITAS (Só aparece se for modal de receitas e se os dados existirem) */}
+        {ehReceita && distribuicaoReceitas && (
+          <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '16px' }}>
+            <p style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '12px', textAlign: 'center' }}>COMPOSIÇÃO DAS ENTRADAS</p>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+              <span style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+                Mensalidades ({distribuicaoReceitas.pctMensalidades}%)
+              </span>
+              <span style={{ color: '#6366f1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Taxas Extras ({distribuicaoReceitas.pctExtras}%)
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#818cf8' }}></div>
+              </span>
+            </div>
+            
+            <div style={{ width: '100%', height: '10px', display: 'flex', borderRadius: '9999px', overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+              <div style={{ width: `${distribuicaoReceitas.pctMensalidades}%`, backgroundColor: '#10b981', transition: 'all 0.3s' }}></div>
+              <div style={{ width: `${distribuicaoReceitas.pctExtras}%`, backgroundColor: '#818cf8', transition: 'all 0.3s' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: '500', color: '#64748b', marginTop: '8px' }}>
+              <span>R$ {distribuicaoReceitas.mensalidades.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              <span>R$ {distribuicaoReceitas.extras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
@@ -51,7 +88,7 @@ export function ModalListaGastos({
               {listaGastos.map(g => (
                 <tr key={g.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '12px' }}>{g.descricao}</td>
-                  <td>{new Date(g.data_gasto).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
+                  <td>{g.data_gasto ? new Date(g.data_gasto + "T12:00:00").toLocaleDateString('pt-BR') : '--'}</td>
                   <td style={{ color: ehReceita ? '#10b981' : '#b91c1c', fontWeight: 'bold' }}>
                     R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>

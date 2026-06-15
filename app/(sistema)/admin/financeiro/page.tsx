@@ -28,6 +28,10 @@ export default function FinanceiroAdminPage() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
+  
+  // NOVO: Estado para armazenar os cálculos do gráfico do modal
+  const [distribuicaoReceitas, setDistribuicaoReceitas] = useState({ mensalidades: 0, extras: 0, pctMensalidades: 0, pctExtras: 0 });
+  
   const [carregando, setCarregando] = useState(true);
 
   const [radarInadimplencia, setRadarInadimplencia] = useState<any[]>([]);
@@ -89,8 +93,6 @@ export default function FinanceiroAdminPage() {
       pgtosMes.forEach((p: any) => mapaPgtos.set(p.id, p));
       pgtosPendentes.forEach((p: any) => mapaPgtos.set(p.id, p));
       const pgtosFiltrados = Array.from(mapaPgtos.values());
-      
-      setListaReceitasDetalhada(pgtosFiltrados);
 
       const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
       const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
@@ -106,6 +108,24 @@ export default function FinanceiroAdminPage() {
 
       const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
       const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+
+      // NOVO: Cálculo de distribuição de receitas para o gráfico do Modal
+      const vMensalidadesPagos = pgtosEfetuadosEsteMes
+        .filter((p: any) => p.tipo === 'mensalidade')
+        .reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+        
+      const vExtrasPagos = vPago - vMensalidadesPagos;
+      const totalReceitasCalc = vPago || 1; // evita divisão por zero
+
+      setDistribuicaoReceitas({
+        mensalidades: vMensalidadesPagos,
+        extras: vExtrasPagos,
+        pctMensalidades: Math.round((vMensalidadesPagos / totalReceitasCalc) * 100),
+        pctExtras: Math.round((vExtrasPagos / totalReceitasCalc) * 100)
+      });
+
+      // ADICIONADO: Agora a lista de receitas detalhadas pega apenas o que realmente foi pago no mês filtrado
+      setListaReceitasDetalhada(pgtosEfetuadosEsteMes);
 
       const metodosResumo = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
         const det = curr.detalhes_metodos || {};
@@ -500,10 +520,12 @@ export default function FinanceiroAdminPage() {
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada} onExcluir={handleExcluirGasto}
       />
 
+      {/* NOVO: Propriedade distribuicaoReceitas adicionada ao Modal de Receitas */}
       <ModalListaGastos 
         titulo="Detalhamento de Receitas"
         aberto={modalListaReceitasAberto} onFechar={() => setModalListaReceitasAberto(false)}
         mesFiltro={mesFiltro} 
+        distribuicaoReceitas={distribuicaoReceitas}
         listaGastos={listaReceitasDetalhada.map((r: any) => {
           const etiquetaCategoria = 
             r.tipo === "mensalidade" ? "MENSALIDADE" :
@@ -516,7 +538,7 @@ export default function FinanceiroAdminPage() {
             ...r, 
             descricao: `[${etiquetaCategoria}] ${alunos.find((a: any) => a.id === r.aluno_id)?.nome || 'Outro'} - ${r.descricao}`, 
             data_gasto: r.data_pagamento, 
-            valor: r.valor_total 
+            valor: r.valor_pago || r.valor_total 
           };
         })}
         onExcluir={handleExcluirReceita}
