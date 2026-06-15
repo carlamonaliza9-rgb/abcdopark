@@ -74,13 +74,15 @@ export function AlunoCard({ aluno, obterCorTurma, mWhatsApp, onAbrirFicha, rotaP
 
         {/* Tag da Turma */}
         <span 
-          className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3"
+          className="text-[11px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full mb-3 shadow-sm border"
           style={{ 
             backgroundColor: isTransferido ? '#f8fafc' : `${accentColor}15`,
-            color: isTransferido ? '#64748b' : accentColor
+            color: isTransferido ? '#64748b' : accentColor,
+            borderColor: isTransferido ? '#e2e8f0' : `${accentColor}30`,
+            opacity: 1 // Força 100% de opacidade no elemento inteiro
           }}
         >
-          {isTransferido ? "Transferido" : (aluno.turma || "Sem Turma")}
+          {isTransferido ? "Transferido" : (aluno.turma || "Sem Turma") }
         </span>
 
         {/* Nome do Aluno */}
@@ -91,7 +93,7 @@ export function AlunoCard({ aluno, obterCorTurma, mWhatsApp, onAbrirFicha, rotaP
         {/* Rodapé: Dados do Responsável com linha colorida herdando a cor da turma */}
         <div 
           className="w-full pt-6 mt-auto border-t-2 flex flex-col items-center text-center transition-colors"
-          style={{ borderColor: isTransferido ? '#e2e8f0' : `${accentColor}99` }} // 40 no final aplica 25% de opacidade no hex
+          style={{ borderColor: isTransferido ? '#e2e8f0' : `${accentColor}99` }} // 99 no final aplica 60% de opacidade no hex
         >
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
             Responsável
