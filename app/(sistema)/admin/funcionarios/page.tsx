@@ -158,27 +158,43 @@ export default function FuncionariosAdminPage() {
     }
   };
 
-  // --- BUSCA INTELIGENTE (FUNCIONÁRIOS + CRUZAMENTO COM TURMAS) ---
+  // --- BUSCA INTELIGENTE BLINDADA (FUNCIONÁRIOS + CRUZAMENTO COM TURMAS E DISCIPLINAS) ---
   async function buscarFuncionariosETurmas() {
-    const [resFuncs, resTurmasInfo] = await Promise.all([
+    const [resFuncs, resTurmasInfo, resDisc] = await Promise.all([
       supabase.from('funcionarios').select('*').order('nome', { ascending: true }),
-      supabase.from('turmas_info').select('*')
+      supabase.from('turmas_info').select('*'),
+      supabase.from('turma_disciplinas').select('*').eq('ano', '2026')
     ]);
 
     if (resFuncs.data) {
       const funcionariosComTurmas = resFuncs.data.map(func => {
-        const turmasVinculadas = (resTurmasInfo.data || [])
+        // Blindagem 1: Remove espaços e coloca em minúsculo
+        const funcNomeLimpo = (func.nome || "").trim().toLowerCase(); 
+
+        // 1. Procura nas informações gerais (Auxiliares e legado)
+        const turmasViaInfo = (resTurmasInfo.data || [])
           .filter(t => 
-            t.prof_fixo_1 === func.nome || 
-            t.prof_fixo_2 === func.nome || 
-            t.prof_especifico_1 === func.nome || 
-            t.prof_especifico_2 === func.nome
+            (t.prof_fixo_1 || "").trim().toLowerCase() === funcNomeLimpo || 
+            (t.prof_fixo_2 || "").trim().toLowerCase() === funcNomeLimpo || 
+            (t.prof_especifico_1 || "").trim().toLowerCase() === funcNomeLimpo || 
+            (t.prof_especifico_2 || "").trim().toLowerCase() === funcNomeLimpo ||
+            (t.auxiliar || "").trim().toLowerCase() === funcNomeLimpo ||
+            (t.auxiliar_1 || "").trim().toLowerCase() === funcNomeLimpo ||
+            (t.auxiliar_2 || "").trim().toLowerCase() === funcNomeLimpo
           )
           .map(t => t.nome_turma);
 
+        // 2. Procura diretamente nas Disciplinas (Nova regra dos Professores)
+        const turmasViaDisciplinas = (resDisc.data || [])
+          .filter(d => (d.professor_vinculado || "").trim().toLowerCase() === funcNomeLimpo)
+          .map(d => d.nome_turma);
+
+        // Junta as duas buscas e remove duplicatas (Set garante que a turma não apareça duas vezes)
+        const todasTurmas = Array.from(new Set([...turmasViaInfo, ...turmasViaDisciplinas]));
+
         return {
           ...func,
-          turmas_dinamicas: turmasVinculadas 
+          turmas_dinamicas: todasTurmas 
         };
       });
 
@@ -224,7 +240,14 @@ export default function FuncionariosAdminPage() {
     setCompletedCrop(undefined);
   };
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
+  const fecharModalPrincipal = () => {
+    if (modoEdicao && idEdicao) {
+      setModoEdicao(false); 
+    } else {
+      setModalAberto(false); 
+    }
+  };
+
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -254,13 +277,14 @@ export default function FuncionariosAdminPage() {
         if (uploadData) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
 
+      // Blindagem 2: Salva o nome sem espaços inúteis
       const dados = { 
-        nome, 
+        nome: nome.trim(), 
         cpf: cpf || null, 
         data_nascimento: dataNascimento || null, 
         cargo, 
         whatsapp: whatsapp || null, 
-        email: email || null, 
+        email: email ? email.trim() : null, 
         cep: cep || null,
         endereco: endereco || null,
         foto_url: urlFinal 
@@ -273,9 +297,9 @@ export default function FuncionariosAdminPage() {
       if (dbError) throw dbError;
 
       if (idEdicao) {
-        await registrarLog("EDIÇÃO", `Editou os dados do colaborador: ${nome} (Cargo: ${cargo || 'Não definido'})`);
+        await registrarLog("EDIÇÃO", `Editou os dados do colaborador: ${nome.trim()} (Cargo: ${cargo || 'Não definido'})`);
       } else {
-        await registrarLog("INSERÇÃO", `Cadastrou um novo colaborador: ${nome} (Cargo: ${cargo || 'Não definido'})`);
+        await registrarLog("INSERÇÃO", `Cadastrou um novo colaborador: ${nome.trim()} (Cargo: ${cargo || 'Não definido'})`);
       }
 
       setModalAberto(false); 
@@ -483,11 +507,20 @@ export default function FuncionariosAdminPage() {
 
       {/* MODAL PRINCIPAL (FICHA/EDIÇÃO) */}
       {modalAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px' }}>
+        <div 
+          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px' }}
+          onClick={fecharModalPrincipal}
+        >
           
           {fotoOriginal && modoEdicao && (
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '24px', textAlign: 'center', maxWidth: '95%', maxHeight: '95%', display: 'flex', flexDirection: 'column' }}>
+              <div 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                onClick={cancelarCorte}
+              >
+                  <div 
+                    style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '24px', textAlign: 'center', maxWidth: '95%', maxHeight: '95%', display: 'flex', flexDirection: 'column' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                       <h3 style={{ marginTop: 0, color: '#0f172a', fontWeight: '800' }}>Ajustar Enquadramento (Capa do Card)</h3>
                       <div style={{ overflow: 'auto', flex: 1, backgroundColor: '#f1f5f9', borderRadius: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ReactCrop crop={crop} onChange={(pixelCrop, percentCrop) => setCrop(percentCrop)} onComplete={(c) => setCompletedCrop(c)} aspect={aspect}>
@@ -502,7 +535,10 @@ export default function FuncionariosAdminPage() {
               </div>
           )}
 
-          <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+          <div 
+            style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {!modoEdicao ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ width: '100%', height: '160px', borderRadius: '16px', backgroundColor: '#f1f5f9', marginBottom: '20px', overflow: 'hidden', border: '1px solid #e2e8f0', position: 'relative' }}>
@@ -600,9 +636,9 @@ export default function FuncionariosAdminPage() {
                   </select>
                 </div>
                 
-                {cargo === "Professor" && (
+                {(cargo === "Professor" || cargo === "Auxiliar") && (
                   <div style={{ fontSize: '12px', color: '#059669', backgroundColor: '#d1fae5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
-                    💡 <b>Dica:</b> O vínculo das turmas deste professor é feito automaticamente pela aba <b>"Turmas"</b>. 
+                    💡 <b>Dica:</b> O vínculo das turmas deste colaborador é feito automaticamente pela aba <b>"Turmas"</b>. 
                   </div>
                 )}
 
@@ -641,8 +677,14 @@ export default function FuncionariosAdminPage() {
 
       {/* MODAL DE DOCUMENTOS */}
       {modalDocsAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1010, backdropFilter: 'blur(4px)', padding: '15px' }}>
-          <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+        <div 
+          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1010, backdropFilter: 'blur(4px)', padding: '15px' }}
+          onClick={() => setModalDocsAberto(false)}
+        >
+          <div 
+            style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 style={{ textAlign: 'center', fontWeight: '900', marginTop: 0, color: '#0f172a', fontSize: '22px', marginBottom: '4px' }}>Documentos Obrigatórios</h2>
             <p style={{ textAlign: 'center', color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>{nome}</p>
 

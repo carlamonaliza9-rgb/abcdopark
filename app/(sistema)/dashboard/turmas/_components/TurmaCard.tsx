@@ -72,11 +72,16 @@ export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onG
            </div>
         )}
         
-        {/* Renderiza Auxiliar */}
-        {turma.auxiliar && (
+        {/* Renderiza Auxiliar - AGORA APARECE MESMO SE NÃO TIVER NINGUÉM PARA MANTER O ALINHAMENTO */}
+        {turma.auxiliar ? (
           <div style={styleBloco("Auxiliar", turma.auxiliar, "#a7f3d0")}>
             <span style={{ fontSize: '10px', color: '#059669', textTransform: 'uppercase' }}>👩‍🏫 Auxiliar de Sala</span>
             <span style={{ fontWeight: '800' }}>{primeiroUltimo(turma.auxiliar)}</span>
+          </div>
+        ) : (
+          <div style={styleBloco("Auxiliar", "Sem Auxiliar", "#a7f3d0")}>
+            <span style={{ fontSize: '10px', color: '#059669', textTransform: 'uppercase' }}>👩‍🏫 Auxiliar de Sala</span>
+            <span style={{ fontWeight: '800', color: '#64748b' }}>Sem Auxiliar</span>
           </div>
         )}
 
@@ -108,7 +113,7 @@ export function TurmaCard({ turma, ehAdmin, onAbrirTurma, onEditarProfessor, onG
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
         <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', backgroundColor: 'white', padding: '4px 10px', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
-           👥 {turma.totalAlunos} Alunos
+            👥 {turma.totalAlunos} Alunos
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>
           <button onClick={(e) => { e.stopPropagation(); onEditarProfessor(e, turma.nome); }} title="Vincular Equipe" style={{ padding: '6px 8px', background: 'white', border: `1px solid ${turma.borda}`, borderRadius: '8px', cursor: 'pointer' }}>👨‍🏫</button>

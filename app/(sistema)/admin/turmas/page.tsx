@@ -80,7 +80,6 @@ export default function TurmasAdminPage() {
   const [turmaParaAgenda, setTurmaParaAgenda] = useState<any>(null);
   const [modoAgenda, setModoAgenda] = useState<'registrar' | 'consultar'>('registrar');
 
-  // --- NOVOS ESTADOS PARA VINCULAÇÃO GRANULAR DE PROFESSORES ---
   const [modalVincularAberto, setModalVincularAberto] = useState(false);
   const [turmaVincular, setTurmaVincular] = useState<string>("");
   const [disciplinasTurma, setDisciplinasTurma] = useState<any[]>([]);
@@ -128,7 +127,14 @@ export default function TurmasAdminPage() {
       supabase.from('turma_disciplinas').select('*').eq('ano', '2026')
     ]);
 
-    if (resFuncs.data) setListaProfessores(resFuncs.data);
+    if (resFuncs.data) {
+      // Blindagem 3: Limpa a lista mestra de professores para carregar o modal perfeitamente
+      const profsLimpos = resFuncs.data.map((p: any) => ({
+        ...p,
+        nome: (p.nome || "").trim()
+      }));
+      setListaProfessores(profsLimpos);
+    }
     
     if (resAlunos.data) {
       setTodosAlunos(resAlunos.data);
@@ -138,12 +144,13 @@ export default function TurmasAdminPage() {
         const infoExtra = resInfos.data?.find(i => i.nome_turma === nome);
         const corFundo = coresAtuais[nome] || "#ffffff";
         
-        // --- MOTOR DE TRIAGEM HIERÁRQUICA ---
+        // --- MOTOR DE TRIAGEM HIERÁRQUICA BLINDADO ---
         const discTurma = (resDisc.data || []).filter(d => d.nome_turma === nome && d.professor_vinculado);
         
         // 1. Conta quem dá mais aulas
         const contagemProfs = discTurma.reduce((acc: any, curr: any) => {
-            acc[curr.professor_vinculado] = (acc[curr.professor_vinculado] || 0) + 1;
+            const prof = (curr.professor_vinculado || "").trim();
+            if (prof) acc[prof] = (acc[prof] || 0) + 1;
             return acc;
         }, {});
         
@@ -158,7 +165,9 @@ export default function TurmasAdminPage() {
         let especialistasMap = new Map<string, string[]>(); // Map de Professor -> [Música, Xadrez...]
 
         discTurma.forEach(d => {
-            const prof = d.professor_vinculado;
+            const prof = (d.professor_vinculado || "").trim();
+            if (!prof) return;
+
             if (contagemProfs[prof] === maxMaterias) {
                 if (!regentesLista.includes(prof)) regentesLista.push(prof);
             } else {
@@ -217,14 +226,15 @@ export default function TurmasAdminPage() {
     e.preventDefault();
     setCarregando(true);
     try {
+      // Blindagem 4: Corta espaços extras antes de guardar no banco
       await supabase.from('turmas_info').upsert({
           nome_turma: turmaVincular,
-          auxiliar: infoTurmaAtual.auxiliar || null
+          auxiliar: infoTurmaAtual.auxiliar ? infoTurmaAtual.auxiliar.trim() : null
       }, { onConflict: 'nome_turma' });
 
       for (const disc of disciplinasTurma) {
           await supabase.from('turma_disciplinas').update({
-              professor_vinculado: disc.professor_vinculado || null
+              professor_vinculado: disc.professor_vinculado ? disc.professor_vinculado.trim() : null
           }).eq('id', disc.id);
       }
       
@@ -363,7 +373,6 @@ export default function TurmasAdminPage() {
 
       <TurmasHeader ehAdmin={true} />
 
-      {/* GRADE COM LARGURA MÍNIMA AUMENTADA */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '25px' }}>
         {turmas.map((turma) => (
           <TurmaCard
@@ -396,7 +405,7 @@ export default function TurmasAdminPage() {
         <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={true} onClose={() => setModalAgendaAberto(false)} />
       )}
 
-      {/* NOVO MODAL: VINCULAR EQUIPE PEDAGÓGICA */}
+      {/* NOVO MODAL BLINDADO: VINCULAR EQUIPE PEDAGÓGICA */}
       {modalVincularAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)', padding: '15px' }}>
            <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
