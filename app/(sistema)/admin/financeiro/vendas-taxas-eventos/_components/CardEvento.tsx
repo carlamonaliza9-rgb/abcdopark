@@ -1,6 +1,7 @@
 "use client";
 
-import { Settings, Lock, Trophy, ArrowUpRight, ArrowDownRight, PlusCircle, MinusCircle, Printer } from "lucide-react";
+// Importamos o ícone Unlock para o novo botão de reabrir
+import { Settings, Lock, Trophy, ArrowUpRight, ArrowDownRight, PlusCircle, MinusCircle, Printer, Unlock } from "lucide-react";
 
 interface CardEventoProps {
   evento: any;
@@ -13,6 +14,7 @@ interface CardEventoProps {
   abrirLancamento: (id: string, tipo: 'entrada' | 'saida') => void;
   abrirRelatorioEvento: (ev: any) => void;
   encerrarEventoDefinitivamente: (id: string) => void;
+  reabrirEvento: (id: string) => void; // <--- Adicionado na tipagem
 }
 
 export function CardEvento({
@@ -25,7 +27,8 @@ export function CardEvento({
   abrirDetalhesTransacoes,
   abrirLancamento,
   abrirRelatorioEvento,
-  encerrarEventoDefinitivamente
+  encerrarEventoDefinitivamente,
+  reabrirEvento // <--- Desestruturado aqui
 }: CardEventoProps) {
   const transacoesEvento = historicoPagamentosEventos.filter(t => String(getDetalhes(t).evento_id) === String(evento.id));
   
@@ -190,9 +193,14 @@ export function CardEvento({
             </button>
           </>
         ) : (
-          <button onClick={() => abrirRelatorioEvento(evento)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 shadow-md active:scale-95 animate-fadeIn">
-            <Printer size={18} /> Gerar Relatório Analítico e Extrato Detalhado do Evento
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full animate-fadeIn">
+            <button onClick={() => abrirRelatorioEvento(evento)} className="flex-[2] py-4 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all">
+              <Printer size={18} /> Gerar Relatório Analítico e Extrato
+            </button>
+            <button onClick={() => reabrirEvento(evento.id)} className="flex-1 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-xs uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all">
+              <Unlock size={18} /> Reabrir Evento
+            </button>
+          </div>
         )}
       </div>
 

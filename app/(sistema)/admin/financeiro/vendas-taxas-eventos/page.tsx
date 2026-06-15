@@ -252,6 +252,19 @@ export default function DashboardFinanceiroPage() {
     }
   }
 
+  // --- NOVA FUNÇÃO: REABRIR EVENTO ---
+  async function reabrirEvento(id: string) {
+    if (prompt(`Para REABRIR este evento, digite a Senha Mestra:`) !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (confirm("Confirmar a reabertura deste evento? Os lançamentos poderão ser feitos novamente.")) {
+      try {
+        const { error } = await supabase.from('eventos_controle').update({ encerrado: false }).eq('id', id);
+        if (error) throw error;
+        alert("🔓 Evento reaberto com sucesso!");
+        carregarDados();
+      } catch (err: any) { alert("Erro ao reabrir: " + err.message); }
+    }
+  }
+
   function prepararEdicaoSetup(ev: any) {
     if (ev.encerrado) return alert("Este evento está encerrado e não pode ser editado.");
     setIdEdicaoEvento(ev.id); setNomeEvento(ev.nome); setDataEvento(ev.data_evento || new Date().toISOString().split('T')[0]);
@@ -527,6 +540,7 @@ export default function DashboardFinanceiroPage() {
                 abrirLancamento={abrirLancamento}
                 abrirRelatorioEvento={abrirRelatorioEvento}
                 encerrarEventoDefinitivamente={encerrarEventoDefinitivamente}
+                reabrirEvento={reabrirEvento} // <--- Função passada para o componente
               />
             ))}
             
