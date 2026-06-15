@@ -19,6 +19,15 @@ const clean = (val: any) => {
   return parseFloat(str) || 0;
 };
 
+// Extrator idêntico ao usado nos seus eventos
+const getDetalhes = (t: any) => {
+  if (!t || !t.detalhes_metodos) return {};
+  if (typeof t.detalhes_metodos === 'string') {
+      try { return JSON.parse(t.detalhes_metodos); } catch { return {}; }
+  }
+  return t.detalhes_metodos;
+};
+
 export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
@@ -29,7 +38,6 @@ export default function FinanceiroAdminPage() {
   const [metricas, setMetricas] = useState({ total: 0, pago: 0, pendente: 0, descontos: 0, gastos: 0, lucro: 0 });
   const [resumoMetodos, setResumoMetodos] = useState({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
   
-  // NOVO: Estado para armazenar os cálculos do gráfico do modal
   const [distribuicaoReceitas, setDistribuicaoReceitas] = useState({ mensalidades: 0, extras: 0, pctMensalidades: 0, pctExtras: 0 });
   
   const [carregando, setCarregando] = useState(true);
@@ -77,11 +85,31 @@ export default function FinanceiroAdminPage() {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
+      // Busca Histórico de Pagamentos (Receitas normais e Entradas/Saídas de Eventos)
       const { data: pgtosMesDB } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const { data: pgtosPendentesDB } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
 
       const pgtosMes = pgtosMesDB || [];
       const pgtosPendentes = pgtosPendentesDB || [];
+
+      // SEPARAÇÃO: Receitas (Entradas) vs Saídas (Gastos guardados na tabela de histórico)
+      // Baseado na lógica encontrada no seu ModalLancamentoCaixa
+      const transacoesEntrada = pgtosMes.filter(p => {
+        const detalhes = getDetalhes(p);
+        return p.tipo !== 'evento_saida' && detalhes.sub_tipo !== 'saida' && !(p.descricao && p.descricao.includes('[SAÍDA]'));
+      });
+      
+      // Aqui pegamos o dinheiro que saiu (Eventos) e que está no historico_pagamentos
+      const transacoesSaidaDeHistorico = pgtosMes.filter(p => {
+        const detalhes = getDetalhes(p);
+        return p.tipo === 'evento_saida' || detalhes.sub_tipo === 'saida' || (p.descricao && p.descricao.includes('[SAÍDA]'));
+      }).map(item => ({
+        id: item.id,
+        descricao: `[Evento] ${item.descricao || "Custo do Evento"}`,
+        valor: item.valor_pago || item.valor_total || 0,
+        data_gasto: item.data_pagamento,
+        tabela_origem: 'historico_pagamentos'
+      }));
 
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1];
       const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
@@ -90,53 +118,55 @@ export default function FinanceiroAdminPage() {
         .like('descricao', `%${nomeMesReferencia}%${ano}%`);
 
       const mapaPgtos = new Map();
-      pgtosMes.forEach((p: any) => mapaPgtos.set(p.id, p));
+      transacoesEntrada.forEach((p: any) => mapaPgtos.set(p.id, p));
       pgtosPendentes.forEach((p: any) => mapaPgtos.set(p.id, p));
       const pgtosFiltrados = Array.from(mapaPgtos.values());
 
-      const { data: gastosMes } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
-      const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+      // --- ALGORITMO DEFENSIVO MULTI-TABELAS PARA DESPESAS VARIÁVEIS EXTERNAS ---
+      const normalizeDespesa = (item: any, tabelaOrigem: string) => ({
+        id: item.id,
+        descricao: item.descricao || "Gasto Operacional",
+        valor: item.valor !== undefined ? item.valor : (item.valor_total !== undefined ? item.valor_total : item.preco || 0),
+        data_gasto: item.data_gasto || item.data_pagamento || item.data || item.created_at?.split('T')[0],
+        tabela_origem: tabelaOrigem
+      });
 
+      let deDB_gastos: any[] = [];
+      try {
+        const { data } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
+        if (data) deDB_gastos = data.map(i => normalizeDespesa(i, 'gastos'));
+      } catch (e) {
+        try {
+          const { data } = await supabase.from('gastos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+          if (data) deDB_gastos = data.map(i => normalizeDespesa(i, 'gastos'));
+        } catch (e2) {}
+      }
+
+      let deDB_saidas: any[] = [];
+      try {
+        const { data } = await supabase.from('saidas').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
+        if (data) deDB_saidas = data.map(i => normalizeDespesa(i, 'saidas'));
+      } catch (e) {
+        try {
+          const { data } = await supabase.from('saidas').select('*').gte('data_saida', dataInicio).lte('data_saida', dataFim);
+          if (data) deDB_saidas = data.map(i => normalizeDespesa(i, 'saidas'));
+        } catch (e2) {}
+      }
+
+      // Busca de Contas Fixas Tradicionais
+      const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const contasFormatadas = (contasPagasMes || []).map((account: any) => ({
         id: account.id,
         descricao: `[Conta Fixa] ${account.descricao}`,
         valor: account.valor,
-        data_gasto: account.data_pagamento
+        data_gasto: account.data_pagamento,
+        tabela_origem: 'contas_a_pagar'
       }));
-      const todasAsDespesas = [...(gastosMes || []), ...contasFormatadas];
+
+      // --- CONSOLIDAÇÃO GERAL: Junta todas as tabelas + os gastos salvos como "saida" no histórico ---
+      const todasAsDespesas = [...deDB_gastos, ...deDB_saidas, ...transacoesSaidaDeHistorico, ...contasFormatadas];
       setListaGastosDetalhada(todasAsDespesas);
 
-      const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
-      const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
-
-      // NOVO: Cálculo de distribuição de receitas para o gráfico do Modal
-      const vMensalidadesPagos = pgtosEfetuadosEsteMes
-        .filter((p: any) => p.tipo === 'mensalidade')
-        .reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
-        
-      const vExtrasPagos = vPago - vMensalidadesPagos;
-      const totalReceitasCalc = vPago || 1; // evita divisão por zero
-
-      setDistribuicaoReceitas({
-        mensalidades: vMensalidadesPagos,
-        extras: vExtrasPagos,
-        pctMensalidades: Math.round((vMensalidadesPagos / totalReceitasCalc) * 100),
-        pctExtras: Math.round((vExtrasPagos / totalReceitasCalc) * 100)
-      });
-
-      // ADICIONADO: Agora a lista de receitas detalhadas pega apenas o que realmente foi pago no mês filtrado
-      setListaReceitasDetalhada(pgtosEfetuadosEsteMes);
-
-      const metodosResumo = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
-        const det = curr.detalhes_metodos || {};
-        acc.pix += parseFloat(det.pix || 0);
-        acc.dinheiro += parseFloat(det.dinheiro || 0);
-        acc.credito += parseFloat(det.credito || 0);
-        acc.debito += parseFloat(det.debito || 0);
-        return acc;
-      }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
-      setResumoMetodos(metodosResumo);
-      
       let vGastos = 0;
       let vFixas = 0;
       let vVariaveis = 0;
@@ -144,9 +174,14 @@ export default function FinanceiroAdminPage() {
       todasAsDespesas.forEach((g: any) => {
         const val = clean(g.valor);
         vGastos += val;
-        if (g.descricao?.includes("[Conta Fixa]")) {
+        
+        // Se vier de contas_a_pagar ou tiver a tag [Conta Fixa], é Custo Fixo.
+        const isFixa = (g.descricao && g.descricao.includes("[Conta Fixa]")) || g.tabela_origem === 'contas_a_pagar';
+        
+        if (isFixa) {
           vFixas += val;
         } else {
+          // O resto (incluindo os eventos) cai em Variáveis / Eventos
           vVariaveis += val;
         }
       });
@@ -158,6 +193,35 @@ export default function FinanceiroAdminPage() {
         pctFixas: Math.round((vFixas / totalGastosMestre) * 100),
         pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100)
       });
+
+      const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
+      const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+
+      const vMensalidadesPagos = pgtosEfetuadosEsteMes
+        .filter((p: any) => p.tipo === 'mensalidade')
+        .reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+        
+      const vExtrasPagos = vPago - vMensalidadesPagos;
+      const totalReceitasCalc = vPago || 1;
+
+      setDistribuicaoReceitas({
+        mensalidades: vMensalidadesPagos,
+        extras: vExtrasPagos,
+        pctMensalidades: Math.round((vMensalidadesPagos / totalReceitasCalc) * 100),
+        pctExtras: Math.round((vExtrasPagos / totalReceitasCalc) * 100)
+      });
+
+      setListaReceitasDetalhada(pgtosEfetuadosEsteMes);
+
+      const textResumoMetodos = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
+        const det = getDetalhes(curr);
+        acc.pix += parseFloat(det.pix || 0);
+        acc.dinheiro += parseFloat(det.dinheiro || 0);
+        acc.credito += parseFloat(det.credito || 0);
+        acc.debito += parseFloat(det.debito || 0);
+        return acc;
+      }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
+      setResumoMetodos(textResumoMetodos);
 
       const diasNoMes = ultimoDiaObjeto.getDate();
       const mapaDias = Array.from({ length: diasNoMes }, (_, i) => ({ dia: i + 1, valor: 0 }));
@@ -179,7 +243,6 @@ export default function FinanceiroAdminPage() {
           const estaPagoNesseMes = idsPagosNestaReferencia.includes(aluno.id);
           if (estaPagoNesseMes) return { ...aluno, status: 'pago' };
 
-          // INTERCEPTAÇÃO DE ACORDOS: Identifica renegociações pendentes ou parciais do mês ativo
           const temAcordoDesteMes = pgtosPendentes.some((p: any) => {
             const isAcordo = p.tipo === 'acordo';
             const pertenceAluno = p.aluno_id === aluno.id;
@@ -197,12 +260,10 @@ export default function FinanceiroAdminPage() {
         const mensalidadesPrevistas = listaAlunos.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
         
         const stringFiltroMensalidade = `${nomeMesReferencia}/${ano}`;
-        const mensalidadesDesteMes = pgtosFiltrados.filter((p: any) => p.tipo === 'mensalidade' && p.descricao.includes(stringFiltroMensalidade));
+        const mensalidadesDesteMes = pgtosFiltrados.filter((p: any) => p.tipo === 'mensalidade' && p.descricao && p.descricao.includes(stringFiltroMensalidade));
         const vMensalidadesDesteMesPago = mensalidadesDesteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago) || 0), 0);
         const vMensalidadesDesteMesPendente = Math.max(0, mensalidadesPrevistas - vMensalidadesDesteMesPago);
 
-        const todasPendenciasExtras = pgtosFiltrados.filter((p: any) => p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado');
-        
         const extrasPendentesDesteMes = pgtosFiltrados.filter((p: any) => {
           const statusPendente = p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado';
           if (!statusPendente) return false;
@@ -212,7 +273,7 @@ export default function FinanceiroAdminPage() {
           if (dataAlvo) {
             return dataAlvo.startsWith(`${ano}-${mes}`);
           }
-          return p.descricao?.includes(nomeMesReferencia) && p.descricao?.includes(ano);
+          return p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano);
         });
 
         const vExtrasPendente = extrasPendentesDesteMes.reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
@@ -235,6 +296,7 @@ export default function FinanceiroAdminPage() {
         });
 
         const mapaDevedores = new Map();
+        const todasPendenciasExtras = pgtosFiltrados.filter((p: any) => p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado');
         todasPendenciasExtras.forEach((pend: any) => {
           const saldoDevedor = clean(pend.valor_total) - clean(pend.valor_pago);
           if (saldoDevedor > 0) {
@@ -368,8 +430,12 @@ export default function FinanceiroAdminPage() {
 
   async function handleExcluirGasto(id: string) {
     if (userCargo !== 'Admin') return alert("Operação não autorizada para o seu nível de acesso.");
+    
+    const gastoAlvo = listaGastosDetalhada.find(g => g.id === id);
+    const tabelaOrigem = gastoAlvo?.tabela_origem || 'gastos';
+
     if (confirm("Tem a certeza de que deseja remover esta despesa permanentemente?")) {
-      const { error } = await supabase.from('gastos').delete().eq('id', id);
+      const { error } = await supabase.from(tabelaOrigem).delete().eq('id', id);
       if (error) return alert("Erro ao excluir: Verifique as permissões na base de dados.");
       carregarDados();
     }
@@ -520,7 +586,6 @@ export default function FinanceiroAdminPage() {
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada} onExcluir={handleExcluirGasto}
       />
 
-      {/* NOVO: Propriedade distribuicaoReceitas adicionada ao Modal de Receitas */}
       <ModalListaGastos 
         titulo="Detalhamento de Receitas"
         aberto={modalListaReceitasAberto} onFechar={() => setModalListaReceitasAberto(false)}
