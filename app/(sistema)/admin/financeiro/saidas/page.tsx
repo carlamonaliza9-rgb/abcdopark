@@ -15,6 +15,13 @@ import { ModalGasto } from "@/app/(sistema)/dashboard/financeiro/_components/Mod
 
 const SENHA_MESTRA = "1234";
 
+// Função utilitária para prevenir NaN e lidar com vírgulas
+const converterValorSeguro = (val: string | number) => {
+  if (!val) return 0;
+  if (typeof val === "number") return val;
+  return parseFloat(val.replace(',', '.')) || 0;
+};
+
 // ============================================================================
 // 1. COMPONENTE: CONTAS A PAGAR
 // ============================================================================
@@ -104,18 +111,22 @@ function VisaoContasAPagar({ userEmail, userCargo }: { userEmail: string | null,
 
   async function salvarEdicao(e: React.FormEvent) {
     e.preventDefault();
+    const valorTratado = converterValorSeguro(editValor);
+
     const { error } = await supabase.from('contas_a_pagar').update({
-      descricao: editDescricao, valor: parseFloat(editValor), data_vencimento: editVencimento
+      descricao: editDescricao, 
+      valor: valorTratado, 
+      data_vencimento: editVencimento
     }).eq('id', contaEmEdicao.id);
 
     if (error) return alert("Erro ao atualizar: " + error.message);
 
     if (editAplicarATodas) {
       if (contaEmEdicao.grupo_id) {
-        await supabase.from('contas_a_pagar').update({ valor: parseFloat(editValor) }).eq('grupo_id', contaEmEdicao.grupo_id).neq('id', contaEmEdicao.id);
+        await supabase.from('contas_a_pagar').update({ valor: valorTratado }).eq('grupo_id', contaEmEdicao.grupo_id).neq('id', contaEmEdicao.id);
       } else {
         const base = contaEmEdicao.descricao.replace(/\s\(\d+\/\d+\)$/, '');
-        await supabase.from('contas_a_pagar').update({ valor: parseFloat(editValor) }).like('descricao', `${base}%`).eq('is_recorrente', true).neq('id', contaEmEdicao.id);
+        await supabase.from('contas_a_pagar').update({ valor: valorTratado }).like('descricao', `${base}%`).eq('is_recorrente', true).neq('id', contaEmEdicao.id);
       }
     }
     setContaEmEdicao(null);
@@ -123,7 +134,9 @@ function VisaoContasAPagar({ userEmail, userCargo }: { userEmail: string | null,
   }
 
   async function registrarPagamento(file: File | null, dataPgto: string) {
+    if (!contaParaPagar) return;
     setSalvandoPgto(true);
+
     try {
       let urlFinal = contaParaPagar.comprovante_url;
 
@@ -232,24 +245,34 @@ function VisaoContasAPagar({ userEmail, userCargo }: { userEmail: string | null,
         </div>
       </section>
 
-      <ModalEdicaoConta 
-        aberto={!!contaEmEdicao} contaEmEdicao={contaEmEdicao}
-        editDescricao={editDescricao} setEditDescricao={setEditDescricao}
-        editValor={editValor} setEditValor={setEditValor}
-        editVencimento={editVencimento} setEditVencimento={setEditVencimento}
-        editAplicarATodas={editAplicarATodas} setEditAplicarATodas={setEditAplicarATodas}
-        onSalvar={salvarEdicao} onFechar={() => setContaEmEdicao(null)}
-      />
+      {/* Trava Condicional de Segurança: Os modais só renderizam se houver dados injetados */}
+      {contaEmEdicao && (
+        <ModalEdicaoConta 
+          aberto={!!contaEmEdicao} 
+          contaEmEdicao={contaEmEdicao}
+          editDescricao={editDescricao} setEditDescricao={setEditDescricao}
+          editValor={editValor} setEditValor={setEditValor}
+          editVencimento={editVencimento} setEditVencimento={setEditVencimento}
+          editAplicarATodas={editAplicarATodas} setEditAplicarATodas={setEditAplicarATodas}
+          onSalvar={salvarEdicao} onFechar={() => setContaEmEdicao(null)}
+        />
+      )}
 
-      <ModalExclusaoConta 
-        aberto={!!contaParaExcluir} contaParaExcluir={contaParaExcluir}
-        onProcessarExclusao={processarExclusao} onFechar={() => setContaParaExcluir(null)}
-      />
+      {contaParaExcluir && (
+        <ModalExclusaoConta 
+          aberto={!!contaParaExcluir} 
+          contaParaExcluir={contaParaExcluir}
+          onProcessarExclusao={processarExclusao} onFechar={() => setContaParaExcluir(null)}
+        />
+      )}
 
-      <ModalConfirmarPagamento 
-        aberto={!!contaParaPagar} contaParaPagar={contaParaPagar}
-        salvandoPgto={salvandoPgto} onRegistrarPagamento={registrarPagamento} onFechar={() => setContaParaPagar(null)}
-      />
+      {contaParaPagar && (
+        <ModalConfirmarPagamento 
+          aberto={!!contaParaPagar} 
+          contaParaPagar={contaParaPagar}
+          salvandoPgto={salvandoPgto} onRegistrarPagamento={registrarPagamento} onFechar={() => setContaParaPagar(null)}
+        />
+      )}
     </div>
   );
 }
@@ -315,9 +338,11 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: { userEmail: string | 
 
     if (!descGasto || !valorGasto) return alert("Preencha todos os campos.");
 
+    const valorTratado = converterValorSeguro(valorGasto);
+
     const { error } = await supabase.from('gastos').insert([{ 
       descricao: descGasto, 
-      valor: parseFloat(valorGasto), 
+      valor: valorTratado, 
       data_gasto: dataGasto 
     }]);
 
@@ -340,8 +365,8 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: { userEmail: string | 
     
     if (prompt("Senha Mestra para EXCLUIR GASTO:") === SENHA_MESTRA) {
        if(confirm("Confirmar exclusão definitiva deste registro de gasto?")) {
-          await supabase.from('gastos').delete().eq('id', gasto.id);
-          carregarDados();
+         await supabase.from('gastos').delete().eq('id', gasto.id);
+         carregarDados();
        }
     } else { alert("Senha incorreta."); }
   }

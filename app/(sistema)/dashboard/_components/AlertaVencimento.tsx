@@ -7,17 +7,21 @@ export function AlertaVencimento() {
   const [contasDeHoje, setContasDeHoje] = useState<any[]>([]);
   const [visivel, setVisivel] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // Deteta a página atual
+  const pathname = usePathname(); 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Verificação segura (evita null no SSR do Next.js)
+  // Baseado na tua árvore de arquivos, a página de destino se chama "saidas"
+  const isPaginaContas = pathname?.includes("/admin/financeiro/saidas") || false;
 
   async function verificarVencimentos() {
     // Se estiver na página de contas, não precisamos mostrar o alerta
-    if (pathname === "/dashboard/financeiro/contas-a-pagar") {
+    if (isPaginaContas) {
       setVisivel(false);
       return;
     }
 
-    // CORREÇÃO DE FUSO HORÁRIO: Garante que pegue "hoje" no horário local de Belém
+    // Garante que pegue "hoje" no horário local
     const agora = new Date();
     const hoje = [
       agora.getFullYear(),
@@ -25,25 +29,28 @@ export function AlertaVencimento() {
       String(agora.getDate()).padStart(2, '0')
     ].join('-');
     
-    // ALTERAÇÃO: .lte garante que mostre contas vencendo hoje E contas atrasadas
-    const { data } = await supabase
-      .from('contas_a_pagar')
-      .select('descricao, valor')
-      .eq('pago', false)
-      .lte('data_vencimento', hoje);
+    try {
+      const { data } = await supabase
+        .from('contas_a_pagar')
+        .select('descricao, valor')
+        .eq('pago', false)
+        .lte('data_vencimento', hoje);
 
-    if (data && data.length > 0) {
-      setContasDeHoje(data);
-      setVisivel(true);
-    } else {
-      setVisivel(false);
+      if (data && data.length > 0) {
+        setContasDeHoje(data);
+        setVisivel(true);
+      } else {
+        setVisivel(false);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar contas pendentes:", err);
     }
   }
 
   // EFEITO 1: Monitora a página e o tempo
   useEffect(() => {
-    // Se o utilizador entrar na página de Contas a Pagar, esconde o alerta e inicia o contador de 30min
-    if (pathname === "/dashboard/financeiro/contas-a-pagar") {
+    // Se o utilizador entrar na página de destino, esconde o alerta e inicia o contador
+    if (isPaginaContas) {
       setVisivel(false);
       
       // Limpa cronómetros anteriores para não duplicar
@@ -52,22 +59,42 @@ export function AlertaVencimento() {
       // Agenda uma nova verificação para daqui a 30 minutos
       timerRef.current = setTimeout(() => {
         verificarVencimentos();
-      }, 30 * 60 * 1000); // 30 minutos em milissegundos
+      }, 30 * 60 * 1000); 
     } else {
-      // Se não estiver na página (incluindo logo após o login), verifica imediatamente
       verificarVencimentos();
     }
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [pathname]); // Executa sempre que mudar de página
+  }, [pathname, isPaginaContas]); 
+
+  // Função robusta de formatação para evitar crash se 'valor' vier como String
+  const formatarMoedaSegura = (valor: any) => {
+    const numero = Number(valor) || 0;
+    return numero.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
+
+  // Navegação Blindada
+  const lidarComNavegacao = () => {
+    setVisivel(false); // Esconde a UI imediatamente
+    
+    // ROTA CORRETA BASEADA NA ESTRUTURA DO NEXT.JS (Sem as pastas entre parênteses)
+    const ROTA_DESTINO = "/admin/financeiro/saidas";
+    
+    try {
+      router.push(ROTA_DESTINO);
+    } catch (err) {
+      // Fallback nativo
+      window.location.href = ROTA_DESTINO;
+    }
+  };
 
   if (!visivel || contasDeHoje.length === 0) return null;
 
   return (
     <div 
-      onClick={() => router.push("/dashboard/financeiro/contas-a-pagar")}
+      onClick={lidarComNavegacao}
       style={{
         position: 'fixed',
         top: '20px',
@@ -92,7 +119,6 @@ export function AlertaVencimento() {
           onClick={(e) => {
             e.stopPropagation(); 
             setVisivel(false);
-            // Ao fechar manualmente, também agendamos o retorno em 30min
             if (timerRef.current) clearTimeout(timerRef.current);
             timerRef.current = setTimeout(verificarVencimentos, 30 * 60 * 1000);
           }} 
@@ -110,7 +136,7 @@ export function AlertaVencimento() {
         {contasDeHoje.map((conta, index) => (
           <div key={index} style={{ backgroundColor: '#fef2f2', padding: '8px', borderRadius: '8px', marginBottom: '5px', display: 'flex', justifyContent: 'space-between', border: '1px solid #fee2e2' }}>
             <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{conta.descricao}</span>
-            <span style={{ fontSize: '11px', color: '#b91c1c' }}>R$ {conta.valor.toLocaleString('pt-BR')}</span>
+            <span style={{ fontSize: '11px', color: '#b91c1c' }}>R$ {formatarMoedaSegura(conta.valor)}</span>
           </div>
         ))}
       </div>
