@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, Printer, Trophy, Users } from "lucide-react";
+import { X, Printer, Trophy } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface ModalRelatorioEventoProps {
   aberto: boolean;
@@ -28,7 +30,7 @@ export function ModalRelatorioEvento({
 
   if (!aberto || !eventoRelatorio) return null;
 
-  // Lógica matemática isolada dentro do componente do relatório
+  // Filtro e consolidação das transações do evento ativo
   const transacoesDoEvento = historicoPagamentosEventos.filter(
     (t) => String(getDetalhes(t).evento_id) === String(eventoRelatorio.id)
   );
@@ -105,11 +107,190 @@ export function ModalRelatorioEvento({
 
   const listaAlunosRelatorio = Object.values(relatorioAlunos).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
 
+  // --- ENGINE DE GERAÇÃO PROFISSIONAL DE PDF ---
+  function gerarPDFRelatorio() {
+    const doc = new jsPDF();
+    const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
+
+    try { doc.addImage(logoUrl, "PNG", 15, 10, 25, 25); } catch (e) {}
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("DEMONSTRATIVO FINANCEIRO DE EVENTO", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`ESCOLA ABC DO PARK — ${eventoRelatorio.nome?.toUpperCase()}`, 105, 27, { align: "center" });
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}, ${new Date().toLocaleTimeString('pt-BR')}`, 195, 33, { align: "right" });
+
+    // Tabela 1: Parâmetros Gerais
+    autoTable(doc, {
+      startY: 40,
+      head: [['MÉTRICA OPERACIONAL', 'INFORMAÇÕES CONSOLIDADAS']],
+      body: [
+        ['Data Alvo do Evento', new Date(eventoRelatorio.data_evento + "T12:00:00").toLocaleDateString('pt-BR')],
+        ['Total de Alunos Vinculados', `${eventoRelatorio.total_alunos || 0} alunos`],
+        ['Status do Evento no Sistema', eventoRelatorio.encerrado ? "FINALIZADO" : "ATIVO"]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [124, 58, 237], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, textColor: [30, 41, 59] },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 60 } }
+    });
+
+    // Tabela 2: Balanço de Caixa
+    let finalY = (doc as any).lastAutoTable.finalY + 8;
+    autoTable(doc, {
+      startY: finalY,
+      head: [['BALANÇO DE MOVIMENTAÇÃO', 'VALOR ACUMULADO']],
+      body: [
+        ['(+) TOTAL DE GANHOS (RECEBIMENTOS)', `R$ ${totalEntradasRel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['(-) TOTAL DE GASTOS (CUSTOS OPERACIONAIS)', `R$ ${totalSaidasRel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['(=) SALDO LÍQUIDO DO EVENTO', `R$ ${saldoRel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
+      styles: { halign: 'right', fontSize: 9.5, fontStyle: 'bold', textColor: [30, 41, 59] },
+      columnStyles: { 0: { halign: 'left' } }
+    });
+
+    // Tabela 3: Desempenho por Equipe
+    finalY = (doc as any).lastAutoTable.finalY + 8;
+    if (Object.keys(resumoEquipesRelatorio).length > 0) {
+      const rowsEquipes = Object.entries(resumoEquipesRelatorio)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([equipe, dados], index) => {
+          const prefix = index === 0 ? "[1 LUGAR] " : "";
+          return [
+            `${prefix}${equipe.toUpperCase()}`,
+            dados.votos.qtd.toString(),
+            `R$ ${dados.votos.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            dados.ingressos.qtd.toString(),
+            `R$ ${dados.ingressos.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            `R$ ${dados.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          ];
+        });
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['EQUIPE', 'QTD VOTOS', 'TOTAL VOTOS', 'QTD INGRESSOS', 'TOTAL INGRESSOS', 'TOTAL GERAL']],
+        body: rowsEquipes,
+        theme: 'grid',
+        headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
+        styles: { fontSize: 8.5, textColor: [30, 41, 59] },
+        columnStyles: { 
+          0: { fontStyle: 'bold', halign: 'left' },
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'center' },
+          4: { halign: 'right' },
+          5: { halign: 'right', fontStyle: 'bold' }
+        }
+      });
+      finalY = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Tabela 4: Listagem de Gastos (NOVO)
+    if (saidasRel.length > 0) {
+      if (finalY > 235) { doc.addPage(); finalY = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text("DETALHAMENTO DE GASTOS (CUSTOS OPERACIONAIS)", 15, finalY);
+
+      const rowsGastos = saidasRel.map((gasto: any) => [
+        new Date(gasto.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR'),
+        (gasto.descricao || 'Despesa Avulsa').replace('[SAÍDA]', '').trim().toUpperCase(),
+        `R$ ${parseCurrency(gasto.valor_pago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+
+      autoTable(doc, {
+        startY: finalY + 4,
+        head: [['DATA', 'DESCRIÇÃO DA DESPESA', 'VALOR']],
+        body: rowsGastos,
+        theme: 'grid',
+        headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, // rose-600
+        styles: { fontSize: 8, textColor: [51, 65, 85] },
+        columnStyles: { 
+          0: { halign: 'center', cellWidth: 25 }, 
+          1: { halign: 'left' }, 
+          2: { halign: 'right', fontStyle: 'bold', cellWidth: 35 } 
+        }
+      });
+      finalY = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Tabela 5: Listagem Nominal de Arrecadações
+    if (finalY > 235) { doc.addPage(); finalY = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text("DETALHAMENTO DE ARRECADAÇÃO NOMINAL POR ALUNO", 15, finalY);
+
+    const rowsAlunos = listaAlunosRelatorio.map((aluno: any) => [
+      aluno.nome.toUpperCase(),
+      aluno.equipe !== '-' ? aluno.equipe.toUpperCase() : '-',
+      aluno.votos > 0 ? aluno.votos.toString() : '-',
+      aluno.ingressos > 0 ? aluno.ingressos.toString() : '-',
+      `R$ ${aluno.total_arrecadado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ]);
+
+    if (arrecadacaoAvulsa.total > 0) {
+      rowsAlunos.push([
+        'OUTRAS ARRECADAÇÕES (AVULSO / SEM NOME)',
+        Object.keys(arrecadacaoAvulsa.equipes).length > 0 ? Object.keys(arrecadacaoAvulsa.equipes).join(', ').toUpperCase() : '-',
+        '-',
+        '-',
+        `R$ ${arrecadacaoAvulsa.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: finalY + 4,
+      head: [['NOME DA CRIANÇA', 'EQUIPE', 'VOTOS', 'INGRESSOS', 'TOTAL ARRECADADO']],
+      body: rowsAlunos,
+      theme: 'grid',
+      headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
+      styles: { fontSize: 8, textColor: [51, 65, 85] },
+      columnStyles: { 
+        0: { halign: 'left', fontStyle: 'bold' }, 
+        1: { halign: 'center', fontStyle: 'bold' }, 
+        2: { halign: 'center' }, 
+        3: { halign: 'center' }, 
+        4: { halign: 'right', fontStyle: 'bold' } 
+      }
+    });
+
+    // Assinaturas de Homologação
+    finalY = (doc as any).lastAutoTable.finalY + 22;
+    if (finalY > 250) { doc.addPage(); finalY = 35; }
+    
+    doc.setDrawColor(203, 213, 225);
+    doc.line(20, finalY, 90, finalY);
+    doc.line(120, finalY, 190, finalY);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text("RESPONSÁVEL / TESOURARIA", 55, finalY + 5, { align: "center" });
+    doc.text("DIREÇÃO ESCOLAR", 155, finalY + 5, { align: "center" });
+
+    doc.save(`Relatorio_Oficial_Evento_${eventoRelatorio.nome.replace(/\s+/g, '_')}.pdf`);
+  }
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-0 sm:p-4" onClick={onFechar}>
-      <div className="bg-white rounded-none sm:rounded-[2.5rem] w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-screen sm:max-h-[90vh] custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white sm:rounded-[2.5rem] w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-y-auto max-h-screen sm:max-h-[90vh] custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
         
-        <div id="secao-relatorio-impressao" className="flex-1">
+        <div className="flex justify-between items-center border-b pb-4 mb-6">
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Visualização do Relatório</h2>
+          <button onClick={onFechar} className="p-2 text-slate-400 hover:text-slate-600 rounded-full bg-slate-50">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1">
           <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
             <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tight">Escola ABC do Park</h2>
             <p className="text-xs uppercase tracking-widest font-bold text-slate-500 mt-1">Demonstrativo Financeiro Nominal de Evento</p>
@@ -157,9 +338,9 @@ export function ModalRelatorioEvento({
                 </h3>
                 <button
                   onClick={() => setMostrarResultadoFinal(!mostrarResultadoFinal)}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm transition-all active:scale-95 flex items-center gap-2 print:hidden"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm transition-all active:scale-95 flex items-center gap-2"
                 >
-                  <Trophy size={14}/> {mostrarResultadoFinal ? 'Ocultar Resultado Final' : 'Ver Resultado Final'}
+                  <Trophy size={14}/> {mostrarResultadoFinal ? 'Ocultar Detalhes' : 'Ver Resultado Final'}
                 </button>
               </div>
 
@@ -178,7 +359,7 @@ export function ModalRelatorioEvento({
                    }
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4 fade-in duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {Object.entries(resumoEquipesRelatorio)
                      .sort((a, b) => b[1].total - a[1].total)
                      .map(([equipe, dados], index) => {
@@ -228,6 +409,31 @@ export function ModalRelatorioEvento({
             </div>
           )}
 
+          {/* NOVO BLOCO: Detalhamento de Gastos */}
+          {saidasRel.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 mb-3 border-l-4 border-rose-600 pl-2">Detalhamento de Gastos Operacionais</h3>
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-rose-200 text-slate-800 font-black uppercase text-[10px]">
+                    <th className="py-2.5">Data</th>
+                    <th className="py-2.5">Descrição da Despesa</th>
+                    <th className="py-2.5 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saidasRel.map((gasto: any, idx: number) => (
+                    <tr key={idx} className="border-b border-slate-200 text-slate-700 hover:bg-slate-50">
+                      <td className="py-3 font-bold">{new Date(gasto.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR')}</td>
+                      <td className="py-3 font-bold uppercase">{gasto.descricao?.replace('[SAÍDA]', '').trim()}</td>
+                      <td className="py-3 text-right font-black text-rose-600">R$ {parseCurrency(gasto.valor_pago).toFixed(2).replace('.', ',')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div className="mb-8">
             <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 mb-3 border-l-4 border-slate-800 pl-2">Detalhamento de Arrecadação por Aluno</h3>
             <table className="w-full text-left text-xs border-collapse">
@@ -266,20 +472,13 @@ export function ModalRelatorioEvento({
           </div>
         </div>
 
-        <div className="flex gap-3 border-t border-slate-100 pt-6 mt-6 print:hidden">
+        <div className="flex gap-3 border-t border-slate-100 pt-6 mt-6">
           <button onClick={onFechar} className="flex-1 py-4 rounded-xl border border-slate-200 font-black uppercase tracking-widest text-xs text-slate-500 hover:bg-slate-50">Fechar</button>
           <button 
-            onClick={() => {
-              const backupConteudo = document.body.innerHTML;
-              const secaoImpressao = document.getElementById("secao-relatorio-impressao")?.innerHTML || "";
-              document.body.innerHTML = `<div style="padding:40px; background:white; font-family:sans-serif;">${secaoImpressao}</div>`;
-              window.print();
-              document.body.innerHTML = backupConteudo;
-              window.location.reload(); 
-            }} 
-            className="flex-[2] py-4 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+            onClick={gerarPDFRelatorio} 
+            className="flex-[2] py-4 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all"
           >
-            <Printer size={18}/> Imprimir Relatório Oficial
+            <Printer size={18}/> Exportar PDF de Relatório Oficial
           </button>
         </div>
       </div>
