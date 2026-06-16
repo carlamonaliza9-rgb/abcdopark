@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 
-// A MESMA LISTA ESTRUTURAL DA PÁGINA DE TURMAS PARA GARANTIR CONEXÃO PERFEITA
 const LISTA_OFICIAL_TURMAS = [
   "Maternal",
   "Jardim I",
@@ -73,28 +72,24 @@ export default function FuncionariosAdminPage() {
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   
-  // Estados de Endereço
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
 
   const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // --- ESTADOS DE CORTE DE IMAGEM ---
   const [fotoOriginal, setFotoOriginal] = useState<string | null>(null);
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const imgRef = useRef<HTMLImageElement>(null);
   const aspect = 16 / 9;
 
-  // --- ESTADOS DE DOCUMENTOS ---
   const [modalDocsAberto, setModalDocsAberto] = useState(false);
   const [docRG, setDocRG] = useState<File | null>(null);
   const [docComprovante, setDocComprovante] = useState<File | null>(null);
   const [docCertidao, setDocCertidao] = useState<File | null>(null);
   const [urlsDocs, setUrlsDocs] = useState({ rg: "", comprovante: "", certidao: "" });
 
-  // --- TRAVA DE SEGURANÇA E BUSCA INICIAL ---
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -118,8 +113,6 @@ export default function FuncionariosAdminPage() {
     verificarAcesso();
   }, [router]);
 
-
-  // --- MÁSCARAS ---
   const mWhatsApp = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length <= 11) {
@@ -158,7 +151,6 @@ export default function FuncionariosAdminPage() {
     }
   };
 
-  // --- BUSCA INTELIGENTE BLINDADA (FUNCIONÁRIOS + CRUZAMENTO COM TURMAS E DISCIPLINAS) ---
   async function buscarFuncionariosETurmas() {
     const [resFuncs, resTurmasInfo, resDisc] = await Promise.all([
       supabase.from('funcionarios').select('*').order('nome', { ascending: true }),
@@ -168,10 +160,8 @@ export default function FuncionariosAdminPage() {
 
     if (resFuncs.data) {
       const funcionariosComTurmas = resFuncs.data.map(func => {
-        // Blindagem 1: Remove espaços e coloca em minúsculo
         const funcNomeLimpo = (func.nome || "").trim().toLowerCase(); 
 
-        // 1. Procura nas informações gerais (Auxiliares e legado)
         const turmasViaInfo = (resTurmasInfo.data || [])
           .filter(t => 
             (t.prof_fixo_1 || "").trim().toLowerCase() === funcNomeLimpo || 
@@ -184,12 +174,10 @@ export default function FuncionariosAdminPage() {
           )
           .map(t => t.nome_turma);
 
-        // 2. Procura diretamente nas Disciplinas (Nova regra dos Professores)
         const turmasViaDisciplinas = (resDisc.data || [])
           .filter(d => (d.professor_vinculado || "").trim().toLowerCase() === funcNomeLimpo)
           .map(d => d.nome_turma);
 
-        // Junta as duas buscas e remove duplicatas (Set garante que a turma não apareça duas vezes)
         const todasTurmas = Array.from(new Set([...turmasViaInfo, ...turmasViaDisciplinas]));
 
         return {
@@ -208,7 +196,6 @@ export default function FuncionariosAdminPage() {
     (f.turmas_dinamicas && f.turmas_dinamicas.some((t: string) => t.toLowerCase().includes(busca.toLowerCase())))
   );
 
-  // --- LÓGICA DE CORTE ---
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
     setCrop(centerAspectCrop(width, height, aspect));
@@ -277,7 +264,6 @@ export default function FuncionariosAdminPage() {
         if (uploadData) urlFinal = supabase.storage.from('fotos-alunos').getPublicUrl(nomeArquivo).data.publicUrl;
       }
 
-      // Blindagem 2: Salva o nome sem espaços inúteis
       const dados = { 
         nome: nome.trim(), 
         cpf: cpf || null, 
@@ -391,84 +377,81 @@ export default function FuncionariosAdminPage() {
     setModalDocsAberto(true);
   }
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>Validando acesso à equipe...</div>;
+  if (verificandoAcesso) return <div className="p-[50px] text-center font-sans text-slate-500 font-bold animate-pulse">Validando acesso à equipe...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '30px', fontFamily: 'Inter, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-[30px] font-sans pb-24 md:pb-10">
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '15px' }}>
+      {/* HEADER DA PÁGINA */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 md:mb-[32px] gap-4 md:gap-[15px]">
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Gestão de Equipe</h1>
-          <p style={{ fontSize: '15px', color: '#64748b', marginTop: '4px' }}>Controle central de colaboradores ABC DO PARK</p>
+          <h1 className="text-2xl md:text-[28px] font-extrabold text-slate-900 tracking-tight m-0">Gestão de Equipe</h1>
+          <p className="text-sm md:text-[15px] text-slate-500 mt-1">Controle central de colaboradores ABC DO PARK</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="flex flex-col sm:flex-row gap-3 md:gap-[12px] w-full md:w-auto">
           <input 
             type="text" 
             placeholder="🔍 Pesquisar colaborador..." 
             value={busca} 
             onChange={(e)=>setBusca(e.target.value)} 
-            style={{ padding: '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', width: '280px', backgroundColor: 'white', fontSize: '14px', transition: 'border-color 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }} 
-            onFocus={(e) => e.target.style.borderColor = '#94a3b8'}
-            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+            className="w-full sm:w-[280px] p-3 md:py-[12px] md:px-[18px] rounded-xl border border-slate-200 outline-none bg-white text-sm transition-colors shadow-sm focus:border-slate-400"
           />
           <button onClick={() => { limparFormulario(); setModoEdicao(true); setModalAberto(true); }} 
-            style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)' }}
-            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-3 px-6 md:py-[12px] md:px-[24px] rounded-xl transition-all shadow-md active:scale-95 hover:-translate-y-px"
           >
             + NOVO COLABORADOR
           </button>
         </div>
       </div>
 
-      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-              <th style={{ width: '35%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Colaborador</th>
-              <th style={{ width: '40%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cargo & Turmas</th>
-              <th style={{ width: '20%', padding: '16px 24px', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contato</th>
-              <th style={{ width: '5%', padding: '16px 24px' }}></th>
+      {/* CONTAINER DA TABELA (Tabela no Desktop, Cards no Mobile) */}
+      <div className="md:bg-white md:rounded-[16px] md:border md:border-slate-200 md:shadow-sm">
+        <table className="w-full block md:table md:min-w-[800px] border-collapse text-left">
+          <thead className="hidden md:table-header-group bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="w-[35%] px-[24px] py-[16px] text-xs font-bold text-slate-500 uppercase tracking-wider">Colaborador</th>
+              <th className="w-[40%] px-[24px] py-[16px] text-xs font-bold text-slate-500 uppercase tracking-wider">Cargo & Turmas</th>
+              <th className="w-[20%] px-[24px] py-[16px] text-xs font-bold text-slate-500 uppercase tracking-wider">Contato</th>
+              <th className="w-[5%] px-[24px] py-[16px]"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block md:table-row-group space-y-4 md:space-y-0 md:divide-y md:divide-slate-100">
             {funcionariosFiltrados.length > 0 ? (
               funcionariosFiltrados.map((f) => (
                 <tr 
                   key={f.id} 
                   onClick={() => abrirFicha(f)}
-                  style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background-color 0.2s' }} 
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'} 
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  className="block md:table-row bg-white border border-slate-200 md:border-none rounded-2xl md:rounded-none p-4 md:p-0 relative shadow-sm md:shadow-none cursor-pointer hover:bg-slate-50 transition-colors"
                   title="Clique para ver a ficha completa"
                 >
-                  <td style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#e2e8f0', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <td className="block md:table-cell p-0 md:px-[24px] md:py-[20px] mb-4 md:mb-0 border-b border-dashed border-slate-100 md:border-none pb-4 md:pb-0">
+                    <div className="flex items-center gap-4 md:gap-[16px]">
+                      <div className="w-14 h-14 md:w-[48px] md:h-[48px] rounded-full overflow-hidden shrink-0 border-2 border-slate-100 shadow-sm bg-blue-50 flex items-center justify-center">
                         {f.foto_url ? (
-                          <img src={f.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={f.nome} />
+                          <img src={f.foto_url} className="w-full h-full object-cover" alt={f.nome} />
                         ) : (
-                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%)', fontSize: '20px' }}>👤</div>
+                          <span className="text-2xl">👤</span>
                         )}
                       </div>
                       <div>
-                        <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '15px', marginBottom: '2px' }}>{f.nome}</div>
-                        <div style={{ color: '#64748b', fontSize: '13px' }}>{f.cpf ? mCPF(f.cpf) : 'CPF não informado'}</div>
+                        <div className="font-bold text-slate-900 text-base md:text-[15px] mb-0.5">{f.nome}</div>
+                        <div className="text-slate-500 text-xs md:text-[13px]">{f.cpf ? mCPF(f.cpf) : 'CPF não informado'}</div>
                       </div>
                     </div>
                   </td>
 
-                  <td style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '12px', fontWeight: '600', color: '#1e40af', backgroundColor: '#eff6ff', padding: '6px 12px', borderRadius: '20px', border: '1px solid #bfdbfe' }}>
+                  <td className="block md:table-cell p-0 md:px-[24px] md:py-[20px] mb-4 md:mb-0">
+                    <span className="md:hidden text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Cargo & Turmas</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center text-[11px] md:text-[12px] font-semibold text-blue-800 bg-blue-50 px-3 py-1.5 md:px-[12px] md:py-[6px] rounded-full border border-blue-200">
                         {f.cargo || "Não Definido"}
                       </span>
                       
                       {f.turmas_dinamicas && f.turmas_dinamicas.length > 0 && (
                         <>
-                          <span style={{ color: '#cbd5e1', margin: '0 4px' }}>|</span>
+                          <span className="text-slate-300 mx-1 hidden md:inline">|</span>
                           {f.turmas_dinamicas.map((tNome: string, idx: number) => (
-                            <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: '600', color: '#047857', backgroundColor: '#d1fae5', padding: '5px 10px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                            <span key={idx} className="inline-flex items-center text-[10px] md:text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 md:px-[10px] md:py-[5px] rounded-full border border-emerald-200">
                               📚 {tNome}
                             </span>
                           ))}
@@ -477,26 +460,26 @@ export default function FuncionariosAdminPage() {
                     </div>
                   </td>
 
-                  <td style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#334155', fontWeight: '500' }}>
+                  <td className="block md:table-cell p-0 md:px-[24px] md:py-[20px]">
+                    <span className="md:hidden text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Contato</span>
+                    <div className="flex flex-col gap-1.5 md:gap-[4px]">
+                      <div className="flex items-center gap-2 text-sm md:text-[14px] text-slate-700 font-medium">
                         <span>📱</span> {f.whatsapp ? mWhatsApp(f.whatsapp) : '--'}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b' }}>
+                      <div className="flex items-center gap-2 text-xs md:text-[13px] text-slate-500">
                         <span>✉️</span> {f.email || '--'}
                       </div>
                     </div>
                   </td>
 
-                  <td style={{ padding: '20px 24px', textAlign: 'right', color: '#cbd5e1', fontSize: '18px' }}>
-                    <span style={{ display: 'inline-block', transform: 'scaleY(1.5)' }}>›</span>
+                  <td className="absolute md:relative right-4 top-8 md:right-auto md:top-auto block md:table-cell p-0 md:px-[24px] md:py-[20px] text-right text-slate-300 text-2xl md:text-lg">
+                    <span className="inline-block md:scale-y-150 font-black">›</span>
                   </td>
-
                 </tr>
               ))
             ) : (
-              <tr>
-                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '15px' }}>
+              <tr className="block md:table-row bg-white border border-slate-200 md:border-none rounded-2xl md:rounded-none">
+                <td colSpan={4} className="block md:table-cell p-10 text-center text-slate-500 text-sm md:text-[15px]">
                   Nenhum colaborador encontrado com essa busca.
                 </td>
               </tr>
@@ -508,56 +491,56 @@ export default function FuncionariosAdminPage() {
       {/* MODAL PRINCIPAL (FICHA/EDIÇÃO) */}
       {modalAberto && (
         <div 
-          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px' }}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 md:p-[15px]"
           onClick={fecharModalPrincipal}
         >
           
           {fotoOriginal && modoEdicao && (
               <div 
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                className="absolute inset-0 bg-black/85 z-[1100] flex flex-col items-center justify-center p-4 md:p-[20px]"
                 onClick={cancelarCorte}
               >
                   <div 
-                    style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '24px', textAlign: 'center', maxWidth: '95%', maxHeight: '95%', display: 'flex', flexDirection: 'column' }}
+                    className="bg-white p-6 md:p-[24px] rounded-3xl md:rounded-[24px] text-center w-full max-w-lg max-h-[95%] flex flex-col shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                   >
-                      <h3 style={{ marginTop: 0, color: '#0f172a', fontWeight: '800' }}>Ajustar Enquadramento (Capa do Card)</h3>
-                      <div style={{ overflow: 'auto', flex: 1, backgroundColor: '#f1f5f9', borderRadius: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <h3 className="mt-0 text-slate-900 font-extrabold mb-4">Ajustar Enquadramento (Capa do Card)</h3>
+                      <div className="overflow-auto flex-1 bg-slate-50 rounded-2xl md:rounded-[16px] mb-5 flex items-center justify-center">
                         <ReactCrop crop={crop} onChange={(pixelCrop, percentCrop) => setCrop(percentCrop)} onComplete={(c) => setCompletedCrop(c)} aspect={aspect}>
-                            <img ref={imgRef} src={fotoOriginal} alt="Crop" style={{ maxWidth: '100%', maxHeight: '50vh' }} onLoad={onImageLoad} />
+                            <img ref={imgRef} src={fotoOriginal} alt="Crop" className="max-w-full max-h-[50vh] object-contain" onLoad={onImageLoad} />
                         </ReactCrop>
                       </div>
-                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                          <button type="button" onClick={cancelarCorte} style={{ padding: '12px 24px', borderRadius: '12px', border: '1px solid #e2e8f0', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#fff', color: '#475569' }}>Cancelar</button>
-                          <button type="button" onClick={aplicarCorte} style={{ padding: '12px 24px', borderRadius: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Aplicar Corte</button>
+                      <div className="flex flex-col sm:flex-row gap-3 md:gap-[12px] justify-center">
+                          <button type="button" onClick={cancelarCorte} className="w-full sm:w-auto p-3 md:py-[12px] md:px-[24px] rounded-xl bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                          <button type="button" onClick={aplicarCorte} className="w-full sm:w-auto p-3 md:py-[12px] md:px-[24px] rounded-xl bg-blue-600 text-white font-bold border-none hover:bg-blue-700 transition-colors">Aplicar Corte</button>
                       </div>
                   </div>
               </div>
           )}
 
           <div 
-            style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
+            className="bg-white p-6 md:p-[32px] rounded-[24px] md:rounded-[28px] w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
             {!modoEdicao ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '100%', height: '160px', borderRadius: '16px', backgroundColor: '#f1f5f9', marginBottom: '20px', overflow: 'hidden', border: '1px solid #e2e8f0', position: 'relative' }}>
+              <div className="text-center">
+                <div className="w-full h-32 md:h-[160px] rounded-2xl md:rounded-[16px] bg-slate-100 mb-5 overflow-hidden border border-slate-200 relative shadow-inner">
                   {previewUrl ? (
-                      <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={previewUrl} className="w-full h-full object-cover" />
                   ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', background: 'linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%)' }}>👤</div>
+                      <div className="w-full h-full flex items-center justify-center text-4xl bg-gradient-to-br from-indigo-100 to-blue-100">👤</div>
                   )}
                 </div>
 
-                <h2 style={{ margin: '0 0 4px', fontWeight: '900', fontSize: '24px', color: '#0f172a' }}>{nome}</h2>
+                <h2 className="m-0 mb-1 font-extrabold text-2xl md:text-[24px] text-slate-900">{nome}</h2>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-                  <span style={{ display: 'inline-block', color: '#1e40af', fontWeight: '800', fontSize: '12px', backgroundColor: '#eff6ff', padding: '6px 16px', borderRadius: '20px' }}>{cargo}</span>
+                <div className="flex flex-col items-center gap-2 mt-2">
+                  <span className="inline-block text-blue-800 font-extrabold text-xs md:text-[12px] bg-blue-50 px-4 py-1.5 md:py-[6px] md:px-[16px] rounded-full border border-blue-100">{cargo}</span>
                   
                   {funcionarios.find(f => f.id === idEdicao)?.turmas_dinamicas?.length > 0 && (
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <div className="flex gap-1.5 flex-wrap justify-center mt-1">
                       {funcionarios.find(f => f.id === idEdicao).turmas_dinamicas.map((tNome: string, idx: number) => (
-                        <span key={idx} style={{ display: 'inline-block', color: '#047857', fontWeight: '800', fontSize: '11px', backgroundColor: '#d1fae5', padding: '4px 10px', borderRadius: '12px' }}>
+                        <span key={idx} className="inline-block text-emerald-800 font-extrabold text-[10px] md:text-[11px] bg-emerald-50 px-2.5 py-1 md:py-[4px] md:px-[10px] rounded-full border border-emerald-100">
                           📚 {tNome}
                         </span>
                       ))}
@@ -565,107 +548,103 @@ export default function FuncionariosAdminPage() {
                   )}
                 </div>
                 
-                <div style={{ textAlign: 'left', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid #f1f5f9' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CPF</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mCPF(cpf) || '--'}</span>
+                <div className="text-left bg-slate-50 p-4 md:p-[20px] rounded-2xl md:rounded-[20px] mt-6 md:mt-[24px] flex flex-col gap-3 md:gap-[12px] border border-slate-100 shadow-sm">
+                  <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold">CPF</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold">{mCPF(cpf) || '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>Nascimento</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{dataNascimento ? new Date(dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</span>
+                  <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold">Nascimento</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold">{dataNascimento ? new Date(dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>WhatsApp</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mWhatsApp(whatsapp) || '--'}</span>
+                  <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold">WhatsApp</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold">{mWhatsApp(whatsapp) || '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>E-mail</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{email || '--'}</span>
+                  <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold">E-mail</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold truncate max-w-[150px] md:max-w-none">{email || '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CEP</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600' }}>{mCEP(cep) || '--'}</span>
+                  <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold">CEP</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold">{mCEP(cep) || '--'}</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold', marginBottom: '4px' }}>Endereço</span>
-                    <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '600', lineHeight: '1.4' }}>{endereco || '--'}</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs md:text-[13px] text-slate-500 font-bold mb-1">Endereço</span>
+                    <span className="text-sm md:text-[14px] text-slate-900 font-semibold leading-snug">{endereco || '--'}</span>
                   </div>
                 </div>
 
                 <button 
                   onClick={abrirModalDocs}
-                  style={{ width: '100%', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: 'bold', cursor: 'pointer', marginTop: '24px', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'background 0.2s' }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                  className="w-full p-3.5 md:p-[14px] rounded-xl md:rounded-[14px] border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold text-slate-600 mt-6 flex items-center justify-center gap-2 transition-colors active:scale-95 text-xs md:text-sm"
                 >
                   📂 DOCUMENTOS DO COLABORADOR
                 </button>
 
-                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                  <button onClick={() => setModalAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', cursor: 'pointer', fontWeight: 'bold', backgroundColor: 'white', color: '#475569' }}>FECHAR</button>
-                  <button onClick={() => setModoEdicao(true)} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>EDITAR</button>
-                  <button onClick={excluirFuncionario} style={{ padding: '14px', borderRadius: '14px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer' }} title="Excluir Colaborador">🗑️</button>
+                <div className="flex flex-col sm:flex-row gap-2 md:gap-[12px] mt-4 md:mt-[16px]">
+                  <button onClick={() => setModalAberto(false)} className="w-full sm:flex-1 p-3.5 md:p-[14px] rounded-xl bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors text-xs md:text-sm">FECHAR</button>
+                  <button onClick={() => setModoEdicao(true)} className="w-full sm:flex-1 p-3.5 md:p-[14px] rounded-xl bg-blue-600 text-white font-bold border-none hover:bg-blue-700 transition-colors shadow-md text-xs md:text-sm">EDITAR</button>
+                  <button onClick={excluirFuncionario} className="p-3.5 md:p-[14px] rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 border-none transition-colors shrink-0" title="Excluir Colaborador">🗑️</button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={salvarFuncionario} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <h2 style={{ textAlign: 'center', fontWeight: '900', color: '#0f172a', margin: '0 0 10px' }}>{idEdicao ? "Editar Colaborador" : "Novo Colaborador"}</h2>
+              <form onSubmit={salvarFuncionario} className="flex flex-col gap-4 md:gap-[16px]">
+                <h2 className="text-center font-extrabold text-slate-900 m-0 mb-2 md:mb-[10px] text-xl md:text-2xl">{idEdicao ? "Editar Colaborador" : "Novo Colaborador"}</h2>
                 
-                <label style={{ cursor: 'pointer', margin: '0 0 10px' }}>
-                  <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: '16px', border: '2px dashed #cbd5e1', overflow: 'hidden', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', transition: 'border 0.2s' }} onMouseOver={(e)=> e.currentTarget.style.borderColor = '#2563eb'} onMouseOut={(e)=> e.currentTarget.style.borderColor = '#cbd5e1'}>
-                    {previewUrl ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><span style={{ fontSize: '24px', marginBottom: '8px' }}>📸</span><span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>Clique para Capa (16:9)</span></div>}
+                <label className="cursor-pointer mb-2 md:mb-[10px] block relative group">
+                  <div className="w-full aspect-video rounded-2xl md:rounded-[16px] border-2 border-dashed border-slate-300 overflow-hidden bg-slate-50 flex items-center justify-center relative transition-colors group-hover:border-blue-600 group-hover:bg-blue-50/30">
+                    {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center"><span className="text-3xl md:text-[24px] mb-2">📸</span><span className="text-xs md:text-[13px] text-slate-500 font-bold group-hover:text-blue-600">Clique para Capa (16:9)</span></div>}
                   </div>
                   <input type="file" accept="image/*" hidden onChange={handleTrocarFoto} />
                 </label>
 
-                <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
+                <input type="text" placeholder="Nome Completo" value={nome} onChange={(e)=>setNome(e.target.value)} required className="w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" />
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <input type="text" placeholder="CPF" value={cpf} onChange={(e)=>setCpf(mCPF(e.target.value))} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
-                    <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-[12px]">
+                    <input type="text" placeholder="CPF" value={cpf} onChange={(e)=>setCpf(mCPF(e.target.value))} className="w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" />
+                    <input type="date" value={dataNascimento} onChange={(e)=>setDataNascimento(e.target.value)} className="w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <select value={cargo} onChange={(e)=>setCargo(e.target.value)} required style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: 'white', fontSize: '15px', color: cargo ? '#0f172a' : '#94a3b8' }}>
-                    <option value="" disabled>Selecione o Cargo...</option>
-                    <option value="Professor">Professor(a)</option>
-                    <option value="Auxiliar">Auxiliar</option>
-                    <option value="Coordenação">Coordenação</option>
-                    <option value="Serviços Gerais">Serviços Gerais</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </div>
+                <select value={cargo} onChange={(e)=>setCargo(e.target.value)} required className={`w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors ${cargo ? 'text-slate-900' : 'text-slate-400'}`}>
+                  <option value="" disabled>Selecione o Cargo...</option>
+                  <option value="Professor">Professor(a)</option>
+                  <option value="Auxiliar">Auxiliar</option>
+                  <option value="Coordenação">Coordenação</option>
+                  <option value="Serviços Gerais">Serviços Gerais</option>
+                  <option value="Outro">Outro</option>
+                </select>
                 
                 {(cargo === "Professor" || cargo === "Auxiliar") && (
-                  <div style={{ fontSize: '12px', color: '#059669', backgroundColor: '#d1fae5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+                  <div className="text-[11px] md:text-[12px] text-emerald-700 bg-emerald-50 px-3 md:px-[12px] py-2 md:py-[8px] rounded-lg border border-emerald-200 shadow-sm leading-relaxed">
                     💡 <b>Dica:</b> O vínculo das turmas deste colaborador é feito automaticamente pela aba <b>"Turmas"</b>. 
                   </div>
                 )}
 
-                <input type="text" placeholder="WhatsApp" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
-                <input type="email" placeholder="E-mail" value={email} onChange={(e)=>setEmail(e.target.value)} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} />
+                <input type="text" placeholder="WhatsApp" value={whatsapp} onChange={(e)=>setWhatsapp(mWhatsApp(e.target.value))} className="w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" />
+                <input type="email" placeholder="E-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" />
 
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="flex flex-col md:flex-row gap-3 md:gap-[12px]">
                   <input 
                     type="text" 
                     placeholder="CEP" 
                     value={cep} 
                     onChange={(e)=>setCep(mCEP(e.target.value))} 
                     onBlur={(e)=>buscarEnderecoPorCep(e.target.value)}
-                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} 
+                    className="w-full md:flex-1 p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" 
                   />
                   <input 
                     type="text" 
                     placeholder="Endereço Completo" 
                     value={endereco} 
                     onChange={(e)=>setEndereco(e.target.value)} 
-                    style={{ flex: 2, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '15px' }} 
+                    className="w-full md:flex-[2] p-3 md:p-[14px] rounded-xl border border-slate-200 outline-none text-sm md:text-[15px] focus:border-blue-400 bg-slate-50 focus:bg-white transition-colors" 
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                  <button type="button" onClick={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', color: '#475569', cursor: 'pointer' }}>CANCELAR</button>
-                  <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                <div className="flex flex-col sm:flex-row gap-3 md:gap-[12px] mt-2 md:mt-[16px]">
+                  <button type="button" onClick={() => idEdicao ? setModoEdicao(false) : setModalAberto(false)} className="w-full sm:flex-1 py-3 md:py-[14px] rounded-xl bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors text-xs md:text-sm">CANCELAR</button>
+                  <button type="submit" disabled={carregando} className="w-full sm:flex-1 py-3 md:py-[14px] rounded-xl bg-blue-600 text-white font-bold border-none hover:bg-blue-700 transition-colors shadow-md disabled:opacity-50 text-xs md:text-sm">
                     {carregando ? "SALVANDO..." : "SALVAR COLABORADOR"}
                   </button>
                 </div>
@@ -678,45 +657,45 @@ export default function FuncionariosAdminPage() {
       {/* MODAL DE DOCUMENTOS */}
       {modalDocsAberto && (
         <div 
-          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1010, backdropFilter: 'blur(4px)', padding: '15px' }}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1010] flex items-center justify-center p-4 md:p-[15px]"
           onClick={() => setModalDocsAberto(false)}
         >
           <div 
-            style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
+            className="bg-white p-6 md:p-[32px] rounded-[24px] md:rounded-[28px] w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ textAlign: 'center', fontWeight: '900', marginTop: 0, color: '#0f172a', fontSize: '22px', marginBottom: '4px' }}>Documentos Obrigatórios</h2>
-            <p style={{ textAlign: 'center', color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>{nome}</p>
+            <h2 className="text-center font-extrabold mt-0 mb-1 text-slate-900 text-xl md:text-[22px]">Documentos Obrigatórios</h2>
+            <p className="text-center text-slate-500 text-xs md:text-[14px] mb-6 md:mb-[24px]">{nome}</p>
 
-            <form onSubmit={salvarDocumentos} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={salvarDocumentos} className="flex flex-col gap-3 md:gap-[16px]">
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Registro Geral (RG)</label>
-                  {urlsDocs.rg && <a href={urlsDocs.rg} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold', textDecoration: 'none', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '8px' }}>👁️ Visualizar Arquivo</a>}
+              <div className="flex flex-col gap-2 bg-slate-50 p-4 md:p-[16px] rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs md:text-[14px] font-extrabold text-slate-700">Registro Geral (RG)</label>
+                  {urlsDocs.rg && <a href={urlsDocs.rg} target="_blank" rel="noreferrer" className="text-[10px] md:text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-1 md:px-[10px] md:py-[6px] rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors">👁️ Visualizar Arquivo</a>}
                 </div>
-                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocRG(e.target.files?.[0] || null)} style={{ fontSize: '13px', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '10px', backgroundColor: 'white', cursor: 'pointer', color: '#475569' }} />
+                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocRG(e.target.files?.[0] || null)} className="text-[11px] md:text-[13px] p-2 md:p-[10px] border border-dashed border-slate-300 rounded-xl bg-white text-slate-600 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer" />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Comprovante de Residência</label>
-                  {urlsDocs.comprovante && <a href={urlsDocs.comprovante} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold', textDecoration: 'none', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '8px' }}>👁️ Visualizar Arquivo</a>}
+              <div className="flex flex-col gap-2 bg-slate-50 p-4 md:p-[16px] rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs md:text-[14px] font-extrabold text-slate-700">Comprovante Residência</label>
+                  {urlsDocs.comprovante && <a href={urlsDocs.comprovante} target="_blank" rel="noreferrer" className="text-[10px] md:text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-1 md:px-[10px] md:py-[6px] rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors">👁️ Visualizar Arquivo</a>}
                 </div>
-                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocComprovante(e.target.files?.[0] || null)} style={{ fontSize: '13px', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '10px', backgroundColor: 'white', cursor: 'pointer', color: '#475569' }} />
+                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocComprovante(e.target.files?.[0] || null)} className="text-[11px] md:text-[13px] p-2 md:p-[10px] border border-dashed border-slate-300 rounded-xl bg-white text-slate-600 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer" />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>Certidão de Nascimento</label>
-                  {urlsDocs.certidao && <a href={urlsDocs.certidao} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold', textDecoration: 'none', backgroundColor: '#eff6ff', padding: '6px 10px', borderRadius: '8px' }}>👁️ Visualizar Arquivo</a>}
+              <div className="flex flex-col gap-2 bg-slate-50 p-4 md:p-[16px] rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs md:text-[14px] font-extrabold text-slate-700">Certidão Nascimento</label>
+                  {urlsDocs.certidao && <a href={urlsDocs.certidao} target="_blank" rel="noreferrer" className="text-[10px] md:text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-1 md:px-[10px] md:py-[6px] rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors">👁️ Visualizar Arquivo</a>}
                 </div>
-                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocCertidao(e.target.files?.[0] || null)} style={{ fontSize: '13px', padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '10px', backgroundColor: 'white', cursor: 'pointer', color: '#475569' }} />
+                <input type="file" accept=".pdf,image/*" onChange={(e) => setDocCertidao(e.target.files?.[0] || null)} className="text-[11px] md:text-[13px] p-2 md:p-[10px] border border-dashed border-slate-300 rounded-xl bg-white text-slate-600 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer" />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                <button type="button" onClick={() => setModalDocsAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer', color: '#475569' }}>FECHAR</button>
-                <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#10b981', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-[12px] mt-4 md:mt-[16px]">
+                <button type="button" onClick={() => setModalDocsAberto(false)} className="w-full sm:flex-1 py-3 md:py-[14px] rounded-xl bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors text-xs md:text-sm">FECHAR</button>
+                <button type="submit" disabled={carregando} className="w-full sm:flex-1 py-3 md:py-[14px] rounded-xl bg-emerald-500 text-white font-bold border-none hover:bg-emerald-600 transition-colors shadow-md disabled:opacity-50 text-xs md:text-sm">
                   {carregando ? "SALVANDO..." : "SALVAR DOCS"}
                 </button>
               </div>
@@ -725,6 +704,13 @@ export default function FuncionariosAdminPage() {
         </div>
       )}
 
+      {/* Ajuste Global para Rolagem Elegante */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}} />
     </div>
   );
 }
