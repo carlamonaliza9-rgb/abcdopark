@@ -182,60 +182,60 @@ function VisaoContasAPagar({ userEmail, userCargo }: { userEmail: string | null,
   }
 
   return (
-    <div style={{ padding: '10px 0', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827', margin: 0 }}>💸 Contas a Pagar</h1>
-        <p style={{ color: '#6b7280' }}>Gestão de saídas e fornecedores do ABC DO PARK</p>
+    <div className="py-2.5 md:py-[10px] font-sans">
+      <header className="mb-6 md:mb-[30px]">
+        <h1 className="text-[24px] md:text-[28px] font-[800] text-[#111827] m-0">💸 Contas a Pagar</h1>
+        <p className="text-sm text-[#6b7280]">Gestão de saídas e fornecedores do ABC DO PARK</p>
       </header>
 
       <FormularioConta onSalvar={adicionarConta} />
 
-      <section style={{ marginTop: '40px' }}>
-        <h3 style={{ marginBottom: '20px', fontSize: '18px', color: '#111827', fontWeight: '700' }}>Histórico de Lançamentos</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {carregando ? <p>Carregando contas...</p> : contas.map(conta => {
+      <section className="mt-8 md:mt-[40px]">
+        <h3 className="mb-4 md:mb-[20px] text-[16px] md:text-[18px] text-[#111827] font-[700]">Histórico de Lançamentos</h3>
+        <div className="flex flex-col gap-3 md:gap-[12px]">
+          {carregando ? <p className="text-sm font-bold text-gray-400">Carregando contas...</p> : contas.map(conta => {
             const status = obterStatus(conta);
             return (
-              <div key={conta.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: `1px solid ${conta.pago ? '#dcfce7' : '#f1f5f9'}` }}>
+              <div key={conta.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 md:p-[20px] bg-white rounded-xl md:rounded-[20px] border gap-4 md:gap-0" style={{ borderColor: conta.pago ? '#dcfce7' : '#f1f5f9' }}>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ backgroundColor: status.corFundo, color: status.corTexto, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', width: '80px', textAlign: 'center' }}>
+                <div className="flex items-start md:items-center gap-3 md:gap-[15px] w-full md:w-auto">
+                  <div className="py-1.5 px-3 md:py-[6px] md:px-[12px] rounded-lg md:rounded-[8px] text-[10px] md:text-[12px] font-bold w-[70px] md:w-[80px] text-center shrink-0" style={{ backgroundColor: status.corFundo, color: status.corTexto }}>
                     {status.texto}
                   </div>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ display: 'block', fontSize: '16px', color: '#111827' }}>{conta.descricao}</strong>
-                      {conta.is_recorrente && <span style={{ fontSize: '10px', backgroundColor: '#f3f4f6', color: '#4b5563', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>🔄 Recorrente</span>}
+                    <div className="flex flex-wrap items-center gap-1.5 md:gap-[8px]">
+                      <strong className="block text-[14px] md:text-[16px] text-[#111827]">{conta.descricao}</strong>
+                      {conta.is_recorrente && <span className="text-[9px] md:text-[10px] bg-[#f3f4f6] text-[#4b5563] px-1.5 py-0.5 md:py-[2px] md:px-[6px] rounded md:rounded-[4px] font-bold">🔄 Recorrente</span>}
                     </div>
-                    <span style={{ fontSize: '13px', color: '#6b7280' }}>Vencimento: {new Date(conta.data_vencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                    <span className="text-[11px] md:text-[13px] text-[#6b7280] block mt-0.5 md:mt-0">Vencimento: {new Date(conta.data_vencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#111827', display: 'block' }}>R$ {conta.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <div className="flex flex-col md:flex-row items-end md:items-center gap-3 md:gap-[20px] w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-gray-100">
+                  <div className="text-right w-full md:w-auto flex flex-row md:flex-col justify-between md:justify-end items-center md:items-end">
+                    <span className="text-[16px] md:text-[18px] font-[800] text-[#111827] block">R$ {conta.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     
                     {conta.pago ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px', marginTop: '5px' }}>
+                      <div className="flex flex-col items-end gap-1 md:gap-[5px] mt-1 md:mt-[5px]">
                         {conta.data_pagamento && (
-                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                          <span className="text-[9px] md:text-[11px] text-[#64748b] font-[600]">
                             Pago em: {new Date(conta.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR')}
                           </span>
                         )}
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                          <button onClick={() => setContaParaPagar(conta)} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Editar Pgto ⚙️</button>
-                          <a href={conta.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Ver Comprovante 📄</a>
+                        <div className="flex gap-2 md:gap-[10px] items-center">
+                          <button onClick={() => setContaParaPagar(conta)} className="text-[10px] md:text-[12px] text-[#2563eb] font-bold bg-transparent border-none cursor-pointer p-0">Editar Pgto ⚙️</button>
+                          <a href={conta.comprovante_url} target="_blank" rel="noreferrer" className="text-[10px] md:text-[12px] text-[#059669] font-bold no-underline">Ver Comprovante 📄</a>
                         </div>
-                        <button onClick={() => desfazerPagamento(conta.id)} style={{ fontSize: '11px', color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Desfazer pagamento</button>
+                        <button onClick={() => desfazerPagamento(conta.id)} className="text-[9px] md:text-[11px] text-[#94a3b8] bg-transparent border-none cursor-pointer underline p-0 mt-0.5 md:mt-0">Desfazer pagamento</button>
                       </div>
                     ) : (
-                      <button onClick={() => setContaParaPagar(conta)} style={{ marginTop: '5px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #ef4444', color: '#ef4444', backgroundColor: 'transparent', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>Registrar Pagamento</button>
+                      <button onClick={() => setContaParaPagar(conta)} className="mt-0 md:mt-[5px] px-3 py-1.5 md:py-[6px] md:px-[12px] rounded-lg md:rounded-[8px] border border-[#ef4444] text-[#ef4444] bg-transparent font-bold cursor-pointer text-[10px] md:text-[12px] w-auto">Registrar Pagamento</button>
                     )}
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '1px solid #e5e7eb', paddingLeft: '15px' }}>
-                    <button onClick={() => abrirEdicao(conta)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }} title="Editar Conta">✏️</button>
-                    <button onClick={() => confirmarExclusao(conta)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }} title="Excluir Conta">🗑️</button>
+                  <div className="flex flex-row md:flex-col gap-4 md:gap-[8px] md:border-l md:border-gray-200 md:pl-[15px] w-full md:w-auto justify-end mt-1 md:mt-0">
+                    <button onClick={() => abrirEdicao(conta)} className="bg-transparent border-none cursor-pointer text-[14px] md:text-[16px] p-0" title="Editar Conta">✏️</button>
+                    <button onClick={() => confirmarExclusao(conta)} className="bg-transparent border-none cursor-pointer text-[14px] md:text-[16px] p-0" title="Excluir Conta">🗑️</button>
                   </div>
                 </div>
 
@@ -371,50 +371,50 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: { userEmail: string | 
     } else { alert("Senha incorreta."); }
   }
 
-  if (carregando) return <div className="p-10 text-center">Carregando fluxo de saídas...</div>;
+  if (carregando) return <div className="p-10 text-center text-sm font-bold text-gray-400">Carregando fluxo de saídas...</div>;
 
   return (
     <div className="w-full">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
+      <div className="mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">💸 Livro Caixas de Saídas e Despesas</h1>
-          <p className="text-sm text-gray-500 mt-1">Lançamento de despesas e conferência de custos e contas operacionais liquidadas</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 m-0">💸 Livro Caixas de Saídas e Despesas</h1>
+          <p className="text-[10px] md:text-sm text-gray-500 mt-1">Lançamento de despesas e conferência de custos e contas operacionais liquidadas</p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto justify-end">
           <input 
             type="month" 
             value={mesFiltro} 
             onChange={(e) => setMesFiltro(e.target.value)} 
-            className="p-3 bg-gray-100 rounded-xl font-bold border-none text-blue-900 outline-none" 
+            className="w-full sm:w-auto p-3 md:p-3 bg-gray-100 rounded-xl font-bold border-none text-blue-900 outline-none text-sm md:text-base" 
           />
           <button
             onClick={() => {
               if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
               setModalGastoAberto(true);
             }}
-            className="p-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-sm transition-all"
+            className="w-full sm:w-auto p-3 md:p-3 bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] md:text-sm rounded-xl shadow-sm transition-all"
           >
             + Lançar Nova Despesa
           </button>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between border-l-4 border-l-red-500">
+      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 mb-4 md:mb-6 flex items-center justify-between border-l-4 border-l-red-500">
         <div>
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total de Saídas Efetivadas</span>
-          <h2 className="text-3xl font-black text-gray-900 mt-1">R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block">Total de Saídas Efetivadas</span>
+          <h2 className="text-xl md:text-3xl font-black text-gray-900 mt-0.5 md:mt-1 m-0">R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
         </div>
-        <div className="h-12 w-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold">📉</div>
+        <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg md:text-xl font-bold">📉</div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Histórico Detalhado do Período</h3>
+        <div className="p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+          <h3 className="font-bold text-gray-800 text-xs md:text-sm uppercase tracking-wider m-0">Histórico Detalhado do Período</h3>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse block md:table">
+            <thead className="hidden md:table-header-group">
               <tr className="bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider">
                 <th className="p-4">Data</th>
                 <th className="p-4">Descrição da Despesa</th>
@@ -422,24 +422,27 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: { userEmail: string | 
                 <th className="p-4 text-center">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="block md:table-row-group divide-y divide-gray-100 text-sm">
               {listaGastosDetalhada.length > 0 ? (
                 listaGastosDetalhada.map((gasto) => (
-                  <tr key={gasto.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="p-4 font-medium text-gray-500">
+                  <tr key={gasto.id} className="block md:table-row hover:bg-gray-50/80 transition-colors p-3 md:p-0 border-b border-slate-100 md:border-none">
+                    <td className="block md:table-cell p-2 md:p-4 font-medium text-gray-500 text-[11px] md:text-sm">
+                      <span className="md:hidden text-[9px] uppercase font-bold text-gray-400 block mb-0.5">Data</span>
                       {new Date(gasto.data_gasto + "T12:00:00").toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="p-4 font-bold text-gray-900 uppercase">
+                    <td className="block md:table-cell p-2 md:p-4 font-bold text-gray-900 uppercase text-[11px] md:text-sm">
+                      <span className="md:hidden text-[9px] uppercase font-bold text-gray-400 block mb-0.5">Descrição</span>
                       {gasto.descricao}
                     </td>
-                    <td className="p-4 text-right font-black text-red-600">
+                    <td className="block md:table-cell p-2 md:p-4 md:text-right font-black text-red-600 text-xs md:text-sm">
+                      <span className="md:hidden text-[9px] uppercase font-bold text-gray-400 block mb-0.5">Valor Retirado</span>
                       R$ {parseFloat(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="block md:table-cell p-2 md:p-4 text-left md:text-center mt-2 md:mt-0">
                       <button
                         onClick={() => handleExcluirGasto(gasto)}
                         disabled={gasto.isContaFixa}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                        className={`px-3 py-2 md:py-1.5 rounded-lg font-bold text-[10px] md:text-xs transition-all ${
                           gasto.isContaFixa 
                             ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
                             : "bg-red-50 text-red-600 hover:bg-red-100"
@@ -451,8 +454,8 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: { userEmail: string | 
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-400 italic">
+                <tr className="block md:table-row">
+                  <td colSpan={4} className="block md:table-cell p-6 md:p-8 text-center text-gray-400 italic text-[11px] md:text-sm border-b-0">
                     Nenhuma saída financeira registrada para este mês de referência.
                   </td>
                 </tr>
@@ -505,34 +508,40 @@ export default function UnificadoContasDespesasPage() {
     verificarAcesso();
   }, [router]);
 
-  if (verificandoAcesso) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse">Verificando Credenciais...</div>;
+  if (verificandoAcesso) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest text-[11px] md:text-sm animate-pulse">Verificando Credenciais...</div>;
 
   return (
     <div className="w-full bg-[#f8fafc] min-h-screen font-sans antialiased text-slate-800 pb-24 md:p-6 lg:p-8 flex flex-col">
-      <div className="max-w-[1700px] w-full mx-auto mb-6 px-4">
-        <div className="flex bg-slate-200/60 p-1.5 rounded-2xl w-fit border border-slate-300/40">
+      <div className="max-w-[1700px] w-full mx-auto mb-4 md:mb-6 px-3 md:px-4">
+        <div className="flex bg-slate-200/60 p-1 md:p-1.5 rounded-xl md:rounded-2xl w-full sm:w-fit overflow-x-auto custom-scrollbar border border-slate-300/40">
           <button
             onClick={() => setVisaoAtiva("contas")}
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${visaoAtiva === "contas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[11px] md:text-sm font-bold transition-all whitespace-nowrap ${visaoAtiva === "contas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             📅 Contas a Pagar
           </button>
           <button
             onClick={() => setVisaoAtiva("despesas")}
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${visaoAtiva === "despesas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[11px] md:text-sm font-bold transition-all whitespace-nowrap ${visaoAtiva === "despesas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             📉 Despesas e Saídas
           </button>
         </div>
       </div>
 
-      <div className="max-w-[1700px] w-full mx-auto px-4 flex-1">
+      <div className="max-w-[1700px] w-full mx-auto px-2 md:px-4 flex-1">
         {visaoAtiva === "contas" ? (
           <VisaoContasAPagar userEmail={userEmail} userCargo={userCargo} />
         ) : (
           <VisaoDespesasVariaveis userEmail={userEmail} userCargo={userCargo} />
         )}
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}} />
     </div>
   );
 }

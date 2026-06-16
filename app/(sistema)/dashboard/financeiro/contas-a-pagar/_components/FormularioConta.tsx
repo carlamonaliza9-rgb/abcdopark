@@ -44,24 +44,59 @@ export function FormularioConta({ onSalvar }: FormularioContaProps) {
   }
 
   return (
-    <section style={{ backgroundColor: 'white', padding: '25px', borderRadius: '24px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', marginBottom: '40px' }}>
-      <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '18px' }}>Nova Conta</h3>
-      <form onSubmit={lidarSubmissao} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '15px', alignItems: 'end' }}>
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', display: 'block', marginBottom: '5px' }}>DESCRIÇÃO</label>
-          <input placeholder="Ex: Aluguel, Luz..." value={descricao} onChange={e => setDescricao(e.target.value)} required disabled={salvando} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: salvando ? '#f8fafc' : 'white' }} />
+    <section className="bg-white p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 mb-8 md:mb-10">
+      <h3 className="text-base md:text-lg font-bold text-slate-900 mb-4 md:mb-5 mt-0">Nova Conta</h3>
+      
+      {/* O Grid Mágico: Empilhado no celular, 2 colunas no tablet, 5 colunas no desktop */}
+      <form onSubmit={lidarSubmissao} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 md:gap-4 items-end">
+        
+        <div className="sm:col-span-2 md:col-span-1">
+          <label className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Descrição</label>
+          <input 
+            placeholder="Ex: Aluguel, Luz..." 
+            value={descricao} 
+            onChange={e => setDescricao(e.target.value)} 
+            required 
+            disabled={salvando} 
+            className="w-full p-3 md:p-3.5 rounded-xl border border-slate-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-sm disabled:bg-slate-50 disabled:text-slate-400" 
+          />
         </div>
+        
         <div>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', display: 'block', marginBottom: '5px' }}>VALOR (R$)</label>
-          <input type="number" step="0.01" min="0" placeholder="0,00" value={valor} onChange={e => setValor(e.target.value)} required disabled={salvando} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: salvando ? '#f8fafc' : 'white' }} />
+          <label className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Valor (R$)</label>
+          <input 
+            type="number" 
+            step="0.01" 
+            min="0" 
+            placeholder="0,00" 
+            value={valor} 
+            onChange={e => setValor(e.target.value)} 
+            required 
+            disabled={salvando} 
+            className="w-full p-3 md:p-3.5 rounded-xl border border-slate-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-sm disabled:bg-slate-50 disabled:text-slate-400" 
+          />
         </div>
+        
         <div>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', display: 'block', marginBottom: '5px' }}>VENCIMENTO</label>
-          <input type="date" value={vencimento} onChange={e => setVencimento(e.target.value)} required disabled={salvando} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: salvando ? '#f8fafc' : 'white' }} />
+          <label className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Vencimento</label>
+          <input 
+            type="date" 
+            value={vencimento} 
+            onChange={e => setVencimento(e.target.value)} 
+            required 
+            disabled={salvando} 
+            className="w-full p-3 md:p-3.5 rounded-xl border border-slate-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-sm disabled:bg-slate-50 disabled:text-slate-400" 
+          />
         </div>
+        
         <div>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', display: 'block', marginBottom: '5px' }}>REPETIR (MESES)</label>
-          <select value={repetirMeses} onChange={e => setRepetirMeses(parseInt(e.target.value))} disabled={salvando} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', outline: 'none', backgroundColor: salvando ? '#f8fafc' : '#fff' }}>
+          <label className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Repetir (Meses)</label>
+          <select 
+            value={repetirMeses} 
+            onChange={e => setRepetirMeses(parseInt(e.target.value))} 
+            disabled={salvando} 
+            className="w-full p-3 md:p-3.5 rounded-xl border border-slate-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-sm disabled:bg-slate-50 disabled:text-slate-400 bg-white"
+          >
             <option value="1">Só este mês</option>
             <option value="3">Próximos 3 meses</option>
             <option value="6">Próximos 6 meses</option>
@@ -69,9 +104,14 @@ export function FormularioConta({ onSalvar }: FormularioContaProps) {
           </select>
         </div>
 
-        <button type="submit" disabled={salvando} style={{ padding: '14px 25px', borderRadius: '12px', border: 'none', backgroundColor: salvando ? '#93c5fd' : '#2563eb', color: 'white', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
-          {salvando ? "SALVANDO..." : "ADICIONAR"}
+        <button 
+          type="submit" 
+          disabled={salvando} 
+          className={`w-full sm:col-span-2 md:col-span-1 md:w-auto px-6 py-3.5 md:py-4 rounded-xl font-bold text-white text-[10px] md:text-xs uppercase tracking-widest transition-all ${salvando ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-600/20'}`}
+        >
+          {salvando ? "Salvando..." : "Adicionar"}
         </button>
+        
       </form>
     </section>
   );

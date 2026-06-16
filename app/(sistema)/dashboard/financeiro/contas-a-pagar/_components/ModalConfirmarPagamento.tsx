@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import { UploadComprovante } from "./UploadComprovante";
 
 interface ModalConfirmarPagamentoProps {
@@ -16,7 +15,6 @@ export function ModalConfirmarPagamento({ aberto, contaParaPagar, salvandoPgto, 
   const [dataPagamento, setDataPagamento] = useState("");
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
 
-  // Sincroniza a data do modal com a data da conta quando o modal abre
   useEffect(() => {
     if (aberto && contaParaPagar) {
       const dataInicial = contaParaPagar.data_pagamento || new Date().toISOString().split('T')[0];
@@ -31,58 +29,51 @@ export function ModalConfirmarPagamento({ aberto, contaParaPagar, salvandoPgto, 
 
   return (
     <div 
-      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-end md:items-center justify-center md:p-4"
       onClick={onFechar}
     >
       <div 
-        style={{ backgroundColor: 'white', padding: '40px', borderRadius: '30px', width: '90%', maxWidth: '450px', textAlign: 'center' }}
+        className="bg-white p-4 md:p-10 rounded-t-[2rem] md:rounded-[30px] w-full max-w-[400px] text-center shadow-2xl animate-in slide-in-from-bottom-full md:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: '0 0 10px' }}>{ehEdicao ? "Editar Pagamento" : "Confirmar Pagamento"}</h2>
-        <p style={{ color: '#64748b', marginBottom: '20px' }}>
-          {ehEdicao ? "Atualizando registro de:" : "Registrando pagamento para:"} <br/>
-          <strong>{contaParaPagar.descricao} (R$ {contaParaPagar.valor.toLocaleString('pt-BR')})</strong>
+        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4 md:hidden"></div>
+
+        <h2 className="m-0 mb-1 text-base md:text-2xl font-black text-slate-800">
+          {ehEdicao ? "Editar Pagamento" : "Confirmar Pgto."}
+        </h2>
+        <p className="text-slate-500 mb-4 text-[10px] md:text-sm">
+          {ehEdicao ? "Atualizando:" : "Pagamento de:"} 
+          <strong className="text-slate-700 block"> {contaParaPagar.descricao} (R$ {contaParaPagar.valor.toLocaleString('pt-BR')})</strong>
         </p>
 
-        <div style={{ marginBottom: '25px', textAlign: 'left' }}>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>DATA DO PAGAMENTO</label>
+        <div className="mb-4 text-left">
+          <label className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Data</label>
           <input 
             type="date" 
             value={dataPagamento} 
             onChange={(e) => setDataPagamento(e.target.value)}
-            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', outline: 'none', color: '#475569', fontWeight: '600' }}
+            className="w-full p-2 md:p-3 rounded-lg border-2 border-slate-200 outline-none text-slate-600 font-bold text-xs md:text-sm focus:border-blue-400 transition-colors"
           />
         </div>
         
         {salvandoPgto ? (
-          <div style={{ padding: '40px', fontWeight: 'bold', color: '#2563eb' }}>Processando e salvando...</div>
+          <div className="py-6 font-bold text-blue-600 animate-pulse text-xs">Salvando...</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div className="flex flex-col gap-2">
             <UploadComprovante onFileSelect={(file) => setArquivoSelecionado(file)} />
             
-            {arquivoSelecionado && (
-              <p style={{ fontSize: '12px', color: '#22c55e', fontWeight: 'bold', margin: 0 }}>
-                ✓ Novo arquivo selecionado
-              </p>
-            )}
+            {arquivoSelecionado && <p className="text-[9px] text-emerald-500 font-bold m-0">✓ Arquivo anexado</p>}
 
             <button 
               onClick={() => onRegistrarPagamento(arquivoSelecionado, dataPagamento)}
               disabled={!arquivoSelecionado && !ehEdicao}
-              style={{ 
-                width: '100%', 
-                padding: '14px', 
-                borderRadius: '12px', 
-                border: 'none', 
-                backgroundColor: '#2563eb', 
-                color: 'white', 
-                fontWeight: 'bold', 
-                cursor: (arquivoSelecionado || ehEdicao) ? 'pointer' : 'not-allowed',
-                opacity: (arquivoSelecionado || ehEdicao) ? 1 : 0.5,
-                marginTop: '10px'
-              }}
+              className={`w-full p-2.5 md:p-4 rounded-xl border-none text-white font-black uppercase tracking-widest text-[9px] md:text-xs transition-all ${
+                (arquivoSelecionado || ehEdicao) 
+                  ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md' 
+                  : 'bg-blue-300 cursor-not-allowed opacity-50'
+              }`}
             >
-              {ehEdicao ? "Salvar Alterações" : "Confirmar e Enviar"}
+              {ehEdicao ? "Salvar" : "Confirmar"}
             </button>
           </div>
         )}
@@ -90,9 +81,9 @@ export function ModalConfirmarPagamento({ aberto, contaParaPagar, salvandoPgto, 
         <button 
           onClick={onFechar} 
           disabled={salvandoPgto}
-          style={{ marginTop: '20px', background: 'none', border: 'none', color: '#94a3b8', fontWeight: 'bold', cursor: 'pointer' }}
+          className="mt-3 bg-transparent border-none text-slate-400 font-bold text-[9px] md:text-xs uppercase tracking-widest cursor-pointer hover:text-slate-600"
         >
-          Cancelar e Voltar
+          Cancelar
         </button>
       </div>
     </div>
