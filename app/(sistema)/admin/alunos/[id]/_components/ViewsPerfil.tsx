@@ -2,6 +2,8 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import { clean, calcularIdade, obterMediaFinal, extrairFormaPagamento, mCPF, mWhatsApp, abrirWhatsApp } from "./alunoUtils";
 
 export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onExcluir }: any) {
@@ -55,7 +57,7 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
   );
 }
 
-export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, mediaEstrelas, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico }: any) {
+export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, mediaEstrelas, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
   const contatos = [
     { nome: aluno.responsavel, whats: aluno.whatsapp, email: aluno.email_responsavel, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "text-pink-700", bg: "bg-pink-100 border-pink-200" },
     { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, email: aluno.email_responsavel_2 || aluno.email_responsavel2, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "text-blue-700", bg: "bg-blue-100 border-blue-200" },
@@ -133,7 +135,7 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3">
           <button onClick={() => router.push(`/admin/alunos/${alunoId}/documentos`)} className="group relative overflow-hidden bg-white border border-emerald-200 hover:border-emerald-400 p-6 rounded-[2rem] shadow-sm transition-all flex flex-col items-center justify-center gap-3">
             <span className="text-3xl group-hover:scale-110 transition-transform">📂</span>
             <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest text-center">Documentos Aluno</span>
@@ -145,6 +147,11 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <button onClick={() => setVerHistorico(true)} className="group relative overflow-hidden bg-white border border-indigo-200 hover:border-indigo-400 p-6 rounded-[2rem] shadow-sm transition-all flex flex-col items-center justify-center gap-3">
             <span className="text-3xl group-hover:scale-110 transition-transform">💳</span>
             <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest text-center">Extrato</span>
+          </button>
+          {/* NOVO BOTÃO DE RELATÓRIOS AQUI */}
+          <button onClick={() => setVerRelatorios(true)} className="group relative overflow-hidden bg-white border border-fuchsia-200 hover:border-fuchsia-400 p-6 rounded-[2rem] shadow-sm transition-all flex flex-col items-center justify-center gap-3">
+            <span className="text-3xl group-hover:scale-110 transition-transform">🧠</span>
+            <span className="text-[10px] font-black text-fuchsia-700 uppercase tracking-widest text-center">Relatórios Prof.</span>
           </button>
         </div>
       </div>
@@ -192,7 +199,105 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
   );
 }
 
-// CORREÇÃO: Recebe onAbrirPDV nas props para abrir o modal de forma inteligente
+// ==========================================================
+// NOVO COMPONENTE: RELATÓRIOS DO PROFESSOR (AVANÇOS/DIFICULDADES)
+// ==========================================================
+export function RelatoriosAluno({ alunoId, setVerRelatorios }: { alunoId: string, setVerRelatorios: (v: boolean) => void }) {
+  const [relatorios, setRelatorios] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function buscarRelatorios() {
+      const { data, error } = await supabase
+        .from('avancos_dificuldades')
+        .select('*')
+        .eq('aluno_id', alunoId)
+        .order('ano', { ascending: false })
+        .order('semestre', { ascending: false });
+
+      if (data) setRelatorios(data);
+      if (error) console.error("Erro ao buscar relatórios:", error);
+      setCarregando(false);
+    }
+    buscarRelatorios();
+  }, [alunoId]);
+
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-black text-fuchsia-600 tracking-tight flex items-center gap-2">
+          🧠 Evolução e Dificuldades
+        </h3>
+        <button onClick={() => setVerRelatorios(false)} className="bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl transition-colors">← VOLTAR</button>
+      </div>
+
+      <div className="bg-fuchsia-50 border border-fuchsia-100 p-4 md:p-6 rounded-2xl mb-6 shadow-sm flex items-center gap-4">
+        <div className="text-3xl">📝</div>
+        <div>
+          <h4 className="text-sm font-bold text-fuchsia-800">Relatórios do Corpo Docente</h4>
+          <p className="text-xs text-fuchsia-600/80 mt-1 font-semibold leading-relaxed">
+            Acompanhamento qualitativo preenchido pelos professores em diário de classe.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {carregando ? (
+          <div className="p-10 text-center text-slate-400 font-bold bg-slate-50 rounded-3xl border border-slate-100 animate-pulse">Buscando pareceres pedagógicos...</div>
+        ) : relatorios.length > 0 ? (
+          relatorios.map((rel, index) => (
+            <div key={index} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-2">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">Período Referência</span>
+                  <span className="font-bold text-slate-800">{rel.semestre} de {rel.ano}</span>
+                </div>
+                <div className="text-left md:text-right">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">Professor(a) Responsável</span>
+                   <span className="font-bold text-slate-600">{rel.professor_nome || "Não identificado"}</span>
+                </div>
+              </div>
+              
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h5 className="flex items-center gap-2 text-emerald-600 font-bold text-sm mb-3 uppercase tracking-wider">
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs">🚀</span>
+                    Avanços Obtidos
+                  </h5>
+                  <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 min-h-[100px]">
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{rel.avancos && rel.avancos !== 'EMPTY' ? rel.avancos : <span className="italic text-slate-400">Nenhum avanço registrado neste período.</span>}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h5 className="flex items-center gap-2 text-rose-600 font-bold text-sm mb-3 uppercase tracking-wider">
+                    <span className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-xs">⚠️</span>
+                    Dificuldades Apresentadas
+                  </h5>
+                  <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 min-h-[100px]">
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{rel.dificuldades && rel.dificuldades !== 'EMPTY' ? rel.dificuldades : <span className="italic text-slate-400">Nenhuma dificuldade registrada neste período.</span>}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {rel.data_atualizacao && (
+                <div className="px-5 py-2 bg-slate-50/50 border-t border-slate-100 text-[10px] text-slate-400 font-bold uppercase text-right tracking-widest">
+                  Última atualização: {new Date(rel.data_atualizacao).toLocaleString('pt-BR')}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="p-10 text-center text-slate-400 font-bold bg-slate-50 rounded-3xl border border-slate-100 border-dashed">
+            Nenhum relatório qualitativo foi lançado para este aluno até o momento.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Demais componentes mantidos inalterados abaixo
 export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, onAbrirPDV, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
@@ -221,12 +326,10 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
           const restante = valorTotal - valorPago;
           const renegociandoEste = idRenegociacao === pend.id;
 
-          // CORREÇÃO UX: O cartão inteiro é clicável se não estiver a ser renegociado.
           return (
             <div 
               key={i} 
               onClick={(e) => { 
-                // Evita que o clique abra o modal caso o utilizador clique num botão específico
                 if (!renegociandoEste && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'INPUT') {
                   onAbrirPDV(pend.id); 
                 }
@@ -251,7 +354,7 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
                      <div className="flex gap-2">
                         {onAbrirPDV && (
                            <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pend.id); }} className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors uppercase shadow-sm flex items-center gap-1">
-                             💵 Quitar Fatura
+                              💵 Quitar Fatura
                            </button>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); setIdRenegociacao(pend.id); }} className="bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center gap-1">
@@ -492,7 +595,6 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-// CORREÇÃO: Recebe onAbrirPDV nas props para abrir o modal no Extrato também
 export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, onAbrirPDV }: any) {
   
   const historicoFiltrado = historicoLocal.filter((h: any) => 
@@ -679,7 +781,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
           return (
             <div 
               key={i} 
-              // UX CORREÇÃO: Torna a fatura pendente inteira clicável no Extrato também.
               onClick={(e) => { 
                 if (devedorRestante > 0 && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON') {
                   onAbrirPDV(pgto.id); 

@@ -10,7 +10,7 @@ import { UserMinus } from "lucide-react";
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
 import { FormAlunoModal } from "@/app/(sistema)/dashboard/alunos/_components/FormAlunoModal";
 import { clean, SENHA_MESTRA, mesesAno, mCPF, mWhatsApp } from "./_components/alunoUtils";
-import { BannerAluno, VisaoGeralAluno, DividasAluno, CreditoAluno, BoletimAluno, ExtratoAluno } from "./_components/ViewsPerfil";
+import { BannerAluno, VisaoGeralAluno, DividasAluno, CreditoAluno, BoletimAluno, ExtratoAluno, RelatoriosAluno } from "./_components/ViewsPerfil";
 
 // --- IMPORTAÇÃO DO MODAL DE TRANSFERÊNCIA ---
 import { ModalTransferencia } from "./_components/ModalTransferencia";
@@ -30,6 +30,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   // --- ESTADOS DA FICHA ---
   const [verBoletim, setVerBoletim] = useState(false);
   const [verHistorico, setVerHistorico] = useState(false);
+  const [verRelatorios, setVerRelatorios] = useState(false); // NOVO ESTADO AQUI
+  
   const [notas, setNotas] = useState<any[]>([]);
   const [historicoLocal, setHistoricoLocal] = useState<any[]>([]);
 
@@ -303,7 +305,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  // --- NOVA FUNÇÃO PRIVILEGIADA: DESFAZER TRANSFERÊNCIA ---
   async function desfazerTransferencia() {
     if (isProcessandoAcao) return;
     if (userEmail !== 'carlamonaliza9@gmail.com') {
@@ -846,7 +847,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         />
 
         {/* BOTÃO ESTRATÉGICO DE TRANSFERÊNCIA */}
-        {aluno?.status !== 'transferido' && !ehVisitante && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && (
+        {aluno?.status !== 'transferido' && !ehVisitante && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && !verRelatorios && (
           <div className="flex justify-end -mt-2 mb-4 pr-2 md:pr-0 relative z-10">
             <button 
               onClick={() => setModalTransferenciaAberto(true)}
@@ -858,7 +859,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         )}
 
         {/* NOVO BOTÃO EXCLUSIVO DA CARLA: DESFAZER TRANSFERÊNCIA */}
-        {aluno?.status === 'transferido' && userEmail === 'carlamonaliza9@gmail.com' && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && (
+        {aluno?.status === 'transferido' && userEmail === 'carlamonaliza9@gmail.com' && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && !verRelatorios && (
           <div className="flex justify-end -mt-2 mb-4 pr-2 md:pr-0 relative z-10">
             <button 
               onClick={desfazerTransferencia}
@@ -869,6 +870,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
 
+        {/* ROTEMENTO PRINCIPAL DO CONTEÚDO */}
         {verDividasGlobais ? (
           <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} onAbrirPDV={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
         ) : verCreditoGlobal ? (
@@ -877,8 +879,10 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           <BoletimAluno aluno={aluno} anoSelecionado={anoSelecionado} setAnoSelecionado={setAnoSelecionado} notas={notas} setVerBoletim={setVerBoletim} />
         ) : verHistorico ? (
           <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} onAbrirPDV={setModalPDVAberto} clean={clean} />
+        ) : verRelatorios ? (
+          <RelatoriosAluno alunoId={alunoId} setVerRelatorios={setVerRelatorios} />
         ) : (
-          <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} />
+          <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} setVerRelatorios={setVerRelatorios} />
         )}
 
       </div>
