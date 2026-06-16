@@ -9,6 +9,7 @@ import { AlertaEvasao } from "./AlertaEvasao";
 
 export default function SidebarAdmin({ children }: { children?: React.ReactNode }) {
   const [ehAdmin, setEhAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null); // ESTADO PARA O EMAIL
   const [carregando, setCarregando] = useState(true);
   
   const [menuFinanceiroAberto, setMenuFinanceiroAberto] = useState(false);
@@ -18,7 +19,8 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
     async function verificarAcesso() {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
-        const email = authData.user.email;
+        const email = authData.user.email ?? null;
+        setUserEmail(email); // GUARDA O EMAIL PARA VERIFICAÇÕES FUTURAS
         
         const { data: perfil } = await supabase
           .from('perfis')
@@ -103,42 +105,42 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
         {/* NAVEGAÇÃO COMPACTADA */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar flex flex-col justify-start">
           
-          <Link href="/dashboard" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+          <Link href="/dashboard" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
             📊 Painel de Controle
           </Link>
 
           {ehAdmin && (
             <>
-              <Link href="/admin/alunos" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+              <Link href="/admin/alunos" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 👨‍🎓 Alunos
               </Link>
             </>
           )}
 
-          <Link href={ehAdmin ? "/admin/turmas" : "/professor/turmas"} onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+          <Link href={ehAdmin ? "/admin/turmas" : "/professor/turmas"} onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
             {ehAdmin ? "🏫 Turmas" : "🏫 Minha Turma"}
           </Link>
 
           {!ehAdmin && (
-            <Link href="/professor/diario" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+            <Link href="/professor/diario" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
               📒 Diário de Classe
             </Link>
           )}
           
           {ehAdmin && (
             <>
-              <Link href="/dashboard/documentacoes" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+              <Link href="/dashboard/documentacoes" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 📑 Documentações
               </Link>
 
-              <Link href="/admin/funcionarios" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
+              <Link href="/admin/funcionarios" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 👥 Funcionários
               </Link>
 
               <div className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden">
                 <button
                   onClick={() => setMenuFinanceiroAberto(!menuFinanceiroAberto)}
-                  className="w-full flex justify-between items-center p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all text-left outline-none"
+                  className="w-full flex justify-between items-center p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all text-left outline-none"
                 >
                   <span>💰 Financeiro</span>
                   <svg
@@ -158,37 +160,43 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
                     menuFinanceiroAberto ? "max-h-[300px] mt-1 py-1 opacity-100" : "max-h-0 opacity-0 m-0 p-0 border-transparent"
                   }`}
                 >
-                  <Link href="/admin/financeiro" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm text-lg md:text-xl font-bold transition-all">
+                  <Link href="/admin/financeiro" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm md:text-xl font-bold transition-all">
                     📊 Visão Geral
                   </Link>
-                  <Link href="/admin/financeiro/acordos-dividas-creditos" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm text-lg md:text-xl font-bold transition-all">
+                  <Link href="/admin/financeiro/acordos-dividas-creditos" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm md:text-xl font-bold transition-all">
                     💲 Controle Pagamentos
                   </Link>
-                  <Link href="/admin/financeiro/vendas-taxas-eventos" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm text-lg md:text-xl font-bold transition-all">
+                  <Link href="/admin/financeiro/vendas-taxas-eventos" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm md:text-xl font-bold transition-all">
                     🛍️ Eventos & Taxas
                   </Link>
-                  <Link href="/admin/pdv" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm text-lg md:text-xl font-bold transition-all">
+                  <Link href="/admin/pdv" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm md:text-xl font-bold transition-all">
                     🛒 Ponto de Venda
                   </Link>
-                  <Link href="/admin/financeiro/saidas" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm text-lg md:text-xl font-bold transition-all">
+                  <Link href="/admin/financeiro/saidas" onClick={fecharMenuMobile} className="block p-2 rounded-md text-blue-900 hover:bg-blue-600/10 text-sm md:text-xl font-bold transition-all">
                     💸 Saídas
                   </Link>
                 </div>
               </div>
 
-              <Link href="/admin/fechamento" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
-                🎓 Fechamento Letivo
-              </Link>
+              {/* CONDIÇÃO RESTRITA APENAS PARA O E-MAIL CARLA MONALIZA */}
+              {userEmail === 'carlamonaliza9@gmail.com' && (
+                <>
+                  <Link href="/admin/fechamento" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
+                    🎓 Fechamento Letivo
+                  </Link>
 
-              <Link href="/admin/logs" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm text-lg md:text-xl font-bold transition-all shrink-0">
-                🛡️ Logs do Sistema
-              </Link>
+                  <Link href="/admin/logs" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
+                    🛡️ Logs do Sistema
+                  </Link>
+                </>
+              )}
+
             </>
           )}
         </nav>
 
         <div className="p-3 border-t border-blue-200 bg-white md:bg-transparent shrink-0">
-          <Link href="/" className="block p-2.5 rounded-lg text-red-600 hover:bg-red-50 text-sm text-lg md:text-xl font-bold transition-all text-center">
+          <Link href="/" className="block p-2.5 rounded-lg text-red-600 hover:bg-red-50 text-sm md:text-xl font-bold transition-all text-center">
             Sair do Sistema
           </Link>
         </div>

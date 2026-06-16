@@ -10,7 +10,6 @@ import { Tag, PieChart as PieChartIcon } from "lucide-react";
 import { ModalUniforme } from "@/app/(sistema)/dashboard/financeiro/_components/ModalUniforme";
 import { ModalTaxas } from "@/app/(sistema)/dashboard/financeiro/_components/ModalTaxas";
 
-
 // --- IMPORTAÇÕES DOS COMPONENTES (AGORA TODOS UNIFICADOS) ---
 import { CardMetricas } from "./_components/CardMetricas";
 import { TabelaUniformes } from "./_components/TabelaUniformes";
@@ -252,7 +251,6 @@ export default function DashboardFinanceiroPage() {
     }
   }
 
-  // --- NOVA FUNÇÃO: REABRIR EVENTO ---
   async function reabrirEvento(id: string) {
     if (prompt(`Para REABRIR este evento, digite a Senha Mestra:`) !== SENHA_MESTRA) return alert("Senha incorreta.");
     if (confirm("Confirmar a reabertura deste evento? Os lançamentos poderão ser feitos novamente.")) {
@@ -486,31 +484,31 @@ export default function DashboardFinanceiroPage() {
   const hCamisas = (camisasVendidas / maxPecas) * 100; const hInferiores = (inferioresVendidos / maxPecas) * 100; const hCasacos = (casacosVendidos / maxPecas) * 100;
 
   if (verificandoAcesso || carregando) {
-    return <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Carregando controle financeiro integrado...</div>;
+    return <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse text-xs md:text-sm">Carregando controle financeiro integrado...</div>;
   }
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen relative font-sans antialiased text-slate-800 pb-24 md:pb-8 hide-on-print-setup">
+    <div className="w-full bg-slate-50 min-h-screen relative font-sans antialiased text-slate-800 pb-24 p-3 md:p-8 hide-on-print-setup">
       
-      <div className="mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:border-none print:shadow-none print:hidden">
+      <div className="mb-4 md:mb-8 bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:border-none print:shadow-none print:hidden">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">💰 Caixa & Faturamentos</h1>
-          <p className="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Escola ABC do Park — Gestão Unificada</p>
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter italic">💰 Caixa & Faturamentos</h1>
+          <p className="text-[10px] md:text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Escola ABC do Park — Gestão Unificada</p>
         </div>
 
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner w-full md:w-auto">
-          <button onClick={() => setAbaAtiva("eventos")} className={`flex-1 md:flex-none px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${abaAtiva === "eventos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>🎟️ Eventos & Gincanas</button>
-          <button onClick={() => setAbaAtiva("vendas_taxas")} className={`flex-1 md:flex-none px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${abaAtiva === "vendas_taxas" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>🛍️ Uniformes & Taxas</button>
+        <div className="flex bg-slate-100 p-1 md:p-1.5 rounded-xl md:rounded-2xl border border-slate-200 shadow-inner w-full md:w-auto">
+          <button onClick={() => setAbaAtiva("eventos")} className={`flex-1 md:flex-none px-2 py-2 md:px-6 md:py-2.5 text-[10px] md:text-xs font-black uppercase tracking-wider rounded-lg md:rounded-xl transition-all ${abaAtiva === "eventos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>🎟️ Eventos & Gincanas</button>
+          <button onClick={() => setAbaAtiva("vendas_taxas")} className={`flex-1 md:flex-none px-2 py-2 md:px-6 md:py-2.5 text-[10px] md:text-xs font-black uppercase tracking-wider rounded-lg md:rounded-xl transition-all ${abaAtiva === "vendas_taxas" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>🛍️ Uniformes & Taxas</button>
         </div>
       </div>
 
       {abaAtiva === "eventos" ? (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
           
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm gap-4 print:hidden">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm gap-3 md:gap-4 print:hidden">
             <div>
-              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">🎟️ Gestão de Eventos e Gincanas</h2>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-1">Planejamento Estratégico, Equipes e Fluxo de Caixa</p>
+              <h2 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">🎟️ Gestão de Eventos e Gincanas</h2>
+              <p className="text-[9px] md:text-[10px] text-slate-400 uppercase tracking-widest font-black mt-0.5 md:mt-1">Planejamento Estratégico, Equipes e Fluxo de Caixa</p>
             </div>
             <button
               onClick={() => {
@@ -520,13 +518,13 @@ export default function DashboardFinanceiroPage() {
                 setEquipes(["Equipe Azul", "Equipe Amarela"]); setAlunosSelecionadosEvento([]); setTagTipoFoco('entrada');
                 setModalSetupAberto(true);
               }}
-              className="w-full md:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95"
+              className="w-full md:w-auto px-4 py-2.5 md:px-6 md:py-3 bg-slate-900 hover:bg-slate-800 text-white text-[10px] md:text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 mt-2 md:mt-0"
             >
               + Configurar Novo Evento
             </button>
           </div>
 
-          <div className="flex flex-col gap-8 print:hidden">
+          <div className="flex flex-col gap-4 md:gap-8 print:hidden">
             {eventosAtivos.map(evento => (
               <CardEvento
                 key={evento.id}
@@ -540,15 +538,15 @@ export default function DashboardFinanceiroPage() {
                 abrirLancamento={abrirLancamento}
                 abrirRelatorioEvento={abrirRelatorioEvento}
                 encerrarEventoDefinitivamente={encerrarEventoDefinitivamente}
-                reabrirEvento={reabrirEvento} // <--- Função passada para o componente
+                reabrirEvento={reabrirEvento} 
               />
             ))}
             
             {eventosAtivos.length === 0 && (
-              <div className="w-full p-16 bg-white rounded-[2.5rem] border border-dashed border-slate-300 text-center shadow-sm print:hidden">
-                <Tag size={56} className="mx-auto text-slate-300 mb-4 animate-bounce" />
-                <h3 className="text-xl font-black text-slate-700">Nenhum evento estruturado</h3>
-                <p className="text-sm font-bold text-slate-400 mt-2 max-w-md mx-auto">Clique em "Configurar Novo Evento" para começar a rastrear entradas e saídas e criar a bilheteria.</p>
+              <div className="w-full p-8 md:p-16 bg-white rounded-2xl md:rounded-[2.5rem] border border-dashed border-slate-300 text-center shadow-sm print:hidden">
+                <Tag size={48} className="mx-auto text-slate-300 mb-4 animate-bounce md:w-[56px] md:h-[56px]" />
+                <h3 className="text-lg md:text-xl font-black text-slate-700">Nenhum evento estruturado</h3>
+                <p className="text-xs md:text-sm font-bold text-slate-400 mt-2 max-w-md mx-auto">Clique em "Configurar Novo Evento" para começar a rastrear entradas e saídas e criar a bilheteria.</p>
               </div>
             )}
           </div>
@@ -629,7 +627,7 @@ export default function DashboardFinanceiroPage() {
         </div>
 
       ) : (
-        <div className="space-y-6 animate-fadeIn">
+        <div className="space-y-4 md:space-y-6 animate-fadeIn">
           <CardMetricas 
             totalPecasAno={totalPecasAno} camisasVendidas={camisasVendidas} inferioresVendidos={inferioresVendidos} casacosVendidos={casacosVendidos}
             hCamisas={hCamisas} hInferiores={hInferiores} hCasacos={hCasacos} pagoMaterial={pagoMaterial} totalMaterial={totalMaterial}
@@ -656,6 +654,7 @@ export default function DashboardFinanceiroPage() {
         </div>
       )}
 
+      {/* MODAIS GLOBAIS DE TAXAS E UNIFORMES */}
       <ModalUniforme aberto={modalUniformeAberto} onFechar={() => setModalUniformeAberto(false)} alunos={alunos} carregarDados={carregarDados} />
       <ModalUniforme aberto={modalUniformeAberto} onFechar={() => setModalUniformeAberto(false)} alunos={alunos} carregarDados={carregarDados} />
       <ModalTaxas aberto={modalTaxasAberto} onFechar={() => setModalTaxasAberto(false)} alunos={alunos} carregarDados={carregarDados} />

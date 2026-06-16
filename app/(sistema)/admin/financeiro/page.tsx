@@ -85,21 +85,17 @@ export default function FinanceiroAdminPage() {
 
       const { data: listaAlunos } = await supabase.from('alunos').select('*');
       
-      // Busca Histórico de Pagamentos (Receitas normais e Entradas/Saídas de Eventos)
       const { data: pgtosMesDB } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const { data: pgtosPendentesDB } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
 
       const pgtosMes = pgtosMesDB || [];
       const pgtosPendentes = pgtosPendentesDB || [];
 
-      // SEPARAÇÃO: Receitas (Entradas) vs Saídas (Gastos guardados na tabela de histórico)
-      // Baseado na lógica encontrada no seu ModalLancamentoCaixa
       const transacoesEntrada = pgtosMes.filter(p => {
         const detalhes = getDetalhes(p);
         return p.tipo !== 'evento_saida' && detalhes.sub_tipo !== 'saida' && !(p.descricao && p.descricao.includes('[SAÍDA]'));
       });
       
-      // Aqui pegamos o dinheiro que saiu (Eventos) e que está no historico_pagamentos
       const transacoesSaidaDeHistorico = pgtosMes.filter(p => {
         const detalhes = getDetalhes(p);
         return p.tipo === 'evento_saida' || detalhes.sub_tipo === 'saida' || (p.descricao && p.descricao.includes('[SAÍDA]'));
@@ -122,7 +118,6 @@ export default function FinanceiroAdminPage() {
       pgtosPendentes.forEach((p: any) => mapaPgtos.set(p.id, p));
       const pgtosFiltrados = Array.from(mapaPgtos.values());
 
-      // --- ALGORITMO DEFENSIVO MULTI-TABELAS PARA DESPESAS VARIÁVEIS EXTERNAS ---
       const normalizeDespesa = (item: any, tabelaOrigem: string) => ({
         id: item.id,
         descricao: item.descricao || "Gasto Operacional",
@@ -153,7 +148,6 @@ export default function FinanceiroAdminPage() {
         } catch (e2) {}
       }
 
-      // Busca de Contas Fixas Tradicionais
       const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const contasFormatadas = (contasPagasMes || []).map((account: any) => ({
         id: account.id,
@@ -163,7 +157,6 @@ export default function FinanceiroAdminPage() {
         tabela_origem: 'contas_a_pagar'
       }));
 
-      // --- CONSOLIDAÇÃO GERAL: Junta todas as tabelas + os gastos salvos como "saida" no histórico ---
       const todasAsDespesas = [...deDB_gastos, ...deDB_saidas, ...transacoesSaidaDeHistorico, ...contasFormatadas];
       setListaGastosDetalhada(todasAsDespesas);
 
@@ -174,24 +167,14 @@ export default function FinanceiroAdminPage() {
       todasAsDespesas.forEach((g: any) => {
         const val = clean(g.valor);
         vGastos += val;
-        
-        // Se vier de contas_a_pagar ou tiver a tag [Conta Fixa], é Custo Fixo.
         const isFixa = (g.descricao && g.descricao.includes("[Conta Fixa]")) || g.tabela_origem === 'contas_a_pagar';
-        
-        if (isFixa) {
-          vFixas += val;
-        } else {
-          // O resto (incluindo os eventos) cai em Variáveis / Eventos
-          vVariaveis += val;
-        }
+        if (isFixa) vFixas += val;
+        else vVariaveis += val;
       });
 
       const totalGastosMestre = vFixas + vVariaveis || 1;
       setDistribuicaoGastos({
-        fixas: vFixas,
-        variaveis: vVariaveis,
-        pctFixas: Math.round((vFixas / totalGastosMestre) * 100),
-        pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100)
+        fixas: vFixas, variaveis: vVariaveis, pctFixas: Math.round((vFixas / totalGastosMestre) * 100), pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100)
       });
 
       const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
@@ -205,20 +188,14 @@ export default function FinanceiroAdminPage() {
       const totalReceitasCalc = vPago || 1;
 
       setDistribuicaoReceitas({
-        mensalidades: vMensalidadesPagos,
-        extras: vExtrasPagos,
-        pctMensalidades: Math.round((vMensalidadesPagos / totalReceitasCalc) * 100),
-        pctExtras: Math.round((vExtrasPagos / totalReceitasCalc) * 100)
+        mensalidades: vMensalidadesPagos, extras: vExtrasPagos, pctMensalidades: Math.round((vMensalidadesPagos / totalReceitasCalc) * 100), pctExtras: Math.round((vExtrasPagos / totalReceitasCalc) * 100)
       });
 
       setListaReceitasDetalhada(pgtosEfetuadosEsteMes);
 
       const textResumoMetodos = pgtosEfetuadosEsteMes.reduce((acc, curr) => {
         const det = getDetalhes(curr);
-        acc.pix += parseFloat(det.pix || 0);
-        acc.dinheiro += parseFloat(det.dinheiro || 0);
-        acc.credito += parseFloat(det.credito || 0);
-        acc.debito += parseFloat(det.debito || 0);
+        acc.pix += parseFloat(det.pix || 0); acc.dinheiro += parseFloat(det.dinheiro || 0); acc.credito += parseFloat(det.credito || 0); acc.debito += parseFloat(det.debito || 0);
         return acc;
       }, { pix: 0, dinheiro: 0, credito: 0, debito: 0 });
       setResumoMetodos(textResumoMetodos);
@@ -229,9 +206,7 @@ export default function FinanceiroAdminPage() {
       pgtosEfetuadosEsteMes.forEach((p: any) => {
         if (p.data_pagamento) {
           const diaComp = parseInt(p.data_pagamento.split('-')[2]);
-          if (diaComp <= diasNoMes) {
-            mapaDias[diaComp - 1].valor += clean(p.valor_pago || p.valor_total);
-          }
+          if (diaComp <= diasNoMes) mapaDias[diaComp - 1].valor += clean(p.valor_pago || p.valor_total);
         }
       });
       setTimelineDiaria(mapaDias);
@@ -251,7 +226,6 @@ export default function FinanceiroAdminPage() {
           });
 
           if (temAcordoDesteMes) return { ...aluno, status: 'acordo' };
-          
           return hoje.getDate() > (parseInt(aluno.vencimento) || 1) ? { ...aluno, status: 'atrasado' } : { ...aluno, status: 'pendente' };
         });
         
@@ -270,9 +244,7 @@ export default function FinanceiroAdminPage() {
           if (p.tipo === 'mensalidade') return false;
 
           const dataAlvo = p.data_pagamento || p.data_vencimento || p.created_at;
-          if (dataAlvo) {
-            return dataAlvo.startsWith(`${ano}-${mes}`);
-          }
+          if (dataAlvo) return dataAlvo.startsWith(`${ano}-${mes}`);
           return p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano);
         });
 
@@ -286,14 +258,7 @@ export default function FinanceiroAdminPage() {
 
         const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, mensalidadeBaseVigente - (parseFloat(curr.valor) || 0)), 0);
         
-        setMetricas({ 
-          total: totalGeralPrevisto, 
-          pago: vPago, 
-          pendente: totalPendenteCaixa, 
-          descontos: totalDescontos, 
-          gastos: vGastos, 
-          lucro: vPago - vGastos 
-        });
+        setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalPendenteCaixa, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
 
         const mapaDevedores = new Map();
         const todasPendenciasExtras = pgtosFiltrados.filter((p: any) => p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado');
@@ -307,11 +272,7 @@ export default function FinanceiroAdminPage() {
 
         const radarOrdenado = Array.from(mapaDevedores.entries()).map(([aluno_id, total_devido]) => {
           const al = listaAlunos.find((a: any) => a.id === aluno_id);
-          return {
-            nome: al?.nome || "Responsável não localizado",
-            turma: al?.turma || "N/A",
-            total_devido
-          };
+          return { nome: al?.nome || "Responsável não localizado", turma: al?.turma || "N/A", total_devido };
         })
         .sort((a, b) => b.total_devido - a.total_devido)
         .slice(0, 5);
@@ -405,11 +366,7 @@ export default function FinanceiroAdminPage() {
       theme: 'grid',
       headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
       styles: { fontSize: 8, textColor: [51, 65, 85] },
-      columnStyles: { 
-        0: { halign: 'center', cellWidth: 22 }, 
-        1: { halign: 'left' }, 
-        2: { halign: 'right', cellWidth: 28 } 
-      }
+      columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 28 } }
     });
     
     finalY = (doc as any).lastAutoTable.finalY + 22;
@@ -452,31 +409,30 @@ export default function FinanceiroAdminPage() {
 
   if (verificandoAcesso || carregando) return (
     <div className="flex justify-center items-center h-screen w-full bg-slate-50">
-        <div className="text-center font-sans text-indigo-400 font-bold tracking-widest animate-pulse">A preparar o painel financeiro...</div>
+        <div className="text-center font-sans text-indigo-400 text-xs md:text-base font-bold tracking-widest animate-pulse">A preparar o painel financeiro...</div>
     </div>
   );
 
   return (
-    <div className="w-full min-h-screen bg-slate-50 p-4 md:p-8 font-sans antialiased text-slate-800 selection:bg-indigo-100">
-      <div className="max-w-[1700px] w-full mx-auto space-y-8">
+    <div className="w-full min-h-screen bg-slate-50 p-2 md:p-8 font-sans antialiased text-slate-800 pb-24 md:pb-8 selection:bg-indigo-100">
+      <div className="max-w-[1700px] w-full mx-auto space-y-4 md:space-y-8">
         
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-6">
+        {/* HEADER FINANCEIRO COMPACTO */}
+        <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-4 md:gap-6">
           <FinanceiroHeader 
             mesFiltro={mesFiltro} 
             setMesFiltro={setMesFiltro}
             onZerarMes={() => {
               if (userCargo !== 'Admin') return alert("Apenas administradores do sistema podem executar esta action.");
-              if (confirm("Deseja registar o fecho de lote para o mês atual?")) {
-                alert("Ação registada com sucesso.");
-              }
+              if (confirm("Deseja registar o fecho de lote para o mês atual?")) { alert("Ação registada com sucesso."); }
             }} 
           />
-          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
             <button 
               onClick={gerarRelatorioTesouraria}
-              className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl shadow-sm transition-all tracking-wide"
+              className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-4 py-3 md:px-6 md:py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs md:text-sm rounded-xl md:rounded-2xl shadow-sm transition-all tracking-wide active:scale-95"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3 md:w-4 md:h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
               Imprimir Balanço
@@ -484,94 +440,98 @@ export default function FinanceiroAdminPage() {
           </div>
         </div>
 
+        {/* COMPONENTES INJETADOS (O MetricasCard precisará ser ajustado também, mas a caixa que o envolve agora é flexível) */}
         <MetricasCard 
           metricas={metricas} 
           onAbrirListaGastos={() => setModalListaGastosAberto(true)} 
           onAbrirListaReceitas={() => setModalListaReceitasAberto(true)}
         />
         
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* GRIDS INFERIORES */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
           
-          <div className="lg:col-span-8 space-y-8">
+          <div className="lg:col-span-8 space-y-4 md:space-y-8">
             
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
-              <div className="border-b pb-4 border-slate-50 flex justify-between items-center mb-4">
+            {/* RADAR DE INADIMPLÊNCIA */}
+            <div className="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm flex flex-col md:h-[400px]">
+              <div className="border-b pb-3 md:pb-4 border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-4">
                 <div>
-                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <h3 className="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
                     <span className="flex h-3 w-3 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
                     </span>
                     Inadimplência Crítica
                   </h3>
-                  <p className="text-sm text-slate-500 mt-1">Maiores saldos devedores na base ativa</p>
+                  <p className="text-[10px] md:text-sm text-slate-500 mt-0.5">Maiores saldos devedores ativos</p>
                 </div>
-                <span className="bg-rose-100 text-rose-700 font-bold px-3 py-1 rounded-lg text-xs">Top 5</span>
+                <span className="bg-rose-100 text-rose-700 font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg text-[10px] md:text-xs shrink-0">Top 5</span>
               </div>
               
-              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 md:space-y-3 pr-1 md:pr-2">
                 {radarInadimplencia.length > 0 ? radarInadimplencia.map((dev: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-900">{dev.nome}</span>
-                      <span className="text-xs text-slate-500 font-medium mt-0.5">Etapa: {dev.turma}</span>
+                  <div key={idx} className="flex justify-between items-center p-3 md:p-4 bg-slate-50/80 rounded-xl md:rounded-2xl border border-slate-100 hover:bg-white transition-all">
+                    <div className="flex flex-col truncate pr-2">
+                      <span className="text-[11px] md:text-sm font-bold text-slate-900 truncate">{dev.nome}</span>
+                      <span className="text-[9px] md:text-xs text-slate-500 font-medium mt-0.5 truncate">Etapa: {dev.turma}</span>
                     </div>
-                    <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
-                        <span className="font-extrabold text-rose-600 text-base">R$ {dev.total_devido.toFixed(2)}</span>
+                    <div className="bg-white px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-slate-100 shadow-sm shrink-0">
+                        <span className="font-extrabold text-rose-600 text-xs md:text-base">R$ {dev.total_devido.toFixed(2)}</span>
                     </div>
                   </div>
                 )) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Nenhum devedor crítico listado.</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 text-[11px] md:text-sm">Nenhum devedor crítico listado.</div>
                 )}
               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-base font-bold text-slate-800 mb-6">Métodos de Arrecadação</h3>
+            <div className="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm">
+              <h3 className="text-sm md:text-base font-bold text-slate-800 mb-4 md:mb-6">Métodos de Arrecadação</h3>
               <BalancoResumo resumoMetodos={resumoMetodos} metricas={metricas} mesFiltro={mesFiltro} />
             </div>
 
           </div>
 
-          <div className="lg:col-span-4 space-y-8">
+          <div className="lg:col-span-4 space-y-4 md:space-y-8">
             
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-[400px]">
-              <div className="border-b pb-4 border-slate-50 mb-6">
-                <h3 className="text-base font-bold text-slate-800">Distribuição de Despesas</h3>
-                <p className="text-sm text-slate-500 mt-1">Classificação proporcional de custos</p>
+            {/* DISTRIBUIÇÃO DE DESPESAS */}
+            <div className="bg-white p-5 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm flex flex-col md:h-[400px]">
+              <div className="border-b pb-3 md:pb-4 border-slate-50 mb-4 md:mb-6">
+                <h3 className="text-sm md:text-base font-bold text-slate-800">Distribuição de Despesas</h3>
+                <p className="text-[10px] md:text-sm text-slate-500 mt-0.5">Classificação de custos</p>
               </div>
               
-              <div className="flex-1 flex flex-col justify-center space-y-8">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end text-sm">
-                    <span className="font-bold text-slate-700 flex items-center gap-2">
+              <div className="flex-1 flex flex-col justify-center space-y-6 md:space-y-8">
+                <div className="space-y-2 md:space-y-3">
+                  <div className="flex justify-between items-end text-xs md:text-sm">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5 md:gap-2">
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                         Custos Fixos
                     </span>
-                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.fixas.toFixed(2)} <span className="text-slate-400 font-medium text-xs ml-1">({distribuicaoGastos.pctFixas}%)</span></span>
+                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.fixas.toFixed(2)} <span className="text-slate-400 font-medium text-[9px] md:text-xs ml-0.5 md:ml-1">({distribuicaoGastos.pctFixas}%)</span></span>
                   </div>
-                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-2 md:h-3 rounded-full overflow-hidden">
                     <div className="bg-rose-500 h-full transition-all" style={{ width: `${distribuicaoGastos.pctFixas}%` }} />
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end text-sm">
-                    <span className="font-bold text-slate-700 flex items-center gap-2">
+                <div className="space-y-2 md:space-y-3">
+                  <div className="flex justify-between items-end text-xs md:text-sm">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5 md:gap-2">
                         <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                         Variáveis / Eventos
                     </span>
-                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.variaveis.toFixed(2)} <span className="text-slate-400 font-medium text-xs ml-1">({distribuicaoGastos.pctVariaveis}%)</span></span>
+                    <span className="font-bold text-slate-900">R$ {distribuicaoGastos.variaveis.toFixed(2)} <span className="text-slate-400 font-medium text-[9px] md:text-xs ml-0.5 md:ml-1">({distribuicaoGastos.pctVariaveis}%)</span></span>
                   </div>
-                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-2 md:h-3 rounded-full overflow-hidden">
                     <div className="bg-amber-400 h-full transition-all" style={{ width: `${distribuicaoGastos.pctVariaveis}%` }} />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center mt-6">
-                <span className="text-xs font-bold text-slate-500 block mb-1">Total Calculado</span>
-                <span className="font-black text-slate-900 text-2xl">R$ {metricas.gastos.toFixed(2)}</span>
+              <div className="bg-slate-50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-slate-100 text-center mt-4 md:mt-6">
+                <span className="text-[10px] md:text-xs font-bold text-slate-500 block mb-0.5 md:mb-1">Total Calculado</span>
+                <span className="font-black text-slate-900 text-lg md:text-2xl">R$ {metricas.gastos.toFixed(2)}</span>
               </div>
             </div>
 
@@ -610,10 +570,13 @@ export default function FinanceiroAdminPage() {
       />
 
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        @media (min-width: 768px) {
+           .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        }
       `}} />
     </div>
   );
