@@ -5,10 +5,15 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { UserMinus } from "lucide-react";
+
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
 import { FormAlunoModal } from "@/app/(sistema)/dashboard/alunos/_components/FormAlunoModal";
 import { clean, SENHA_MESTRA, mesesAno, mCPF, mWhatsApp } from "./_components/alunoUtils";
 import { BannerAluno, VisaoGeralAluno, DividasAluno, CreditoAluno, BoletimAluno, ExtratoAluno } from "./_components/ViewsPerfil";
+
+// --- IMPORTAÇÃO DO MODAL DE TRANSFERÊNCIA ---
+import { ModalTransferencia } from "./_components/ModalTransferencia";
 
 export default function PerfilAlunoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -46,8 +51,10 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear().toString());
   const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState(new Date().getFullYear().toString());
 
+  // --- ESTADOS DE CONTROLE DE TRANSFERÊNCIA ---
+  const [modalTransferenciaAberto, setModalTransferenciaAberto] = useState(false);
+
   // --- ESTADOS DO PDV INLINE E EDIÇÃO DE PAGAMENTO ---
-  // CORREÇÃO: O Modal PDV agora aceita boolean ou string (ID da dívida clicada)
   const [modalPDVAberto, setModalPDVAberto] = useState<boolean | string>(false);
   const [dataPagamentoPDV, setDataPagamentoPDV] = useState(new Date().toISOString().split('T')[0]);
   const [tipoPagamentoPDV, setTipoPagamentoPDV] = useState("pdv");
@@ -78,7 +85,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const isVisitante = emailAtual !== 'carlamonaliza9@gmail.com' && emailAtual !== 'diretoria@abcdopark.com' && perfil?.cargo !== 'Admin' && perfil?.cargo !== 'Direção';
       setEhVisitante(isVisitante);
 
-      // BUSCA O CAIXA ABERTO NO PDV
       const { data: sessoesAtivas } = await supabase.from('sessoes_caixa').select('*').eq('status', 'aberto').order('data_abertura', { ascending: false }).limit(1);
       setCaixaAtual(sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null);
 
@@ -103,7 +109,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   }, [aluno?.id, anoPagamentoSelecionado, anoSelecionado]);
 
   async function buscarDadosAdicionais() {
-    const { data: avs } = await supabase.from('avaliacoes').select('participacao, comportamento, atividades, socioemocional').eq('aluno_id', aluno.id);
+    const { data: avs } = await supabase.from('avaliacoes').select('participacao, comportamento, activities, socioemocional').eq('aluno_id', aluno.id);
     if (avs && avs.length > 0) {
       const somaDasMediasDiarias = avs.reduce((acc: number, curr: any) => acc + ((curr.participacao || 0) + (curr.comportamento || 0) + (curr.atividades || 0) + (curr.socioemocional || 0)) / 4, 0);
       setMediaEstrelas(somaDasMediasDiarias / avs.length);
@@ -213,7 +219,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const valorMensalidadeBase = clean(aluno.valor);
       const alunoTemValorCadastrado = aluno.valor !== null && aluno.valor !== undefined && aluno.valor !== "";
 
-      if (alunoTemValorCadastrado && !isNaN(diaVencimentoAluno)) {
+      if (alunoTemValorCadastrado && !isNaN(diaVencimentoAluno) && aluno?.status !== 'transferido') {
         for (let i = 0; i <= mesAtualNum; i++) {
           const isVencido = (i < mesAtualNum) || (i === mesAtualNum && dataAtual.getDate() > diaVencimentoAluno);
           if (!isVencido) continue; 
@@ -268,6 +274,63 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       setHistoricoLocal(historicoSemDuplicatas);
       setTotalPendenteGeral(dividaCalculada);
       setListaPendenciasGerais(listaDívida as any[]);
+    }
+  }
+
+  async function efetivarTransferencia(dataTransf: string, observacao: string) {
+    if (isProcessandoAcao) return;
+    setIsProcessandoAcao(true);
+    try {
+      const { error } = await supabase
+        .from('alunos')
+        .update({
+          status: 'transferido',
+          data_transferencia: dataTransf,
+          observacao_transferencia: observacao
+        })
+        .eq('id', aluno.id);
+
+      if (error) throw error;
+      
+      alert("✅ Aluno transferido com sucesso! O histórico foi preservado no sistema.");
+      setModalTransferenciaAberto(false);
+      await buscarAlunoBase(); 
+      await buscarDadosAdicionais();
+    } catch (err: any) {
+      alert("⚠️ Erro ao transferir aluno: " + err.message);
+    } finally {
+      setIsProcessandoAcao(false);
+    }
+  }
+
+  // --- NOVA FUNÇÃO PRIVILEGIADA: DESFAZER TRANSFERÊNCIA ---
+  async function desfazerTransferencia() {
+    if (isProcessandoAcao) return;
+    if (userEmail !== 'carlamonaliza9@gmail.com') {
+      return alert("Acesso restrito: Apenas a administração master principal (Carla) pode desfazer transferências.");
+    }
+    if (!confirm(`Deseja realmente reverter a transferência de ${aluno.nome} e reativar sua ficha na escola?`)) return;
+
+    setIsProcessandoAcao(true);
+    try {
+      const { error } = await supabase
+        .from('alunos')
+        .update({
+          status: 'ativo',
+          data_transferencia: null,
+          observacao_transferencia: null
+        })
+        .eq('id', aluno.id);
+
+      if (error) throw error;
+
+      alert("🔄 Transferência desfeita! O aluno foi reintegrado à Base Ativa com sucesso.");
+      await buscarAlunoBase();
+      await buscarDadosAdicionais();
+    } catch (err: any) {
+      alert("⚠️ Erro ao reverter transferência: " + err.message);
+    } finally {
+      setIsProcessandoAcao(false);
     }
   }
 
@@ -541,11 +604,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
     const valorPix = clean(pagamentosMetodosPDV.pix);
     const valorDinheiro = clean(pagamentosMetodosPDV.dinheiro);
-    const valorCredito = clean(pagamentosMetodosPDV.credito);
+    const valorGrid = clean(pagamentosMetodosPDV.credito);
     const valorDebito = clean(pagamentosMetodosPDV.debito);
     const valorBoleto = clean(pagamentosMetodosPDV.boleto);
     
-    const somaPaga = valorPix + valorDinheiro + valorCredito + valorDebito + valorBoleto;
+    const somaPaga = valorPix + valorDinheiro + valorGrid + valorDebito + valorBoleto;
     const valorMulta = clean(pagamentosMetodosPDV.multa);
     const valorDesconto = clean(pagamentosMetodosPDV.desconto);
     const creditoUtilizado = clean(pagamentosMetodosPDV.credito_aluno);
@@ -589,7 +652,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const formasStrArray = [];
       if (valorPix > 0) formasStrArray.push("Pix");
       if (valorDinheiro > 0) formasStrArray.push("Dinheiro");
-      if (valorCredito > 0) formasStrArray.push("Cartão de Crédito");
+      if (valorGrid > 0) formasStrArray.push("Cartão de Crédito");
       if (valorDebito > 0) formasStrArray.push("Cartão de Débito");
       if (valorBoleto > 0) formasStrArray.push("Boleto");
       if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
@@ -622,7 +685,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const formasStrArray = [];
       if (valorPix > 0) formasStrArray.push("Pix");
       if (valorDinheiro > 0) formasStrArray.push("Dinheiro");
-      if (valorCredito > 0) formasStrArray.push("Cartão de Crédito");
+      if (valorGrid > 0) formasStrArray.push("Cartão de Crédito");
       if (valorDebito > 0) formasStrArray.push("Cartão de Débito");
       if (valorBoleto > 0) formasStrArray.push("Boleto");
       const formaTexto = formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Adição Automática";
@@ -739,12 +802,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   }
 
   function gerarPDFHistorico() {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("EXTRATO FINANCEIRO - ESCOLA ABC DO PARK", 105, 20, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(`Aluno: ${aluno?.nome?.toUpperCase()}`, 15, 35);
-    
     const extrairFormaPagamento = (detalhes: any) => {
       if (!detalhes) return null;
       const metodos = Object.keys(detalhes).filter(key => parseFloat(detalhes[key]) > 0 && key !== 'historico_parciais' && key !== 'forma_geradora' && key !== 'ids_origem' && key !== 'e_subtracao' && key !== 'credito_utilizado_nesta_parcela');
@@ -755,6 +812,8 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
       h.status !== 'renegociado'
     );
+
+    const doc = new jsPDF();
 
     autoTable(doc, {
       startY: 45,
@@ -786,6 +845,30 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           isProcessandoAcao={isProcessandoAcao} 
         />
 
+        {/* BOTÃO ESTRATÉGICO DE TRANSFERÊNCIA */}
+        {aluno?.status !== 'transferido' && !ehVisitante && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && (
+          <div className="flex justify-end -mt-2 mb-4 pr-2 md:pr-0 relative z-10">
+            <button 
+              onClick={() => setModalTransferenciaAberto(true)}
+              className="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-sm flex items-center gap-2"
+            >
+              <UserMinus size={14} /> Registrar Transferência
+            </button>
+          </div>
+        )}
+
+        {/* NOVO BOTÃO EXCLUSIVO DA CARLA: DESFAZER TRANSFERÊNCIA */}
+        {aluno?.status === 'transferido' && userEmail === 'carlamonaliza9@gmail.com' && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && (
+          <div className="flex justify-end -mt-2 mb-4 pr-2 md:pr-0 relative z-10">
+            <button 
+              onClick={desfazerTransferencia}
+              className="px-4 py-2.5 bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-sm flex items-center gap-2"
+            >
+              🔄 Desfazer Transferência
+            </button>
+          </div>
+        )}
+
         {verDividasGlobais ? (
           <DividasAluno totalPendenteGeral={totalPendenteGeral} listaPendenciasGerais={listaPendenciasGerais} setVerDividasGlobais={setVerDividasGlobais} ehVisitante={ehVisitante} onAbrirPDV={setModalPDVAberto} idRenegociacao={idRenegociacao} setIdRenegociacao={setIdRenegociacao} formRenegociacao={formRenegociacao} setFormRenegociacao={setFormRenegociacao} confirmarRenegociacao={confirmarRenegociacao} isProcessandoAcao={isProcessandoAcao} />
         ) : verCreditoGlobal ? (
@@ -814,7 +897,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         />
       )}
 
-      {/* MODAL PDV: Passando dividaPreSelecionada se modalPDVAberto for uma string (ID da dívida) */}
       <ModalPagamento 
         aberto={!!modalPDVAberto} 
         onFechar={() => setModalPDVAberto(false)} 
@@ -841,6 +923,13 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         aberto={modalPgtoAberto} onFechar={() => setModalPgtoAberto(false)} aluno={aluno} dataPagamento={dataPagamento} setDataPagamento={setDataPagamento} tipoPagamento={tipoPagamento} setTipoPagamento={setTipoPagamento}
         mesReferencia={mesReferencia} setMesReferencia={setMesReferencia} mesesAno={mesesAno} descricaoOutro={descricaoOutro} setDescricaoOutro={setDescricaoOutro} pagamentosMetodos={pagamentosMetodos} setPagamentosMetodos={setPagamentosMetodos}
         onConfirmar={handleSalvarPgtoEditado} editando={true} historicoGeral={historicoLocal} 
+      />
+
+      <ModalTransferencia 
+        aberto={modalTransferenciaAberto}
+        onFechar={() => setModalTransferenciaAberto(false)}
+        aluno={aluno}
+        onConfirmar={efetivarTransferencia}
       />
     </div>
   );

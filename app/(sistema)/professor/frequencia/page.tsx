@@ -66,6 +66,7 @@ export default function ConsultaFrequenciaPage() {
         .from('alunos')
         .select('id, nome, foto_url')
         .eq('turma', turmaSelecionada)
+        .neq('status', 'transferido') // <--- FILTRO ADICIONADO: Ignora alunos transferidos na pauta do professor
         .order('nome', { ascending: true });
 
       if (listaAlunos) setAlunos(listaAlunos);

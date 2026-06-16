@@ -86,7 +86,7 @@ export default function DiarioClassePage() {
           }
 
           const { data: todosFuncs } = await supabase.from('funcionarios').select('*');
-          const { data: todosAlus } = await supabase.from('alunos').select('*');
+          const { data: todosAlus } = await supabase.from('alunos').select('*').neq('status', 'transferido');
 
           const hoje = new Date();
           const diaAtu = hoje.getDate();
@@ -132,6 +132,7 @@ export default function DiarioClassePage() {
       .from('alunos')
       .select('id, nome, foto_url, turma')
       .eq('turma', turmaSelecionada)
+      .neq('status', 'transferido') // <--- FILTRO APLICADO: Remove alunos transferidos da pauta do professor
       .order('nome', { ascending: true });
     if (data) setAlunos(data);
   }

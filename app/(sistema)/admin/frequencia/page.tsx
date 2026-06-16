@@ -57,6 +57,7 @@ export default function RelatorioFrequenciaAdminPage() {
       .from('alunos')
       .select('id, nome')
       .eq('turma', turmaSelecionada)
+      .neq('status', 'transferido') // <--- FILTRO ADICIONADO: Ignora transferidos
       .order('nome', { ascending: true });
 
     if (listaAlunos) setAlunos(listaAlunos);

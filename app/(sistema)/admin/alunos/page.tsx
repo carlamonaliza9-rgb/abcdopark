@@ -22,6 +22,9 @@ export default function AlunosAdminPage() {
   const [cargo, setCargo] = useState<string | null>(null); 
   const [busca, setBusca] = useState("");
   
+  // --- CONTROLE DE ABAS DE STATUS ---
+  const [abaAtiva, setAbaAtiva] = useState<'ativos' | 'transferidos'>('ativos');
+  
   // ESTADO DO CAIXA DO PDV
   const [caixaAtual, setCaixaAtual] = useState<any>(null);
 
@@ -158,7 +161,7 @@ export default function AlunosAdminPage() {
     if (data) setAlunos(data);
   }
 
-  // NOVA LÓGICA DE PESQUISA (IGNORA ACENTOS E MAIÚSCULAS/MINÚSCULAS)
+  // LÓGICA DE PESQUISA E FILTRO POR ABAS
   const removerAcentos = (texto: string) => {
     return texto ? texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
   };
@@ -166,7 +169,12 @@ export default function AlunosAdminPage() {
   const alunosFiltrados = alunos.filter(aluno => {
     const nomeLimpo = removerAcentos(aluno.nome?.toLowerCase());
     const buscaLimpa = removerAcentos(busca.toLowerCase());
-    return nomeLimpo.includes(buscaLimpa);
+    const atendeBusca = nomeLimpo.includes(buscaLimpa);
+    
+    const isTransferido = aluno.status === 'transferido';
+    const atendeAba = abaAtiva === 'ativos' ? !isTransferido : isTransferido;
+
+    return atendeBusca && atendeAba;
   });
 
   const aplicarOrdenacaoManual = (lista: any[]) => {
@@ -607,22 +615,45 @@ export default function AlunosAdminPage() {
       <div className="w-full max-w-[1600px] mx-auto">
         <AlunosHeader busca={busca} setBusca={setBusca} ehVisitante={ehVisitante} onNovoAluno={limparEContinuar} />
 
-        {!ehVisitante && (
-          <div className="mb-6 flex justify-end px-1 md:px-0 mt-4 md:mt-0">
+        <div className="mb-6 flex flex-col md:flex-row justify-between items-center px-1 md:px-0 mt-4 md:mt-0 gap-4">
+          
+          {/* SELETOR DE ABAS: ATIVOS VS TRANSFERIDOS */}
+          <div className="flex w-full md:w-auto bg-slate-200/50 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+            <button 
+              onClick={() => setAbaAtiva('ativos')} 
+              className={`flex-1 md:flex-none px-6 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all ${abaAtiva === 'ativos' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              🟢 Base Ativa
+            </button>
+            <button 
+              onClick={() => setAbaAtiva('transferidos')} 
+              className={`flex-1 md:flex-none px-6 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all ${abaAtiva === 'transferidos' ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              🔴 Transferidos
+            </button>
+          </div>
+
+          {!ehVisitante && abaAtiva === 'ativos' && (
             <button 
               onClick={() => router.push('/admin/frequencia')}
               className="w-full md:w-auto px-6 py-4 md:py-3 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[11px] md:text-xs flex items-center justify-center gap-2 border-b-4 border-blue-200 hover:bg-blue-100 transition-all active:scale-95 shadow-sm"
             >
               📊 <span className="hidden sm:inline">Relatório de Frequência Geral</span><span className="sm:hidden">Frequência Geral</span>
             </button>
+          )}
+        </div>
+
+        {alunosFiltrados.length === 0 ? (
+          <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-sm">
+            Nenhum aluno encontrado nesta categoria.
+          </div>
+        ) : (
+          <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 pt-2 md:pt-0">
+            {alunosFiltrados.map((aluno) => (
+              <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} rotaPaginaCompleta={!ehVisitante} />
+            ))}
           </div>
         )}
-
-        <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 pt-2 md:pt-0">
-          {alunosFiltrados.map((aluno) => (
-            <AlunoCard key={aluno.id} aluno={aluno} obterCorTurma={obterCorTurma} mWhatsApp={mWhatsApp} onAbrirFicha={abrirFicha} rotaPaginaCompleta={!ehVisitante} />
-          ))}
-        </div>
 
         {modalAberto && !modoEdicao && (
           <FichaAlunoModal 
