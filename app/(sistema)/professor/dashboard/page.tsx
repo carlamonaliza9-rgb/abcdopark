@@ -207,35 +207,34 @@ export default function DashboardProfessorPage() {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
     return { 
-      bg: isEspecial ? "md:bg-fuchsia-50" : "md:bg-blue-50/70", 
-      border: isEspecial ? "md:border-fuchsia-400" : "md:border-blue-500", 
-      color: isEspecial ? "text-fuchsia-600" : "text-blue-600" 
+      bg: isEspecial ? "bg-fuchsia-50/50" : "bg-slate-50", 
+      border: isEspecial ? "border-fuchsia-200" : "border-slate-200", 
+      color: isEspecial ? "text-fuchsia-600" : "text-blue-600",
+      bracket: isEspecial ? "border-fuchsia-500" : "border-blue-500"
     };
   };
 
-  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-blue-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-white md:bg-[#e0ffff]">Carregando seu espaço...</div>;
+  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-slate-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-slate-50">Carregando seu espaço...</div>;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen md:bg-[#e0ffff] overflow-x-hidden pb-10">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-(#e0ffff) overflow-x-hidden pb-10 md:p-6">
       
       {/* ============================================== */}
-      {/* HEADER: Mobile Native App & Desktop Dashboard */}
+      {/* HEADER: Native App Mobile & Desktop Dashboard */}
       {/* ============================================== */}
-      <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 md:px-2 md:pt-2 md:pb-0 md:mb-8">
-        <div> </div>
-        
+      <div className="flex items-center justify-end gap-4 px-4 pt-4 pb-2 md:hidden">
         {/* OCULTO NO DESKTOP: Botões aparecem aqui apenas no Mobile */}
-        <div className="flex gap-2 md:hidden">
+        <div className="flex gap-2">
           <button 
             onClick={() => setModalCalendarioAberto(true)} 
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all active:scale-95"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 font-black uppercase tracking-widest text-[10px] shadow-sm hover:bg-slate-50 transition-all active:scale-95"
           >
             <CalendarDays size={18} strokeWidth={2.5} />
           </button>
           
           <button 
             onClick={() => setModalConfigAberto(true)} 
-            className="w-10 h-10 bg-slate-100 border-none text-slate-500 hover:text-blue-600 rounded-xl flex items-center justify-center transition-all shadow-sm active:scale-95"
+            className="w-10 h-10 bg-white border border-slate-200 text-slate-500 hover:text-blue-600 rounded-xl flex items-center justify-center transition-all shadow-sm active:scale-95"
           >
             <Settings size={18} strokeWidth={2.5} />
           </button>
@@ -243,21 +242,16 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* HERO BANNER: Cartão no Desktop / Perfil no Mobile */}
+      {/* HERO BANNER: Versão Clean e Unificada */}
       {/* ============================================== */}
-      <div className="px-0 md:px-8 mb-4 md:mb-8 border-b border-slate-100 md:border-none pb-4 md:pb-0">
-        
-        <div className="md:bg-gradient-to-r md:from-green-500 md:to-blue-500 md:rounded-[2.5rem] md:py-8 px-4 md:px-10 md:text-white md:shadow-xl md:shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-8">
+      <div className="px-4 md:px-0 mb-6 md:mb-8">
+        <div className="bg-white rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-6">
           
-          {/* Decoração de Fundo (Apenas Desktop) */}
-          <div className="hidden md:block absolute -top-24 -right-10 w-64 h-64 bg-white opacity-5 rounded-full blur-2xl pointer-events-none"></div>
-          <div className="hidden md:block absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400 opacity-20 rounded-full blur-xl pointer-events-none"></div>
-
-          {/* BOTÕES DO DESKTOP MOVIDOS PARA CÁ (Exclusivo Desktop) */}
-          <div className="hidden md:flex absolute top-8 right-10 gap-3 z-30">
+          {/* BOTÕES DO DESKTOP - Posição ajustada */}
+          <div className="hidden md:flex absolute top-4 right-6 gap-3 z-30">
             <button 
               onClick={() => setModalCalendarioAberto(true)} 
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black uppercase tracking-widest text-[10px] transition-all shadow-md backdrop-blur-md active:scale-95"
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all shadow-sm active:scale-95"
             >
               <CalendarDays size={18} strokeWidth={2.5} />
               <span>Calendário</span>
@@ -265,7 +259,7 @@ export default function DashboardProfessorPage() {
             
             <button 
               onClick={() => setModalConfigAberto(true)} 
-              className="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center justify-center transition-all shadow-md backdrop-blur-md active:scale-95"
+              className="w-10 h-10 rounded-2xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-center transition-all shadow-sm active:scale-95"
             >
               <Settings size={18} strokeWidth={2.5} />
             </button>
@@ -273,9 +267,8 @@ export default function DashboardProfessorPage() {
 
           {/* Perfil App Native (Mobile) vs Avatar Desktop */}
           <div className="flex items-center gap-4 w-full md:w-auto">
-            
-            {/* AQUI AJUSTEI A FOTO (DE w-48 h-48 PARA w-44 h-44) */}
-            <div className="w-14 h-14 md:w-44 md:h-44 rounded-full md:border-4 md:border-white/20 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm md:shadow-lg">
+            {/* FOTO AUMENTADA: w-24 no mobile, w-44 no desktop */}
+            <div className="w-24 h-24 md:w-44 md:h-44 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm">
               <img 
                 src={ilustracaoProfessor || "/image_de2d33.jpg"} 
                 alt="Seu Perfil" 
@@ -285,36 +278,36 @@ export default function DashboardProfessorPage() {
             
             {/* Infos ao lado da foto (Exclusivo Mobile) */}
             <div className="flex-1 z-10 md:hidden flex flex-col justify-center">
-              <h2 className="text-base font-black leading-tight text-slate-800"> Olá,{nomeCompleto || nomeUsuario}</h2>
-              <p className="text-slate-500 font-medium text-[11px] leading-tight mt-0.5">Turmas, diário e programação.</p>
+              <h2 className="text-xl font-black leading-tight text-slate-800">Olá, {nomeUsuario} 👋</h2>
+              <p className="text-slate-500 font-medium text-xs leading-tight mt-0.5">Turmas, diário e eventos.</p>
             </div>
           </div>
 
           {/* Informações Pessoais & Turmas (Exclusivo Desktop) */}
-          <div className="hidden md:block flex-1 text-left z-10 w-full mt-8 md:mt-0">
-            <h1 className="text-xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2 md:gap-3">
-              Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-lg md:text-3xl">👋</span>
+          <div className="hidden md:block flex-1 text-left z-10 w-full md:ml-4">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+              Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-3xl">👋</span>
             </h1>
-            <p className="text-blue-100 font-medium text-sm mb-6 max-w-md">
+            <p className="text-slate-500 font-medium text-sm mb-3 max-w-md mt-1">
               Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
             </p>
 
-            <div className="flex items-center gap-4">
-              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex items-center gap-3">
-                <Users size={20} className="text-blue-200" />
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+                <Users size={20} className="text-blue-500" />
                 <div>
-                  <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">Alunos</p>
-                  <p className="text-lg font-black leading-none">{dados.totalAlunos}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
+                  <p className="text-lg font-black text-slate-800 leading-none mt-0.5">{dados.totalAlunos}</p>
                 </div>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 flex flex-col justify-center">
-                <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Turmas Atribuídas</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 flex flex-col justify-center min-w-[160px]">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Turmas Atribuídas</p>
+                <div className="flex flex-wrap gap-1.5">
                   {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                    <span key={t} className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-md">{t}</span>
+                    <span key={t} className="text-xs font-bold bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">{t}</span>
                   )) : (
-                    <span className="text-xs font-medium text-blue-100">Nenhuma</span>
+                    <span className="text-xs font-medium text-slate-400">Nenhuma</span>
                   )}
                 </div>
               </div>
@@ -322,17 +315,17 @@ export default function DashboardProfessorPage() {
           </div>
 
           {/* Estatísticas App Native (Exclusivo Mobile) */}
-          <div className="flex md:hidden items-center justify-around w-full pt-1 pb-1">
+          <div className="flex md:hidden items-center justify-around w-full pt-4 border-t border-slate-100 mt-2">
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
-              <p className="text-lg font-black leading-none text-slate-800 mt-1">{dados.totalAlunos}</p>
+              <p className="text-xl font-black leading-none text-slate-800 mt-1">{dados.totalAlunos}</p>
             </div>
-            <div className="w-px h-8 bg-slate-100"></div>
+            <div className="w-px h-8 bg-slate-200"></div>
             <div className="text-center flex-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Minhas Turmas</p>
-              <div className="flex flex-wrap gap-1 justify-center px-2">
+              <div className="flex flex-wrap gap-1.5 justify-center px-2">
                 {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                  <span key={t} className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">{t}</span>
+                  <span key={t} className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">{t}</span>
                 )) : (
                   <span className="text-[10px] font-medium text-slate-400">Nenhuma</span>
                 )}
@@ -344,37 +337,37 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* GRID DE INFORMAÇÕES (Listas Mobile / Cards Desktop) */}
+      {/* GRID DE INFORMAÇÕES (Cards Padronizados) */}
       {/* ============================================== */}
-      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:px-8">
+      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 md:px-0">
         
         {/* ===================== COLUNA 1: Programação ===================== */}
-        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-slate-200/60 lg:col-span-1 flex flex-col">
-          {/* Header Mobile */}
-          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
-            <h2 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Programação</h2>
-          </div>
-          {/* Header Desktop */}
-          <div className="hidden md:flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
+          <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
               <CalendarDays size={20} strokeWidth={2.5} />
             </div>
             <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">Programação</h2>
           </div>
           
-          <div className="flex flex-col md:gap-4">
+          <div className="flex flex-col gap-6 pt-2">
             {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => {
               const estilo = getEventoStyle(ev.titulo);
               return (
-                <div key={i} className={`flex flex-col px-4 py-3 border-b border-slate-100 bg-white md:bg-transparent md:p-4 md:rounded-[1.25rem] md:border-b-0 md:border-l-[4px] ${estilo.bg} ${estilo.border}`}>
-                  <span className={`text-[9px] font-black uppercase tracking-widest ${estilo.color}`}>
+                <div key={i} className="relative pl-5 py-0.5 flex flex-col">
+                  {/* O detalhe curvo na lateral tipo parêntese */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-2.5 border-l-2 border-y-2 border-r-0 rounded-l-full ${estilo.bracket}`}></div>
+                  
+                  <span className={`text-[11px] font-black uppercase tracking-widest ${estilo.color}`}>
                     {formatarDataLocal(ev.data)}
                   </span>
-                  <p className="mt-0.5 md:mt-1 text-[13px] font-bold text-slate-800 md:text-slate-700 leading-snug">{ev.titulo}</p>
+                  <p className="mt-1 text-[13px] font-bold text-slate-700 leading-snug uppercase">
+                    {ev.titulo}
+                  </p>
                 </div>
               );
             }) : (
-              <div className="p-6 md:p-8 text-center bg-white md:bg-slate-50 md:rounded-2xl border-b md:border md:border-dashed border-slate-200">
+              <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Agenda livre.</p>
               </div>
             )}
@@ -382,16 +375,9 @@ export default function DashboardProfessorPage() {
         </div>
 
         {/* ===================== COLUNA 2: Aniversários ===================== */}
-        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-slate-200/60 lg:col-span-1 flex flex-col mt-4 md:mt-0">
-          {/* Header Mobile */}
-          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
-            <h2 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-              Aniversários ({meses[new Date().getUTCMonth()]})
-            </h2>
-          </div>
-          {/* Header Desktop */}
-          <div className="hidden md:flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center">
+        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
+          <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
               <Cake size={20} strokeWidth={2.5} />
             </div>
             <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
@@ -399,18 +385,17 @@ export default function DashboardProfessorPage() {
             </h2>
           </div>
           
-          <div className="flex flex-col md:gap-4">
+          <div className="flex flex-col gap-3">
             {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
               const dia = extrairDiaUTC(persona.data_nascimento);
               const isFunc = persona.tipo === 'funcionario';
               return (
-                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white md:bg-transparent md:p-2 md:border-none md:hover:bg-slate-50 md:rounded-2xl transition-colors group">
+                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-colors group">
                   <div className="flex items-center gap-3">
                     <div className="text-center w-8 shrink-0">
                       <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
                     </div>
-                    {/* Foto Integrada (Mobile & Desktop) */}
-                    <div className="w-13 h-13 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
                       {persona.foto_url ? (
                         <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
                       ) : (
@@ -418,17 +403,16 @@ export default function DashboardProfessorPage() {
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-800 md:text-slate-700 md:group-hover:text-slate-900 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-500 md:text-purple-400' : 'text-slate-500 md:text-slate-400'}`}>
+                      <span className="text-xs font-bold text-slate-700 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-500' : 'text-slate-400'}`}>
                         {isFunc ? 'Equipe' : `Aluno • ${persona.turma}`}
                       </span>
                     </div>
                   </div>
                   
-                  {/* Botão de Zap visível direto no Mobile, mas via hover no Desktop */}
                   <button 
                     onClick={() => parabensWhatsApp(persona)} 
-                    className="w-8 h-8 rounded-full bg-green-50 text-green-500 md:bg-green-100 md:text-green-600 flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
+                    className="w-8 h-8 rounded-full bg-green-50 text-green-500 flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
                     title="Mandar Mensagem"
                   >
                     <MessageCircleHeart size={14} strokeWidth={2.5} />
@@ -436,7 +420,7 @@ export default function DashboardProfessorPage() {
                 </div>
               );
             }) : (
-              <div className="p-6 md:p-8 text-center bg-white md:bg-transparent">
+              <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ninguém faz aniversário este mês.</p>
               </div>
             )}
@@ -444,50 +428,33 @@ export default function DashboardProfessorPage() {
         </div>
 
         {/* ===================== COLUNA 3: Alertas de Saúde ===================== */}
-        <div className="md:bg-white md:rounded-[2rem] md:p-6 md:shadow-sm md:border md:border-rose-100 lg:col-span-1 flex flex-col mt-4 md:mt-0">
-          {/* Header Mobile */}
-          <div className="bg-slate-50 border-y border-slate-100 px-4 py-2 md:hidden flex items-center justify-between sticky top-0 z-10">
-            <h2 className="text-[11px] font-black text-rose-500 uppercase tracking-widest">Saúde & Alergias</h2>
-          </div>
-          {/* Header Desktop */}
-          <div className="hidden md:flex items-center justify-between mb-4 border-b border-rose-50 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
-                <AlertTriangle size={20} strokeWidth={2.5} />
-              </div>
-              <h2 className="text-[13px] font-black text-rose-600 uppercase tracking-widest">Saúde</h2>
+        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
+          <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} strokeWidth={2.5} />
             </div>
-          </div>
-          
-          <div className="px-4 py-2 md:px-0 md:py-0 bg-white md:bg-transparent">
-            <input 
-              type="text" 
-              placeholder="Pesquisar alergia..." 
-              value={buscaSaude} 
-              onChange={(e) => setBuscaSaude(e.target.value)} 
-              className="w-full px-4 py-2 md:py-3 md:mb-4 bg-slate-100 md:bg-slate-50 rounded-xl md:rounded-xl border-none md:border md:border-slate-200 text-xs md:text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 md:focus:ring-0 md:focus:border-rose-400 transition-all"
-            />
+            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">Saúde & Alergias</h2>
           </div>
 
-          <div className="flex flex-col md:gap-2 flex-1 md:overflow-y-auto md:max-h-[300px] custom-scrollbar md:pr-2">
+          <div className="flex flex-col gap-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar pr-1">
             {alertasFiltrados.length > 0 ? alertasFiltrados.map(aluno => (
-              <div key={aluno.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-white md:bg-rose-50/50 md:p-3 md:rounded-[1.25rem] md:border md:border-rose-100/50 md:hover:bg-rose-50 cursor-pointer group transition-colors">
-                <div className="w-10 h-10 rounded-full bg-slate-50 md:bg-white border border-rose-100 shrink-0 flex items-center justify-center overflow-hidden">
+              <div key={aluno.id} className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-100 hover:border-rose-200 hover:bg-rose-50/50 cursor-pointer group transition-colors">
+                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
                   {aluno.foto_url ? (
                     <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" />
                   ) : (
-                    <span className="text-rose-400 font-black text-xs">{aluno.nome.charAt(0)}</span>
+                    <span className="text-slate-400 font-black text-xs">{aluno.nome.charAt(0)}</span>
                   )}
                 </div>
                 <div className="flex flex-col flex-1">
-                  <span className="text-xs font-bold text-slate-800 md:text-slate-700 line-clamp-1 group-hover:text-rose-600 transition-colors">{aluno.nome}</span>
+                  <span className="text-xs font-bold text-slate-700 line-clamp-1 transition-colors">{aluno.nome}</span>
                   <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 line-clamp-1">{aluno.alergia_descricao || "Atenção médica"}</span>
                 </div>
-                <ChevronRight size={14} className="text-slate-300 md:text-rose-200 md:group-hover:text-rose-400 transition-colors" />
+                <ChevronRight size={14} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
               </div>
             )) : (
-              <div className="p-8 text-center flex-1 flex items-center justify-center bg-white md:bg-transparent">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Nenhum alerta encontrado.</p>
+              <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nenhum alerta encontrado.</p>
               </div>
             )}
           </div>
@@ -637,7 +604,7 @@ export default function DashboardProfessorPage() {
                           eventosDoMes.map((ev, i) => {
                             const estilo = getEventoStyle(ev.titulo);
                             return (
-                              <div key={i} className={`p-3 rounded-xl border-l-4 flex flex-col gap-1 ${estilo.bg} ${estilo.border}`}>
+                              <div key={i} className={`p-3 rounded-xl border flex flex-col gap-1 ${estilo.bg} ${estilo.border}`}>
                                 <span className={`font-black text-[9px] uppercase tracking-widest ${estilo.color}`}>
                                   Dia {extrairDiaUTC(ev.data)}
                                 </span>
