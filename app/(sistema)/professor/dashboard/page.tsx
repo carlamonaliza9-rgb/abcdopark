@@ -206,7 +206,6 @@ export default function DashboardProfessorPage() {
   const getEventoStyle = (titulo: string) => {
     const t = titulo.toLowerCase();
     const isEspecial = t.includes("feriado") || t.includes("facultado");
-    // As cores de fundo e borda pesadas são aplicadas APENAS no desktop (prefixo md:)
     return { 
       bg: isEspecial ? "md:bg-fuchsia-50" : "md:bg-blue-50/70", 
       border: isEspecial ? "md:border-fuchsia-400" : "md:border-blue-500", 
@@ -222,28 +221,21 @@ export default function DashboardProfessorPage() {
       {/* ============================================== */}
       {/* HEADER: Mobile Native App & Desktop Dashboard */}
       {/* ============================================== */}
-      <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 md:px-8 md:pt-8 md:pb-0 md:mb-8">
-        <div>
-          <h1 className="text-xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2 md:gap-3">
-            Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-lg md:text-3xl">👋</span>
-          </h1>
-          <p className="hidden md:block text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
-            Resumo diário da ABC DO PARK
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 md:px-2 md:pt-2 md:pb-0 md:mb-8">
+        <div> </div>
         
-        <div className="flex gap-2 md:gap-3">
+        {/* OCULTO NO DESKTOP: Botões aparecem aqui apenas no Mobile */}
+        <div className="flex gap-2 md:hidden">
           <button 
             onClick={() => setModalCalendarioAberto(true)} 
-            className="flex items-center justify-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl md:rounded-2xl bg-slate-100 md:bg-blue-600 text-slate-600 md:text-white font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 md:hover:bg-blue-700 shadow-sm md:shadow-lg md:shadow-blue-600/20 transition-all active:scale-95"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all active:scale-95"
           >
             <CalendarDays size={18} strokeWidth={2.5} />
-            <span className="hidden md:inline">Calendário</span>
           </button>
           
           <button 
             onClick={() => setModalConfigAberto(true)} 
-            className="w-10 h-10 md:w-11 md:h-11 bg-slate-100 md:bg-white border-none md:border md:border-slate-200 text-slate-500 md:text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-xl md:rounded-2xl flex items-center justify-center transition-all shadow-sm md:shadow-sm active:scale-95"
+            className="w-10 h-10 bg-slate-100 border-none text-slate-500 hover:text-blue-600 rounded-xl flex items-center justify-center transition-all shadow-sm active:scale-95"
           >
             <Settings size={18} strokeWidth={2.5} />
           </button>
@@ -254,15 +246,40 @@ export default function DashboardProfessorPage() {
       {/* HERO BANNER: Cartão no Desktop / Perfil no Mobile */}
       {/* ============================================== */}
       <div className="px-0 md:px-8 mb-4 md:mb-8 border-b border-slate-100 md:border-none pb-4 md:pb-0">
-        <div className="md:bg-gradient-to-r md:from-blue-900 md:to-green-900 md:rounded-[2.5rem] md:p-8 md:text-white md:shadow-xl md:shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-8 px-4 md:px-0">
+        
+        {/* ========================================================================= */}
+        {/* AQUI VOCÊ MUDA A COR: Substitua "md:from-blue-900 md:to-green-900"      */}
+        {/* Exemplo para cor lisa: mude "md:bg-gradient-to-r..." para "md:bg-blue-600"*/}
+        {/* ========================================================================= */}
+        <div className="md:bg-gradient-to-r md:from-green-500 md:to-blue-500 md:rounded-[2.5rem] md:py-8 px-4 md:px-10 md:text-white md:shadow-xl md:shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-8">
           
           {/* Decoração de Fundo (Apenas Desktop) */}
           <div className="hidden md:block absolute -top-24 -right-10 w-64 h-64 bg-white opacity-5 rounded-full blur-2xl pointer-events-none"></div>
           <div className="hidden md:block absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400 opacity-20 rounded-full blur-xl pointer-events-none"></div>
 
+          {/* BOTÕES DO DESKTOP MOVIDOS PARA CÁ (Exclusivo Desktop) */}
+          <div className="hidden md:flex absolute top-8 right-10 gap-3 z-30">
+            <button 
+              onClick={() => setModalCalendarioAberto(true)} 
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black uppercase tracking-widest text-[10px] transition-all shadow-md backdrop-blur-md active:scale-95"
+            >
+              <CalendarDays size={18} strokeWidth={2.5} />
+              <span>Calendário</span>
+            </button>
+            
+            <button 
+              onClick={() => setModalConfigAberto(true)} 
+              className="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center justify-center transition-all shadow-md backdrop-blur-md active:scale-95"
+            >
+              <Settings size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+
           {/* Perfil App Native (Mobile) vs Avatar Desktop */}
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-14 h-14 md:w-48 md:h-48 rounded-full md:border-4 md:border-white/20 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm md:shadow-lg">
+            
+            {/* AQUI AJUSTEI A FOTO (DE w-48 h-48 PARA w-44 h-44) */}
+            <div className="w-14 h-14 md:w-44 md:h-44 rounded-full md:border-4 md:border-white/20 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm md:shadow-lg">
               <img 
                 src={ilustracaoProfessor || "/image_de2d33.jpg"} 
                 alt="Seu Perfil" 
@@ -272,14 +289,16 @@ export default function DashboardProfessorPage() {
             
             {/* Infos ao lado da foto (Exclusivo Mobile) */}
             <div className="flex-1 z-10 md:hidden flex flex-col justify-center">
-              <h2 className="text-base font-black leading-tight text-slate-800">{nomeCompleto || nomeUsuario}</h2>
+              <h2 className="text-base font-black leading-tight text-slate-800"> Olá,{nomeCompleto || nomeUsuario}</h2>
               <p className="text-slate-500 font-medium text-[11px] leading-tight mt-0.5">Turmas, diário e programação.</p>
             </div>
           </div>
 
           {/* Informações Pessoais & Turmas (Exclusivo Desktop) */}
-          <div className="hidden md:block flex-1 text-left z-10 w-full">
-            <h2 className="text-2xl font-black mb-2 leading-tight">Que bom ter você aqui!</h2>
+          <div className="hidden md:block flex-1 text-left z-10 w-full mt-8 md:mt-0">
+            <h1 className="text-xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2 md:gap-3">
+              Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-lg md:text-3xl">👋</span>
+            </h1>
             <p className="text-blue-100 font-medium text-sm mb-6 max-w-md">
               Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
             </p>
@@ -395,7 +414,7 @@ export default function DashboardProfessorPage() {
                       <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
                     </div>
                     {/* Foto Integrada (Mobile & Desktop) */}
-                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-13 h-13 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
                       {persona.foto_url ? (
                         <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
                       ) : (
