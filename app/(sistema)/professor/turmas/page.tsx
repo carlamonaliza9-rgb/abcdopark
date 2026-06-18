@@ -2,8 +2,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { 
+  ChevronRight, 
+  Search, 
+  FileText, 
+  AlertTriangle, 
+  LayoutGrid
+} from "lucide-react";
 
-// Importação dos Componentes com os caminhos atualizados para a nova arquitetura
+// Importação dos Componentes
 import { ModalFichaAlunoTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalFichaAlunoTurma";
 import { ModalAgendaTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalAgendaTurma";
 
@@ -14,6 +21,7 @@ export default function TurmasProfessorPage() {
   const [carregando, setCarregando] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  const [turmaAtiva, setTurmaAtiva] = useState<any>(null);
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   const [modalFichaAberto, setModalFichaAberto] = useState(false);
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false);
@@ -23,7 +31,6 @@ export default function TurmasProfessorPage() {
   const calcularIdade = (dataNasc: string) => {
     if (!dataNasc) return "--";
     const hoje = new Date();
-    // Adicionado "T12:00:00" para neutralizar o fuso horário UTC e evitar distorções na data local de Belém
     const nascimento = new Date(dataNasc + "T12:00:00");
     let idade = hoje.getFullYear() - nascimento.getFullYear();
     const m = hoje.getMonth() - nascimento.getMonth();
@@ -31,7 +38,6 @@ export default function TurmasProfessorPage() {
     return `${idade} ${idade === 1 ? 'ano' : 'anos'}`;
   };
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
   async function registrarLog(acao: string, tabela: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -51,15 +57,10 @@ export default function TurmasProfessorPage() {
   async function abrirFichaAluno(aluno: any) {
     setAlunoSelecionado(aluno);
     setModalFichaAberto(true);
-    
-    // Log de consulta altamente detalhado com quebra de linhas estruturada
     await registrarLog(
       "CONSULTA", 
       "alunos", 
-      `🔍 Acessou a ficha cadastral pedagógica individual do estudante.\n` +
-      `• Aluno selecionado: ${aluno.nome}\n` +
-      `• Turma vinculada: ${aluno.turma || 'Não definida'}\n` +
-      `• Idade atual calculada: ${calcularIdade(aluno.data_nascimento)}`
+      `🔍 Acessou a ficha individual de ${aluno.nome}`
     );
   }
 
@@ -67,15 +68,10 @@ export default function TurmasProfessorPage() {
     setTurmaParaAgenda(minhaTurma);
     setModoAgenda(modo);
     setModalAgendaAberto(true);
-    
-    // Detalha no log de consulta qual foi o intuito da abertura do painel da agenda
-    const acaoTexto = modo === 'registrar' ? 'Abertura para inserção/novos lançamentos diários' : 'Abertura para leitura e consulta do histórico';
     await registrarLog(
       "CONSULTA", 
       "eventos_calendario", 
-      `🔍 Entrou no painel interativo da Agenda Escolar da classe.\n` +
-      `• Turma selecionada: ${minhaTurma.nome}\n` +
-      `• Operação desejada: ${acaoTexto} (${modo.toUpperCase()})`
+      `🔍 Abriu agenda da turma ${minhaTurma.nome}`
     );
   }
 
@@ -87,7 +83,6 @@ export default function TurmasProfessorPage() {
     const email = authData.user.email || "";
     setUserEmail(email);
 
-    // Puxa o nome oficial do professor
     const { data: funcData } = await supabase.from('funcionarios').select('nome').eq('email', email).single();
     const nomeDoProf = funcData?.nome || "";
 
@@ -101,7 +96,6 @@ export default function TurmasProfessorPage() {
       setTodosAlunos(resAlunos.data);
       const coresAtuais = resCores.data?.reduce((acc: any, item: any) => { acc[item.nome_turma] = item.cor_hex; return acc; }, {}) || {};
       
-      // NOVA LÓGICA DE VÍNCULO: Procura nas disciplinas ou se ele é auxiliar
       const { data: turmasProf } = await supabase
         .from('turma_disciplinas')
         .select('nome_turma')
@@ -111,7 +105,6 @@ export default function TurmasProfessorPage() {
       const turmasNomes = Array.from(new Set((turmasProf || []).map(t => t.nome_turma)));
 
       resInfos.data.forEach(t => {
-          // Adiciona também se for o Auxiliar da turma
           if (t.auxiliar === nomeDoProf && !turmasNomes.includes(t.nome_turma)) {
               turmasNomes.push(t.nome_turma);
           }
@@ -121,120 +114,195 @@ export default function TurmasProfessorPage() {
         .filter(t => turmasNomes.includes(t.nome_turma))
         .map(t => ({
           nome: t.nome_turma,
-          cor: coresAtuais[t.nome_turma] || "#ffffff",
+          cor: coresAtuais[t.nome_turma] || "#4f46e5",
           horario_url: t.horario_url
         }));
 
       setTurmas(turmasDoProfessor);
+      if (turmasDoProfessor.length > 0) setTurmaAtiva(turmasDoProfessor[0]);
     }
     setCarregando(false);
   }
 
   useEffect(() => { carregarDados(); }, []);
 
-  if (carregando) return <div className="min-h-screen bg-white md:bg-slate-50 p-10 flex items-center justify-center text-slate-400 text-xs font-black uppercase tracking-widest animate-pulse">Carregando turma...</div>;
+  const hexToRgba = (hex: string, alpha: number) => {
+    let r = 0, g = 0, b = 0;
+    if (hex && hex.length === 7) {
+      r = parseInt(hex.slice(1, 3), 16);
+      g = parseInt(hex.slice(3, 5), 16);
+      b = parseInt(hex.slice(5, 7), 16);
+    } else {
+      return `rgba(79, 70, 229, ${alpha})`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  if (carregando) return <div className="min-h-screen bg-[#f4f7f9] p-10 flex items-center justify-center text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Carregando painel de turmas...</div>;
+
+  const alunosTurmaAtiva = turmaAtiva ? todosAlunos.filter(a => a.turma === turmaAtiva.nome).sort((a, b) => a.nome.localeCompare(b.nome)) : [];
 
   return (
-    <div className="w-full min-h-screen bg-white md:bg-[#f4f7f9] md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
-      {/* Container muito mais largo para não ter sobra de espaço inútil */}
-      <div className="w-full max-w-[1600px] mx-auto md:space-y-8">
+    <div className="w-full min-h-screen bg-[#f8fafc] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
+      
+      <div className="w-full max-w-[1400px] mx-auto">
         
         {turmas.length === 0 ? (
-          <div className="bg-white p-10 md:rounded-[2.5rem] border-y md:border border-slate-100 md:shadow-sm text-center mt-4">
-            <p className="text-[10px] md:text-xs font-black uppercase text-slate-400 tracking-widest">
-              Você ainda não está vinculado a nenhuma turma no momento.
-            </p>
+          <div className="py-20 text-center bg-white rounded-[2rem] border border-slate-200 shadow-sm mt-10">
+            <p className="text-sm font-bold text-slate-400">Nenhuma turma vinculada ao seu perfil no momento.</p>
           </div>
         ) : (
-          turmas.map((minhaTurma, turmaIndex) => {
-            const alunosTurma = todosAlunos.filter(a => a.turma === minhaTurma.nome).sort((a, b) => a.nome.localeCompare(b.nome));
+          <div className="flex flex-col gap-8 md:gap-10">
             
-            return (
-              <div key={minhaTurma.nome} className={`bg-white pb-2 pt-6 px-0 md:p-10 md:rounded-[2.5rem] md:shadow-sm border-b-8 md:border border-slate-50 md:border-slate-100 ${turmaIndex > 0 ? 'mt-4 md:mt-0' : ''}`}>
+            {/* TÓPICOS DE SELEÇÃO (TABS) */}
+            <div className="flex flex-col gap-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1 flex items-center gap-1.5">
+                <LayoutGrid size={14} /> Selecione a Turma
+              </span>
+              <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-3">
+                {turmas.map(t => {
+                  const isActive = turmaAtiva?.nome === t.nome;
+                  return (
+                    <button
+                      key={t.nome}
+                      onClick={() => setTurmaAtiva(t)}
+                      className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-bold text-[11px] md:text-sm whitespace-nowrap transition-all border-2 shrink-0 ${
+                        isActive 
+                          ? 'border-transparent shadow-md text-white' 
+                          : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200 hover:bg-slate-50'
+                      }`}
+                      style={{ backgroundColor: isActive ? t.cor : '' }}
+                    >
+                      {isActive ? (
+                        <span className="w-2.5 h-2.5 rounded-full bg-white/40"></span>
+                      ) : (
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.cor }}></span>
+                      )}
+                      {t.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* PAINEL DA TURMA ATIVA */}
+            {turmaAtiva && (
+              <div className="flex flex-col animate-in slide-in-from-bottom-4 duration-500">
                 
-                {/* Header da Turma (Mobile Native / Desktop Card) */}
-                <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 md:gap-6 mb-4 md:mb-8 border-b border-slate-100 px-4 md:px-0 pb-4 md:pb-8">
-                  <div className="flex flex-col">
-                    <h1 className="text-2xl md:text-5xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-2 md:gap-4">
-                      <span className="text-2xl md:text-4xl">🏫</span> {minhaTurma.nome}
-                    </h1>
-                    <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 mt-1 md:mt-3">
-                      {alunosTurma.length} alunos matriculados
-                    </p>
+                {/* CABEÇALHO DA TURMA */}
+                <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm mb-6 relative overflow-hidden">
+                  {/* Detalhe de fundo suave */}
+                  <div className="absolute top-0 right-0 w-64 h-full pointer-events-none" style={{ background: `linear-gradient(to left, ${hexToRgba(turmaAtiva.cor, 0.05)}, transparent)` }}></div>
+
+                  <div className="flex items-center gap-5 relative z-10">
+                    <div 
+                      className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center text-3xl shadow-sm border border-slate-100"
+                      style={{ backgroundColor: hexToRgba(turmaAtiva.cor, 0.1) }}
+                    >
+                      🏫
+                    </div>
+                    <div>
+                      <h2 className="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">
+                        {turmaAtiva.nome}
+                      </h2>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs font-bold text-slate-500">
+                          {alunosTurmaAtiva.length} Alunos
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                          Letivo 2026
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="flex flex-row md:flex-row gap-2 md:gap-4 w-full lg:w-auto mt-2 md:mt-0">
+                  <div className="flex gap-3 w-full md:w-auto relative z-10">
                     <button 
-                      onClick={() => abrirAgendaTurma(minhaTurma, 'registrar')} 
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 md:gap-3 bg-indigo-600 text-white px-3 py-3 md:px-8 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] md:text-xs shadow-md md:shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                      onClick={() => abrirAgendaTurma(turmaAtiva, 'consultar')} 
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white text-slate-600 border-2 border-slate-100 hover:border-slate-200 hover:bg-slate-50 px-5 py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all"
                     >
-                      <span className="text-sm md:text-xl">📝</span> <span className="hidden sm:inline">Registrar Agenda</span><span className="sm:hidden">Agenda</span>
+                      <Search size={16} strokeWidth={2.5} /> Histórico
                     </button>
                     <button 
-                      onClick={() => abrirAgendaTurma(minhaTurma, 'consultar')} 
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 md:gap-3 bg-slate-100 md:bg-white text-indigo-600 border-none md:border-2 md:border-indigo-100 px-3 py-3 md:px-8 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] md:text-xs hover:bg-slate-200 md:hover:border-indigo-200 transition-all active:scale-95 shadow-sm md:shadow-sm"
+                      onClick={() => abrirAgendaTurma(turmaAtiva, 'registrar')} 
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 text-white px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-all"
+                      style={{ backgroundColor: turmaAtiva.cor, boxShadow: `0 4px 15px -3px ${hexToRgba(turmaAtiva.cor, 0.4)}` }}
                     >
-                      <span className="text-sm md:text-xl">🔍</span> Histórico
+                      <FileText size={16} strokeWidth={2.5} /> Registrar Agenda
                     </button>
                   </div>
                 </div>
 
-                {/* Lista de Alunos (Mobile Edge-to-Edge List / Desktop Grid) */}
-                <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 gap-0 md:gap-5 xl:gap-6">
-                  {alunosTurma.map((aluno, index) => {
-                    // Paleta Cíclica mantida para o Desktop
-                    const classesPaleta = [
-                      "md:bg-blue-50 md:border-blue-500 md:text-blue-900 md:hover:border-blue-400 md:hover:shadow-blue-100",
-                      "md:bg-emerald-50 md:border-emerald-500 md:text-emerald-900 md:hover:border-emerald-400 md:hover:shadow-emerald-100",
-                      "md:bg-rose-50 md:border-rose-500 md:text-rose-900 md:hover:border-rose-400 md:hover:shadow-rose-100"
-                    ];
-                    const corSelecionada = classesPaleta[index % classesPaleta.length];
-
-                    return (
+                {/* LISTA DE ALUNOS EM LINHA */}
+                <div className="flex flex-col gap-3">
+                  {alunosTurmaAtiva.length === 0 ? (
+                    <div className="p-10 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-100">Nenhum aluno matriculado nesta turma.</div>
+                  ) : (
+                    alunosTurmaAtiva.map((aluno) => (
                       <div 
                         key={aluno.id} 
                         onClick={() => abrirFichaAluno(aluno)} 
-                        className={`px-4 py-3 md:p-6 bg-white md:bg-transparent border-b border-slate-100 md:border-b-0 md:border-l-8 md:rounded-[2rem] flex flex-row items-center justify-between cursor-pointer transition-all md:hover:-translate-y-1 w-full active:bg-slate-50 md:active:bg-transparent ${corSelecionada}`}
+                        className="group bg-white rounded-[1.5rem] border border-slate-100 p-4 md:p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
                       >
-                        <div className="flex items-center gap-3 md:gap-4 flex-1 overflow-hidden">
-                          {/* Avatar */}
-                          <div className="w-12 h-12 md:w-16 md:h-16 shrink-0 rounded-full md:rounded-[1.2rem] bg-slate-50 md:bg-white flex items-center justify-center overflow-hidden border border-slate-100 md:border-white shadow-sm">
+                        {/* Marcador lateral colorido curvo (mistura do design de grid para a lista) */}
+                        <div 
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-14 rounded-r-full transition-all duration-300 group-hover:h-full group-hover:rounded-none group-hover:w-1.5"
+                          style={{ backgroundColor: turmaAtiva.cor }}
+                        ></div>
+
+                        {/* Fundo que acende de leve no hover */}
+                        <div 
+                          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                          style={{ background: `linear-gradient(to right, ${hexToRgba(turmaAtiva.cor, 0.04)}, transparent)` }}
+                        ></div>
+
+                        <div className="flex items-center gap-4 md:gap-6 pl-4 relative z-10">
+                          {/* Avatar Ampliado */}
+                          <div className="w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                             {aluno.foto_url ? (
-                              <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" />
+                              <img src={aluno.foto_url} className="w-full h-full object-cover" alt={aluno.nome} />
                             ) : (
-                              <span className="text-xl md:text-2xl font-black text-slate-300 md:opacity-50">👤</span>
+                              <span className="w-full h-full flex items-center justify-center text-2xl text-slate-300">👤</span>
                             )}
                           </div>
                           
-                          {/* Info */}
-                          <div className="flex flex-col justify-center flex-1 overflow-hidden">
-                            <p className="font-black text-sm md:text-lg text-slate-800 md:text-inherit m-0 leading-tight truncate" title={aluno.nome}>
+                          <div className="flex flex-col">
+                            <h4 className="font-bold text-slate-800 text-base md:text-lg tracking-tight group-hover:text-slate-900">
                               {aluno.nome}
-                            </p>
-                            <div className="flex items-center flex-wrap gap-2 mt-1 md:mt-2">
-                              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 md:text-inherit md:opacity-80 whitespace-nowrap">
+                            </h4>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-[11px] md:text-xs font-semibold text-slate-400">
                                 {calcularIdade(aluno.data_nascimento)}
                               </span>
+                              
+                              {/* Tag Alergia */}
                               {aluno.tem_alergia && (
-                                <span className="text-[8px] md:text-[9px] bg-red-100 text-red-600 px-2 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg font-black uppercase tracking-widest shadow-none md:shadow-sm whitespace-nowrap">
-                                  ⚠️ Alergia
+                                <span className="flex items-center gap-1.5 text-rose-500 font-bold text-[9px] uppercase tracking-widest bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-100">
+                                  <AlertTriangle size={12} strokeWidth={2.5} /> Alergia
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
-
-                        {/* Botão de Ação Visual (Seta nativa) */}
-                        <div className="flex items-center text-slate-300 md:text-inherit md:opacity-60 shrink-0">
-                          <span className="text-lg md:text-xl">➔</span>
+                        
+                        <div className="flex items-center gap-4 pr-2 relative z-10">
+                          <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center bg-slate-50 text-slate-300 group-hover:bg-white transition-all shadow-none group-hover:shadow-sm">
+                            <ChevronRight 
+                              size={20} 
+                              className="transition-colors group-hover:translate-x-0.5" 
+                              style={{ color: turmaAtiva.cor }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))
+                  )}
                 </div>
+
               </div>
-            );
-          })
+            )}
+          </div>
         )}
 
         {/* Modais */}
@@ -257,6 +325,12 @@ export default function TurmasProfessorPage() {
           />
         )}
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      `}} />
     </div>
   );
 }

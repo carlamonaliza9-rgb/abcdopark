@@ -57,7 +57,126 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
   );
 }
 
-export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, mediaEstrelas, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
+// ==========================================================
+// NOVO MODAL: OBSERVAÇÕES E ALERTAS DO DIÁRIO
+// ==========================================================
+export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any) {
+  const [observacoes, setObservacoes] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function buscarAlertas() {
+      const { data } = await supabase
+        .from('avaliacoes')
+        .select('data_avaliacao, participacao, comportamento, atividades, socioemocional, comentario')
+        .eq('aluno_id', alunoId)
+        .order('data_avaliacao', { ascending: false });
+
+      if (data) {
+        // Filtra apenas os dias onde o professor digitou alguma observação/justificativa
+        const comAlertas = data.filter(obs => obs.comentario && obs.comentario.trim().length > 0);
+        setObservacoes(comAlertas);
+      }
+      setCarregando(false);
+    }
+    buscarAlertas();
+  }, [alunoId]);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
+        
+        {/* Cabeçalho do Modal */}
+        <div className="bg-amber-50 p-6 md:p-8 border-b border-amber-100 flex justify-between items-center shrink-0">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-amber-700 tracking-tight flex items-center gap-2">
+              <span>⭐</span> Desempenho Diário
+            </h2>
+            <p className="text-amber-600/80 text-xs font-bold mt-1">Média pedagógica e observações do professor</p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 bg-white text-amber-600 hover:bg-amber-100 hover:text-amber-700 border border-amber-200 rounded-xl flex items-center justify-center transition-colors shadow-sm font-black active:scale-95">
+            X
+          </button>
+        </div>
+
+        {/* Conteúdo Rolável */}
+        <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 bg-[#f8fafc]">
+          {carregando ? (
+            <div className="text-center p-10 text-amber-500 font-bold animate-pulse text-sm uppercase tracking-widest">Buscando registros...</div>
+          ) : (
+            <>
+              {/* Destaque da Média Calculada */}
+              <div className="flex flex-col items-center justify-center bg-white border-2 border-amber-100 rounded-3xl p-6 mb-8 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">Média Geral do Aluno</span>
+                <div className="text-4xl md:text-5xl drop-shadow-sm">
+                  {mediaCalculada > 0 ? "⭐".repeat(Math.round(mediaCalculada)) : <span className="text-slate-300 text-lg font-bold">Sem notas lançadas</span>}
+                </div>
+                {mediaCalculada > 0 && <span className="text-amber-600 font-black mt-3 text-lg md:text-xl bg-amber-50 px-4 py-1 rounded-lg border border-amber-100">{mediaCalculada.toFixed(1)} <span className="text-amber-400 text-sm">/ 5.0</span></span>}
+              </div>
+
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2 px-2">
+                <span className="text-amber-500">⚠️</span> Alertas e Observações
+              </h3>
+
+              {observacoes.length > 0 ? (
+                <div className="flex flex-col gap-4">
+                  {observacoes.map((obs, idx) => (
+                    <div key={idx} className="bg-white border border-amber-100 p-5 rounded-2xl shadow-sm relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200/50">
+                          🗓️ {new Date(obs.data_avaliacao).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
+                        </span>
+                      </div>
+                      <p className="text-sm md:text-base font-bold text-slate-700 leading-relaxed mb-4">"{obs.comentario}"</p>
+                      
+                      {/* Tags de notas 1, 2 ou 3 que geraram o alerta */}
+                      <div className="flex flex-wrap gap-2">
+                        {obs.participacao <= 3 && obs.participacao > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🎯 Part: {obs.participacao}★</span>}
+                        {obs.comportamento <= 3 && obs.comportamento > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🤝 Comp: {obs.comportamento}★</span>}
+                        {obs.atividades <= 3 && obs.atividades > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">📝 Ativ: {obs.atividades}★</span>}
+                        {obs.socioemocional <= 3 && obs.socioemocional > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🧠 Socio: {obs.socioemocional}★</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-8 bg-white rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum alerta disciplinar ou pedagógico registrado.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
+  // Controle do Modal de Observações e Cálculo Real da Média
+  const [modalObsAberto, setModalObsAberto] = useState(false);
+  const [mediaReal, setMediaReal] = useState(0);
+
+  useEffect(() => {
+    // Esse UseEffect garante que as estrelas do Diário sempre apareçam no card!
+    async function buscarMediaReal() {
+      const { data } = await supabase.from('avaliacoes').select('participacao, comportamento, atividades, socioemocional').eq('aluno_id', alunoId);
+      if (data && data.length > 0) {
+        let somaTotal = 0; let qtdNotas = 0;
+        data.forEach(aval => {
+          const notas = [aval.participacao, aval.comportamento, aval.atividades, aval.socioemocional].filter(n => n > 0);
+          if (notas.length > 0) {
+            somaTotal += notas.reduce((a, b) => a + b, 0) / notas.length;
+            qtdNotas++;
+          }
+        });
+        if (qtdNotas > 0) setMediaReal(somaTotal / qtdNotas);
+      }
+    }
+    if (alunoId) buscarMediaReal();
+  }, [alunoId]);
+
   const contatos = [
     { nome: aluno.responsavel, whats: aluno.whatsapp, email: aluno.email_responsavel, cpf: aluno.responsavel_cpf || aluno.cpf_responsavel, profissao: aluno.profissao_responsavel || aluno.responsavel_profissao, tag: aluno.parentesco1 || aluno.parentesco_1 || "Responsável 1", cor: "text-pink-700", bg: "bg-pink-100 border-pink-200" },
     { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, email: aluno.email_responsavel_2 || aluno.email_responsavel2, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "text-blue-700", bg: "bg-blue-100 border-blue-200" },
@@ -66,6 +185,10 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8 animate-in slide-in-from-bottom-4 duration-300">
+      
+      {/* Modal é montado aqui de forma invisível até ser chamado */}
+      {modalObsAberto && <ModalObservacoesDiario alunoId={alunoId} mediaCalculada={mediaReal} onClose={() => setModalObsAberto(false)} />}
+
       <div className="xl:col-span-12 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
         <div onClick={() => { if(saldoCreditoVisivel > 0) setVerCreditoGlobal(true); }} className={`p-4 rounded-3xl border transition-all ${saldoCreditoVisivel > 0 ? 'bg-emerald-50 border-emerald-200 cursor-pointer hover:shadow-md hover:-translate-y-1' : 'bg-white border-slate-100 opacity-60'}`}>
           <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${saldoCreditoVisivel > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>Crédito Conta</span>
@@ -77,14 +200,22 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <p className={`text-xl lg:text-2xl font-black ${totalPendenteGeral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
         
-        <div className="p-4 rounded-3xl border border-amber-100 bg-amber-50">
+        {/* CARD DE MÉDIA PEDAGÓGICA (AGORA CLICÁVEL) */}
+        <div onClick={() => setModalObsAberto(true)} className="p-4 rounded-3xl border border-amber-200 bg-amber-50 cursor-pointer hover:shadow-md hover:border-amber-300 hover:-translate-y-1 transition-all relative overflow-hidden group">
           <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-1">Média Pedagógica</span>
-          <p className="text-lg lg:text-xl">{mediaEstrelas > 0 ? "⭐".repeat(Math.round(mediaEstrelas)) : <span className="text-amber-800/40 text-sm font-bold">Sem Notas</span>}</p>
+          <p className="text-lg lg:text-xl drop-shadow-sm">{mediaReal > 0 ? "⭐".repeat(Math.round(mediaReal)) : <span className="text-amber-800/40 text-sm font-bold">Sem Notas</span>}</p>
+          
+          {/* Botãozinho de "Ver mais" que aparece no hover */}
+          <div className="absolute top-4 right-4 w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+          </div>
         </div>
+
         <div className="p-4 rounded-3xl border border-sky-100 bg-sky-50">
           <span className="text-[10px] font-black text-sky-600 uppercase tracking-widest block mb-1">Frequência Anual</span>
           <p className="text-xl lg:text-2xl font-black text-sky-700">{percentualPresenca.toFixed(0)}%</p>
         </div>
+        
         <div className="col-span-2 md:col-span-4 xl:col-span-1 p-4 rounded-3xl border border-indigo-100 bg-indigo-50 flex flex-col justify-center">
           <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Mensalidade Padrão</span>
           <p className="text-xl lg:text-2xl font-black text-indigo-700 leading-none">{aluno.valor ? parseFloat(aluno.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
@@ -148,7 +279,6 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
             <span className="text-3xl group-hover:scale-110 transition-transform">💳</span>
             <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest text-center">Extrato</span>
           </button>
-          {/* NOVO BOTÃO DE RELATÓRIOS AQUI */}
           <button onClick={() => setVerRelatorios(true)} className="group relative overflow-hidden bg-white border border-fuchsia-200 hover:border-fuchsia-400 p-6 rounded-[2rem] shadow-sm transition-all flex flex-col items-center justify-center gap-3">
             <span className="text-3xl group-hover:scale-110 transition-transform">🧠</span>
             <span className="text-[10px] font-black text-fuchsia-700 uppercase tracking-widest text-center">Relatórios Prof.</span>

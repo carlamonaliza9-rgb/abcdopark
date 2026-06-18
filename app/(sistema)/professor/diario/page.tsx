@@ -29,7 +29,7 @@ export default function DiarioClassePage() {
 
   const [alertaEvasao, setAlertaEvasao] = useState<{ aberto: boolean; nomeAluno: string } | null>(null);
 
-  // NOVO ESTADO: Controle do Modal de Observações
+  // Controle do Modal de Observações
   const [modalObsAberto, setModalObsAberto] = useState(false);
   const [obsAtual, setObsAtual] = useState({ alunoId: 0, nomeAluno: "", texto: "", metricaContexto: "" });
 
@@ -132,7 +132,7 @@ export default function DiarioClassePage() {
       .from('alunos')
       .select('id, nome, foto_url, turma')
       .eq('turma', turmaSelecionada)
-      .neq('status', 'transferido') // <--- FILTRO APLICADO: Remove alunos transferidos da pauta do professor
+      .neq('status', 'transferido')
       .order('nome', { ascending: true });
     if (data) setAlunos(data);
   }
@@ -183,8 +183,8 @@ export default function DiarioClassePage() {
   }
 
   async function handleExcluirDiario() {
-    const autorizado = await confirmarSeguranca();
-    if (!autorizado) return;
+    const authorized = await confirmarSeguranca();
+    if (!authorized) return;
     setSalvando(true);
     try {
       const dataFormatada = new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR');
@@ -235,6 +235,24 @@ export default function DiarioClassePage() {
   async function handleSalvarNovo() {
     setSalvando(true);
     try {
+      // Trava de segurança: Valida se algum aluno recebeu nota <= 3 e está sem observação
+      for (const aluno of alunos) {
+        const reg = registrosLocal[aluno.id];
+        if (reg) {
+          const possuiNotaBaixa = 
+            (reg.participacao > 0 && reg.participacao <= 3) ||
+            (reg.comportamento > 0 && reg.comportamento <= 3) ||
+            (reg.atividades > 0 && reg.atividades <= 3) ||
+            (reg.socioemocional > 0 && reg.socioemocional <= 3);
+
+          if (possuiNotaBaixa && !reg.comentario?.trim()) {
+            alert(`Aviso obrigatório:\nO aluno ${aluno.nome} recebeu uma avaliação de 3 estrelas (ou menos) em algum critério. É necessário preencher uma observação justificando a nota antes de salvar para os pais e a diretoria.`);
+            setSalvando(false);
+            return; // Interrompe o processo de salvamento geral
+          }
+        }
+      }
+
       const mudancasFiltradas: string[] = [];
       let possuiMudancaEfetiva = false;
       const dataFormatada = new Date(dataLancamento + "T12:00:00").toLocaleDateString('pt-BR');
@@ -289,6 +307,7 @@ export default function DiarioClassePage() {
       }
 
       setRegistrosOriginais(JSON.parse(JSON.stringify(registrosLocal)));
+      alert("Lançamento do diário salvo com sucesso!");
 
     } catch (error) { alert("Erro ao salvar lançamento."); } finally { setSalvando(false); }
   }
@@ -304,11 +323,8 @@ export default function DiarioClassePage() {
 
   const handlePresencaLocal = (alunoId: number, status: boolean | null) => { setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], presenca: status } })); };
   
-  // NOVA LÓGICA DE AVALIAÇÃO E GATILHO DE MODAL
   const handleParametroLocal = (alunoId: number, nomeAluno: string, campo: string, labelContexto: string, qtd: number) => { 
     setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [campo]: qtd } })); 
-    
-    // Dispara o modal se a nota for 3 ou menor e se ainda não houver um comentário sendo digitado
     if (qtd <= 3) {
       abrirModalObs(alunoId, nomeAluno, labelContexto);
     }
@@ -354,7 +370,7 @@ export default function DiarioClassePage() {
       
       <div className="w-full max-w-[1600px] mx-auto md:p-8 lg:p-10 md:space-y-8">
         
-        {/* ================= HEADER DO DIÁRIO (Mobile Native / Desktop Card) ================= */}
+        {/* ================= HEADER DO DIÁRIO ================= */}
         <header className="bg-white md:rounded-[2.5rem] px-4 pt-6 pb-4 md:p-8 md:shadow-sm border-b md:border border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 md:gap-6">
           <div className="flex flex-col">
             <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter m-0 flex items-center gap-2 md:gap-3">
@@ -398,7 +414,6 @@ export default function DiarioClassePage() {
               <Edit3 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> Editar
             </button>
             
-            {/* BOTÃO SALVAR (Apenas visível no Desktop aqui no Header) */}
             <button 
               onClick={handleSalvarNovo} 
               disabled={salvando} 
@@ -409,7 +424,7 @@ export default function DiarioClassePage() {
           </div>
         </header>
 
-        {/* ================= GRID DE ALUNOS (Mobile Native List / Desktop Cards) ================= */}
+        {/* ================= GRID DE ALUNOS ================= */}
         <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 gap-0 md:gap-6 pt-2 md:pt-0">
           {alunos.map((aluno) => {
             const reg = registrosLocal[aluno.id] || { presenca: null, participacao: 0, comportamento: 0, atividades: 0, socioemocional: 0, comentario: "" };
@@ -422,15 +437,12 @@ export default function DiarioClassePage() {
                 key={aluno.id} 
                 className={`bg-white p-4 md:p-5 border-b border-slate-100 md:border-2 md:rounded-[2rem] md:shadow-sm flex flex-col justify-between transition-all duration-300 ${isFalta ? 'bg-rose-50/30 md:border-rose-200' : isPresente ? 'md:border-green-200' : 'md:border-slate-100'}`}
               >
-                
-                {/* TOPO: Avatar, Nome, Botão de Comentário e Frequência */}
                 <div className="flex items-start justify-between mb-4 md:mb-6 gap-3 md:gap-4">
                   <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
                     <img src={aluno.foto_url || 'https://via.placeholder.com/60'} className="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full md:rounded-[1.2rem] object-cover border border-slate-100 shadow-sm" alt="" />
                     <div className="flex flex-col">
                       <span className="font-black text-slate-800 text-sm md:text-base leading-tight line-clamp-1" title={aluno.nome}>{aluno.nome}</span>
                       
-                      {/* Botão de Observação Pedagógica */}
                       <button 
                         onClick={() => abrirModalObs(aluno.id, aluno.nome, "Geral")}
                         className={`mt-1 flex items-center gap-1.5 w-fit px-2 py-1 rounded-md md:rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors ${
@@ -445,7 +457,6 @@ export default function DiarioClassePage() {
                     </div>
                   </div>
 
-                  {/* CONTROLO DE FREQUÊNCIA */}
                   <div className="flex items-center gap-2 shrink-0">
                     {reg.presenca === null ? (
                       <div className="flex bg-slate-100 p-1 rounded-xl md:rounded-2xl">
@@ -478,7 +489,6 @@ export default function DiarioClassePage() {
                   </div>
                 </div>
 
-                {/* BASE: Avaliação 2x2 Grid */}
                 <div className="grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4 bg-slate-50/80 rounded-2xl md:rounded-[1.5rem] border border-slate-100">
                   {[
                     { label: "Participação", key: "participacao", icon: "🎯" }, 
@@ -497,7 +507,7 @@ export default function DiarioClassePage() {
                             <span 
                               key={num} 
                               onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
-                              className={`cursor-pointer text-base md:text-lg transition-colors hover:scale-110 active:scale-90 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
+                              className={`cursor-pointer text-base md:text-lg transition-colors hover:scale-110 active:scale-95 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
                             >
                               ★
                             </span>
@@ -521,7 +531,7 @@ export default function DiarioClassePage() {
 
       </div>
 
-      {/* ================= BARRA INFERIOR DE SALVAR (Flutuante no Mobile) ================= */}
+      {/* ================= BARRA INFERIOR DE SALVAR (Mobile) ================= */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-40 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
         <button 
           onClick={handleSalvarNovo} 
@@ -643,31 +653,31 @@ export default function DiarioClassePage() {
               </h2>
               {aniversariantesHoje.some(p => p.email === userEmail) && (
                 <p className="mt-4 text-blue-50 text-sm font-medium leading-relaxed px-4">
-                  Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈 Que este novo ciclo seja repleto de paz, saúde e conquistas.
+                  Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈 Que este novo ciclo seja repleto de paz, saúde e conquests.
                 </p>
               )}
             </div>
             <div className="p-6 bg-slate-50">
               <div className="flex flex-col gap-3">
-                {aniversariantesHoje.map(pessoa => {
-                  const ehVoce = pessoa.email === userEmail;
+                {aniversariantesHoje.map(persona => {
+                  const ehVoce = persona.email === userEmail;
                   return (
-                    <div key={`${pessoa.tipo}-${pessoa.id}`} className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${ehVoce ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 shadow-sm'}`}>
+                    <div key={`${persona.tipo}-${persona.id}`} className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${ehVoce ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 shadow-sm'}`}>
                       <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                        {pessoa.foto_url ? (
-                          <img src={pessoa.foto_url} className="w-full h-full object-cover" alt="" />
+                        {persona.foto_url ? (
+                          <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
                         ) : (
-                          <span className="font-black text-slate-400 text-lg">{pessoa.nome.charAt(0)}</span>
+                          <span className="font-black text-slate-400 text-lg">{persona.nome.charAt(0)}</span>
                         )}
                       </div>
                       <div className="flex-1">
-                        <h4 className="text-base font-black text-slate-800 line-clamp-1">{ehVoce ? "Você está de parabéns! 🥳" : pessoa.nome}</h4>
+                        <h4 className="text-base font-black text-slate-800 line-clamp-1">{ehVoce ? "Você está de parabéns! 🥳" : persona.nome}</h4>
                         <span className={`text-[9px] font-black uppercase tracking-widest ${ehVoce ? 'text-blue-600' : 'text-slate-500'}`}>
-                          {ehVoce ? '🌟 Celebrando sua vida' : `📚 ${pessoa.tipo === 'funcionario' ? 'Equipe' : 'Aluno - ' + pessoa.turma}`}
+                          {ehVoce ? '🌟 Celebrando sua vida' : `📚 ${persona.tipo === 'funcionario' ? 'Equipe' : 'Aluno - ' + persona.turma}`}
                         </span>
                       </div>
                       {!ehVoce && (
-                        <button onClick={() => parabensWhatsApp(pessoa)} className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0">
+                        <button onClick={() => parabensWhatsApp(persona)} className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0">
                           <Smartphone size={18} strokeWidth={2.5} />
                         </button>
                       )}
@@ -683,7 +693,6 @@ export default function DiarioClassePage() {
         </div>
       )}
 
-      {/* Ajuste de scrollbar */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
