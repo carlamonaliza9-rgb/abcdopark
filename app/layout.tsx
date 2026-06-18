@@ -38,7 +38,8 @@ export default function RootLayout({
       lang="pt-BR" 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      {/* 👇 A COR DE FUNDO GLOBAL FOI INJETADA AQUI 👇 */}
+      <body className="min-h-full flex flex-col bg-[#e0ffff]">
         {children}
         
         {/* COMPONENTE FLUTUANTE DE INSTALAÇÃO RENDERIZADO AQUI */}

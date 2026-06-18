@@ -213,10 +213,10 @@ export default function DashboardProfessorPage() {
     };
   };
 
-  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-blue-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-white md:bg-[#f4f7f9]">Carregando seu espaço...</div>;
+  if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-blue-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-white md:bg-[#e0ffff]">Carregando seu espaço...</div>;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-white md:bg-[#f4f7f9] overflow-x-hidden pb-10">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen md:bg-[#e0ffff] overflow-x-hidden pb-10">
       
       {/* ============================================== */}
       {/* HEADER: Mobile Native App & Desktop Dashboard */}
@@ -247,10 +247,6 @@ export default function DashboardProfessorPage() {
       {/* ============================================== */}
       <div className="px-0 md:px-8 mb-4 md:mb-8 border-b border-slate-100 md:border-none pb-4 md:pb-0">
         
-        {/* ========================================================================= */}
-        {/* AQUI VOCÊ MUDA A COR: Substitua "md:from-blue-900 md:to-green-900"      */}
-        {/* Exemplo para cor lisa: mude "md:bg-gradient-to-r..." para "md:bg-blue-600"*/}
-        {/* ========================================================================= */}
         <div className="md:bg-gradient-to-r md:from-green-500 md:to-blue-500 md:rounded-[2.5rem] md:py-8 px-4 md:px-10 md:text-white md:shadow-xl md:shadow-indigo-600/10 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-8">
           
           {/* Decoração de Fundo (Apenas Desktop) */}

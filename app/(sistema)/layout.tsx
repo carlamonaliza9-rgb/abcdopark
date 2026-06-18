@@ -42,22 +42,22 @@ export default function SistemaLayout({
 
   if (carregando) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center text-blue-900 font-bold">
+      <div className="min-h-screen bg-[#36ff7d] flex items-center justify-center text-blue-900 font-bold">
         Carregando painel...
       </div>
     );
   }
 
   return (
-    // O 'flex' aqui força a Sidebar e o conteúdo da página a ficarem lado a lado
-    <div className="flex min-h-screen bg-gray-50">
+    // 👇 MUDANÇA AQUI: bg-gray-50 mudou para bg-[#36ff7d]
+    <div className="flex min-h-screen bg-[#e0ffff]">
       
       {/* ORQUESTRADOR DE BARRAS LATERAIS */}
       {cargo === "Admin" && <SidebarAdmin />}
       {cargo === "Professor" && <SidebarProfessor />}
 
       {/* CONTEÚDO PRINCIPAL DA PÁGINA */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
       

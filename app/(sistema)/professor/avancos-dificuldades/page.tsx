@@ -211,7 +211,7 @@ export default function AvancosDificuldadesPage() {
   }
 
   return (
-    <div className="animate-in fade-in duration-500 w-full min-h-screen pb-10 bg-white md:bg-[#f4f7f9]">
+    <div className="animate-in fade-in duration-500 w-full min-h-screen pb-10 bg-white md:bg-[#e0ffff]">
       <div className="w-full max-w-[1500px] mx-auto flex flex-col md:gap-6 md:p-8">
         
         {/* ============================================== */}
