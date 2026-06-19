@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react"; 
 
-// Importação dos subcomponentes (que criaremos a seguir)
+// Importação dos subcomponentes 
 import MenuOpcoes from "./_components/MenuOpcoes";
 import PainelComunicados from "./_components/PainelComunicados";
 import PainelProvas from "./_components/PainelProvas";
 import PainelCodes from "./_components/PainelCodes";
 import PainelDocumentosGerais from "./_components/PainelDocumentosGerais";
+import PainelHistorico from "./_components/PainelHistorico"; // Novo Painel Importado
 
 export default function DocumentacoesAdminPage() {
   const router = useRouter();
@@ -46,31 +48,39 @@ export default function DocumentacoesAdminPage() {
     if (data) setAlunos(data);
   }
 
-  if (verificandoAcesso) return <div style={{ padding: '50px', textAlign: 'center', color: '#64748b' }}>Validando credenciais...</div>;
+  if (verificandoAcesso) return <div className="p-12 text-center text-slate-500 font-medium w-full">Validando credenciais...</div>;
 
   return (
-    <div style={{ padding: 'clamp(15px, 5vw, 30px)', backgroundColor: '#f9fafb', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <div className="min-h-screen bg-slate-50 font-sans w-full flex flex-col">
+      <div className="w-full flex-1 p-6 md:p-8 lg:p-10">
+        
+        {!documentoAtivo ? (
+          <MenuOpcoes setDocumentoAtivo={setDocumentoAtivo} />
+        ) : (
+          <div className="w-full animate-in fade-in duration-300">
+            <button 
+              onClick={() => setDocumentoAtivo(null)} 
+              className="group flex items-center gap-2 text-blue-600 font-bold hover:text-blue-700 transition-colors mb-8"
+            >
+              <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+              Voltar para opções
+            </button>
 
-      {!documentoAtivo ? (
-        <MenuOpcoes setDocumentoAtivo={setDocumentoAtivo} />
-      ) : (
-        <div style={{ animation: 'fadeIn 0.3s' }}>
-          <button 
-            onClick={() => setDocumentoAtivo(null)} 
-            style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}
-          >
-            ← Voltar para opções
-          </button>
+            {/* ROTEAMENTO DE PAINÉIS */}
+            <div className="w-full">
+              {documentoAtivo === 'comunicados' && <PainelComunicados />}
+              {documentoAtivo === 'provas' && <PainelProvas />}
+              {documentoAtivo === 'codes' && <PainelCodes alunos={alunos} />}
+              {documentoAtivo === 'historico' && <PainelHistorico />}
+              
+              {['matricula', 'quitacao', 'ressalva', 'notificacao'].includes(documentoAtivo) && (
+                <PainelDocumentosGerais alunos={alunos} documentoAtivo={documentoAtivo} />
+              )}
+            </div>
+          </div>
+        )}
 
-          {/* ROTEAMENTO DE PAINÉIS */}
-          {documentoAtivo === 'comunicados' && <PainelComunicados />}
-          {documentoAtivo === 'provas' && <PainelProvas />}
-          {documentoAtivo === 'codes' && <PainelCodes alunos={alunos} />}
-          {['matricula', 'quitacao', 'ressalva', 'notificacao'].includes(documentoAtivo) && (
-            <PainelDocumentosGerais alunos={alunos} documentoAtivo={documentoAtivo} />
-          )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

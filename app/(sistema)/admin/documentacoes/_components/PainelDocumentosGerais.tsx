@@ -142,6 +142,55 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
     await gerarNotificacaoExtrajudicial(dados);
   };
 
+  // --- NOVA FUNÇÃO QUE GERA O PDF E SALVA NO HISTÓRICO ---
+  const gerarESalvarDocumento = async (comWhatsapp: boolean = false) => {
+    if (!alunoSelecionado) return;
+
+    let tituloDocumento = "";
+
+    // 1. Gera o PDF correto baseado no menu ativo
+    if (documentoAtivo === 'matricula') {
+      tituloDocumento = "Declaração de Matrícula";
+      gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
+    } else if (documentoAtivo === 'quitacao') {
+      tituloDocumento = "Quitação de Imposto de Renda";
+      const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
+      gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
+    } else if (documentoAtivo === 'ressalva') {
+      tituloDocumento = "Ressalva (Transferência)";
+      gerarPDFRessalva(alunoSelecionado, sexoAluno);
+    } else if (documentoAtivo === 'notificacao') {
+      tituloDocumento = "Notificação Extrajudicial";
+      await executarGeracaoNotificacao();
+    }
+
+    // 2. Registra no banco de dados (Supabase)
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error: erroHistorico } = await supabase
+        .from("historico_documentos")
+        .insert([{
+          tipo_documento: documentoAtivo,
+          titulo_documento: tituloDocumento,
+          aluno_id: alunoSelecionado.id,
+          aluno_nome: alunoSelecionado.nome,
+          emitido_por: user?.id,
+        }]);
+
+      if (erroHistorico) {
+        console.error("Falha ao registrar histórico:", erroHistorico);
+      }
+    } catch (err) {
+      console.error("Erro interno ao salvar histórico:", err);
+    }
+
+    // 3. Envia o WhatsApp se o botão verde foi clicado
+    if (comWhatsapp) {
+      enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
+    }
+  };
+
   return (
     <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: '600px', width: '100%', overflowX: 'auto' }}>
       <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
@@ -307,17 +356,7 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '30px' }}>
               <button 
                 type="button"
-                onClick={() => {
-                  if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
-                  else if(documentoAtivo === 'quitacao') {
-                    const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
-                    gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
-                  } else if(documentoAtivo === 'ressalva') {
-                    gerarPDFRessalva(alunoSelecionado, sexoAluno);
-                  } else if(documentoAtivo === 'notificacao') {
-                    executarGeracaoNotificacao();
-                  }
-                }}
+                onClick={() => gerarESalvarDocumento(false)}
                 style={{ width: '100%', padding: '16px', backgroundColor: '#2563eb', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
               >
                 GERAR PDF AGORA
@@ -325,18 +364,7 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
               
               <button 
                 type="button"
-                onClick={() => {
-                  if(documentoAtivo === 'matricula') gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
-                  else if(documentoAtivo === 'quitacao') {
-                    const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
-                    gerarPDFImpostoRenda(alunoSelecionado, responsavelEscolhido, vMensalidade, parseInt(mesesPagos), anoBase);
-                  } else if(documentoAtivo === 'ressalva') {
-                    gerarPDFRessalva(alunoSelecionado, sexoAluno);
-                  } else if(documentoAtivo === 'notificacao') {
-                    executarGeracaoNotificacao();
-                  }
-                  enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
-                }}
+                onClick={() => gerarESalvarDocumento(true)}
                 style={{ width: '100%', padding: '16px', backgroundColor: '#22c55e', color: 'white', borderRadius: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
               >
                 ENVIAR VIA WHATSAPP 📱
