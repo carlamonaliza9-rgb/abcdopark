@@ -4,6 +4,19 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { removerAcentos } from "@/lib/utils"; 
+import { 
+  Home, 
+  Search, 
+  CreditCard, 
+  CheckCircle2, 
+  Clock, 
+  Percent, 
+  CalendarDays, 
+  MoreVertical, 
+  Wallet, 
+  MessageCircle,
+  AlertCircle
+} from "lucide-react";
 
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
@@ -64,6 +77,17 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   const [carregando, setCarregando] = useState(true);
   
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
+
+  const pendentesArr = alunos.filter(a => a.status === 'pendente' || a.status === 'parcial');
+  const pagosArr = alunos.filter(a => a.status === 'pago');
+  const atrasadosArr = alunos.filter(a => a.status === 'atrasado');
+
+  const valReceber = pendentesArr.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  const valRecebidos = pagosArr.reduce((acc, curr) => acc + (curr.valorBaseMensalidade || 0), 0);
+  const valAtrasados = atrasadosArr.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+
+  const totalMensalidades = pendentesArr.length + pagosArr.length + atrasadosArr.length;
+  const taxaRecebimento = totalMensalidades > 0 ? Math.round((pagosArr.length / totalMensalidades) * 100) : 0;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -278,6 +302,42 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
     return correspondeNome && correspondeTurma;
   });
 
+  const toggleEditValorPadrao = async () => {
+    if (!editandoValor) {
+      if (prompt("Digite a Senha Mestra para desbloquear a mensalidade base:") === SENHA_MESTRA) {
+        setEditandoValor(true);
+      } else {
+        alert("Senha incorreta!");
+      }
+    } else {
+      setEditandoValor(false);
+      localStorage.setItem('valorPadraoMensalidade', valorPadrao.toString());
+      
+      try {
+        setCarregando(true);
+        const { data: listaAlunosBD } = await supabase.from('alunos').select('id, valor');
+        const alunosSemValorFixo = listaAlunosBD?.filter(a => !a.valor || clean(a.valor) === 0).map(a => a.id) || [];
+        
+        if (alunosSemValorFixo.length > 0) {
+            const [ano, mes] = mesFiltro.split('-');
+            const nomeMesRef = mesesAno[parseInt(mes) - 1];
+            
+            await supabase.from('historico_pagamentos')
+                .update({ valor_total: valorPadrao })
+                .eq('tipo', 'mensalidade')
+                .ilike('descricao', `%${nomeMesRef}%${ano}%`)
+                .in('status', ['pendente', 'atrasado'])
+                .in('aluno_id', alunosSemValorFixo);
+        }
+      } catch (error) {
+        console.error("Erro ao atualizar no banco", error);
+      }
+      
+      window.dispatchEvent(new Event('recarregarBalançoGlobal'));
+      carregarDados();
+    }
+  };
+
   const executarDesfazer = async (linha: any) => {
       const idAlunoSelecionado = linha.id;
       if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a administração master pode desfazer registros salvos.");
@@ -388,150 +448,273 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', idAlunoSelecionado);
            }
       }
+      
+      window.dispatchEvent(new Event('recarregarBalançoGlobal'));
       carregarDados();
   }
 
-  if (carregando) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse text-xs md:text-base">Sincronizando base financeira...</div>;
+  const avatarColors = [
+    'bg-blue-100 text-blue-600',
+    'bg-purple-100 text-purple-600',
+    'bg-rose-100 text-rose-600',
+    'bg-emerald-100 text-emerald-600',
+    'bg-amber-100 text-amber-600'
+  ];
+
+  if (carregando && !alunos.length) return <div className="p-10 text-center font-black uppercase text-slate-300 tracking-widest animate-pulse text-xs md:text-base">Sincronizando base financeira...</div>;
 
   return (
-    <div className="w-full relative space-y-4 md:space-y-6">
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
-        <div>
-          <h1 className="text-xl md:text-3xl font-bold text-gray-900 tracking-tight">🏫 Mensalidades</h1>
-          <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Gestão de Recebimentos e Baixas Operacionais</p>
+    <div className="w-full relative space-y-6 bg-slate-50 min-h-screen p-4 md:p-8 font-sans">
+
+      {/* CARDS DE MÉTRICAS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+        <div className="bg-white rounded-[1.5rem] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center gap-4">
+           <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100">
+             <CreditCard className="text-indigo-600" size={24} />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Valor a receber</span>
+             <span className="text-xl font-black text-slate-800 leading-none">R$ {valReceber.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+             <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+               <span className="text-[10px] font-semibold text-slate-500">{pendentesArr.length} pagamentos pendentes</span>
+             </div>
+           </div>
         </div>
+
+        <div className="bg-white rounded-[1.5rem] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center gap-4">
+           <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
+             <CheckCircle2 className="text-emerald-500" size={24} />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Recebidos no mês</span>
+             <span className="text-xl font-black text-slate-800 leading-none">R$ {valRecebidos.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+             <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+               <span className="text-[10px] font-semibold text-slate-500">{pagosArr.length} pagamentos</span>
+             </div>
+           </div>
+        </div>
+
+        <div className="bg-white rounded-[1.5rem] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center gap-4">
+           <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center shrink-0 border border-rose-100">
+             <Clock className="text-rose-500" size={24} />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Atrasados</span>
+             <span className="text-xl font-black text-slate-800 leading-none">R$ {valAtrasados.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+             <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+               <span className="text-[10px] font-semibold text-slate-500">{atrasadosArr.length} mensalidades</span>
+             </div>
+           </div>
+        </div>
+
+        <div className="bg-white rounded-[1.5rem] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center gap-4">
+           <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center shrink-0 border border-amber-100">
+             <Percent className="text-amber-500" size={24} />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Taxa de recebimento</span>
+             <span className="text-xl font-black text-slate-800 leading-none">{taxaRecebimento}%</span>
+             <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+               <span className="text-[10px] font-semibold text-slate-500">Este mês</span>
+             </div>
+           </div>
+        </div>
+      </div>
+
+      {/* ÁREA DA TABELA */}
+      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] overflow-hidden flex flex-col">
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3 w-full md:w-auto">
-          <div className={`flex items-center justify-between sm:justify-start border rounded-xl px-2.5 py-1.5 md:px-3 md:py-2 shadow-sm transition-all h-[38px] md:h-[44px] ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200'}`}>
-            <div className="flex items-center">
+        {/* HEADER DA TABELA */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-6 border-b border-slate-100 gap-4">
+          <div className="flex items-center gap-3">
+            <CalendarDays className="text-indigo-600" size={24} />
+            <h2 className="text-lg font-black text-slate-800">Lista de Mensalidades</h2>
+          </div>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Buscar aluno..." 
+              value={filtroNome} 
+              onChange={(e) => setFiltroNome(e.target.value)} 
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all" 
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            
+            {/* VALOR DA MENSALIDADE: ALINHAMENTO LADO A LADO */}
+            <div className={`flex flex-row items-center gap-2.5 px-8 py-2 border rounded-xl transition-all h-[44px] bg-indigo-50/50 border-indigo-100 ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : ''}`}>
               <button 
-                onClick={() => { 
-                  if (!editandoValor) {
-                    if (prompt("Digite a Senha Mestra para desbloquear a mensalidade base:") === SENHA_MESTRA) {
-                      setEditandoValor(true);
-                    } else {
-                      alert("Senha incorreta!");
-                    }
-                  } else {
-                    setEditandoValor(false);
-                    localStorage.setItem('valorPadraoMensalidade', valorPadrao.toString());
-                    carregarDados();
-                  }
-                }} 
-                className="text-xs md:text-sm mr-2 opacity-70 hover:opacity-100 transition-opacity focus:outline-none"
+                onClick={toggleEditValorPadrao} 
+                className="text-indigo-600 hover:text-indigo-800 transition-colors outline-none flex items-center justify-center shrink-0"
+                title={editandoValor ? "Salvar" : "Editar Valor Base"}
               >
-                {editandoValor ? "💾" : "🔒"}
+                {editandoValor ? "💾" : <Wallet size={16} strokeWidth={2.5} />}
               </button>
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] md:text-xs font-bold text-slate-400">R$</span>
+              
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest whitespace-nowrap pt-0.5">
+                Valor Base:
+              </span>
+
+              <div className="flex items-center gap-1 text-sm font-black text-indigo-900 leading-none">
+                <span>R$</span>
                 <input 
                   type="number" 
                   value={valorPadrao} 
                   disabled={!editandoValor} 
                   onChange={(e) => setValorPadrao(Number(e.target.value))} 
-                  className="w-10 md:w-12 bg-transparent border-none text-xs md:text-sm font-black text-slate-700 text-center outline-none p-0 disabled:opacity-80" 
+                  className="w-14 bg-transparent border-none outline-none p-0 disabled:opacity-100 disabled:text-indigo-900 text-indigo-900 focus:ring-0" 
                 />
               </div>
             </div>
-          </div>
 
-          <select
-            value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)}
-            className="w-full sm:w-auto px-2 md:px-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-[11px] md:text-xs uppercase tracking-wider h-[38px] md:h-[44px]"
-          >
-            <option value="">Todas as Turmas</option>
-            {listaTurmasUnicas.map((turma: any) => (
-              <option key={turma as string} value={turma as string}>{(turma as string).toUpperCase()}</option>
-            ))}
-          </select>
-          <input
-            type="month" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)}
-            className="w-full sm:w-auto px-2 md:px-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-indigo-400 transition-colors text-xs md:text-sm h-[38px] md:h-[44px]"
-          />
+            {/* Filtros Dropdown */}
+            <select
+              value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)}
+              className="w-full sm:w-auto px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 outline-none focus:border-indigo-400 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <option value="">Todas as turmas</option>
+              {listaTurmasUnicas.map((turma: any) => (
+                <option key={turma as string} value={turma as string}>{(turma as string)}</option>
+              ))}
+            </select>
+
+            <div className="relative w-full sm:w-auto">
+              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="month" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 outline-none focus:border-indigo-400 hover:bg-slate-100 transition-colors cursor-pointer"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-transparent md:bg-white rounded-2xl md:rounded-[2.5rem] md:border border-slate-100 md:shadow-sm overflow-hidden">
-        
-        {/* BUSCA MOBILE MAIS COMPACTA */}
-        <div className="pb-3 md:hidden">
-           <input type="text" placeholder="🔍 Pesquisar aluno..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} className="w-full p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-colors" />
+        {/* TABELA EM SI */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+              <tr>
+                <th className="p-5 pl-8 w-[35%]">ALUNO</th>
+                <th className="p-5 w-[20%]">TURMA</th>
+                <th className="p-5 w-[15%]">VALOR / VENC.</th>
+                <th className="p-5 w-[15%]">STATUS</th>
+                <th className="p-5 w-[15%] text-center">AÇÕES</th>
+              </tr>
+            </thead>
+            
+            <tbody className="text-sm divide-y divide-slate-50">
+              {alunosFiltrados.length > 0 ? (
+                alunosFiltrados.map((aluno: any, index: number) => {
+                  const isPago = aluno.status === 'pago';
+                  const isAtrasado = aluno.status === 'atrasado';
+                  const isAcordo = aluno.status === 'acordo';
+                  const isParcial = aluno.status === 'parcial';
+
+                  const colorClass = avatarColors[index % avatarColors.length];
+
+                  return (
+                    <tr key={aluno.id} className="hover:bg-slate-50/50 transition-colors group">
+                      
+                      <td className="p-4 pl-8">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-base shrink-0 ${colorClass}`}>
+                            {aluno.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col max-w-[250px] truncate">
+                            <span className="font-bold text-slate-800 truncate" title={aluno.nome}>{aluno.nome}</span>
+                            <span className="text-xs text-slate-400 mt-0.5">{aluno.turma || "Sem Etapa"}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-700 text-sm">{aluno.turma || "Não definida"}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">Manhã</span>
+                        </div>
+                      </td>
+                      
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-800 text-sm">R$ {aluno.valor.toFixed(2)}</span>
+                          <span className="text-xs text-slate-400 mt-0.5 font-medium">Venc. dia {aluno.vencimento?.padStart(2, '0') || '05'}/{mesFiltro.split('-')[1]}</span>
+                        </div>
+                      </td>
+
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                          isPago ? "bg-emerald-50 text-emerald-600" :
+                          isAtrasado ? "bg-rose-50 text-rose-600" :
+                          isParcial ? "bg-sky-50 text-sky-600" :
+                          isAcordo ? "bg-purple-50 text-purple-600" :
+                          "bg-amber-50 text-amber-600"
+                        }`}>
+                          {isAtrasado && <Clock size={12} strokeWidth={3} />}
+                          {isPago && <CheckCircle2 size={12} strokeWidth={3} />}
+                          {(!isAtrasado && !isPago) && <AlertCircle size={12} strokeWidth={3} />}
+                          {aluno.status}
+                        </span>
+                      </td>
+
+                      <td className="p-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {isPago ? (
+                            <button onClick={() => executarDesfazer(aluno)} className="px-4 py-2 text-[11px] font-bold bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors w-[85px] flex justify-center">
+                              Desfazer
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => router.push(`/admin/pdv?alunoId=${aluno.id}`)} className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-black bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-[0_2px_10px_rgba(37,99,235,0.2)] transition-all active:scale-95 w-[85px] justify-center">
+                                <CreditCard size={14} /> Pagar
+                              </button>
+                              <button onClick={() => {
+                                 const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${aluno.nome}*, referente a *${mesReferencia}*, venceu no dia *${aluno.vencimento}*.\n\n• *Valor:* R$ ${aluno.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
+                                 window.open(`https://wa.me/55${aluno.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                              }} className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-black bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-[0_2px_10px_rgba(16,185,129,0.2)] transition-all active:scale-95 w-[85px] justify-center">
+                                <MessageCircle size={14} /> Cobrar
+                              </button>
+                            </>
+                          )}
+                          <button className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors ml-1 shrink-0">
+                             <MoreVertical size={16} />
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-10 text-center text-slate-400 italic text-sm">
+                    Nenhum aluno encontrado para este filtro.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
-        <table className="w-full text-left border-collapse block md:table">
-          <thead className="hidden md:table-header-group bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-gray-100">
-            <tr>
-              <th className="p-4 pl-6 w-1/3">Aluno</th>
-              <th className="p-4 w-1/6">Valor / Venc.</th>
-              <th className="p-4 w-1/6">Status</th>
-              <th className="p-4 w-1/4 text-center">Ações</th>
-            </tr>
-          </thead>
-          
-          <tbody className="block md:table-row-group text-sm">
-            {alunosFiltrados.length > 0 ? (
-              alunosFiltrados.map((aluno: any) => {
-                const isPago = aluno.status === 'pago';
-                const isAtrasado = aluno.status === 'atrasado';
-                const isAcordo = aluno.status === 'acordo';
-                const isParcial = aluno.status === 'parcial';
+        {/* RODAPÉ E PAGINAÇÃO */}
+        <div className="flex flex-col sm:flex-row justify-between items-center p-6 border-t border-slate-100 bg-white gap-4">
+           <span className="text-xs font-semibold text-slate-500">
+             Mostrando 1 a {alunosFiltrados.length > 6 ? 6 : alunosFiltrados.length} de {alunosFiltrados.length} mensalidades
+           </span>
+           <div className="flex items-center gap-1.5">
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 font-bold transition-colors">&lt;</button>
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-black">1</button>
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold transition-colors">2</button>
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold transition-colors">3</button>
+              <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold transition-colors">&gt;</button>
+           </div>
+        </div>
 
-                return (
-                  // Grelha Compacta no Mobile (Lista Limpa), Linha padrão no Desktop
-                  <tr key={aluno.id} className="grid grid-cols-2 gap-y-1 gap-x-2 p-3 md:p-0 md:table-row bg-white border border-slate-100 md:border-none rounded-xl md:rounded-none mb-2.5 md:mb-0 md:border-b hover:bg-slate-50/40 transition-colors last:border-b-0 shadow-sm md:shadow-none">
-                    
-                    {/* Aluno & Turma */}
-                    <td className="col-span-2 md:table-cell md:p-4 md:pl-6 pb-1 md:pb-4 border-b border-slate-50 md:border-none">
-                      <div className="font-bold text-slate-800 cursor-pointer hover:text-blue-600 truncate text-[13px] md:text-[15px] leading-tight">{aluno.nome}</div>
-                      <div className="text-[10px] md:text-xs text-slate-400 mt-0.5 font-medium">{aluno.turma || "Sem Turma"}</div>
-                    </td>
-                    
-                    {/* Valor & Vencimento */}
-                    <td className="col-span-1 flex flex-col justify-center pt-1 md:pt-4 md:table-cell md:p-4">
-                      <div className="font-black text-slate-700 text-[12px] md:text-sm">R$ {aluno.valor.toFixed(2)}</div>
-                      <div className="text-[9px] md:text-xs text-slate-400 font-bold mt-0.5">Venc. Dia {aluno.vencimento?.padStart(2, '0') || '05'}</div>
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="col-span-1 flex items-center justify-end pt-1 md:pt-4 md:table-cell md:p-4 md:justify-start">
-                      <span className={`inline-flex px-1.5 py-1 md:px-3 md:py-1.5 rounded-md md:rounded-lg text-[8px] md:text-[10px] font-black uppercase tracking-widest ${
-                        isPago ? "bg-emerald-100 text-emerald-700" :
-                        isAtrasado ? "bg-rose-100 text-rose-700" :
-                        isParcial ? "bg-sky-100 text-sky-700" :
-                        isAcordo ? "bg-purple-100 text-purple-700" :
-                        "bg-amber-100 text-amber-700"
-                      }`}>
-                        {aluno.status}
-                      </span>
-                    </td>
-
-                    {/* Ações (Botões Lado a Lado no Mobile) */}
-                    <td className="col-span-2 mt-1 md:mt-0 md:table-cell md:p-4 md:text-center">
-                      <div className="flex flex-row gap-2 justify-start md:justify-center w-full md:w-auto">
-                        {isPago ? (
-                          <button onClick={() => executarDesfazer(aluno)} className="flex-1 md:flex-none px-2 py-1.5 md:py-2 md:px-3 text-[10px] md:text-xs font-bold bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors">🔄 Desfazer</button>
-                        ) : (
-                          <>
-                            <button onClick={() => router.push(`/admin/pdv?alunoId=${aluno.id}`)} className="flex-1 md:flex-none px-2 py-1.5 md:py-2 md:px-3 text-[10px] md:text-xs font-black uppercase bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-all active:scale-95">💳 Pagar</button>
-                            <button onClick={() => {
-                               const msg = `Olá! Passando para lembrar que a mensalidade escolar de *${aluno.nome}*, referente a *${mesReferencia}*, venceu no dia *${aluno.vencimento}*.\n\n• *Valor:* R$ ${aluno.valor || valorPadrao}\n\nCaso já tenha realizado o pagamento, por favor, nos envie o comprovante para darmos a baixa no sistema. \n\nTenha um excelente dia! ✨`;
-                               window.open(`https://wa.me/55${aluno.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-                            }} className="flex-1 md:flex-none px-2 py-1.5 md:py-2 md:px-3 text-[10px] md:text-xs font-black uppercase bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-sm transition-all active:scale-95">💬 Cobrar</button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-
-                  </tr>
-                );
-              })
-            ) : (
-              <tr className="block md:table-row bg-white">
-                <td colSpan={4} className="block md:table-cell p-6 text-center text-slate-400 italic text-xs md:text-sm">Nenhum aluno encontrado.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </div>
     </div>
   );

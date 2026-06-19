@@ -40,9 +40,7 @@ export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userCargo, setUserCargo] = useState<string | null>(null);
-  
-  // ESTADO QUE GUARDA O SEU E-MAIL PARA ESCONDER/MOSTRAR O BOTÃO
-  const [userEmail, setUserEmail] = useState<string | null>(null); 
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -69,7 +67,7 @@ export default function FinanceiroAdminPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
 
-      setUserEmail(user.email || null); // <--- SALVANDO SEU E-MAIL AQUI
+      setUserEmail(user.email || null);
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const cargoUtilizador = perfil?.cargo || "";
@@ -84,6 +82,13 @@ export default function FinanceiroAdminPage() {
     }
     verificarAcesso();
   }, [router]);
+
+  // Listener para quando o valor da mensalidade mudar em outra aba
+  useEffect(() => {
+    const handleRecarregamentoGlobal = () => carregarDados();
+    window.addEventListener('recarregarBalançoGlobal', handleRecarregamentoGlobal);
+    return () => window.removeEventListener('recarregarBalançoGlobal', handleRecarregamentoGlobal);
+  }, [mesFiltro]); // Re-registra se mudar de mês
 
   async function carregarDados() {
     setCarregando(true);
@@ -222,7 +227,15 @@ export default function FinanceiroAdminPage() {
         
         setAlunos(ordenados);
         
-        const mensalidadesPrevistas = listaAlunos.reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+        // --- 🔴 AQUI ESTÁ A CORREÇÃO CIRÚRGICA 🔴 ---
+        const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('valorPadraoMensalidade') : null;
+        const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550; // Usa 550 como fallback só se não tiver nada salvo
+
+        const mensalidadesPrevistas = listaAlunos.reduce((acc, curr) => {
+          const valorAluno = parseFloat(curr.valor);
+          return acc + (valorAluno > 0 ? valorAluno : mensalidadeBaseVigente);
+        }, 0);
+
         const stringFiltroMensalidade = `${nomeMesReferencia}/${ano}`;
         const mensalidadesDesteMes = pgtosFiltrados.filter((p: any) => p.tipo === 'mensalidade' && p.descricao && p.descricao.includes(stringFiltroMensalidade));
         const vMensalidadesDesteMesPago = mensalidadesDesteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago) || 0), 0);
@@ -242,10 +255,14 @@ export default function FinanceiroAdminPage() {
         const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
         const totalGeralPrevisto = vPago + totalPendenteCaixa;
         
-        const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('mensalidade_base') : null;
-        const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550;
-
-        const totalDescontos = listaAlunos.reduce((acc, curr) => acc + Math.max(0, mensalidadeBaseVigente - (parseFloat(curr.valor) || 0)), 0);
+        // Cálculo Correto dos Descontos Baseado no Valor Global Atualizado
+        const totalDescontos = listaAlunos.reduce((acc, curr) => {
+          const valorAluno = parseFloat(curr.valor);
+          if (valorAluno > 0 && valorAluno < mensalidadeBaseVigente) {
+             return acc + (mensalidadeBaseVigente - valorAluno);
+          }
+          return acc;
+        }, 0);
         
         setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalPendenteCaixa, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
 
@@ -275,9 +292,6 @@ export default function FinanceiroAdminPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, verificandoAcesso]);
 
-  // ===============================================
-  // A FUNÇÃO RESTAURADA E BLINDADA: ZERAR MÊS
-  // ===============================================
   async function handleZerarMes() {
     if (userEmail !== 'carlamonaliza9@gmail.com') {
       return alert("Acesso negado. Apenas a administradora principal pode executar esta ação.");
@@ -285,7 +299,6 @@ export default function FinanceiroAdminPage() {
 
     const senha = prompt("⚠️ AÇÃO DESTRUTIVA ⚠️\nIsso apagará TODOS os pagamentos registrados no mês selecionado.\n\nDigite a senha de segurança para continuar:");
     
-    // Altere '123456' para a sua senha real!
     if (senha !== "123456") {
       return alert("Senha incorreta. Operação cancelada.");
     }
@@ -482,7 +495,6 @@ export default function FinanceiroAdminPage() {
           
           {/* OS DOIS BOTÕES LADO A LADO */}
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 pt-1">
-            {/* O Botão de Zerar Mês SÓ aparece se você estiver logada no seu email */}
             {userEmail === 'carlamonaliza9@gmail.com' && (
               <button 
                 onClick={handleZerarMes} 
@@ -610,7 +622,6 @@ export default function FinanceiroAdminPage() {
               </div>
             </div>
 
-            {/* Dica */}
             <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
                <div className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"><Info size={16} strokeWidth={2.5} /></div>
                <p className="text-[11px] md:text-xs font-medium text-slate-600 leading-relaxed pt-1"><span className="font-extrabold text-blue-800">Dica:</span> Mantenha o equilíbrio financeiro da escola.</p>
