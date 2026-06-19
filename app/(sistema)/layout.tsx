@@ -42,15 +42,15 @@ export default function SistemaLayout({
 
   if (carregando) {
     return (
-      <div className="min-h-screen bg-[#e0ffff] flex items-center justify-center text-blue-900 font-bold">
+      <div className="min-h-screen bg-[#fafafc] flex items-center justify-center text-blue-900 font-bold">
         Carregando painel...
       </div>
     );
   }
 
   return (
-    // 👇 MUDANÇA AQUI: bg-gray-50 mudou para bg-[#e0ffff]
-    <div className="flex min-h-screen bg-[#e0ffff]">
+    // 👇 MUDANÇA AQUI: bg-gray-50 mudou para bg-[#fafafc]
+    <div className="flex min-h-screen bg-[#fafafc]">
       
       {/* ORQUESTRADOR DE BARRAS LATERAIS */}
       {cargo === "Admin" && <SidebarAdmin />}

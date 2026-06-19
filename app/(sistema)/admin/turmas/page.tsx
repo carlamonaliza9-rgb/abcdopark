@@ -1,12 +1,23 @@
 "use client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
+import ReactCrop, { PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 
-// --- IMPORTAÇÕES RESTAURADAS ---
-import { TurmasHeader } from "@/app/(sistema)/dashboard/turmas/_components/TurmasHeader";
+// Ícones da Lucide-React (Adicionado o GraduationCap para os alunos!)
+import { 
+  Search, 
+  Plus, 
+  Settings, 
+  Users, 
+  UserCheck, 
+  CalendarDays, 
+  BookOpen,
+  X,
+  GraduationCap
+} from "lucide-react";
+
 import { TurmaCard } from "@/app/(sistema)/dashboard/turmas/_components/TurmaCard";
 import { ModalHorario } from "@/app/(sistema)/dashboard/turmas/_components/ModalHorario";
 import { ModalDetalhesTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalDetalhesTurma";
@@ -57,7 +68,6 @@ export default function TurmasAdminPage() {
   const [listaProfessores, setListaProfessores] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const ehAdmin = true; 
 
   const [coresConfig, setCoresConfig] = useState<any>({});
   const [coresTemporarias, setCoresTemporarias] = useState<any>({});
@@ -128,7 +138,6 @@ export default function TurmasAdminPage() {
     ]);
 
     if (resFuncs.data) {
-      // Blindagem 3: Limpa a lista mestra de professores para carregar o modal perfeitamente
       const profsLimpos = resFuncs.data.map((p: any) => ({
         ...p,
         nome: (p.nome || "").trim()
@@ -144,25 +153,21 @@ export default function TurmasAdminPage() {
         const infoExtra = resInfos.data?.find(i => i.nome_turma === nome);
         const corFundo = coresAtuais[nome] || "#ffffff";
         
-        // --- MOTOR DE TRIAGEM HIERÁRQUICA BLINDADO ---
         const discTurma = (resDisc.data || []).filter(d => d.nome_turma === nome && d.professor_vinculado);
         
-        // 1. Conta quem dá mais aulas
         const contagemProfs = discTurma.reduce((acc: any, curr: any) => {
             const prof = (curr.professor_vinculado || "").trim();
             if (prof) acc[prof] = (acc[prof] || 0) + 1;
             return acc;
         }, {});
         
-        // 2. Acha o número máximo de matérias que um professor tem
         let maxMaterias = 0;
         for (const p in contagemProfs) {
             if (contagemProfs[p] > maxMaterias) maxMaterias = contagemProfs[p];
         }
 
-        // 3. Separa Regentes (quem tem maxMaterias) dos Especialistas
         let regentesLista: string[] = [];
-        let especialistasMap = new Map<string, string[]>(); // Map de Professor -> [Música, Xadrez...]
+        let especialistasMap = new Map<string, string[]>();
 
         discTurma.forEach(d => {
             const prof = (d.professor_vinculado || "").trim();
@@ -208,7 +213,7 @@ export default function TurmasAdminPage() {
       }
       await carregarDados();
       setEditandoCores(false);
-      alert("Cores e contornos atualizados!");
+      alert("Cores atualizadas!");
     } catch (err) { alert("Erro ao salvar cores."); } finally { setSalvandoCores(false); }
   }
 
@@ -226,7 +231,6 @@ export default function TurmasAdminPage() {
     e.preventDefault();
     setCarregando(true);
     try {
-      // Blindagem 4: Corta espaços extras antes de guardar no banco
       await supabase.from('turmas_info').upsert({
           nome_turma: turmaVincular,
           auxiliar: infoTurmaAtual.auxiliar ? infoTurmaAtual.auxiliar.trim() : null
@@ -267,24 +271,16 @@ export default function TurmasAdminPage() {
             ano: "2026"
           }));
 
-          const { error } = await supabase
-            .from('turma_disciplinas')
-            .insert(novasMaterias);
-          
+          const { error } = await supabase.from('turma_disciplinas').insert(novasMaterias);
           if (error) alert("Erro ao adicionar. Verifique se as matérias já existem.");
           else alert(`${listaMaterias.length} matérias adicionadas com sucesso!`);
         }
       }
     } else if (acao === "2") {
-      const { data } = await supabase
-        .from('turma_disciplinas')
-        .select('*')
-        .eq('nome_turma', nomeTurma)
-        .eq('ano', '2026');
+      const { data } = await supabase.from('turma_disciplinas').select('*').eq('nome_turma', nomeTurma).eq('ano', '2026');
 
       if (data && data.length > 0) {
         const ordemManual = ['Português', 'Matemática', 'Ciências', 'História', 'Geografia', 'Artes', 'Inglês', 'Música', 'Xadrez', 'Ed.Física'];
-        
         const dataOrdenada = data.sort((a, b) => {
           const indexA = ordemManual.indexOf(a.disciplina);
           const indexB = ordemManual.indexOf(b.disciplina);
@@ -296,9 +292,7 @@ export default function TurmasAdminPage() {
         
         if (escolha) {
           const indices = escolha.split(',').map(num => parseInt(num.trim()) - 1);
-          const idsParaExcluir = indices
-            .map(idx => dataOrdenada[idx]?.id)
-            .filter(id => id !== undefined);
+          const idsParaExcluir = indices.map(idx => dataOrdenada[idx]?.id).filter(id => id !== undefined);
 
           if (idsParaExcluir.length > 0 && confirm(`Deseja remover ${idsParaExcluir.length} matéria(s) da grade da turma?`)) {
             const { error } = await supabase.from('turma_disciplinas').delete().in('id', idsParaExcluir);
@@ -319,13 +313,7 @@ export default function TurmasAdminPage() {
       let publicUrl = previewHorario;
       if (arquivoHorario) {
         const fileExt = arquivoHorario.name.split('.').pop();
-        const nomeTurmaLimpo = turmaParaHorario.nome
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9]/g, "_")
-          .replace(/__+/g, "_")
-          .toLowerCase();
-
+        const nomeTurmaLimpo = turmaParaHorario.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "_").replace(/__+/g, "_").toLowerCase();
         const fileName = `${nomeTurmaLimpo}_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('horarios').upload(fileName, arquivoHorario);
         if (uploadError) throw uploadError;
@@ -339,41 +327,125 @@ export default function TurmasAdminPage() {
   const handleDrag = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setArrastandoHorario(e.type === "dragenter" || e.type === "dragover"); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setArrastandoHorario(false); const file = e.dataTransfer.files?.[0]; if (file?.type.startsWith("image/")) { setArquivoHorario(file); setPreviewHorario(URL.createObjectURL(file)); } };
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando dados pedagógicos...</div>;
+  if (carregando) return <div className="min-h-screen flex items-center justify-center text-blue-500 font-bold bg-[#fafafc]">Carregando dados pedagógicos...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '0px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-        <button onClick={() => { if (editandoCores) setEditandoCores(false); else { setEditandoCores(true); setCoresTemporarias(coresConfig); } }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.4 }}>
-          {editandoCores ? "✖" : "⚙️"}
-        </button>
+    <div className="w-full min-h-screen bg-[#fafafc] p-4 md:p-8 font-sans animate-in fade-in duration-500">
+      
+      {/* CABEÇALHO */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Gestão de Turmas</h1>
+          <p className="text-xs md:text-sm font-medium text-slate-500 mt-1">Gerenciamento de horários e professores (Acesso: Admin).</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative hidden md:block">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Buscar turma..." 
+              className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-64 shadow-sm" 
+            />
+          </div>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl text-sm font-bold flex items-center gap-2 shadow-md transition-all active:scale-95">
+            <Plus size={18} strokeWidth={2.5} /> Nova Turma
+          </button>
+          
+          <button 
+            onClick={() => { if (editandoCores) setEditandoCores(false); else { setEditandoCores(true); setCoresTemporarias(coresConfig); } }} 
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm border ${editandoCores ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+          >
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
+      {/* ============================================== */}
+      {/* BARRA DE STATUS (Ajustada: Fontes menores, ícone Alunos e Responsividade) */}
+      {/* ============================================== */}
+      <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-100 grid grid-cols-2 md:grid-cols-3 lg:flex lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-0 mb-8 lg:divide-x divide-slate-100">
+        
+        {/* 1 - Turmas */}
+        <div className="flex items-center gap-3 lg:px-6 flex-1">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+             <Users size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
+          </div>
+          <div className="flex flex-col">
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">{turmas.length}</p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Turmas Ativas</p>
+          </div>
+        </div>
+        
+        {/* 2 - Alunos (Agora com ícone de Capelo!) */}
+        <div className="flex items-center gap-3 lg:px-6 flex-1">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0">
+             <GraduationCap size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
+          </div>
+          <div className="flex flex-col">
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">{todosAlunos.length}</p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Alunos Matriculados</p>
+          </div>
+        </div>
+        
+        {/* 3 - Professores */}
+        <div className="flex items-center gap-3 lg:px-6 flex-1">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+             <UserCheck size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
+          </div>
+          <div className="flex flex-col">
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">{listaProfessores.filter(p=>p.cargo==='Professor').length}</p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Professores</p>
+          </div>
+        </div>
+
+        {/* 4 - Disciplinas */}
+        <div className="flex items-center gap-3 lg:px-6 flex-1">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
+             <CalendarDays size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
+          </div>
+          <div className="flex flex-col">
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">32</p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Disciplinas</p>
+          </div>
+        </div>
+
+        {/* 5 - Aulas */}
+        <div className="flex items-center gap-3 lg:px-6 flex-1">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+             <BookOpen size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
+          </div>
+          <div className="flex flex-col">
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">128</p>
+            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Aulas Semanais</p>
+          </div>
+        </div>
+      </div>
+
+      {/* EDITOR DE CORES */}
       {editandoCores && (
-        <div style={{ marginBottom: '25px', padding: '20px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h4 style={{ margin: 0, fontSize: '15px', color: '#111827', fontWeight: '800' }}>Personalizar Cores</h4>
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => setEditandoCores(false)} style={{ padding: '8px 15px', backgroundColor: '#f3f4f6', color: '#4b5563', border: 'none', borderRadius: '10px', fontWeight: 'bold' }}>Descartar</button>
-                <button onClick={confirmarNovasCores} disabled={salvandoCores} style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' }}>
+        <div className="mb-8 p-6 bg-white rounded-[2rem] border border-slate-200 shadow-xl animate-in slide-in-from-top-4">
+          <div className="flex justify-between items-center mb-6">
+            <h4 className="text-lg text-slate-800 font-black">Personalizar Cores das Turmas</h4>
+            <div className="flex gap-3">
+                <button onClick={() => setEditandoCores(false)} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-colors">Descartar</button>
+                <button onClick={confirmarNovasCores} disabled={salvandoCores} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-md">
                   {salvandoCores ? "Gravando..." : "Salvar Cores"}
                 </button>
             </div>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="flex flex-wrap gap-3">
             {Object.keys(estiloFixoTurmas).map(nome => (
-              <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700' }}>{nome}</span>
-                <input type="color" value={coresTemporarias[nome] || "#ffffff"} onChange={(e) => setCoresTemporarias({...coresTemporarias, [nome]: e.target.value})} style={{ border: 'none', width: '28px', height: '28px', cursor: 'pointer', backgroundColor: 'transparent' }} />
+              <div key={nome} className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-sm font-bold text-slate-700">{nome}</span>
+                <input type="color" value={coresTemporarias[nome] || "#ffffff"} onChange={(e) => setCoresTemporarias({...coresTemporarias, [nome]: e.target.value})} className="border-none w-8 h-8 cursor-pointer bg-transparent rounded overflow-hidden" />
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <TurmasHeader ehAdmin={true} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '25px' }}>
+      {/* GRID DE CARTÕES */}
+       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8">
         {turmas.map((turma) => (
           <TurmaCard
             key={turma.nome}
@@ -405,22 +477,26 @@ export default function TurmasAdminPage() {
         <ModalAgendaTurma turma={turmaParaAgenda} userEmail={userEmail} modo={modoAgenda} ehAdmin={true} onClose={() => setModalAgendaAberto(false)} />
       )}
 
-      {/* NOVO MODAL BLINDADO: VINCULAR EQUIPE PEDAGÓGICA */}
+      {/* MODAL VINCULAR EQUIPE */}
       {modalVincularAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)', padding: '15px' }}>
-           <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
-              <h2 style={{ textAlign: 'center', fontWeight: '900', marginTop: 0, color: '#0f172a', fontSize: '22px', marginBottom: '4px' }}>Equipe Pedagógica</h2>
-              <p style={{ textAlign: 'center', color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>Turma: {turmaVincular}</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in">
+           <div className="bg-white p-8 rounded-[2rem] w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95">
               
-              <form onSubmit={salvarVinculos} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="flex justify-between items-start mb-2">
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Equipe Pedagógica</h2>
+                <button onClick={() => setModalVincularAberto(false)} className="w-10 h-10 bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-500 rounded-xl flex items-center justify-center transition-colors"><X size={20}/></button>
+              </div>
+              <p className="text-sm font-bold text-blue-600 mb-6 bg-blue-50 py-1.5 px-3 rounded-lg inline-block">Turma: {turmaVincular}</p>
+              
+              <form onSubmit={salvarVinculos} className="flex flex-col gap-5">
                   
                   {(turmaVincular.includes("Maternal") || turmaVincular.includes("Jardim")) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                          <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155' }}>👩‍🏫 Auxiliar de Sala</label>
+                      <div className="flex flex-col gap-2 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                          <label className="text-xs font-black uppercase tracking-widest text-slate-500">👩‍🏫 Auxiliar de Sala</label>
                           <select 
                               value={infoTurmaAtual.auxiliar || ""} 
                               onChange={(e) => setInfoTurmaAtual({...infoTurmaAtual, auxiliar: e.target.value})}
-                              style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
+                              className="p-3.5 rounded-xl border border-slate-200 outline-none text-sm font-bold text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
                           >
                               <option value="">Sem auxiliar vinculada</option>
                               {listaProfessores.filter(p => p.cargo === 'Auxiliar').map(p => (
@@ -430,18 +506,18 @@ export default function TurmasAdminPage() {
                       </div>
                   )}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                      <label style={{ fontSize: '14px', fontWeight: '800', color: '#334155', marginBottom: '8px' }}>📚 Professores por Disciplina</label>
+                  <div className="flex flex-col gap-3 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                      <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">📚 Professores por Disciplina</label>
                       
                       {disciplinasTurma.length === 0 ? (
-                          <div style={{ padding: '15px', backgroundColor: '#fee2e2', borderRadius: '10px', border: '1px solid #fca5a5' }}>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#b91c1c', fontWeight: 'bold' }}>Nenhuma matéria cadastrada para esta turma.</p>
-                            <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#991b1b' }}>Use o botão "Matérias da Turma" no card primeiro.</p>
+                          <div className="p-4 bg-rose-50 rounded-xl border border-rose-100">
+                            <p className="m-0 text-sm font-black text-rose-600">Nenhuma matéria cadastrada.</p>
+                            <p className="mt-1 text-xs font-medium text-rose-500">Use o botão de livro no cartão da turma para adicionar matérias primeiro.</p>
                           </div>
                       ) : (
                           disciplinasTurma.map((disc, idx) => (
-                              <div key={disc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#475569', flex: 1 }}>{disc.disciplina}</span>
+                              <div key={disc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                                  <span className="text-sm font-bold text-slate-700 flex-1">{disc.disciplina}</span>
                                   <select 
                                       value={disc.professor_vinculado || ""} 
                                       onChange={(e) => {
@@ -449,9 +525,9 @@ export default function TurmasAdminPage() {
                                           novas[idx].professor_vinculado = e.target.value;
                                           setDisciplinasTurma(novas);
                                       }}
-                                      style={{ flex: 2, padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '13px', backgroundColor: 'white' }}
+                                      className="flex-[2] p-3 rounded-xl border border-slate-200 outline-none text-sm font-semibold text-slate-600 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
                                   >
-                                      <option value="">Professor não definido...</option>
+                                      <option value="">Não definido...</option>
                                       {listaProfessores.filter(p => p.cargo === 'Professor').map(p => (
                                           <option key={p.nome} value={p.nome}>{p.nome}</option>
                                       ))}
@@ -461,9 +537,9 @@ export default function TurmasAdminPage() {
                       )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                      <button type="button" onClick={() => setModalVincularAberto(false)} style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer', color: '#475569' }}>FECHAR</button>
-                      <button type="submit" disabled={carregando} style={{ flex: 1, padding: '14px', borderRadius: '14px', backgroundColor: '#2563eb', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <div className="flex gap-3 mt-4">
+                      <button type="button" onClick={() => setModalVincularAberto(false)} className="flex-1 py-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-black uppercase tracking-widest text-xs transition-colors">CANCELAR</button>
+                      <button type="submit" disabled={carregando} className="flex-1 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border-none font-black uppercase tracking-widest text-xs transition-colors shadow-md shadow-blue-500/20 active:scale-95">
                           {carregando ? "SALVANDO..." : "SALVAR VÍNCULOS"}
                       </button>
                   </div>

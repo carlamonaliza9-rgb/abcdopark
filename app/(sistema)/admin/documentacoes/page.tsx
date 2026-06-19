@@ -50,8 +50,6 @@ export default function DocumentacoesAdminPage() {
 
   return (
     <div style={{ padding: 'clamp(15px, 5vw, 30px)', backgroundColor: '#f9fafb', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <h1 style={{ color: '#0f172a', fontWeight: '800', fontSize: '24px' }}>Documentações Administrativas</h1>
-      <p style={{ color: '#64748b', marginBottom: '30px', fontSize: '14px' }}>Emissão de documentos oficiais da Escola ABC do Park.</p>
 
       {!documentoAtivo ? (
         <MenuOpcoes setDocumentoAtivo={setDocumentoAtivo} />
