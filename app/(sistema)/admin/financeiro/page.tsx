@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Ícones da Lucide-React
-import { AlertTriangle, Info, BarChart2, Wallet, Banknote, CreditCard } from "lucide-react";
+// Ícones da Lucide-React (RefreshCcw adicionado para o botão Zerar)
+import { AlertTriangle, Info, BarChart2, Wallet, Banknote, CreditCard, RefreshCcw } from "lucide-react";
 
 import { FinanceiroHeader } from "@/app/(sistema)/dashboard/financeiro/_components/FinanceiroHeader";
 import { MetricasCard } from "@/app/(sistema)/dashboard/financeiro/_components/MetricasCard";
@@ -40,6 +40,9 @@ export default function FinanceiroAdminPage() {
   const router = useRouter();
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
   const [userCargo, setUserCargo] = useState<string | null>(null);
+  
+  // ESTADO QUE GUARDA O SEU E-MAIL PARA ESCONDER/MOSTRAR O BOTÃO
+  const [userEmail, setUserEmail] = useState<string | null>(null); 
 
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -65,6 +68,8 @@ export default function FinanceiroAdminPage() {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
+
+      setUserEmail(user.email || null); // <--- SALVANDO SEU E-MAIL AQUI
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const cargoUtilizador = perfil?.cargo || "";
@@ -137,13 +142,13 @@ export default function FinanceiroAdminPage() {
       try {
         const { data } = await supabase.from('gastos').select('*').gte('data_gasto', dataInicio).lte('data_gasto', dataFim);
         if (data) deDB_gastos = data.map(i => normalizeDespesa(i, 'gastos'));
-      } catch (e) {}
+      } catch (e) { console.error(e); }
 
       let deDB_saidas: any[] = [];
       try {
         const { data } = await supabase.from('saidas').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
         if (data) deDB_saidas = data.map(i => normalizeDespesa(i, 'saidas'));
-      } catch (e) {}
+      } catch (e) { console.error(e); }
 
       const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
       const contasFormatadas = (contasPagasMes || []).map((account: any) => ({
@@ -270,6 +275,49 @@ export default function FinanceiroAdminPage() {
 
   useEffect(() => { if (!verificandoAcesso) carregarDados(); }, [mesFiltro, verificandoAcesso]);
 
+  // ===============================================
+  // A FUNÇÃO RESTAURADA E BLINDADA: ZERAR MÊS
+  // ===============================================
+  async function handleZerarMes() {
+    if (userEmail !== 'carlamonaliza9@gmail.com') {
+      return alert("Acesso negado. Apenas a administradora principal pode executar esta ação.");
+    }
+
+    const senha = prompt("⚠️ AÇÃO DESTRUTIVA ⚠️\nIsso apagará TODOS os pagamentos registrados no mês selecionado.\n\nDigite a senha de segurança para continuar:");
+    
+    // Altere '123456' para a sua senha real!
+    if (senha !== "123456") {
+      return alert("Senha incorreta. Operação cancelada.");
+    }
+
+    if (!confirm(`Tem certeza ABSOLUTA que deseja zerar os registros de ${mesFiltro}? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setCarregando(true);
+    try {
+      const [ano, mes] = mesFiltro.split('-');
+      const dataInicio = `${ano}-${mes}-01`;
+      const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+      const dataFim = `${ano}-${mes}-${String(ultimoDia).padStart(2, '0')}`;
+
+      const { error } = await supabase
+        .from('historico_pagamentos')
+        .delete()
+        .gte('data_pagamento', dataInicio)
+        .lte('data_pagamento', dataFim);
+
+      if (error) throw error;
+
+      alert("Registros do mês zerados com sucesso!");
+      carregarDados();
+    } catch (err: any) {
+      alert("Erro ao zerar mês: " + err.message);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
   function gerarRelatorioTesouraria() {
     const doc = new jsPDF();
     const [ano, mesNum] = mesFiltro.split('-');
@@ -302,6 +350,7 @@ export default function FinanceiroAdminPage() {
     const dataInicio = `${ano}-${mesNum}-01`;
     const ultimoDiaObjeto = new Date(parseInt(ano), parseInt(mesNum), 0);
     const dataFim = `${ano}-${mesNum}-${String(ultimoDiaObjeto.getDate()).padStart(2, '0')}`;
+    
     const pgtosEfetuadosEsteMes = listaReceitasDetalhada.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim);
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -325,6 +374,48 @@ export default function FinanceiroAdminPage() {
       headStyles: { fillColor: [16, 124, 65], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
       styles: { fontSize: 8, textColor: [51, 65, 85] }
     });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    if (finalY > 260) { doc.addPage(); finalY = 20; }
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(220, 38, 38); 
+    doc.text("2. RELAÇÃO DE SAÍDAS (DETALHADO)", 15, finalY);
+
+    const gastosDoMes = listaGastosDetalhada.filter((g: any) => {
+      const dGasto = g.data_gasto || "";
+      return dGasto >= dataInicio && dGasto <= dataFim;
+    });
+
+    const rowsSaidas = gastosDoMes.map((g: any) => {
+      const dataFormated = g.data_gasto ? new Date(g.data_gasto + "T12:00:00").toLocaleDateString('pt-BR') : '--';
+      const valorFormated = `R$ ${parseFloat(g.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      return [dataFormated, g.descricao?.toUpperCase() || '', valorFormated];
+    });
+
+    autoTable(doc, {
+      startY: finalY + 4,
+      head: [['DATA', 'DESCRIÇÃO DA DESPESA', 'VALOR']],
+      body: rowsSaidas,
+      theme: 'grid',
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' }, 
+      styles: { fontSize: 8, textColor: [51, 65, 85] },
+      columnStyles: { 0: { halign: 'center', cellWidth: 25 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 35 } }
+    });
+    
+    finalY = (doc as any).lastAutoTable.finalY + 25;
+    if (finalY > 260) { doc.addPage(); finalY = 35; }
+    
+    doc.setDrawColor(203, 213, 225);
+    doc.line(20, finalY, 90, finalY);
+    doc.line(120, finalY, 190, finalY);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text("TESOURARIA / RESPONSÁVEL", 55, finalY + 5, { align: "center" });
+    doc.text("DIREÇÃO ESCOLAR", 155, finalY + 5, { align: "center" });
 
     doc.save(`Fechamento_Tesouraria_${nomeMes}_${ano}.pdf`);
   }
@@ -351,14 +442,10 @@ export default function FinanceiroAdminPage() {
     }
   }
 
-  // --- NOVA LÓGICA DINÂMICA DO GRÁFICO ---
-  // 1. Encontra o maior valor do mês
+  // --- LÓGICA DINÂMICA DO GRÁFICO ---
   const valorMaximoReal = Math.max(metricas.pago, metricas.gastos, metricas.lucro);
-  
-  // 2. Se tudo for zero, cria um teto padrão de 1.000, senão adiciona 15% de margem no topo
   const tetoDoGrafico = valorMaximoReal === 0 ? 1000 : valorMaximoReal * 1.15;
   
-  // 3. Divide o teto em 3 faixas perfeitas para as linhas da grid
   const gridStep1 = tetoDoGrafico;
   const gridStep2 = tetoDoGrafico * (2/3);
   const gridStep3 = tetoDoGrafico * (1/3);
@@ -384,16 +471,29 @@ export default function FinanceiroAdminPage() {
         {/* ========================================== */}
         {/* HEADER FINANCEIRO (Navegação Superior)     */}
         {/* ========================================== */}
-        <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between xl:items-center gap-4 md:gap-6">
-          <FinanceiroHeader 
-            mesFiltro={mesFiltro} 
-            setMesFiltro={setMesFiltro}
-            onZerarMes={() => {
-              if (userCargo !== 'Admin') return alert("Apenas administradores do sistema podem executar esta action.");
-              if (confirm("Deseja registar o fecho de lote para o mês atual?")) { alert("Ação registada com sucesso."); }
-            }} 
-          />
-          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+        <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 md:gap-6">
+          <div className="flex-1">
+            <FinanceiroHeader 
+              mesFiltro={mesFiltro} 
+              setMesFiltro={setMesFiltro}
+              onZerarMes={handleZerarMes}
+            />
+          </div>
+          
+          {/* OS DOIS BOTÕES LADO A LADO */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 pt-1">
+            {/* O Botão de Zerar Mês SÓ aparece se você estiver logada no seu email */}
+            {userEmail === 'carlamonaliza9@gmail.com' && (
+              <button 
+                onClick={handleZerarMes} 
+                className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-white text-rose-600 hover:bg-rose-50 hover:border-rose-200 font-bold text-xs md:text-sm rounded-xl transition-all shadow-sm border border-slate-200 tracking-wide active:scale-95"
+                title="Apagar todos os registros deste mês"
+              >
+                <RefreshCcw size={16} strokeWidth={2.5} />
+                Zerar Mês
+              </button>
+            )}
+
             <button 
               onClick={gerarRelatorioTesouraria}
               className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs md:text-sm rounded-xl shadow-md shadow-blue-500/20 transition-all tracking-wide active:scale-95"
@@ -418,8 +518,6 @@ export default function FinanceiroAdminPage() {
         {/* ========================================== */}
         {/* GRIDS PRINCIPAIS DA TELA                   */}
         {/* ========================================== */}
-        
-        {/* LINHA 1: items-start resolve o problema do espaço vazio! */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 items-start">
           
           {/* ESQUERDA (7 Colunas): INADIMPLÊNCIA CRÍTICA */}
@@ -469,7 +567,7 @@ export default function FinanceiroAdminPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8 mb-8">
-              {/* Gráfico Donut em CSS puro (Conic Gradient) Perfeito! */}
+              {/* Gráfico Donut */}
               <div 
                 className="relative w-36 h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-105 shadow-sm" 
                 style={{ background: `conic-gradient(#ef4444 0% ${distribuicaoGastos.pctFixas}%, #fbbf24 ${distribuicaoGastos.pctFixas}% 100%)` }}
@@ -480,7 +578,7 @@ export default function FinanceiroAdminPage() {
                 </div>
               </div>
 
-              {/* Barras de Progresso LATERAIS */}
+              {/* Barras LATERAIS */}
               <div className="flex-1 flex flex-col gap-6 w-full">
                 <div className="flex flex-col gap-2.5">
                   <div className="flex justify-between items-center text-xs md:text-sm">
@@ -512,7 +610,7 @@ export default function FinanceiroAdminPage() {
               </div>
             </div>
 
-            {/* Dica da Direção */}
+            {/* Dica */}
             <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
                <div className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"><Info size={16} strokeWidth={2.5} /></div>
                <p className="text-[11px] md:text-xs font-medium text-slate-600 leading-relaxed pt-1"><span className="font-extrabold text-blue-800">Dica:</span> Mantenha o equilíbrio financeiro da escola.</p>
@@ -521,11 +619,11 @@ export default function FinanceiroAdminPage() {
         </div>
 
         {/* ========================================== */}
-        {/* LINHA 2: MÉTODOS & BALANÇO GERAL           */}
+        {/* LINHA 2: MÉTODOS E BALANÇO GERAL           */}
         {/* ========================================== */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 items-start">
           
-          {/* ESQUERDA (5 Colunas): MÉTODOS DE ARRECADAÇÃO */}
+          {/* ESQUERDA (5 Colunas): MÉTODOS */}
           <div className="xl:col-span-5 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] w-full">
             <h3 className="text-lg md:text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
               <Wallet className="text-indigo-500" size={22} strokeWidth={2.5}/> 
@@ -534,7 +632,6 @@ export default function FinanceiroAdminPage() {
             <p className="text-xs md:text-sm font-medium text-slate-500 mb-8">Recebido por Método ({mesFiltro})</p>
             
             <div className="grid grid-cols-2 gap-4">
-              {/* PIX */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:bg-white hover:shadow-sm transition-all cursor-default">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-100/50 text-emerald-500 flex items-center justify-center shrink-0">
                   <PixIcon />
@@ -545,7 +642,6 @@ export default function FinanceiroAdminPage() {
                 </div>
               </div>
 
-              {/* DINHEIRO */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:bg-white hover:shadow-sm transition-all cursor-default">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-100/50 text-emerald-500 flex items-center justify-center shrink-0">
                   <Banknote size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
@@ -556,7 +652,6 @@ export default function FinanceiroAdminPage() {
                 </div>
               </div>
 
-              {/* CRÉDITO */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:bg-white hover:shadow-sm transition-all cursor-default">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-100/50 text-purple-500 flex items-center justify-center shrink-0">
                   <CreditCard size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
@@ -567,7 +662,6 @@ export default function FinanceiroAdminPage() {
                 </div>
               </div>
 
-              {/* DÉBITO */}
               <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:bg-white hover:shadow-sm transition-all cursor-default">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-blue-100/50 text-blue-500 flex items-center justify-center shrink-0">
                   <CreditCard size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
@@ -580,7 +674,7 @@ export default function FinanceiroAdminPage() {
             </div>
           </div>
 
-          {/* DIREITA (7 Colunas): BALANÇO GERAL (Gráfico Dinâmico) */}
+          {/* DIREITA (7 Colunas): GRÁFICO DINÂMICO */}
           <div className="xl:col-span-7 bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex flex-col w-full h-full">
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-lg md:text-xl font-black text-slate-800 flex items-center gap-2">
@@ -592,9 +686,8 @@ export default function FinanceiroAdminPage() {
               </select>
             </div>
 
-{/* ÁREA DO GRÁFICO */}
+            {/* ÁREA DO GRÁFICO */}
             <div className="relative w-full h-[250px] flex items-end mt-4">
-               {/* Valores do Eixo Y Dinâmicos */}
                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-[2.5rem]">
                   <div className="w-full border-t border-slate-100/70 h-0 flex items-center">
                     <span className="bg-white pr-2 text-[9px] md:text-[10px] font-bold text-slate-400 -translate-y-[2px]">R$ {gridStep1.toLocaleString('pt-BR', {maximumFractionDigits:0})}</span>
@@ -610,7 +703,6 @@ export default function FinanceiroAdminPage() {
                   </div>
                </div>
 
-               {/* Barras Proporcionais Corrigidas */}
                {(() => {
                   const hReceita = gridStep1 === 0 ? 0 : Math.min(100, (metricas.pago / gridStep1) * 100);
                   const hGastos = gridStep1 === 0 ? 0 : Math.min(100, (metricas.gastos / gridStep1) * 100);
@@ -655,7 +747,6 @@ export default function FinanceiroAdminPage() {
 
       </div>
 
-      {/* MODAIS (MANTIDOS INTACTOS) */}
       <ModalListaGastos 
         aberto={modalListaGastosAberto} onFechar={() => setModalListaGastosAberto(false)}
         mesFiltro={mesFiltro} listaGastos={listaGastosDetalhada} onExcluir={handleExcluirGasto}

@@ -1,48 +1,43 @@
 "use client";
 
+import { CalendarDays } from "lucide-react";
+
 interface FinanceiroHeaderProps {
   mesFiltro: string;
   setMesFiltro: (val: string) => void;
   onZerarMes: () => void;
+  userEmail?: string | null;
 }
 
 export function FinanceiroHeader({
   mesFiltro,
   setMesFiltro,
-  onZerarMes
 }: FinanceiroHeaderProps) {
   return (
-    <div className="flex-1 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 w-full">
-      
-      {/* Lado Esquerdo: Título e Filtro de Mês */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase italic">
+    <div className="flex-1 flex flex-col xl:flex-row justify-between items-start xl:items-start gap-6 w-full">
+      <div className="flex flex-col">
+        <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
           Financeiro ABC DO PARK
         </h1>
-        <div className="flex items-center gap-3 mt-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            Visualizar Mês:
+        <p className="text-xs md:text-sm font-medium text-slate-500 mt-1 mb-5 md:mb-6">
+          Acompanhe as finanças da escola de forma simples e eficiente.
+        </p>
+        
+        <div className="flex items-center gap-3">
+          <label className="text-xs md:text-sm font-medium text-slate-500">
+            Visualizar mês:
           </label>
-          <input 
-            type="month" 
-            value={mesFiltro} 
-            onChange={(e) => setMesFiltro(e.target.value)} 
-            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm hover:border-indigo-300" 
-          />
+          <div className="relative flex items-center group">
+            <CalendarDays className="absolute left-3 text-slate-400 pointer-events-none transition-colors group-hover:text-blue-500" size={16} strokeWidth={2.5} />
+            <input 
+              type="month" 
+              value={mesFiltro} 
+              onChange={(e) => setMesFiltro(e.target.value)} 
+              className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 text-slate-800 text-xs md:text-sm font-bold rounded-xl outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all cursor-pointer shadow-sm hover:border-blue-300 hover:bg-slate-50" 
+            />
+          </div>
         </div>
       </div>
-
-      {/* Lado Direito: Ação Administrativa (Zerar Mês) */}
-      <div className="flex items-center w-full xl:w-auto">
-        <button 
-          onClick={onZerarMes} 
-          className="flex justify-center w-full xl:w-auto items-center gap-2 px-5 py-3.5 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-bold text-xs rounded-xl transition-all shadow-sm border border-slate-200 uppercase tracking-widest"
-          title="Resetar status de pagamentos do mês exibido"
-        >
-          🔄 Zerar Mês
-        </button>
-      </div>
-
     </div>
   );
 }
