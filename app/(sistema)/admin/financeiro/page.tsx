@@ -592,7 +592,7 @@ export default function FinanceiroAdminPage() {
               </select>
             </div>
 
-            {/* ÁREA DO GRÁFICO */}
+{/* ÁREA DO GRÁFICO */}
             <div className="relative w-full h-[250px] flex items-end mt-4">
                {/* Valores do Eixo Y Dinâmicos */}
                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-[2.5rem]">
@@ -610,7 +610,7 @@ export default function FinanceiroAdminPage() {
                   </div>
                </div>
 
-               {/* Barras Proporcionais */}
+               {/* Barras Proporcionais Corrigidas */}
                {(() => {
                   const hReceita = gridStep1 === 0 ? 0 : Math.min(100, (metricas.pago / gridStep1) * 100);
                   const hGastos = gridStep1 === 0 ? 0 : Math.min(100, (metricas.gastos / gridStep1) * 100);
@@ -619,28 +619,31 @@ export default function FinanceiroAdminPage() {
                   return (
                     <div className="relative z-10 w-full h-[calc(100%-2.5rem)] flex justify-around items-end ml-10 mb-[2.5rem]">
                       
-                      <div className="relative flex flex-col items-center w-16 md:w-20 group">
-                        <span className="absolute -top-6 text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
+                      {/* RECEITA */}
+                      <div className="relative w-16 md:w-20 group" style={{ height: `${Math.max(hReceita, 2)}%` }}>
+                        <span className="absolute -top-6 left-0 right-0 text-center text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
                           R$ {metricas.pago.toLocaleString('pt-BR', {minimumFractionDigits:2})}
                         </span>
-                        <div className="w-full bg-[#10b981] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80" style={{height: `${hReceita}%`, minHeight: '6px'}}></div>
-                        <span className="absolute -bottom-6 text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Receita</span>
+                        <div className="w-full h-full bg-[#10b981] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80 shadow-[0_-4px_10px_rgba(16,185,129,0.1)]"></div>
+                        <span className="absolute -bottom-6 left-0 right-0 text-center text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Receita</span>
                       </div>
 
-                      <div className="relative flex flex-col items-center w-16 md:w-20 group">
-                        <span className="absolute -top-6 text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
+                      {/* GASTOS */}
+                      <div className="relative w-16 md:w-20 group" style={{ height: `${Math.max(hGastos, 2)}%` }}>
+                        <span className="absolute -top-6 left-0 right-0 text-center text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
                           R$ {metricas.gastos.toLocaleString('pt-BR', {minimumFractionDigits:2})}
                         </span>
-                        <div className="w-full bg-[#ef4444] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80" style={{height: `${hGastos}%`, minHeight: '6px'}}></div>
-                        <span className="absolute -bottom-6 text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Gastos</span>
+                        <div className="w-full h-full bg-[#ef4444] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80 shadow-[0_-4px_10px_rgba(239,68,68,0.1)]"></div>
+                        <span className="absolute -bottom-6 left-0 right-0 text-center text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Gastos</span>
                       </div>
 
-                      <div className="relative flex flex-col items-center w-16 md:w-20 group">
-                        <span className="absolute -top-6 text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
+                      {/* LUCRO */}
+                      <div className="relative w-16 md:w-20 group" style={{ height: `${Math.max(hLucro, 2)}%` }}>
+                        <span className="absolute -top-6 left-0 right-0 text-center text-[10px] md:text-[11px] font-black text-slate-800 whitespace-nowrap">
                           R$ {metricas.lucro.toLocaleString('pt-BR', {minimumFractionDigits:2})}
                         </span>
-                        <div className="w-full bg-[#3b82f6] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80" style={{height: `${hLucro}%`, minHeight: '6px'}}></div>
-                        <span className="absolute -bottom-6 text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Lucro</span>
+                        <div className="w-full h-full bg-[#3b82f6] rounded-t-md transition-all duration-1000 ease-out group-hover:opacity-80 shadow-[0_-4px_10px_rgba(59,130,246,0.1)]"></div>
+                        <span className="absolute -bottom-6 left-0 right-0 text-center text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Lucro</span>
                       </div>
 
                     </div>
