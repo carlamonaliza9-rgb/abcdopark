@@ -547,32 +547,30 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
             
-            {/* VALOR DA MENSALIDADE: ALINHAMENTO LADO A LADO */}
-            <div className={`flex flex-row items-center gap-2.5 px-8 py-2 border rounded-xl transition-all h-[44px] bg-indigo-50/50 border-indigo-100 ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : ''}`}>
-              <button 
-                onClick={toggleEditValorPadrao} 
-                className="text-indigo-600 hover:text-indigo-800 transition-colors outline-none flex items-center justify-center shrink-0"
-                title={editandoValor ? "Salvar" : "Editar Valor Base"}
-              >
-                {editandoValor ? "💾" : <Wallet size={16} strokeWidth={2.5} />}
-              </button>
-              
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest whitespace-nowrap pt-0.5">
-                Valor Base:
-              </span>
-
-              <div className="flex items-center gap-1 text-sm font-black text-indigo-900 leading-none">
-                <span>R$</span>
-                <input 
-                  type="number" 
-                  value={valorPadrao} 
-                  disabled={!editandoValor} 
-                  onChange={(e) => setValorPadrao(Number(e.target.value))} 
-                  className="w-14 bg-transparent border-none outline-none p-0 disabled:opacity-100 disabled:text-indigo-900 text-indigo-900 focus:ring-0" 
-                />
+{/* VALOR DA MENSALIDADE: ALINHAMENTO CORRIGIDO (VALOR EM CIMA, TEXTO EMBAIXO) */}
+            <div className={`flex flex-col justify-center px-4 py-1.5 border rounded-xl transition-all h-[44px] min-w-[160px] bg-indigo-50/50 border-indigo-100 ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : ''}`}>
+              <div className="flex items-center gap-2 text-sm font-black text-indigo-900 leading-none">
+                <button 
+                  onClick={toggleEditValorPadrao} 
+                  className="text-indigo-600 hover:text-indigo-800 transition-colors outline-none flex items-center justify-center shrink-0"
+                  title={editandoValor ? "Salvar" : "Editar Valor Base"}
+                >
+                  {editandoValor ? "💾" : <Wallet size={15} strokeWidth={2.5} />}
+                </button>
+                <div className="flex items-center gap-1">
+                  <span className="translate-y-[1px]">R$</span>
+                  <input 
+                    type="number" 
+                    value={valorPadrao} 
+                    disabled={!editandoValor} 
+                    onChange={(e) => setValorPadrao(Number(e.target.value))} 
+                    className="w-12 bg-transparent border-none outline-none p-0 disabled:opacity-100 disabled:text-indigo-900 text-indigo-900 focus:ring-0 translate-y-[1px]" 
+                  />
+                </div>
               </div>
+              <span className="text-[8px] font-bold text-indigo-400/90 uppercase tracking-widest mt-0.5 ml-6">Valor da mensalidade</span>
             </div>
-
+            
             {/* Filtros Dropdown */}
             <select
               value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)}
