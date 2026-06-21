@@ -46,9 +46,9 @@ export async function gerarReciboPDF({
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text("CNPJ: 00.000.000/0001-00", 42, 23);
-  doc.text("Rua Fictícia, 123 - Bairro - Belém/PA", 42, 27);
-  doc.text("Telefone: (91) 90000-0000", 42, 31);
+  doc.text("CNPJ: 05.067.797/0001-68", 42, 23);
+  doc.text("CONJ PARKLANDIA - QUADRA A CASA 02 - Belém/PA", 42, 27);
+  doc.text("Telefone: (91) 3268-3484 / (91) 98622-7715", 42, 31);
 
   doc.setFillColor(238, 242, 255); 
   doc.roundedRect(135, 12, 60, 24, 2, 2, 'F');

@@ -73,7 +73,6 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
         .order('data_avaliacao', { ascending: false });
 
       if (data) {
-        // Filtra apenas os dias onde o professor digitou alguma observação/justificativa
         const comAlertas = data.filter(obs => obs.comentario && obs.comentario.trim().length > 0);
         setObservacoes(comAlertas);
       }
@@ -84,68 +83,72 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
         
-        {/* Cabeçalho do Modal */}
-        <div className="bg-amber-50 p-6 md:p-8 border-b border-amber-100 flex justify-between items-center shrink-0">
+        {/* Cabeçalho "Vivo" e Acolhedor */}
+        <div className="bg-indigo-400 p-6 border-b border-indigo-400 flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-xl md:text-2xl font-black text-amber-700 tracking-tight flex items-center gap-2">
-              <span>⭐</span> Desempenho Diário
+            <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+              <span>⭐</span> Diário de Desempenho
             </h2>
-            <p className="text-amber-600/80 text-xs font-bold mt-1">Média pedagógica e observações do professor</p>
+            <p className="text-indigo-100 text-[11px] font-bold uppercase tracking-widest mt-1">Registros Pedagógicos</p>
           </div>
-          <button onClick={onClose} className="w-10 h-10 bg-white text-amber-600 hover:bg-amber-100 hover:text-amber-700 border border-amber-200 rounded-xl flex items-center justify-center transition-colors shadow-sm font-black active:scale-95">
-            X
+          <button onClick={onClose} className="w-10 h-10 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl flex items-center justify-center transition-colors shadow-lg active:scale-95">
+            ✕
           </button>
         </div>
 
         {/* Conteúdo Rolável */}
-        <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 bg-[#f8fafc]">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
           {carregando ? (
-            <div className="text-center p-10 text-amber-500 font-bold animate-pulse text-sm uppercase tracking-widest">Buscando registros...</div>
+            <div className="text-center p-10 text-indigo-400 font-bold text-xs uppercase tracking-widest animate-pulse">Consultando registros...</div>
           ) : (
-            <>
-              {/* Destaque da Média Calculada */}
-              <div className="flex flex-col items-center justify-center bg-white border-2 border-amber-100 rounded-3xl p-6 mb-8 shadow-sm">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">Média Geral do Aluno</span>
-                <div className="text-4xl md:text-5xl drop-shadow-sm">
-                  {mediaCalculada > 0 ? "⭐".repeat(Math.round(mediaCalculada)) : <span className="text-slate-300 text-lg font-bold">Sem notas lançadas</span>}
+            <div className="space-y-6">
+              
+              {/* Média com destaque pedagógico */}
+              <div className="flex flex-col items-center justify-center bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Média Geral do Aluno</span>
+                <div className="text-3xl font-black text-indigo-700">
+                  {mediaCalculada > 0 ? mediaCalculada.toFixed(1) : "—"}
+                  <span className="text-sm text-slate-300 font-medium ml-1">/ 5.0</span>
                 </div>
-                {mediaCalculada > 0 && <span className="text-amber-600 font-black mt-3 text-lg md:text-xl bg-amber-50 px-4 py-1 rounded-lg border border-amber-100">{mediaCalculada.toFixed(1)} <span className="text-amber-400 text-sm">/ 5.0</span></span>}
+                <div className="mt-2 flex gap-1">
+                   {mediaCalculada > 0 && Array.from({length: 5}).map((_, i) => (
+                     <span key={i} className={`text-base ${i < Math.round(mediaCalculada) ? 'opacity-100' : 'opacity-20'}`}>⭐</span>
+                   ))}
+                </div>
               </div>
 
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2 px-2">
-                <span className="text-amber-500">⚠️</span> Alertas e Observações
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
+                Alertas e Observações
               </h3>
 
               {observacoes.length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {observacoes.map((obs, idx) => (
-                    <div key={idx} className="bg-white border border-amber-100 p-5 rounded-2xl shadow-sm relative overflow-hidden group">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200/50">
+                    <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:border-indigo-100">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-400 rounded-l-2xl"></div>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
                           🗓️ {new Date(obs.data_avaliacao).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
                         </span>
                       </div>
-                      <p className="text-sm md:text-base font-bold text-slate-700 leading-relaxed mb-4">"{obs.comentario}"</p>
+                      <p className="text-sm font-medium text-slate-600 leading-relaxed mb-4 italic">"{obs.comentario}"</p>
                       
-                      {/* Tags de notas 1, 2 ou 3 que geraram o alerta */}
-                      <div className="flex flex-wrap gap-2">
-                        {obs.participacao <= 3 && obs.participacao > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🎯 Part: {obs.participacao}★</span>}
-                        {obs.comportamento <= 3 && obs.comportamento > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🤝 Comp: {obs.comportamento}★</span>}
-                        {obs.atividades <= 3 && obs.atividades > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">📝 Ativ: {obs.atividades}★</span>}
-                        {obs.socioemocional <= 3 && obs.socioemocional > 0 && <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2.5 py-1 rounded-md border border-rose-100 uppercase tracking-wider">🧠 Socio: {obs.socioemocional}★</span>}
+                      <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-50">
+                        {obs.participacao <= 3 && obs.participacao > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Part: {obs.participacao}★</span>}
+                        {obs.comportamento <= 3 && obs.comportamento > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Comp: {obs.comportamento}★</span>}
+                        {obs.atividades <= 3 && obs.atividades > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Ativ: {obs.atividades}★</span>}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center p-8 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum alerta disciplinar ou pedagógico registrado.</p>
+                <div className="text-center py-8 bg-white rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs font-bold text-slate-400">Nenhum comentário registrado.</p>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>
