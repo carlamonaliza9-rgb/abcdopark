@@ -728,15 +728,27 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, onAbrirPDV }: any) {
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, onAbrirPDV, onRecarregar }: any) {
   
-  const historicoFiltrado = historicoLocal.filter((h: any) => 
-    (h.data_pagamento?.startsWith(anoPagamentoSelecionado) || (h.descricao || "").includes(anoPagamentoSelecionado)) && 
-    h.status !== 'renegociado' && 
-    h.status !== 'cancelado' &&
-    h.status !== 'estornado' &&
-    h.tipo?.toLowerCase() !== 'credito'
-  );
+  // 🛡️ A MURALHA DE FERRO: Filtro inteligente que cruza 4 campos
+  const historicoFiltradoExibicao = (historicoLocal || []).filter((h: any) => {
+    // 1. Esconde créditos puros daqui (vão para a carteira virtual)
+    if (h.tipo?.toLowerCase() === 'credito') return false;
+
+    // 2. Se o usuário escolher "todos", exibe absolutamente tudo
+    if (anoPagamentoSelecionado === 'todos') return true;
+
+    // 3. Procura o ano em qualquer lugar possível (Data, Vencimento, Descrição, Criação)
+    const strData = h.data_pagamento ? String(h.data_pagamento) : "";
+    const strDesc = h.descricao ? String(h.descricao) : "";
+    const strVenc = h.data_vencimento ? String(h.data_vencimento) : "";
+    const strCreated = h.created_at ? String(h.created_at) : "";
+
+    return strData.includes(anoPagamentoSelecionado) ||
+           strDesc.includes(anoPagamentoSelecionado) ||
+           strVenc.includes(anoPagamentoSelecionado) ||
+           strCreated.includes(anoPagamentoSelecionado);
+  });
 
   const higienizarFormaPagamento = (detalhes: any, stringLegado?: string | null) => {
     let limpa = String(stringLegado || "").toUpperCase().trim();
@@ -779,6 +791,161 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     return "Baixa Manual / Legado";
   };
 
+  // 🔴 ESTORNO CIRÚRGICO: Nova função blindada
+ // 🔴 ESTORNO CIRÚRGICO: Nova função blindada e com Exclusão Real de Crédito
+  const estornoCirurgico = async (pgto: any) => {
+    if (prompt("Digite a Senha Mestra para ESTORNAR/DESFAZER:") !== (SENHA_MESTRA || "1234")) {
+      return alert("Senha incorreta.");
+    }
+
+    // Busca o dado ao vivo do banco de dados (A Verdade Absoluta)
+    const { data: registroReal, error: fetchError } = await supabase
+      .from('historico_pagamentos')
+      .select('*')
+      .eq('id', pgto.id)
+      .single();
+
+    if (fetchError || !registroReal) return alert("Não foi possível encontrar este registro na base de dados.");
+
+    let metodosObj = registroReal.detalhes_metodos;
+    if (typeof metodosObj === 'string') {
+      try { metodosObj = JSON.parse(metodosObj); } catch (e) { metodosObj = {}; }
+    }
+
+    const historicoParciais = metodosObj?.historico_parciais || [];
+    let indexParaEstornar = -1;
+    let valorSendoEstornado = clean(registroReal.valor_pago);
+
+    if (historicoParciais.length > 0) {
+      let msg = "Esta cobrança possui pagamentos parciais.\nQual parcela deseja CANCELAR?\n\n";
+      historicoParciais.forEach((p: any, i: number) => {
+        let dataFormatada = p.data_recebimento;
+        if (dataFormatada && dataFormatada.includes('-')) dataFormatada = dataFormatada.split('-').reverse().join('/');
+        msg += `[${i + 1}] Dia ${dataFormatada} - R$ ${clean(p.valor_pago_rodada).toFixed(2)} (${p.formas})\n`;
+      });
+      msg += "\n[0] CANCELAR TUDO (Zerar a cobrança inteira)";
+
+      const resposta = prompt(msg);
+      if (resposta === null) return;
+
+      const op = parseInt(resposta);
+      if (isNaN(op) || op < 0 || op > historicoParciais.length) return alert("Opção inválida. Operação cancelada.");
+
+      indexParaEstornar = op - 1;
+      if (indexParaEstornar !== -1) {
+          valorSendoEstornado = clean(historicoParciais[indexParaEstornar].valor_pago_rodada);
+      }
+    } else {
+      if (!confirm("Deseja realmente estornar este faturamento? O valor pago será zerado.")) return;
+    }
+
+    // GESTÃO DE TROCO / CRÉDITO
+    let mudancaSaldo = 0;
+    const saldoAtualSeguro = clean(aluno.saldo_credito) || 0;
+    let registroAjusteParaDeletar = null; // 🛡️ NOVO: Variável para capturar o ID do crédito que deve sumir
+
+    const usouSaldo = confirm(`Essa parcela de R$ ${valorSendoEstornado.toFixed(2)} foi paga usando SALDO VIRTUAL do aluno?\n\n(OK = Sim, Cancelar = Não)`);
+    if (usouSaldo) {
+        const val = prompt(`Qual valor de saldo virtual deve ser DEVOLVIDO à conta do aluno?\n(Exemplo: 50.00)`);
+        if (val) {
+            const valorDevolver = Math.abs(clean(val));
+            mudancaSaldo += valorDevolver;
+            
+            // Busca o registro de subtração que foi criado quando o aluno USOU o saldo
+            const { data: possiveisBaixas } = await supabase
+                .from('historico_pagamentos')
+                .select('id, valor_total, detalhes_metodos')
+                .eq('aluno_id', aluno.id)
+                .eq('tipo', 'credito')
+                .eq('data_pagamento', registroReal.data_pagamento);
+
+            if (possiveisBaixas && possiveisBaixas.length > 0) {
+                 const baixaExata = possiveisBaixas.find(c => c.detalhes_metodos?.e_subtracao === true && Math.abs(clean(c.valor_total) - valorDevolver) < 0.01);
+                 if (baixaExata) registroAjusteParaDeletar = baixaExata.id;
+            }
+        }
+    } else {
+        const gerouSaldo = confirm(`Esse pagamento GEROU troco/crédito na conta do aluno na época?\n\n(OK = Sim, Cancelar = Não)`);
+        if (gerouSaldo) {
+            const val = prompt(`Qual valor de troco/crédito deve ser RETIRADO da conta do aluno agora? (Saldo atual: R$ ${saldoAtualSeguro.toFixed(2)})\n(Exemplo: 15.00)`);
+            if (val) {
+                const valorRetirar = Math.abs(clean(val));
+                mudancaSaldo -= valorRetirar;
+
+                // Busca o registro do crédito que foi GERADO como troco na época
+                const { data: possiveisCreditos } = await supabase
+                    .from('historico_pagamentos')
+                    .select('id, valor_total, detalhes_metodos')
+                    .eq('aluno_id', aluno.id)
+                    .eq('tipo', 'credito')
+                    .eq('data_pagamento', registroReal.data_pagamento);
+
+                if (possiveisCreditos && possiveisCreditos.length > 0) {
+                    const creditoExato = possiveisCreditos.find(c => c.detalhes_metodos?.e_subtracao !== true && Math.abs(clean(c.valor_total) - valorRetirar) < 0.01);
+                    if (creditoExato) registroAjusteParaDeletar = creditoExato.id;
+                }
+            }
+        }
+    }
+
+    try {
+      // 1. Atualiza o status da cobrança original
+      if (indexParaEstornar === -1) {
+        const { error } = await supabase.from('historico_pagamentos').update({
+          status: 'pendente',
+          valor_pago: 0,
+          detalhes_metodos: {}
+        }).eq('id', pgto.id);
+        if (error) throw error;
+      } else {
+        const parcelaRemovida = historicoParciais[indexParaEstornar];
+        const valorAAbater = clean(parcelaRemovida.valor_pago_rodada);
+        const novoValorPago = clean(registroReal.valor_pago) - valorAAbater;
+
+        const novoStatus = novoValorPago <= 0 ? 'pendente' : 'parcial';
+
+        const novoHistorico = [...historicoParciais];
+        novoHistorico.splice(indexParaEstornar, 1);
+        const novosMetodos = { ...metodosObj, historico_parciais: novoHistorico };
+
+        const { error } = await supabase.from('historico_pagamentos').update({
+          status: novoStatus,
+          valor_pago: Math.max(0, novoValorPago),
+          detalhes_metodos: novoHistorico.length === 0 ? {} : novosMetodos
+        }).eq('id', pgto.id);
+        if (error) throw error;
+      }
+
+      // 2. Atualiza a carteira virtual e deleta o crédito "fantasma"
+      if (mudancaSaldo !== 0) {
+          const novoSaldo = Math.max(0, saldoAtualSeguro + mudancaSaldo);
+          await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', aluno.id);
+
+          if (registroAjusteParaDeletar) {
+              // 🗑️ DELETA fisicamente a linha de crédito gerada/usada
+              await supabase.from('historico_pagamentos').delete().eq('id', registroAjusteParaDeletar);
+          } else {
+              // Fallback: Se não encontrou o ID exato para deletar, gera o registro de compensação
+              await supabase.from('historico_pagamentos').insert({
+                  aluno_id: aluno.id,
+                  tipo: 'credito',
+                  descricao: mudancaSaldo > 0 ? 'ESTORNO: Saldo Devolvido à Conta' : 'ESTORNO: Troco Removido',
+                  valor_total: Math.abs(mudancaSaldo),
+                  valor_pago: Math.abs(mudancaSaldo),
+                  status: 'pago',
+                  data_pagamento: new Date().toISOString().split('T')[0],
+                  detalhes_metodos: { forma_geradora: "Ajuste Sistêmico Automático", e_subtracao: mudancaSaldo < 0 }
+              });
+          }
+      }
+
+      alert("Estorno processado e saldos ajustados com sucesso!");
+      if (onRecarregar) onRecarregar();
+    } catch (error: any) {
+      alert("Erro operacional ao estornar: " + error.message);
+    }
+  };
+
   function gerarPDFHistorico() {
     const doc = new jsPDF();
     const logoUrl = "https://mnmakhazghgncqummksu.supabase.co/storage/v1/object/public/assets/logo.png";
@@ -806,7 +973,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     
     const linhasTabela: any[] = [];
     
-    historicoFiltrado.forEach((h: any) => {
+    historicoFiltradoExibicao.forEach((h: any) => {
       let f = null;
       if (clean(h.valor_pago) > 0) {
           f = h.detalhes_metodos?.formas || h.detalhes_metodos?.forma_geradora;
@@ -872,7 +1039,9 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
       <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
         <div className="flex items-center gap-4">
           <h3 className="text-xl font-black text-slate-800 tracking-tight">Extrato Financeiro</h3>
+          
           <select value={anoPagamentoSelecionado} onChange={(e) => setAnoPagamentoSelecionado(e.target.value)} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none text-slate-700 focus:border-indigo-400">
+            <option value="todos">Mostrar Todos</option>
             <option value="2026">Ano Base 2026</option>
             <option value="2025">Ano Base 2025</option>
             <option value="2024">Ano Base 2024</option>
@@ -885,7 +1054,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
       </div>
 
       <div className="space-y-4">
-        {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
+        {historicoFiltradoExibicao.length > 0 ? historicoFiltradoExibicao.map((pgto: any, i: number) => {
           
           let formaPrincipal = null;
           if (clean(pgto.valor_pago) > 0) {
@@ -907,9 +1076,12 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
           if (devedorRestante < 0.01) devedorRestante = 0; 
 
           const isVisualmentePago = pgto.status === 'pago' || devedorRestante === 0;
-          const podeGerenciar = !ehVisitante;
+          const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
           
           const mostrarHistoricoParcial = parciais.length > 1;
+          
+          // 🛡️ TRAVA DA LIXEIRA
+          const isSagrado = pgto.tipo?.toLowerCase() === 'mensalidade' || pgto.tipo?.toLowerCase() === 'acordo';
           
           return (
             <div 
@@ -925,7 +1097,11 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
               
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1.5">
-                  <span className="text-base font-bold text-slate-800">{pgto.descricao}</span>
+                  <span className="text-base font-bold text-slate-800">
+                    {pgto.descricao}
+                    {pgto.status === 'estornado' && <span className="ml-2 text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-md uppercase tracking-widest">Estornado</span>}
+                    {pgto.status === 'cancelado' && <span className="ml-2 text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-md uppercase tracking-widest">Cancelado</span>}
+                  </span>
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs font-semibold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">🗓️ {new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                     {formaPrincipal && <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">💳 {formaPrincipal}</span>}
@@ -949,8 +1125,12 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                       )}
 
                       <button onClick={(e) => { e.stopPropagation(); if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
-                      <button onClick={(e) => { e.stopPropagation(); processarAcaoPagamento(pgto, 'estornar'); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
-                      {userEmail === 'carlamonaliza9@gmail.com' && (
+                      
+                      {/* 🔴 ESTORNO CIRÚRGICO IMPLEMENTADO AQUI */}
+                      <button onClick={(e) => { e.stopPropagation(); estornoCirurgico(pgto); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
+                      
+                      {/* 🛡️ LIXEIRA OCULTA PARA MENSALIDADES */}
+                      {userEmail === 'carlamonaliza9@gmail.com' && !isSagrado && (
                           <button onClick={(e) => { e.stopPropagation(); processarAcaoPagamento(pgto, 'excluir'); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
                       )}
                     </div>

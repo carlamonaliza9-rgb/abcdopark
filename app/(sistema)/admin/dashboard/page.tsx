@@ -255,12 +255,12 @@ export default function DashboardAdminPage() {
   };
 
   const estiloBotaoAcao = { padding: '12px 20px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: 'bold' as 'bold', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(37, 99, 235, 0.1)' };
-  const estiloCard = { background: 'white', padding: '25px', borderRadius: '25px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', position: 'relative' as 'relative' };
+  const estiloCard = { background: 'white', padding: '25px', borderRadius: '25px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', position: 'relative' as 'relative', width: '100%', boxSizing: 'border-box' as 'border-box' };
 
   if (carregando) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando visão geral...</div>;
 
   return (
-    <div style={{ width: '100%', padding: '10px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '10px 30px 30px 30px', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' }}>
       
       {/* MODAL CONFIGURAÇÕES */}
       {modalConfigAberto && (
@@ -269,7 +269,7 @@ export default function DashboardAdminPage() {
             <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', color: '#111827' }}>Configurações de Perfil</h2>
             <div style={{ marginBottom: '20px', textAlign: 'left' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7280', display: 'block', marginBottom: '8px' }}>NOME COMPLETO</label>
-              <input type="text" value={novoNomeInput} onChange={(e) => setNovoNomeInput(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: '16px', outline: 'none' }} />
+              <input type="text" value={novoNomeInput} onChange={(e) => setNovoNomeInput(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: '16px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setModalConfigAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', backgroundColor: 'white', fontWeight: 'bold', cursor: 'pointer' }}>CANCELAR</button>
@@ -336,7 +336,7 @@ export default function DashboardAdminPage() {
       )}
 
       {/* HEADER ADMIN */}
-      <header style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+      <header style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', width: '100%' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111827' }}>Olá, {nomeUsuario}! 👋</h1>
@@ -351,13 +351,14 @@ export default function DashboardAdminPage() {
       </header>
 
       {/* CARDS ADMIN */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '25px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-          <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+      {/* Aqui apliquei o min(100%, 350px) para não estourar em telas pequenas e preencher melhor as grandes */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '25px', marginBottom: '25px', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', width: '100%' }}>
+          <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '32px', fontWeight: '800', color: '#111827', margin: '10px 0 0' }}>{dados.totalAlunos}</h3>
             <p style={{ color: '#6b7280', fontSize: '13px', fontWeight: '600' }}>ALUNOS MATRICULADOS</p>
           </div>
-          <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', boxSizing: 'border-box' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937' }}>Alunos por Turma</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
               {Object.entries(dados.porTurma)
@@ -382,7 +383,7 @@ export default function DashboardAdminPage() {
           </div>
         </div>
         
-        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignSelf: 'start' }}>
+        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignSelf: 'start', width: '100%', boxSizing: 'border-box' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             🚀 Próximas Programações
           </h2>
@@ -401,7 +402,8 @@ export default function DashboardAdminPage() {
       </div>
 
       {/* ANIVERSARIANTES E SAÚDE */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
+      {/* Aqui também apliquei a regra do min(100%, 400px) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))', gap: '25px', width: '100%' }}>
         <div style={estiloCard}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>🎂 Aniversariantes de {meses[new Date().getUTCMonth()]}</h2>
           <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
@@ -421,7 +423,7 @@ export default function DashboardAdminPage() {
           </div>
         </div>
         <div style={{ ...estiloCard, backgroundColor: '#fff5f5', border: '1px solid #fed7d7' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#c53030' }}>⚠️ Alertas de Saúde</h2>
             <input type="text" placeholder="Pesquisar..." value={buscaSaude} onChange={(e) => setBuscaSaude(e.target.value)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fed7d7', fontSize: '12px', width: '150px' }} />
           </div>
@@ -449,19 +451,19 @@ export default function DashboardAdminPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
-            style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+            style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', width: '95%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '22px', fontWeight: 'bold' }}>📅 Calendário Escolar</h2>
               <button onClick={() => setModalCalendarioAberto(false)} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>✖</button>
             </div>
-            <div style={{ backgroundColor: idEditando ? '#fffbeb' : 'white', padding: '20px', borderRadius: '15px', marginBottom: '25px', display: 'flex', gap: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: idEditando ? '1px solid #fbbf24' : 'none' }}>
-              <input type="text" placeholder="Nome do evento" value={novoEventoNome} onChange={(e) => setNovoEventoNome(e.target.value)} style={{ flex: 2, padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
-              <input type="date" value={novoEventoData} onChange={(e) => setNovoEventoData(e.target.value)} style={{ flex: 1, padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
-              <button onClick={salvarEvento} style={{ backgroundColor: idEditando ? '#f59e0b' : '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>{idEditando ? 'ATUALIZAR' : 'ADICIONAR'}</button>
+            <div style={{ backgroundColor: idEditando ? '#fffbeb' : 'white', padding: '20px', borderRadius: '15px', marginBottom: '25px', display: 'flex', gap: '10px', flexWrap: 'wrap', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: idEditando ? '1px solid #fbbf24' : 'none' }}>
+              <input type="text" placeholder="Nome do evento" value={novoEventoNome} onChange={(e) => setNovoEventoNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
+              <input type="date" value={novoEventoData} onChange={(e) => setNovoEventoData(e.target.value)} style={{ flex: '1 1 150px', padding: '12px', border: '1px solid #ddd', borderRadius: '10px' }} />
+              <button onClick={salvarEvento} style={{ backgroundColor: idEditando ? '#f59e0b' : '#2563eb', color: 'white', padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', flex: '1 1 100px' }}>{idEditando ? 'ATUALIZAR' : 'ADICIONAR'}</button>
               {idEditando && <button onClick={cancelarEdicao} style={{ backgroundColor: '#ef4444', color: 'white', padding: '12px 15px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>X</button>}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '20px' }}>
               {meses.map((mesNome, index) => (
                 <div key={index} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                   <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb', borderBottom: '2px solid #f3f4f6', paddingBottom: '8px', marginBottom: '12px' }}>{mesNome}</h3>
@@ -491,20 +493,20 @@ export default function DashboardAdminPage() {
       {/* MODAL AVISO COM EMOJIS */}
       {modalAvisoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '500px', boxSizing: 'border-box' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>📢 Enviar Aviso Geral</h2>
-            <div onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop} onClick={() => document.getElementById('input-imagem')?.click()} style={{ width: '100%', height: '150px', border: arrastando ? '2px solid #2563eb' : '2px dashed #e5e7eb', borderRadius: '15px', backgroundColor: arrastando ? '#eff6ff' : '#f9fafb', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', cursor: 'pointer', overflow: 'hidden' }}>
+            <div onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop} onClick={() => document.getElementById('input-imagem')?.click()} style={{ width: '100%', height: '150px', border: arrastando ? '2px solid #2563eb' : '2px dashed #e5e7eb', borderRadius: '15px', backgroundColor: arrastando ? '#eff6ff' : '#f9fafb', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box' }}>
               {previewImagem ? <img src={previewImagem} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <><span style={{ fontSize: '30px' }}>🖼️</span><p style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px' }}>Arraste a imagem ou clique aqui</p></>}
               <input type="file" id="input-imagem" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) { setArquivoImagem(file); setPreviewImagem(URL.createObjectURL(file)); } }} />
             </div>
             
             {/* Contêiner Relativo para Textarea e Emojis */}
-            <div style={{ position: 'relative', marginBottom: '20px' }}>
+            <div style={{ position: 'relative', marginBottom: '20px', width: '100%' }}>
               <textarea 
                 value={mensagemAviso} 
                 onChange={(e) => setMensagemAviso(e.target.value)} 
                 placeholder="Digite o texto do comunicado..." 
-                style={{ width: '100%', height: '120px', padding: '15px', paddingBottom: '40px', borderRadius: '15px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: '14px', outline: 'none', resize: 'none' }} 
+                style={{ width: '100%', height: '120px', padding: '15px', paddingBottom: '40px', borderRadius: '15px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb', fontSize: '14px', outline: 'none', resize: 'none', boxSizing: 'border-box' }} 
               />
               
               {/* Botão de abrir Emojis c/ Hexadecimal Seguro */}

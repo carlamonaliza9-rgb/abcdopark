@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
-import { VisaoPrincipal, VisaoDividas, VisaoCredito, VisaoBoletim, VisaoHistorico } from "./FichaAlunoViews";
+import { VisaoPrincipal, VisaoDividas, VisaoCredito, VisaoBoletim, VisaoHistorico } from "./FichaAlunoViews"; 
 
 interface FichaAlunoModalProps {
   aluno: any;
@@ -57,7 +57,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const [novoValorCredito, setNovoValorCredito] = useState("");
 
   const [anoSelecionado, setAnoSelecionado] = useState("2026");
-  const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("2026");
+  
+  // 🛡️ O filtro agora inicia como "todos" para nunca ocultar dados ao abrir
+  const [anoPagamentoSelecionado, setAnoPagamentoSelecionado] = useState("todos");
 
   const [historicoLocal, setHistoricoLocal] = useState<any[]>([]);
 
@@ -84,6 +86,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
   }, [aluno?.id, aluno?.saldo_credito]);
 
+  // Recarrega os dados ao mudar o filtro do ano
   useEffect(() => {
     if (aluno?.id) {
       buscarDadosAdicionais();
@@ -312,22 +315,19 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     } else alert("Senha incorreta.");
   }
 
-  const handleEstornarFaturamento = async (pgto: any) => {
-    if (prompt("Digite a Senha Mestra para DESFAZER/ESTORNAR este faturamento:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-    if (confirm("Deseja realmente estornar esta transação? O faturamento voltará ao status pendente e os valores pagos serão zerados.")) {
-      const { error } = await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', pgto.id);
-      if (!error) {
-        alert("Pagamento desfeito e faturamento resetado com sucesso!");
-        buscarDadosAdicionais();
-      } else {
-        alert("Erro operacional ao estornar: " + error.message);
-      }
-    }
-  };
-
+  // 🛡️ O EXCLUIR PERMANENTE com proteção de registros sagrados
   const handleExcluirFaturamento = async (pgto: any) => {
-    if (prompt("Digite a Senha Mestra para EXCLUIR REGISTRO PERMANENTEMENTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-    if(confirm("Deseja realmente deletar este faturamento para sempre da base do Supabase? Essa ação não pode ser desfeita.")) {
+    // 1. TRAVA DE SEGURANÇA: Impede a exclusão da mensalidade matriz ou de acordos
+    const isSagrado = pgto.tipo?.toLowerCase() === 'mensalidade' || pgto.tipo?.toLowerCase() === 'acordo';
+    
+    if (isSagrado) {
+      return alert("⛔ OPERAÇÃO BLOQUEADA\n\nMensalidades e Acordos são registros SAGRADOS e não podem ser apagados do sistema.\n\nSe houve um erro no recebimento, utilize o botão de ESTORNO (🔄). O estorno desfará o pagamento e a mensalidade voltará a ficar pendente, mantendo o histórico seguro.");
+    }
+
+    // 2. Fluxo normal para taxas avulsas
+    if (prompt("Digite a Senha Mestra para EXCLUIR REGISTRO AVULSO PERMANENTEMENTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    
+    if(confirm("Deseja realmente deletar esta taxa avulsa para sempre da base do Supabase? Essa ação não pode ser desfeita.")) {
       const { error } = await supabase.from('historico_pagamentos').delete().eq('id', pgto.id);
       if (!error) {
         alert("Registro deletado permanentemente!");
@@ -348,8 +348,6 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   if (!aluno) return null;
 
-  const historicoFiltrado = historicoLocal.filter(h => h.data_pagamento && h.data_pagamento.startsWith(anoPagamentoSelecionado) && h.status !== 'renegociado');
-
   return (
     <div 
       className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center md:p-4"
@@ -360,7 +358,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         
-        {/* DRAG HANDLE MOBILE (A Pílula que indica que pode arrastar) */}
+        {/* DRAG HANDLE MOBILE */}
         <div className="w-full flex justify-center md:hidden mb-2 sticky top-0 bg-white z-10 pt-2 pb-4">
           <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
         </div>
@@ -420,9 +418,17 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               onVerHistorico={onVerHistorico} aluno={aluno} onGerarPDFHistorico={onGerarPDFHistorico} 
               onVoltarParaFicha={onVoltarParaFicha} saldoCreditoVisivel={saldoCreditoVisivel} 
               setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} 
-              setVerDividasGlobais={setVerDividasGlobais} historicoFiltrado={historicoFiltrado} 
+              setVerDividasGlobais={setVerDividasGlobais} 
+              
+              // 🛡️ MURALHA DE FERRO: PASSA A LISTA PURA DO BANCO
+              historicoLocal={historicoLocal} 
+              
               userEmail={userEmail} clean={clean} onEditarPagamento={editarPagamentoHandler} 
-              handleEstornarFaturamento={handleEstornarFaturamento} handleExcluirFaturamento={handleExcluirFaturamento} 
+              handleExcluirFaturamento={handleExcluirFaturamento} 
+              
+              // 🛡️ PONTE DE RECARREGAMENTO PARA O ESTORNO CIRÚRGICO ATUALIZAR A TELA
+              onRecarregar={buscarDadosAdicionais}
+              senhaMestra={SENHA_MESTRA}
             />
           )}
 

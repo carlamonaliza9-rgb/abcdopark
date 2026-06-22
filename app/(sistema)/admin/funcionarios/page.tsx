@@ -178,7 +178,23 @@ export default function FuncionariosAdminPage() {
           .filter(d => (d.professor_vinculado || "").trim().toLowerCase() === funcNomeLimpo)
           .map(d => d.nome_turma);
 
-        const todasTurmas = Array.from(new Set([...turmasViaInfo, ...turmasViaDisciplinas]));
+        let todasTurmas = Array.from(new Set([...turmasViaInfo, ...turmasViaDisciplinas]));
+
+        // --- ORDENAÇÃO HIERÁRQUICA DAS TURMAS ---
+        todasTurmas.sort((a, b) => {
+          const nomeA = (a || "").toLowerCase().trim();
+          const nomeB = (b || "").toLowerCase().trim();
+
+          const indexA = LISTA_OFICIAL_TURMAS.findIndex(t => nomeA.includes(t.toLowerCase()));
+          const indexB = LISTA_OFICIAL_TURMAS.findIndex(t => nomeB.includes(t.toLowerCase()));
+
+          // Se a turma não for encontrada na lista oficial, joga para o final (peso 999)
+          const pesoA = indexA === -1 ? 999 : indexA;
+          const pesoB = indexB === -1 ? 999 : indexB;
+
+          if (pesoA !== pesoB) return pesoA - pesoB;
+          return nomeA.localeCompare(nomeB); // Desempate alfabético se ambas tiverem o mesmo peso
+        });
 
         return {
           ...func,

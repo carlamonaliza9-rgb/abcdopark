@@ -229,33 +229,103 @@ export default function FinanceiroAdminPage() {
         
         // --- 🔴 AQUI ESTÁ A CORREÇÃO CIRÚRGICA 🔴 ---
         const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('valorPadraoMensalidade') : null;
-        const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550; // Usa 550 como fallback só se não tiver nada salvo
-
-        const mensalidadesPrevistas = listaAlunos.reduce((acc, curr) => {
-          const valorAluno = parseFloat(curr.valor);
-          return acc + (valorAluno > 0 ? valorAluno : mensalidadeBaseVigente);
-        }, 0);
+        const mensalidadeBaseVigente = mensalidadeLocal ? Number(mensalidadeLocal) : 550;
 
         const stringFiltroMensalidade = `${nomeMesReferencia}/${ano}`;
-        const mensalidadesDesteMes = pgtosFiltrados.filter((p: any) => p.tipo === 'mensalidade' && p.descricao && p.descricao.includes(stringFiltroMensalidade));
-        const vMensalidadesDesteMesPago = mensalidadesDesteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago) || 0), 0);
-        const vMensalidadesDesteMesPendente = Math.max(0, mensalidadesPrevistas - vMensalidadesDesteMesPago);
+        
+        // 1. Contexto temporal para definir o que é "Atraso"
+        const anoFiltro = parseInt(ano);
+        const mesFiltroNum = parseInt(mes);
+        const hojeAno = hoje.getFullYear();
+        const hojeMes = hoje.getMonth() + 1;
+        const hojeDia = hoje.getDate();
 
+        const ehMesPassado = anoFiltro < hojeAno || (anoFiltro === hojeAno && mesFiltroNum < hojeMes);
+        const ehMesAtual = anoFiltro === hojeAno && mesFiltroNum === hojeMes;
+
+        let vMensalidadesEmAtraso = 0;
+        const mapaDevedores = new Map();
+
+        // 2. Calcular Mensalidades (Atrasadas vs Previstas)
+        const mensalidadesPrevistasTotal = listaAlunos.reduce((acc, aluno) => {
+          const valorAluno = parseFloat(aluno.valor) > 0 ? parseFloat(aluno.valor) : mensalidadeBaseVigente;
+          const vencimento = parseInt(aluno.vencimento) || 1;
+          
+          const pgtosDoAluno = pgtosFiltrados.filter((p: any) => 
+            p.tipo === 'mensalidade' && p.aluno_id === aluno.id && p.descricao && p.descricao.includes(stringFiltroMensalidade)
+          );
+          
+          const valorPagoAluno = pgtosDoAluno.reduce((sum, curr) => sum + (parseFloat(curr.valor_pago) || 0), 0);
+          const saldoDevedor = Math.max(0, valorAluno - valorPagoAluno);
+
+          if (saldoDevedor > 0) {
+            let isAtrasado = false;
+            if (ehMesPassado) isAtrasado = true;
+            else if (ehMesAtual && hojeDia > vencimento) isAtrasado = true;
+
+            if (isAtrasado) {
+              vMensalidadesEmAtraso += saldoDevedor;
+              if (!mapaDevedores.has(aluno.id)) mapaDevedores.set(aluno.id, 0);
+              mapaDevedores.set(aluno.id, mapaDevedores.get(aluno.id) + saldoDevedor);
+            }
+          }
+          return acc + valorAluno;
+        }, 0);
+
+        // 3. Calcular Extras (Atrasados vs Pendentes Gerais)
         const extrasPendentesDesteMes = pgtosFiltrados.filter((p: any) => {
-          const statusPendente = p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado';
-          if (!statusPendente) return false;
           if (p.tipo === 'mensalidade') return false;
-          const dataAlvo = p.data_pagamento || p.data_vencimento || p.created_at;
-          if (dataAlvo) return dataAlvo.startsWith(`${ano}-${mes}`);
-          return p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano);
+
+          const dataAlvo = p.data_vencimento || p.data_pagamento || p.created_at;
+          const pertenceAoMes = dataAlvo ? dataAlvo.startsWith(mesFiltro) : (p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano));
+
+          if (!pertenceAoMes) return false;
+
+          let isAtrasado = false;
+          if (p.status === 'atrasado') {
+             isAtrasado = true;
+          } else if (p.status === 'pendente' || p.status === 'parcial') {
+             if (p.data_vencimento) {
+               isAtrasado = new Date(p.data_vencimento + "T23:59:59") < hoje;
+             } else {
+               isAtrasado = ehMesPassado;
+             }
+          }
+          return isAtrasado;
         });
 
-        const vExtrasPendente = extrasPendentesDesteMes.reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
+        const vExtrasEmAtraso = extrasPendentesDesteMes.reduce((acc, pend) => {
+          const saldoDevedor = clean(pend.valor_total) - clean(pend.valor_pago);
+          if (saldoDevedor > 0) {
+            if (!mapaDevedores.has(pend.aluno_id)) mapaDevedores.set(pend.aluno_id, 0);
+            mapaDevedores.set(pend.aluno_id, mapaDevedores.get(pend.aluno_id) + saldoDevedor);
+            return acc + saldoDevedor;
+          }
+          return acc;
+        }, 0);
 
-        const totalPendenteCaixa = vMensalidadesDesteMesPendente + vExtrasPendente;
-        const totalGeralPrevisto = vPago + totalPendenteCaixa;
+        // O valor Inadimplente real (que já venceu o prazo)
+        const totalPendenteAtrasado = vMensalidadesEmAtraso + vExtrasEmAtraso;
         
-        // Cálculo Correto dos Descontos Baseado no Valor Global Atualizado
+        // Para manter o "Total" do fluxo coerente
+        const vMensalidadesDesteMesPago = pgtosFiltrados
+          .filter((p: any) => p.tipo === 'mensalidade' && p.descricao && p.descricao.includes(stringFiltroMensalidade))
+          .reduce((acc, curr) => acc + (parseFloat(curr.valor_pago) || 0), 0);
+          
+        const vMensalidadesTotalPendenteGeral = Math.max(0, mensalidadesPrevistasTotal - vMensalidadesDesteMesPago);
+        
+        const extrasTotaisPendenteGeral = pgtosFiltrados.filter((p: any) => {
+          if (p.tipo === 'mensalidade') return false;
+          const statusPendente = p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado';
+          if (!statusPendente) return false;
+          const dataAlvo = p.data_vencimento || p.data_pagamento || p.created_at;
+          return dataAlvo ? dataAlvo.startsWith(mesFiltro) : (p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano));
+        }).reduce((acc, curr) => acc + ((parseFloat(curr.valor_total) || 0) - (parseFloat(curr.valor_pago) || 0)), 0);
+
+        const totalPendenteGeral = vMensalidadesTotalPendenteGeral + extrasTotaisPendenteGeral;
+        const totalGeralPrevisto = vPago + totalPendenteGeral;
+
+        // Cálculo dos Descontos
         const totalDescontos = listaAlunos.reduce((acc, curr) => {
           const valorAluno = parseFloat(curr.valor);
           if (valorAluno > 0 && valorAluno < mensalidadeBaseVigente) {
@@ -264,17 +334,8 @@ export default function FinanceiroAdminPage() {
           return acc;
         }, 0);
         
-        setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalPendenteCaixa, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
-
-        const mapaDevedores = new Map();
-        const todasPendenciasExtras = pgtosFiltrados.filter((p: any) => p.status === 'pendente' || p.status === 'parcial' || p.status === 'atrasado');
-        todasPendenciasExtras.forEach((pend: any) => {
-          const saldoDevedor = clean(pend.valor_total) - clean(pend.valor_pago);
-          if (saldoDevedor > 0) {
-            if (!mapaDevedores.has(pend.aluno_id)) mapaDevedores.set(pend.aluno_id, 0);
-            mapaDevedores.set(pend.aluno_id, mapaDevedores.get(pend.aluno_id) + saldoDevedor);
-          }
-        });
+        // Aplica o totalPendenteAtrasado no lugar do totalGeral para focar na inadimplência
+        setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalPendenteAtrasado, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
 
         const radarOrdenado = Array.from(mapaDevedores.entries()).map(([aluno_id, total_devido]) => {
           const al = listaAlunos.find((a: any) => a.id === aluno_id);

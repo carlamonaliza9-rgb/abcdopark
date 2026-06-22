@@ -1,4 +1,5 @@
 import React from "react";
+import { supabase } from "@/lib/supabase"; // ADICIONADO PARA O ESTORNO FUNCIONAR AQUI
 
 // --- ESTILOS COMPARTILHADOS ---
 const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -366,14 +367,156 @@ export function VisaoBoletim({
 
 export function VisaoHistorico({ 
   anoPagamentoSelecionado, setAnoPagamentoSelecionado, onVerHistorico, aluno, onGerarPDFHistorico, onVoltarParaFicha, 
-  saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, historicoFiltrado, 
-  userEmail, clean, onEditarPagamento, handleEstornarFaturamento, handleExcluirFaturamento 
+  saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, 
+  historicoLocal, // RECEBENDO DADO PURO DO PAI (MURALHA DE FERRO)
+  userEmail, clean, onEditarPagamento, handleExcluirFaturamento, 
+  onRecarregar, senhaMestra 
 }: any) {
+
+  // ============================================================================
+  // 🛡️ A MURALHA DE FERRO: FILTRO SEGURO PARA O EXTRATO
+  // ============================================================================
+  const historicoFiltradoExibicao = (historicoLocal || []).filter((h: any) => {
+    // 1. Esconde créditos puros daqui (vão para a carteira virtual)
+    if (h.tipo?.toLowerCase() === 'credito') return false;
+
+    // 2. Se o usuário escolher "todos", exibe absolutamente tudo
+    if (anoPagamentoSelecionado === 'todos') return true;
+
+    // 3. Procura o ano em qualquer lugar possível (Data, Vencimento, Descrição, Criação)
+    const strData = h.data_pagamento ? String(h.data_pagamento) : "";
+    const strDesc = h.descricao ? String(h.descricao) : "";
+    const strVenc = h.data_vencimento ? String(h.data_vencimento) : "";
+    const strCreated = h.created_at ? String(h.created_at) : "";
+
+    return strData.includes(anoPagamentoSelecionado) ||
+           strDesc.includes(anoPagamentoSelecionado) ||
+           strVenc.includes(anoPagamentoSelecionado) ||
+           strCreated.includes(anoPagamentoSelecionado);
+  });
+
+  // ============================================================================
+  // 🔴 ESTORNO CIRÚRGICO: DESFAZ PARCELAS INDIVIDUAIS E RECUPERA CRÉDITO
+  // ============================================================================
+  const estornoCirurgico = async (pgto: any) => {
+    if (prompt("Digite a Senha Mestra para ESTORNAR/DESFAZER:") !== (senhaMestra || "1234")) {
+      return alert("Senha incorreta.");
+    }
+
+    // Busca o dado ao vivo do banco de dados (A Verdade Absoluta)
+    const { data: registroReal, error: fetchError } = await supabase
+      .from('historico_pagamentos')
+      .select('*')
+      .eq('id', pgto.id)
+      .single();
+
+    if (fetchError || !registroReal) return alert("Não foi possível encontrar este registro na base de dados.");
+
+    let metodosObj = registroReal.detalhes_metodos;
+    if (typeof metodosObj === 'string') {
+      try { metodosObj = JSON.parse(metodosObj); } catch (e) { metodosObj = {}; }
+    }
+
+    const historicoParciais = metodosObj?.historico_parciais || [];
+    let indexParaEstornar = -1;
+    let valorSendoEstornado = clean(registroReal.valor_pago);
+
+    if (historicoParciais.length > 0) {
+      let msg = "Esta cobrança possui pagamentos parciais.\nQual parcela deseja CANCELAR?\n\n";
+      historicoParciais.forEach((p: any, i: number) => {
+        let dataFormatada = p.data_recebimento;
+        if (dataFormatada && dataFormatada.includes('-')) dataFormatada = dataFormatada.split('-').reverse().join('/');
+        msg += `[${i + 1}] Dia ${dataFormatada} - R$ ${clean(p.valor_pago_rodada).toFixed(2)} (${p.formas})\n`;
+      });
+      msg += "\n[0] CANCELAR TUDO (Zerar a cobrança inteira)";
+
+      const resposta = prompt(msg);
+      if (resposta === null) return;
+
+      const op = parseInt(resposta);
+      if (isNaN(op) || op < 0 || op > historicoParciais.length) return alert("Opção inválida. Operação cancelada.");
+
+      indexParaEstornar = op - 1;
+      if (indexParaEstornar !== -1) {
+          valorSendoEstornado = clean(historicoParciais[indexParaEstornar].valor_pago_rodada);
+      }
+    } else {
+      if (!confirm("Deseja realmente estornar este faturamento? O valor pago será zerado.")) return;
+    }
+
+    // GESTÃO DE TROCO / CRÉDITO
+    let mudancaSaldo = 0;
+    const saldoAtualSeguro = saldoCreditoVisivel || 0;
+
+    const usouSaldo = confirm(`Atenção: Essa parcela de R$ ${valorSendoEstornado.toFixed(2)} foi paga usando SALDO VIRTUAL do aluno?\n\n(OK = Sim, Cancelar = Não)`);
+    if (usouSaldo) {
+        const val = prompt(`Qual valor de saldo virtual deve ser DEVOLVIDO à conta do aluno?\n(Exemplo: 50.00)`);
+        if (val) mudancaSaldo += Math.abs(clean(val));
+    } else {
+        const gerouSaldo = confirm(`Esse pagamento GEROU troco/crédito na conta do aluno na época?\n\n(OK = Sim, Cancelar = Não)`);
+        if (gerouSaldo) {
+            const val = prompt(`Qual valor de troco/crédito deve ser RETIRADO da conta do aluno agora? (Saldo atual: R$ ${saldoAtualSeguro.toFixed(2)})\n(Exemplo: 15.00)`);
+            if (val) mudancaSaldo -= Math.abs(clean(val));
+        }
+    }
+
+    try {
+      if (indexParaEstornar === -1) {
+        const { error } = await supabase.from('historico_pagamentos').update({
+          status: 'pendente',
+          valor_pago: 0,
+          detalhes_metodos: {}
+        }).eq('id', pgto.id);
+        if (error) throw error;
+      } else {
+        const parcelaRemovida = historicoParciais[indexParaEstornar];
+        const valorAAbater = clean(parcelaRemovida.valor_pago_rodada);
+        const novoValorPago = clean(registroReal.valor_pago) - valorAAbater;
+
+        const novoStatus = novoValorPago <= 0 ? 'pendente' : 'parcial';
+
+        const novoHistorico = [...historicoParciais];
+        novoHistorico.splice(indexParaEstornar, 1);
+        const novosMetodos = { ...metodosObj, historico_parciais: novoHistorico };
+
+        const { error } = await supabase.from('historico_pagamentos').update({
+          status: novoStatus,
+          valor_pago: Math.max(0, novoValorPago),
+          detalhes_metodos: novoHistorico.length === 0 ? {} : novosMetodos
+        }).eq('id', pgto.id);
+        if (error) throw error;
+      }
+
+      if (mudancaSaldo !== 0) {
+          const novoSaldo = Math.max(0, saldoAtualSeguro + mudancaSaldo);
+          await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', aluno.id);
+
+          await supabase.from('historico_pagamentos').insert({
+              aluno_id: aluno.id,
+              tipo: 'credito',
+              descricao: mudancaSaldo > 0 ? 'ESTORNO: Saldo Devolvido à Conta' : 'ESTORNO: Troco Removido',
+              valor_total: Math.abs(mudancaSaldo),
+              valor_pago: Math.abs(mudancaSaldo),
+              status: 'pago',
+              data_pagamento: new Date().toISOString().split('T')[0],
+              detalhes_metodos: { forma_geradora: "Ajuste Sistêmico Automático", e_subtracao: mudancaSaldo < 0 }
+          });
+      }
+
+      alert("Estorno processado e saldos ajustados com sucesso!");
+      // 🛡️ AVISA O PAI PARA RECARREGAR O BANCO DE DADOS
+      if (onRecarregar) onRecarregar();
+    } catch (error: any) {
+      alert("Erro operacional ao estornar: " + error.message);
+    }
+  };
+
   return (
     <div style={{ width: '100%', marginTop: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>Extrato de Pagamentos</h3>
+          
           <select 
             value={anoPagamentoSelecionado} 
             onChange={(e) => {
@@ -382,6 +525,7 @@ export function VisaoHistorico({
             }}
             style={{ padding: '4px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', outline: 'none' }}
           >
+            <option value="todos">Mostrar Todos</option>
             <option value="2026">2026</option>
             <option value="2025">2025</option>
             <option value="2024">2024</option>
@@ -403,16 +547,23 @@ export function VisaoHistorico({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {historicoFiltrado.length > 0 ? historicoFiltrado.map((pgto: any, i: number) => {
+        {historicoFiltradoExibicao.length > 0 ? historicoFiltradoExibicao.map((pgto: any, i: number) => {
           const forma = extrairFormaPagamento(pgto.detalhes_metodos);
           const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
           const devedorRestante = clean(pgto.valor_total) - clean(pgto.valor_pago);
+          
+          // 🛡️ A ARMADURA DO EXTRATO: IDENTIFICA REGISTROS SAGRADOS
+          const isSagrado = pgto.tipo?.toLowerCase() === 'mensalidade' || pgto.tipo?.toLowerCase() === 'acordo';
           
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>{pgto.descricao}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>
+                      {pgto.descricao}
+                      {pgto.status === 'estornado' && <span style={{ marginLeft: '8px', fontSize: '9px', backgroundColor: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Estornado</span>}
+                      {pgto.status === 'cancelado' && <span style={{ marginLeft: '8px', fontSize: '9px', backgroundColor: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Cancelado</span>}
+                  </span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b' }}>🗓️ Venda/Lançamento: {new Date(pgto.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                     {forma && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#0369a1', marginTop: '2px' }}>💳 Método Principal: {forma}</span>}
@@ -429,8 +580,13 @@ export function VisaoHistorico({
                   {podeGerenciar && (
                     <div style={{ display: 'flex', gap: '6px', borderLeft: '1px solid #cbd5e1', paddingLeft: '8px', alignItems: 'center' }}>
                       <button onClick={() => onEditarPagamento(pgto)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Editar">✏️</button>
-                      <button onClick={() => handleEstornarFaturamento(pgto)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Desfazer Lançamento/Estornar">🔄</button>
-                      <button onClick={() => handleExcluirFaturamento(pgto)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Excluir Permanentemente">🗑️</button>
+                      
+                      <button onClick={() => estornoCirurgico(pgto)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Desfazer Lançamento/Estornar">🔄</button>
+                      
+                      {/* 🛡️ A LIXEIRA ESTÁ CONDICIONADA A NÃO SER UMA MENSALIDADE */}
+                      {!isSagrado && (
+                         <button onClick={() => handleExcluirFaturamento(pgto)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }} title="Excluir Permanentemente (Apenas Taxas Avulsas)">🗑️</button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -457,7 +613,7 @@ export function VisaoHistorico({
               )}
             </div>
           );
-        }) : <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', margin: 0, textAlign: 'center' }}>Nenhum pagamento referenciado para este ano.</p>}
+        }) : <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', margin: 0, textAlign: 'center' }}>Nenhum pagamento referenciado para este filtro.</p>}
       </div>
     </div>
   );
