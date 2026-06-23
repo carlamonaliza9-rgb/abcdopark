@@ -78,15 +78,17 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
   
   const [mesReferencia, setMesReferencia] = useState(mesesAno[new Date().getMonth()]);
 
+  // Lógica corrigida para os cards de métricas
   const pendentesArr = alunos.filter(a => a.status === 'pendente' || a.status === 'parcial');
   const pagosArr = alunos.filter(a => a.status === 'pago');
   const atrasadosArr = alunos.filter(a => a.status === 'atrasado');
+  const aReceberArr = alunos.filter(a => a.status !== 'pago'); // Todos que ainda não pagaram
 
-  const valReceber = pendentesArr.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  const valReceber = aReceberArr.reduce((acc, curr) => acc + (curr.valor || 0), 0);
   const valRecebidos = pagosArr.reduce((acc, curr) => acc + (curr.valorBaseMensalidade || 0), 0);
   const valAtrasados = atrasadosArr.reduce((acc, curr) => acc + (curr.valor || 0), 0);
 
-  const totalMensalidades = pendentesArr.length + pagosArr.length + atrasadosArr.length;
+  const totalMensalidades = alunos.length;
   const taxaRecebimento = totalMensalidades > 0 ? Math.round((pagosArr.length / totalMensalidades) * 100) : 0;
 
   useEffect(() => {
@@ -287,10 +289,10 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
   const listaTurmasUnicas = Array.from(new Set(alunos.map((aluno: any) => aluno.turma).filter((t: any) => !!t)))
     .sort((a: any, b: any) => {
-      const pesoA = obterPesoPedagogico(a);
-      const pesoB = obterPesoPedagogico(b);
+      const pesoA = obterPesoPedagogico(a as string);
+      const pesoB = obterPesoPedagogico(b as string);
       if (pesoA !== pesoB) return pesoA - pesoB;
-      return a.localeCompare(b, "pt-BR");
+      return (a as string).localeCompare(b as string, "pt-BR");
     });
 
   const alunosFiltrados = alunos.filter((aluno: any) => {
@@ -477,7 +479,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
              <span className="text-xl font-black text-slate-800 leading-none">R$ {valReceber.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
              <div className="flex items-center gap-1.5 mt-2">
                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-               <span className="text-[10px] font-semibold text-slate-500">{pendentesArr.length} pagamentos pendentes</span>
+               <span className="text-[10px] font-semibold text-slate-500">{aReceberArr.length} cobranças em aberto</span>
              </div>
            </div>
         </div>
