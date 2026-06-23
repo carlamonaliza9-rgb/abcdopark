@@ -118,10 +118,37 @@ export function VisaoAcordos({ userEmail }: VisaoAcordosProps) {
     carregarDados();
   }
 
+  // --- NOVA REGRA 1 (ESTORNO DE ACORDO) ---
   async function excluirAcordoInteiro(parcelas: any[]) {
     if (prompt("ATENÇÃO: Digite a Senha Mestra para EXCLUIR O CONTRATO INTEIRO (todas as parcelas):") !== SENHA_MESTRA) return alert("Senha incorreta.");
-    const ids = parcelas.map(p => p.id);
-    await supabase.from('historico_pagamentos').delete().in('id', ids);
+    
+    const idsAcordo = parcelas.map(p => p.id);
+    
+    // 1. Resgata os IDs das cobranças originais (Mensalidades/Taxas que geraram este acordo)
+    let idsOriginais: string[] = [];
+    parcelas.forEach(p => {
+      let detalhes = p.detalhes_metodos;
+      if (typeof detalhes === 'string') {
+        try { detalhes = JSON.parse(detalhes); } catch (e) { detalhes = {}; }
+      }
+      if (detalhes?.ids_origem_acordo) {
+        idsOriginais = idsOriginais.concat(detalhes.ids_origem_acordo);
+      }
+    });
+    // Remove IDs duplicados
+    idsOriginais = Array.from(new Set(idsOriginais));
+
+    // 2. Deleta as parcelas do acordo permanentemente
+    await supabase.from('historico_pagamentos').delete().in('id', idsAcordo);
+    
+    // 3. Restaura as dívidas originais, removendo o status 'renegociado'
+    if (idsOriginais.length > 0) {
+      await supabase
+        .from('historico_pagamentos')
+        .update({ status: 'pendente' }) // O status exato (atrasado) será atualizado dinamicamente pelo sistema ao recarregar a tela
+        .in('id', idsOriginais);
+    }
+
     emitirRecarregamento();
     carregarDados();
   }

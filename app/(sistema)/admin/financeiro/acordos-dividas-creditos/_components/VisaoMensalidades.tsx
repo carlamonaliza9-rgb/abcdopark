@@ -126,6 +126,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       let historicoCompleto = pgtosAnoDB || [];
 
       const mesesPagos = new Set();
+      // --- REGRA 1 & 2: Considerar 'renegociado' como já tratado ---
       historicoCompleto.forEach(h => {
           if (h.status === 'pago' || h.status === 'renegociado') {
               const ref = extrairMesAnoInteligente(h, ano);
@@ -185,17 +186,20 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           historicoCompleto = pgtosRefetch || [];
       }
 
+      // --- FILTRO: Excluir da visão as que viraram Acordo ('renegociado') ---
       const pgtosDesteMes = historicoCompleto.filter((p: any) => {
           if (p.tipo !== 'mensalidade') return false;
+          if (p.status === 'renegociado') return false; // Trava de Ocultação
           const ref = extrairMesAnoInteligente(p, ano);
           return ref.mes === nomeMesReferencia && ref.ano === ano;
       });
       
       const acordosDesteMes = historicoCompleto.filter((p: any) => {
         const isAcordo = p.tipo === 'acordo';
-        const isNoMesFiltro = p.data_pagamento && p.data_pagamento.startsWith(mesFiltro);
+        // Procura se o acordo é atrelado ao mês filtrado na descrição
+        const isRefAoMes = p.descricao && p.descricao.toLowerCase().includes(nomeMesReferencia);
         const isAvulso = p.mes_referencia === 'Avulso';
-        return isAcordo && isNoMesFiltro && !isAvulso;
+        return isAcordo && isRefAoMes && !isAvulso;
       });
 
       if (listaAlunos) {
@@ -211,7 +215,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           let statusFinal = 'pendente';
           let nomeTags = [];
 
-          if (jaPagouNoCaderninho) {
+          if (jaPagouNoCaderninho && !acuerdoAluno) {
               statusFinal = 'pago';
               valorDevidoMensalidade = 0;
           } 
@@ -241,16 +245,17 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
           let valorTotalDevido = 0;
 
-          if (statusFinal !== 'pago' && valorDevidoMensalidade > 0) {
+          if (statusFinal !== 'pago' && statusFinal !== 'renegociado' && valorDevidoMensalidade > 0) {
               valorTotalDevido += valorDevidoMensalidade;
           }
           
           if (isAcordoPendente && valorParcelaAcordo > 0) {
-              valorTotalDevido += valorParcelaAcordo;
+              valorTotalDevido = valorParcelaAcordo; // Se tem acordo, o valor devido que aparece na tabela é apenas da parcela do acordo
               nomeTags.push(`📌 Acordo R$ ${valorParcelaAcordo.toFixed(2)}`);
               statusFinal = 'acordo';
           } else if (temAcordoNoMes && !isAcordoPendente) {
               nomeTags.push(`✅ Acordo Pago`); 
+              statusFinal = 'pago'; // Zera o débito e joga pra pago se ele quitou o acordo
           }
 
           let nomeExibicao = nomeTags.length > 0 ? `${aluno.nome} (${nomeTags.join(' | ')})` : aluno.nome;
@@ -549,7 +554,6 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
             
-{/* VALOR DA MENSALIDADE: ALINHAMENTO CORRIGIDO (VALOR EM CIMA, TEXTO EMBAIXO) */}
             <div className={`flex flex-col justify-center px-4 py-1.5 border rounded-xl transition-all h-[44px] min-w-[160px] bg-indigo-50/50 border-indigo-100 ${editandoValor ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/20' : ''}`}>
               <div className="flex items-center gap-2 text-sm font-black text-indigo-900 leading-none">
                 <button 
@@ -573,7 +577,6 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               <span className="text-[8px] font-bold text-indigo-400/90 uppercase tracking-widest mt-0.5 ml-6">Valor da mensalidade</span>
             </div>
             
-            {/* Filtros Dropdown */}
             <select
               value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)}
               className="w-full sm:w-auto px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 outline-none focus:border-indigo-400 hover:bg-slate-100 transition-colors cursor-pointer"

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -115,9 +117,27 @@ export function usePDV() {
       const hojeRadar = new Date();
       hojeRadar.setHours(0,0,0,0);
 
+      // NOVO BLOCO: Prevenir Duplicação de Dívida de Acordos no Radar
+      let idsDuvidasRenegociadas: string[] = [];
+      historico.forEach(ac => {
+         if (ac.tipo === 'acordo') {
+             let detalhes = ac.detalhes_metodos;
+             if (typeof detalhes === 'string') {
+               try { detalhes = JSON.parse(detalhes); } catch(e) { detalhes = {}; }
+             }
+             if (detalhes?.ids_origem_acordo) {
+                idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
+             }
+         }
+      });
+      idsDuvidasRenegociadas = Array.from(new Set(idsDuvidasRenegociadas));
+
       [...historico, ...radarMensalidades].forEach(pend => {
           const status = pend.status?.toLowerCase();
           if (['pago', 'renegociado', 'cancelado', 'estornado'].includes(status)) return;
+          
+          // IGNORA A DÍVIDA SE ELA TIVER SIDO TRANSFORMADA EM ACORDO
+          if (idsDuvidasRenegociadas.includes(String(pend.id))) return;
           
           const devedorRestante = clean(pend.valor_total || pend.valor) - clean(pend.valor_pago);
           if (devedorRestante <= 0) return;
@@ -187,7 +207,7 @@ export function usePDV() {
                 (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
                 h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
                 (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) && 
-                !['cancelado', 'estornado', 'renegociado'].includes(h.status)
+                !['cancelado', 'estornado', 'renegociado'].includes(h.status) // IGNORA RENOGOCIADAS
               );
               
               if (!jaExiste) {
@@ -220,10 +240,30 @@ export function usePDV() {
           }
         } catch(e) {}
 
+        // Busca IDs que viraram Acordo
+        let idsDuvidasRenegociadas: string[] = [];
+        registrosPuros.forEach(ac => {
+           if (ac.tipo === 'acordo') {
+               let detalhes = ac.detalhes_metodos;
+               if (typeof detalhes === 'string') {
+                 try { detalhes = JSON.parse(detalhes); } catch(e) { detalhes = {}; }
+               }
+               if (detalhes?.ids_origem_acordo) {
+                  idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
+               }
+           }
+        });
+        idsDuvidasRenegociadas = Array.from(new Set(idsDuvidasRenegociadas));
+
+
         if (registrosPuros.length > 0) {
           const pendenciasFiltradas = registrosPuros.filter((h: any) => {
             const saldoDevedor = clean(h.valor_total) - clean(h.valor_pago);
             if (['pago', 'renegociado', 'cancelado', 'estornado'].includes((h.status || '').toLowerCase().trim()) || saldoDevedor <= 0) return false;
+            
+            // FILTRO DE DEDUPLICAÇÃO
+            if (idsDuvidasRenegociadas.includes(String(h.id))) return false;
+
             if (h.tipo?.toLowerCase() === 'mensalidade' && !h.isTemp) {
                 const dataVenc = new Date(h.data_pagamento || h.vencimento);
                 const hoje = new Date(); hoje.setHours(0,0,0,0); dataVenc.setHours(0,0,0,0);
@@ -355,7 +395,7 @@ export function usePDV() {
     if (processando) return; 
     if (!caixaAtual) return alert("Atenção: Você precisa Abrir o Caixa antes de registrar pagamentos.");
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
-    if (faltaPagar > 0 && !window.confirm(`ATENÇÃO: PAGAMENTO PARCIAL!\n\nO cliente está a pagar R$ ${totalPagoRodada.toFixed(2)}, mas o valor total é R$ ${totalComAcrescimos.toFixed(2)}.\n\nDeseja confirmar?`)) return;
+    if (faltaPagar > 0 && !window.confirm(`ATENÇÃO: PAGAMENTO PARCIAL!\n\nO cliente está a pagar R$ ${totalPagoRodada.toFixed(2)}, mas o valor total é R$ ${totalComAcrescimos.toFixed(2)}.\n\nO restante será convertido num Acordo ou continuará aberto.\n\nDeseja confirmar?`)) return;
     if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
 
@@ -414,6 +454,46 @@ export function usePDV() {
           await supabase.from('historico_pagamentos').update({ status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).eq('id', item.id);
         }
         if (savedId) idsProcessados.push(String(savedId));
+      }
+
+      // --- LOGICA DE RENEGOCIAÇÃO E ACORDO (REGRA 1) ---
+      if (faltaPagar > 0) {
+          const gerarAcordo = window.confirm(`Deseja transformar o saldo restante de R$ ${faltaPagar.toFixed(2)} em um Acordo / Renegociação?`);
+          if (gerarAcordo) {
+             const numeroParcelas = parseInt(prompt(`Em quantas vezes deseja dividir o restante de R$ ${faltaPagar.toFixed(2)}?`, "2") || "0");
+             if (numeroParcelas > 0) {
+                 const valorParcela = faltaPagar / numeroParcelas;
+                 const novasParcelas = [];
+                 
+                 for (let i = 1; i <= numeroParcelas; i++) {
+                     let dtVencimento = new Date(dataPagamentoPDV);
+                     dtVencimento.setMonth(dtVencimento.getMonth() + i);
+                     const pData = dtVencimento.toISOString().split('T')[0];
+                     
+                     novasParcelas.push({
+                         aluno_id: alunoSelecionado.id,
+                         tipo: 'acordo',
+                         descricao: `Acordo ${i}/${numeroParcelas} - Ref: ${carrinho.map(c=>c.descricao).join(', ').substring(0,40)}...`,
+                         mes_referencia: 'Avulso',
+                         valor_total: valorParcela,
+                         valor_pago: 0,
+                         status: 'pendente',
+                         data_pagamento: pData,
+                         data_vencimento: pData,
+                         caixa_id: caixaAtual.id,
+                         detalhes_metodos: { ids_origem_acordo: idsProcessados }
+                     });
+                 }
+                 
+                 // Insere as parcelas
+                 await supabase.from('historico_pagamentos').insert(novasParcelas);
+                 
+                 // MÁGICA DE SUBSTITUIÇÃO: Muda as originais para 'renegociado'
+                 await supabase.from('historico_pagamentos').update({ status: 'renegociado' }).in('id', idsProcessados);
+                 
+                 alert("Acordo gerado com sucesso e dívidas originais substituídas.");
+             }
+          }
       }
 
       const trocoParaAdicionar = acaoTroco === 'credito' ? trocoGerado : 0;

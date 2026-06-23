@@ -15,6 +15,41 @@ const clean = (val: any) => {
   return parseFloat(str) || 0;
 };
 
+function extrairMesAnoInteligente(h: any, fallbackAno: string) {
+  const desc = (h.descricao || "").toLowerCase();
+  let mes = (h.mes_referencia || "").toLowerCase().trim();
+  
+  const nomesMeses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  
+  if (!mes || !nomesMeses.includes(mes)) {
+    mes = nomesMeses.find(m => desc.includes(m)) || "";
+  }
+  
+  const anoMatch = desc.match(/(20\d{2})/);
+  let ano = anoMatch ? anoMatch[0] : null;
+  
+  if (!ano && (h.data_vencimento || h.vencimento)) {
+      const dVenc = new Date(h.data_vencimento || h.vencimento);
+      if (!isNaN(dVenc.getTime())) ano = dVenc.getFullYear().toString();
+  }
+
+  if (!ano && h.data_pagamento) {
+      const dPgto = new Date(h.data_pagamento);
+      if (!isNaN(dPgto.getTime())) {
+          const anoPgto = dPgto.getFullYear();
+          const mesPgto = dPgto.getMonth();
+          
+          if (mesPgto >= 9 && ["janeiro", "fevereiro", "março", "abril"].includes(mes)) {
+              ano = (anoPgto + 1).toString();
+          } else {
+              ano = anoPgto.toString();
+          }
+      }
+  }
+
+  return { mes, ano: ano || fallbackAno };
+}
+
 export function VisaoSaldosCreditos() {
   const router = useRouter();
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -30,6 +65,23 @@ export function VisaoSaldosCreditos() {
       try {
         const { data: listaAlunos } = await supabase.from('alunos').select('*');
         const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+        
+        // --- NOVA TRAVA: Buscar acordos para remover as dívidas substituídas ---
+        const { data: acordosDB } = await supabase.from('historico_pagamentos').select('detalhes_metodos').eq('tipo', 'acordo');
+        let idsDuvidasRenegociadas: string[] = [];
+        if (acordosDB) {
+          acordosDB.forEach(ac => {
+             let detalhes = ac.detalhes_metodos;
+             if (typeof detalhes === 'string') {
+               try { detalhes = JSON.parse(detalhes); } catch(e) { detalhes = {}; }
+             }
+             if (detalhes?.ids_origem_acordo) {
+                idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
+             }
+          });
+        }
+        // Remove duplicadas
+        idsDuvidasRenegociadas = Array.from(new Set(idsDuvidasRenegociadas));
 
         const ordemHierarquicaTurmas = ["maternal", "jardim i", "jardim 1", "jardim ii", "jardim 2", "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"];
         const obterPesoPedagogico = (turmaNome: string) => {
@@ -52,6 +104,9 @@ export function VisaoSaldosCreditos() {
 
         if (pgtosPendentes) {
              const dividasReais = pgtosPendentes.filter(p => {
+                 // IGNORA A DÍVIDA SE ELA TIVER SIDO TRANSFORMADA EM ACORDO
+                 if (idsDuvidasRenegociadas.includes(String(p.id))) return false;
+
                  if (p.tipo !== 'mensalidade') return true;
                  const dataVenc = new Date(p.data_vencimento || p.vencimento || p.data_pagamento || new Date());
                  dataVenc.setHours(0,0,0,0);
