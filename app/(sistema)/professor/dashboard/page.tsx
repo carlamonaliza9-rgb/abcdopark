@@ -10,7 +10,11 @@ import {
   Cake, 
   AlertTriangle, 
   MessageCircleHeart,
-  ChevronRight
+  ChevronRight,
+  Search,
+  BookOpen,
+  ClipboardList,
+  Megaphone
 } from "lucide-react";
 
 export default function DashboardProfessorPage() {
@@ -198,6 +202,11 @@ export default function DashboardProfessorPage() {
     return d.getUTCDate(); 
   };
 
+  const extrairMesCurtoUTC = (dataString: string) => {
+    const d = new Date(dataString + "T12:00:00");
+    return meses[d.getUTCMonth()].substring(0, 3).toUpperCase();
+  };
+
   const parabensWhatsApp = (persona: any) => {
     const msg = `Parabéns, ${persona.nome.split(' ')[0]}! 🎉 A ABC DO PARK te deseja um dia maravilhoso e cheio de alegrias! 🎂🎈`;
     window.open(`https://wa.me/55${persona.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -217,13 +226,12 @@ export default function DashboardProfessorPage() {
   if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-slate-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-slate-50">Carregando seu espaço...</div>;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-(#e0ffff) overflow-x-hidden pb-10 md:p-6">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-[#f8fafc] overflow-x-hidden pb-10 md:p-6">
       
       {/* ============================================== */}
       {/* HEADER: Native App Mobile & Desktop Dashboard */}
       {/* ============================================== */}
       <div className="flex items-center justify-end gap-4 px-4 pt-4 pb-2 md:hidden">
-        {/* OCULTO NO DESKTOP: Botões aparecem aqui apenas no Mobile */}
         <div className="flex gap-2">
           <button 
             onClick={() => setModalCalendarioAberto(true)} 
@@ -242,93 +250,65 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* HERO BANNER: Versão Clean e Unificada */}
+      {/* HERO BANNER: Com a foto do usuário restaurada */}
       {/* ============================================== */}
-      <div className="px-4 md:px-0 mb-6 md:mb-8">
-        <div className="bg-white rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-6">
+      <div className="px-4 md:px-0 mb-6">
+        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col md:flex-row items-center md:items-center justify-between gap-6">
           
-          {/* BOTÕES DO DESKTOP - Posição ajustada */}
-          <div className="hidden md:flex absolute top-4 right-6 gap-3 z-30">
-            <button 
-              onClick={() => setModalCalendarioAberto(true)} 
-              className="flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all shadow-sm active:scale-95"
-            >
-              <CalendarDays size={18} strokeWidth={2.5} />
-              <span>Calendário</span>
-            </button>
+          {/* BOTÕES DO DESKTOP - Canto Superior Direito */}
+          <div className="hidden md:flex absolute top-6 right-6 gap-3 z-30">
+            {/* O Botão de Calendário superior foi removido conforme solicitado */}
             
             <button 
               onClick={() => setModalConfigAberto(true)} 
-              className="w-10 h-10 rounded-2xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-center transition-all shadow-sm active:scale-95"
+              className="relative w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-center transition-all shadow-sm active:scale-95"
             >
-              <Settings size={18} strokeWidth={2.5} />
+              <Settings size={18} strokeWidth={2} />
             </button>
           </div>
 
-          {/* Perfil App Native (Mobile) vs Avatar Desktop */}
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            {/* FOTO AUMENTADA: w-24 no mobile, w-44 no desktop */}
-            <div className="w-24 h-24 md:w-44 md:h-44 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-100 shrink-0 z-10 shadow-sm">
-              <img 
-                src={ilustracaoProfessor || "/image_de2d33.jpg"} 
-                alt="Seu Perfil" 
-                className="w-full h-full object-cover" 
-              />
+          <div className="flex flex-col md:flex-row items-center md:items-center gap-6 w-full relative z-10">
+            {/* Foto Original do Usuário */}
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-slate-50 shadow-md shrink-0 flex items-center justify-center overflow-hidden bg-black">
+              {ilustracaoProfessor ? (
+                 <img src={ilustracaoProfessor} alt="Seu Perfil" className="w-full h-full object-cover" />
+              ) : (
+                 <span className="text-white text-[12px] text-center font-black">Escola<br/>do Park</span>
+              )}
             </div>
             
-            {/* Infos ao lado da foto (Exclusivo Mobile) */}
-            <div className="flex-1 z-10 md:hidden flex flex-col justify-center">
-              <h2 className="text-xl font-black leading-tight text-slate-800">Olá, {nomeUsuario} 👋</h2>
-              <p className="text-slate-500 font-medium text-xs leading-tight mt-0.5">Turmas, diário e eventos.</p>
-            </div>
-          </div>
+            {/* Informações Pessoais & Turmas */}
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="text-2xl md:text-[28px] font-black text-[#1e293b] tracking-tight flex items-center justify-center md:justify-start gap-2">
+                Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-[28px]">👋</span>
+              </h1>
+              <p className="text-slate-500 font-medium text-[13px] mb-4 max-w-[400px] mt-1 leading-relaxed">
+                Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
+              </p>
 
-          {/* Informações Pessoais & Turmas (Exclusivo Desktop) */}
-          <div className="hidden md:block flex-1 text-left z-10 w-full md:ml-4">
-            <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-              Olá, {nomeUsuario}! <span className="animate-wave origin-bottom-right text-3xl">👋</span>
-            </h1>
-            <p className="text-slate-500 font-medium text-sm mb-3 max-w-md mt-1">
-              Acompanhe o andamento das suas turmas, registre o diário e fique de olho nos próximos eventos.
-            </p>
-
-            <div className="flex items-center gap-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
-                <Users size={20} className="text-blue-500" />
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
-                  <p className="text-lg font-black text-slate-800 leading-none mt-0.5">{dados.totalAlunos}</p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                {/* Badge Alunos */}
+                <div className="bg-blue-50/60 border border-blue-100 rounded-2xl px-4 py-2 flex items-center gap-3">
+                  <div className="bg-white p-1.5 rounded-full shadow-sm">
+                    <Users size={16} className="text-blue-500" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Alunos</span>
+                    <span className="text-[15px] font-black text-[#1e293b] leading-tight mt-0.5">{dados.totalAlunos}</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 flex flex-col justify-center min-w-[160px]">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Turmas Atribuídas</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                    <span key={t} className="text-xs font-bold bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">{t}</span>
-                  )) : (
-                    <span className="text-xs font-medium text-slate-400">Nenhuma</span>
-                  )}
+                {/* Badge Turmas Atribuídas */}
+                <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl px-4 py-2 flex flex-col justify-center min-w-[160px]">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Turmas Atribuídas</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
+                      <span key={t} className="text-[11px] font-bold bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">{t}</span>
+                    )) : (
+                      <span className="text-[11px] font-medium text-slate-400">Nenhuma</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Estatísticas App Native (Exclusivo Mobile) */}
-          <div className="flex md:hidden items-center justify-around w-full pt-4 border-t border-slate-100 mt-2">
-            <div className="text-center">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alunos</p>
-              <p className="text-xl font-black leading-none text-slate-800 mt-1">{dados.totalAlunos}</p>
-            </div>
-            <div className="w-px h-8 bg-slate-200"></div>
-            <div className="text-center flex-1">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Minhas Turmas</p>
-              <div className="flex flex-wrap gap-1.5 justify-center px-2">
-                {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                  <span key={t} className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">{t}</span>
-                )) : (
-                  <span className="text-[10px] font-medium text-slate-400">Nenhuma</span>
-                )}
               </div>
             </div>
           </div>
@@ -337,120 +317,155 @@ export default function DashboardProfessorPage() {
       </div>
 
       {/* ============================================== */}
-      {/* GRID DE INFORMAÇÕES (Cards Padronizados) */}
+      {/* GRID DE INFORMAÇÕES (Cards 3 Colunas) */}
       {/* ============================================== */}
-      <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 md:px-0">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 px-4 md:px-0">
         
         {/* ===================== COLUNA 1: Programação ===================== */}
-        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
-          <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0">
               <CalendarDays size={20} strokeWidth={2.5} />
             </div>
-            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">Programação</h2>
+            <h2 className="text-[15px] font-bold text-[#1e293b]">Programação</h2>
           </div>
           
-          <div className="flex flex-col gap-6 pt-2">
-            {dados.proximosEventos.length > 0 ? dados.proximosEventos.map((ev, i) => {
-              const estilo = getEventoStyle(ev.titulo);
-              return (
-                <div key={i} className="relative pl-5 py-0.5 flex flex-col">
-                  {/* O detalhe curvo na lateral tipo parêntese */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-2.5 border-l-2 border-y-2 border-r-0 rounded-l-full ${estilo.bracket}`}></div>
-                  
-                  <span className={`text-[11px] font-black uppercase tracking-widest ${estilo.color}`}>
-                    {formatarDataLocal(ev.data)}
-                  </span>
-                  <p className="mt-1 text-[13px] font-bold text-slate-700 leading-snug uppercase">
-                    {ev.titulo}
-                  </p>
-                </div>
-              );
-            }) : (
-              <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
+          <div className="flex-1 flex flex-col relative">
+            {dados.proximosEventos.length > 0 ? (
+              <div className="relative border-l-2 border-[#e2e8f0] ml-4 mt-2 space-y-6 pb-6">
+                {dados.proximosEventos.map((ev, i) => {
+                  const isHoje = extrairDiaUTC(ev.data) === new Date().getDate();
+                  return (
+                    <div key={i} className="relative pl-6 flex items-center justify-between group">
+                      <span className={`absolute -left-[9px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-4 border-white ring-1 ${isHoje ? 'bg-indigo-500 ring-indigo-200' : 'bg-[#cbd5e1] ring-transparent'}`}></span>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col text-center min-w-[36px]">
+                          <span className={`text-[15px] font-black leading-none ${isHoje ? 'text-indigo-600' : 'text-[#475569]'}`}>{extrairDiaUTC(ev.data)}</span>
+                          <span className={`text-[10px] font-bold uppercase ${isHoje ? 'text-indigo-500' : 'text-slate-400'}`}>{extrairMesCurtoUTC(ev.data)}</span>
+                        </div>
+                        <span className="text-[13px] font-bold text-[#334155] uppercase tracking-wide">{ev.titulo}</span>
+                      </div>
+
+                      {isHoje && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Hoje</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50 min-h-[120px]">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Agenda livre.</p>
               </div>
             )}
           </div>
+          
+          {/* O botão 'Ver calendário completo' que agora assume a função exclusiva */}
+          <button 
+            onClick={() => setModalCalendarioAberto(true)}
+            className="mt-auto w-full py-2.5 rounded-xl border border-slate-200 text-[#475569] hover:bg-slate-50 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+          >
+            <CalendarDays size={14} /> Ver calendário completo
+          </button>
         </div>
 
         {/* ===================== COLUNA 2: Aniversários ===================== */}
-        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
-          <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-              <Cake size={20} strokeWidth={2.5} />
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                <Cake size={20} strokeWidth={2.5} />
+              </div>
+              <h2 className="text-[15px] font-bold text-[#1e293b]">
+                Aniversários ({meses[new Date().getUTCMonth()]})
+              </h2>
             </div>
-            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">
-              Aniversários ({meses[new Date().getUTCMonth()]})
-            </h2>
+            <button className="text-[11px] font-bold bg-slate-50 text-[#475569] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors">
+              Ver todos
+            </button>
           </div>
           
           <div className="flex flex-col gap-3">
-            {dados.aniversariantes.length > 0 ? dados.aniversariantes.map(persona => {
+            {dados.aniversariantes.length > 0 ? dados.aniversariantes.slice(0,4).map(persona => {
               const dia = extrairDiaUTC(persona.data_nascimento);
               const isFunc = persona.tipo === 'funcionario';
               return (
-                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-colors group">
-                  <div className="flex items-center gap-3">
-                    <div className="text-center w-8 shrink-0">
-                      <span className={`text-lg font-black ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
+                <div key={`${persona.tipo}-${persona.id}`} className="flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-colors group bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-4 w-full">
+                    <div className="flex flex-col items-center justify-center min-w-[32px]">
+                      <span className={`text-[15px] font-black leading-none ${isFunc ? 'text-purple-500' : 'text-orange-500'}`}>{dia}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{extrairMesCurtoUTC(persona.data_nascimento)}</span>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                    
+                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
                       {persona.foto_url ? (
                         <img src={persona.foto_url} className="w-full h-full object-cover" alt="" />
                       ) : (
                         <span className="font-black text-slate-400 text-xs">{persona.nome.charAt(0)}</span>
                       )}
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-700 transition-colors line-clamp-1">{persona.nome.split(' ')[0]} {persona.nome.split(' ')[1]}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-wider ${isFunc ? 'text-purple-500' : 'text-slate-400'}`}>
+                    
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[13px] font-bold text-[#1e293b] line-clamp-1">{persona.nome}</span>
+                      <span className={`text-[10px] font-bold ${isFunc ? 'text-purple-500' : 'text-slate-400'}`}>
                         {isFunc ? 'Equipe' : `Aluno • ${persona.turma}`}
                       </span>
                     </div>
                   </div>
-                  
-                  <button 
-                    onClick={() => parabensWhatsApp(persona)} 
-                    className="w-8 h-8 rounded-full bg-green-50 text-green-500 flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-all hover:bg-green-500 hover:text-white shrink-0"
-                    title="Mandar Mensagem"
-                  >
-                    <MessageCircleHeart size={14} strokeWidth={2.5} />
-                  </button>
                 </div>
               );
             }) : (
               <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ninguém faz aniversário este mês.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ninguém faz aniversário.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* ===================== COLUNA 3: Alertas de Saúde ===================== */}
-        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col">
-          <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
-              <AlertTriangle size={20} strokeWidth={2.5} />
+        {/* ===================== COLUNA 3: Saúde & Alergias ===================== */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} strokeWidth={2.5} />
+              </div>
+              <h2 className="text-[15px] font-bold text-[#1e293b]">Saúde & Alergias</h2>
             </div>
-            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-widest">Saúde & Alergias</h2>
+            <button className="text-[11px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-100 transition-colors">
+              Ver todos
+            </button>
           </div>
 
-          <div className="flex flex-col gap-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar pr-1">
+          <div className="relative mb-4">
+            <input
+              type="text"
+              placeholder="Pesquisar alergia..."
+              value={buscaSaude}
+              onChange={(e) => setBuscaSaude(e.target.value)}
+              className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-[#f8fafc] border border-slate-200 text-[13px] font-medium text-slate-600 outline-none focus:border-rose-300 focus:bg-white transition-all"
+            />
+            <Search size={16} className="absolute right-3 top-3 text-slate-400" />
+          </div>
+
+          <div className="flex flex-col gap-2 flex-1 overflow-y-auto max-h-[250px] custom-scrollbar pr-1">
             {alertasFiltrados.length > 0 ? alertasFiltrados.map(aluno => (
-              <div key={aluno.id} className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-100 hover:border-rose-200 hover:bg-rose-50/50 cursor-pointer group transition-colors">
-                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
+              <div key={aluno.id} className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-100 hover:border-rose-200 hover:bg-rose-50/50 cursor-pointer group transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                
+                {/* Imagem do aluno restaurada */}
+                <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center overflow-hidden">
                   {aluno.foto_url ? (
-                    <img src={aluno.foto_url} className="w-full h-full object-cover" alt="" />
+                    <img src={aluno.foto_url} className="w-full h-full object-cover" alt={aluno.nome} />
                   ) : (
-                    <span className="text-slate-400 font-black text-xs">{aluno.nome.charAt(0)}</span>
+                    <span className="text-slate-500 font-black text-sm">{aluno.nome.charAt(0)}</span>
                   )}
                 </div>
+
                 <div className="flex flex-col flex-1">
-                  <span className="text-xs font-bold text-slate-700 line-clamp-1 transition-colors">{aluno.nome}</span>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-rose-500 line-clamp-1">{aluno.alergia_descricao || "Atenção médica"}</span>
+                  <span className="text-[13px] font-bold text-[#1e293b] line-clamp-1">{aluno.nome}</span>
+                  <span className="text-[10px] font-bold uppercase text-rose-500 line-clamp-1">{aluno.alergia_descricao || "Atenção médica"}</span>
                 </div>
-                <ChevronRight size={14} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
               </div>
             )) : (
               <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center h-full min-h-[120px]">
@@ -460,6 +475,67 @@ export default function DashboardProfessorPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* ============================================== */}
+      {/* RESUMO DIÁRIO (Alterado de 'Resumo da Semana') */}
+      {/* ============================================== */}
+      <div className="px-4 md:px-0 mt-6">
+        <div className="bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-slate-200">
+          <h2 className="text-[15px] font-bold text-[#1e293b] mb-5">Resumo Diário</h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            
+            {/* Card 1: Alunos */}
+            <div className="bg-[#eff6ff] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#dbeafe]">
+               <div className="bg-white p-2 rounded-xl shadow-sm text-blue-500">
+                 <Users size={20} strokeWidth={2.5} />
+               </div>
+               <div className="text-center md:text-left">
+                 <p className="text-xl font-black text-[#1e293b] leading-none">{dados.totalAlunos}</p>
+                 <p className="text-[11px] font-bold text-slate-500 mt-1">Alunos ativos</p>
+                 <p className="text-[9px] text-slate-400 mt-0.5">100% de presença hoje</p>
+               </div>
+            </div>
+
+            {/* Card 2: Turmas */}
+            <div className="bg-[#f0fdf4] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#dcfce7]">
+               <div className="bg-white p-2 rounded-xl shadow-sm text-green-500">
+                 <BookOpen size={20} strokeWidth={2.5} />
+               </div>
+               <div className="text-center md:text-left">
+                 <p className="text-xl font-black text-[#1e293b] leading-none">{dados.minhasTurmas.length}</p>
+                 <p className="text-[11px] font-bold text-slate-500 mt-1">Turmas</p>
+                 <p className="text-[9px] text-slate-400 mt-0.5">Atribuídas no período</p>
+               </div>
+            </div>
+
+            {/* Card 3: Atividades Pendentes */}
+            <div className="bg-[#fff7ed] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#ffedd5]">
+               <div className="bg-white p-2 rounded-xl shadow-sm text-orange-500">
+                 <ClipboardList size={20} strokeWidth={2.5} />
+               </div>
+               <div className="text-center md:text-left">
+                 <p className="text-xl font-black text-[#1e293b] leading-none">5</p>
+                 <p className="text-[11px] font-bold text-slate-500 mt-1">Atividades pendentes</p>
+                 <p className="text-[9px] text-slate-400 mt-0.5">Acompanhe e corrija</p>
+               </div>
+            </div>
+
+            {/* Card 4: Comunicados */}
+            <div className="bg-[#faf5ff] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#f3e8ff]">
+               <div className="bg-white p-2 rounded-xl shadow-sm text-purple-500">
+                 <Megaphone size={20} strokeWidth={2.5} />
+               </div>
+               <div className="text-center md:text-left">
+                 <p className="text-xl font-black text-[#1e293b] leading-none">2</p>
+                 <p className="text-[11px] font-bold text-slate-500 mt-1">Comunicados</p>
+                 <p className="text-[9px] text-slate-400 mt-0.5">Novos comunicados</p>
+               </div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
       {/* ============================================== */}
