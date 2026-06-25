@@ -404,7 +404,7 @@ export default function TurmasAdminPage() {
              <CalendarDays size={20} strokeWidth={2.5} className="md:w-6 md:h-6" />
           </div>
           <div className="flex flex-col">
-            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">32</p>
+            <p className="text-xl md:text-2xl font-black text-slate-800 leading-none">15</p>
             <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 whitespace-nowrap">Disciplinas</p>
           </div>
         </div>
