@@ -446,7 +446,7 @@ export default function AvaliacoesProfessorPage() {
   );
 
   return (
-    <div className="animate-in fade-in duration-500 w-full relative min-h-screen md:bg-[#e0ffff] overflow-x-hidden">
+    <div className="animate-in fade-in duration-500 w-full relative min-h-screen md:bg-[#d8e8f2] overflow-x-hidden">
 
       <div className="w-full max-w-[1600px] mx-auto flex flex-col md:gap-6 pb-24 md:pb-10">
         

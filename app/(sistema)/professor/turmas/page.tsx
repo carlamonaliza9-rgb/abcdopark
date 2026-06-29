@@ -143,7 +143,7 @@ export default function TurmasProfessorPage() {
   const alunosTurmaAtiva = turmaAtiva ? todosAlunos.filter(a => a.turma === turmaAtiva.nome).sort((a, b) => a.nome.localeCompare(b.nome)) : [];
 
   return (
-    <div className="w-full min-h-screen bg-[#e0ffff] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-[#d8e8f2] p-4 md:p-8 lg:p-10 font-sans pb-32 animate-in fade-in duration-500 overflow-x-hidden">
       
       <div className="w-full max-w-[1400px] mx-auto">
         

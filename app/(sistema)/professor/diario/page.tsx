@@ -366,7 +366,7 @@ export default function DiarioClassePage() {
   if (carregando) return <div className="min-h-screen bg-white md:bg-[#f4f7f9] flex items-center justify-center font-black uppercase text-blue-500 tracking-widest animate-pulse text-xs">Carregando diário...</div>;
 
   return (
-    <div className="w-full min-h-screen bg-white md:bg-[#e0ffff] pb-24 md:pb-32 font-sans animate-in fade-in duration-500 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-white md:bg-[#d8e8f2] pb-24 md:pb-32 font-sans animate-in fade-in duration-500 overflow-x-hidden">
       
       <div className="w-full max-w-[1600px] mx-auto md:p-8 lg:p-10 md:space-y-8">
         

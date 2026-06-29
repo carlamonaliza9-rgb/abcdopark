@@ -226,7 +226,7 @@ export default function DashboardProfessorPage() {
   if (carregando) return <div className="p-10 text-center text-xs font-black uppercase text-slate-400 animate-pulse tracking-widest min-h-screen flex items-center justify-center bg-slate-50">Carregando seu espaço...</div>;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-[#f8fafc] overflow-x-hidden pb-10 md:p-6">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 w-full relative min-h-screen bg-[#d8e8f2] overflow-x-hidden pb-10 md:p-6">
       
       {/* ============================================== */}
       {/* HEADER: Native App Mobile & Desktop Dashboard */}
@@ -269,7 +269,7 @@ export default function DashboardProfessorPage() {
 
           <div className="flex flex-col md:flex-row items-center md:items-center gap-6 w-full relative z-10">
             {/* Foto Original do Usuário */}
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-slate-50 shadow-md shrink-0 flex items-center justify-center overflow-hidden bg-black">
+            <div className="w-24 h-24 md:w-40 md:h-40 rounded-full border-4 border-slate-50 shadow-md shrink-0 flex items-center justify-center overflow-hidden bg-black">
               {ilustracaoProfessor ? (
                  <img src={ilustracaoProfessor} alt="Seu Perfil" className="w-full h-full object-cover" />
               ) : (
@@ -332,7 +332,7 @@ export default function DashboardProfessorPage() {
           
           <div className="flex-1 flex flex-col relative">
             {dados.proximosEventos.length > 0 ? (
-              <div className="relative border-l-2 border-[#e2e8f0] ml-4 mt-2 space-y-6 pb-6">
+              <div className="relative border-l-2 border-[#0019ff] ml-4 mt-2 space-y-6 pb-6">
                 {dados.proximosEventos.map((ev, i) => {
                   const isHoje = extrairDiaUTC(ev.data) === new Date().getDate();
                   return (
@@ -475,67 +475,6 @@ export default function DashboardProfessorPage() {
           </div>
         </div>
 
-      </div>
-
-      {/* ============================================== */}
-      {/* RESUMO DIÁRIO (Alterado de 'Resumo da Semana') */}
-      {/* ============================================== */}
-      <div className="px-4 md:px-0 mt-6">
-        <div className="bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-slate-200">
-          <h2 className="text-[15px] font-bold text-[#1e293b] mb-5">Resumo Diário</h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            
-            {/* Card 1: Alunos */}
-            <div className="bg-[#eff6ff] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#dbeafe]">
-               <div className="bg-white p-2 rounded-xl shadow-sm text-blue-500">
-                 <Users size={20} strokeWidth={2.5} />
-               </div>
-               <div className="text-center md:text-left">
-                 <p className="text-xl font-black text-[#1e293b] leading-none">{dados.totalAlunos}</p>
-                 <p className="text-[11px] font-bold text-slate-500 mt-1">Alunos ativos</p>
-                 <p className="text-[9px] text-slate-400 mt-0.5">100% de presença hoje</p>
-               </div>
-            </div>
-
-            {/* Card 2: Turmas */}
-            <div className="bg-[#f0fdf4] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#dcfce7]">
-               <div className="bg-white p-2 rounded-xl shadow-sm text-green-500">
-                 <BookOpen size={20} strokeWidth={2.5} />
-               </div>
-               <div className="text-center md:text-left">
-                 <p className="text-xl font-black text-[#1e293b] leading-none">{dados.minhasTurmas.length}</p>
-                 <p className="text-[11px] font-bold text-slate-500 mt-1">Turmas</p>
-                 <p className="text-[9px] text-slate-400 mt-0.5">Atribuídas no período</p>
-               </div>
-            </div>
-
-            {/* Card 3: Atividades Pendentes */}
-            <div className="bg-[#fff7ed] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#ffedd5]">
-               <div className="bg-white p-2 rounded-xl shadow-sm text-orange-500">
-                 <ClipboardList size={20} strokeWidth={2.5} />
-               </div>
-               <div className="text-center md:text-left">
-                 <p className="text-xl font-black text-[#1e293b] leading-none">5</p>
-                 <p className="text-[11px] font-bold text-slate-500 mt-1">Atividades pendentes</p>
-                 <p className="text-[9px] text-slate-400 mt-0.5">Acompanhe e corrija</p>
-               </div>
-            </div>
-
-            {/* Card 4: Comunicados */}
-            <div className="bg-[#faf5ff] rounded-2xl p-4 flex flex-col justify-center items-center md:items-start md:flex-row md:justify-start gap-3 border border-[#f3e8ff]">
-               <div className="bg-white p-2 rounded-xl shadow-sm text-purple-500">
-                 <Megaphone size={20} strokeWidth={2.5} />
-               </div>
-               <div className="text-center md:text-left">
-                 <p className="text-xl font-black text-[#1e293b] leading-none">2</p>
-                 <p className="text-[11px] font-bold text-slate-500 mt-1">Comunicados</p>
-                 <p className="text-[9px] text-slate-400 mt-0.5">Novos comunicados</p>
-               </div>
-            </div>
-
-          </div>
-        </div>
       </div>
 
       {/* ============================================== */}
