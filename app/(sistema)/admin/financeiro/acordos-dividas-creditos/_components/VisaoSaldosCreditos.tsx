@@ -65,10 +65,72 @@ export function VisaoSaldosCreditos() {
       try {
         const { data: listaAlunos } = await supabase.from('alunos').select('*');
         const { data: pgtosPendentes } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+
+        const { data: historicoCompleto } = await supabase
+          .from('historico_pagamentos')
+          .select('*');
+
+        const anoAtual = new Date().getFullYear().toString();
+
+        const mensalidadesQuitadas = new Set<string>();
+
+        if (historicoCompleto) {
+          historicoCompleto.forEach((pagamento: any) => {
+            const status = removerAcentos(
+              String(pagamento.status || "").toLowerCase().trim()
+            );
+
+            const tipo = removerAcentos(
+              String(pagamento.tipo || "").toLowerCase().trim()
+            );
+
+            const statusQuitado = [
+              "pago",
+              "paga",
+              "quitado",
+              "quitada",
+              "concluido",
+              "concluida",
+              "recebido",
+              "recebida",
+              "efetuado",
+              "efetuada",
+              "confirmado",
+              "confirmada",
+              "aprovado",
+              "aprovada"
+            ].includes(status);
+
+            if (!statusQuitado || tipo !== "mensalidade") return;
+
+            const { mes, ano } = extrairMesAnoInteligente(
+              pagamento,
+              anoAtual
+            );
+
+            if (!mes || !ano || !pagamento.aluno_id) return;
+
+            const chaveMensalidade = [
+              String(pagamento.aluno_id),
+              removerAcentos(mes.toLowerCase().trim()),
+              String(ano)
+            ].join("|");
+
+            mensalidadesQuitadas.add(chaveMensalidade);
+          });
+        }
         
         // --- NOVA TRAVA: Buscar acordos para remover as dívidas substituídas ---
-        const { data: acordosDB } = await supabase.from('historico_pagamentos').select('detalhes_metodos').eq('tipo', 'acordo');
+        const acordosDB = (historicoCompleto || []).filter((registro: any) => {
+          const tipo = removerAcentos(
+            String(registro.tipo || "").toLowerCase().trim()
+          );
+          return tipo === "acordo";
+        });
+
         let idsDuvidasRenegociadas: string[] = [];
+        const mensalidadesRenegociadas = new Set<string>();
+
         if (acordosDB) {
           acordosDB.forEach(ac => {
              let detalhes = ac.detalhes_metodos;
@@ -76,7 +138,65 @@ export function VisaoSaldosCreditos() {
                try { detalhes = JSON.parse(detalhes); } catch(e) { detalhes = {}; }
              }
              if (detalhes?.ids_origem_acordo) {
-                idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
+                const idsOrigem = Array.isArray(detalhes.ids_origem_acordo)
+                  ? detalhes.ids_origem_acordo
+                  : [detalhes.ids_origem_acordo];
+
+                idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(
+                  idsOrigem.map((id: any) => String(id))
+                );
+             }
+
+             const descricaoAcordo = removerAcentos(
+               String(ac.descricao || "").toLowerCase()
+             );
+
+             const nomesMesesAcordo = [
+               "janeiro",
+               "fevereiro",
+               "marco",
+               "abril",
+               "maio",
+               "junho",
+               "julho",
+               "agosto",
+               "setembro",
+               "outubro",
+               "novembro",
+               "dezembro"
+             ];
+
+             const mesesEncontradosNoAcordo = nomesMesesAcordo.filter(
+               mesAcordo => descricaoAcordo.includes(mesAcordo)
+             );
+
+             const anoEncontradoNoAcordo = descricaoAcordo.match(/(20\d{2})/)?.[0];
+
+             if (mesesEncontradosNoAcordo.length > 0 && anoEncontradoNoAcordo && ac.aluno_id) {
+               mesesEncontradosNoAcordo.forEach(mesAcordo => {
+                 const chaveMensalidadeRenegociada = [
+                   String(ac.aluno_id),
+                   mesAcordo,
+                   String(anoEncontradoNoAcordo)
+                 ].join("|");
+
+                 mensalidadesRenegociadas.add(chaveMensalidadeRenegociada);
+               });
+             } else {
+               const { mes, ano } = extrairMesAnoInteligente(
+                 ac,
+                 anoAtual
+               );
+
+               if (mes && ano && ac.aluno_id) {
+                 const chaveMensalidadeRenegociada = [
+                   String(ac.aluno_id),
+                   removerAcentos(mes.toLowerCase().trim()),
+                   String(ano)
+                 ].join("|");
+
+                 mensalidadesRenegociadas.add(chaveMensalidadeRenegociada);
+               }
              }
           });
         }
@@ -108,6 +228,28 @@ export function VisaoSaldosCreditos() {
                  if (idsDuvidasRenegociadas.includes(String(p.id))) return false;
 
                  if (p.tipo !== 'mensalidade') return true;
+
+                 const { mes, ano } = extrairMesAnoInteligente(
+                   p,
+                   anoAtual
+                 );
+
+                 if (mes && ano && p.aluno_id) {
+                   const chaveMensalidade = [
+                     String(p.aluno_id),
+                     removerAcentos(mes.toLowerCase().trim()),
+                     String(ano)
+                   ].join("|");
+
+                   if (mensalidadesRenegociadas.has(chaveMensalidade)) {
+                     return false;
+                   }
+
+                   if (mensalidadesQuitadas.has(chaveMensalidade)) {
+                     return false;
+                   }
+                 }
+
                  const dataVenc = new Date(p.data_vencimento || p.vencimento || p.data_pagamento || new Date());
                  dataVenc.setHours(0,0,0,0);
                  const hoje = new Date();

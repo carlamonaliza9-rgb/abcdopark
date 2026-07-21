@@ -36,6 +36,100 @@ const getDetalhes = (t: any) => {
   return t.detalhes_metodos;
 };
 
+const normalizarTextoFinanceiro = (valor: any) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const mesesCompetencia = [
+  "janeiro", "fevereiro", "marco", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+];
+
+const extrairAnoMesData = (valor: any) => {
+  const match = String(valor || "").match(/^(20\d{2})-(0[1-9]|1[0-2])/);
+  if (!match) return null;
+  return { ano: match[1], mes: parseInt(match[2], 10) };
+};
+
+function extrairCompetenciaFinanceira(h: any, fallbackAno: string) {
+  const descricao = normalizarTextoFinanceiro(h?.descricao);
+  const referencia = normalizarTextoFinanceiro(
+    h?.mes_referencia || h?.competencia || h?.referencia || ""
+  );
+  const textoCompleto = `${referencia} ${descricao}`.trim();
+
+  let mes: number | null = null;
+  let ano: string | null = null;
+
+  const competenciaNumerica = textoCompleto.match(
+    /(?:^|\D)(0?[1-9]|1[0-2])\s*[\/-]\s*(20\d{2})(?:\D|$)/
+  );
+
+  if (competenciaNumerica) {
+    mes = parseInt(competenciaNumerica[1], 10);
+    ano = competenciaNumerica[2];
+  }
+
+  if (!mes) {
+    const indiceMes = mesesCompetencia.findIndex((nomeMes) =>
+      textoCompleto.includes(nomeMes)
+    );
+    if (indiceMes !== -1) mes = indiceMes + 1;
+  }
+
+  if (!mes && /^(0?[1-9]|1[0-2])$/.test(referencia)) {
+    mes = parseInt(referencia, 10);
+  }
+
+  if (!ano) {
+    const anoDireto = String(
+      h?.ano_referencia || h?.ano_letivo || h?.competencia_ano || ""
+    ).match(/20\d{2}/)?.[0];
+    const anoNoTexto = textoCompleto.match(/20\d{2}/)?.[0];
+    ano = anoDireto || anoNoTexto || null;
+  }
+
+  const dataVencimento = extrairAnoMesData(h?.data_vencimento || h?.vencimento);
+  if (dataVencimento) {
+    if (!ano) ano = dataVencimento.ano;
+    if (!mes) mes = dataVencimento.mes;
+  }
+
+  if (!ano) {
+    const dataPagamento = extrairAnoMesData(h?.data_pagamento);
+    if (dataPagamento) {
+      if (mes && dataPagamento.mes >= 9 && mes <= 4) {
+        ano = String(parseInt(dataPagamento.ano, 10) + 1);
+      } else {
+        ano = dataPagamento.ano;
+      }
+    }
+  }
+
+  if (!ano) {
+    const dataCriacao = extrairAnoMesData(h?.created_at);
+    if (dataCriacao) {
+      if (mes && dataCriacao.mes >= 9 && mes <= 4) {
+        ano = String(parseInt(dataCriacao.ano, 10) + 1);
+      } else {
+        ano = dataCriacao.ano;
+      }
+    }
+  }
+
+  return { mes, ano: ano || fallbackAno };
+}
+
+function obterChaveCompetenciaFinanceira(h: any, fallbackAno: string) {
+  if (!h?.aluno_id) return null;
+  const { mes, ano } = extrairCompetenciaFinanceira(h, fallbackAno);
+  if (!mes || !ano) return null;
+  return `${String(h.aluno_id)}|${ano}|${String(mes).padStart(2, "0")}`;
+}
+
 export default function FinanceiroAdminPage() {
   const router = useRouter();
   
@@ -127,33 +221,48 @@ export default function FinanceiroAdminPage() {
     
     const { data: pgtosMesDB } = await supabase.from('historico_pagamentos').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
     const { data: pgtosPendentesDB } = await supabase.from('historico_pagamentos').select('*').in('status', ['pendente', 'parcial', 'atrasado']);
+    const { data: historicoCompletoDB } = await supabase.from('historico_pagamentos').select('*');
+    const historicoCompleto = historicoCompletoDB || [];
 
     // --- NOVA REGRA DE DEDUPLICAÇÃO DE ACORDOS ---
-    const { data: todosAcordosDB } = await supabase.from('historico_pagamentos').select('aluno_id, descricao').eq('tipo', 'acordo');
-    const acordosSeguros = todosAcordosDB || [];
+    const acordosSeguros = historicoCompleto.filter((p: any) => normalizarTextoFinanceiro(p.tipo) === 'acordo');
 
     // Função que checa se uma mensalidade foi transformada em acordo
     const isMensalidadeSubstituidaPorAcordo = (p: any) => {
-        if (p.tipo !== 'mensalidade') return false;
-        
-        const descLower = (p.descricao || '').toLowerCase();
-        const mesEncontrado = mesesAno.find(m => descLower.includes(m.toLowerCase()));
-        const anoEncontrado = descLower.match(/20\d{2}/)?.[0]; // Puxa o ano (ex: 2026)
+        if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return false;
 
-        if (mesEncontrado) {
-            return acordosSeguros.some(ac => {
-                const acDescLower = (ac.descricao || '').toLowerCase();
-                const hasMes = acDescLower.includes(mesEncontrado.toLowerCase());
-                const hasAno = anoEncontrado ? acDescLower.includes(anoEncontrado) : true;
-                return ac.aluno_id === p.aluno_id && hasMes && hasAno;
-            });
-        }
-        return false;
+        const chaveMensalidade = obterChaveCompetenciaFinanceira(p, ano);
+        if (!chaveMensalidade) return false;
+
+        return acordosSeguros.some((ac: any) =>
+          obterChaveCompetenciaFinanceira(ac, ano) === chaveMensalidade
+        );
     };
 
-    // Remove mensalidades "mortas" que já viraram acordo
-    const pgtosMes = (pgtosMesDB || []).filter((p: any) => !isMensalidadeSubstituidaPorAcordo(p));
-    const pgtosPendentes = (pgtosPendentesDB || []).filter((p: any) => !isMensalidadeSubstituidaPorAcordo(p));
+    const statusQuitados = new Set([
+      'pago', 'paga', 'quitado', 'quitada', 'concluido', 'concluida',
+      'recebido', 'recebida', 'efetuado', 'efetuada', 'confirmado',
+      'confirmada', 'aprovado', 'aprovada'
+    ]);
+
+    const mensalidadesQuitadas = new Set<string>();
+    historicoCompleto.forEach((p: any) => {
+      if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return;
+      if (!statusQuitados.has(normalizarTextoFinanceiro(p.status))) return;
+
+      const chave = obterChaveCompetenciaFinanceira(p, ano);
+      if (chave) mensalidadesQuitadas.add(chave);
+    });
+
+    // Mantém na receita todo valor efetivamente recebido, inclusive pagamentos parciais feitos antes de um acordo
+    const pgtosMes = pgtosMesDB || [];
+    const pgtosPendentes = (pgtosPendentesDB || []).filter((p: any) => {
+      if (isMensalidadeSubstituidaPorAcordo(p)) return false;
+      if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return true;
+
+      const chave = obterChaveCompetenciaFinanceira(p, ano);
+      return !chave || !mensalidadesQuitadas.has(chave);
+    });
 
     const transacoesEntrada = pgtosMes.filter(p => {
       const detalhes = getDetalhes(p);
@@ -172,10 +281,14 @@ export default function FinanceiroAdminPage() {
     }));
 
     const nomeMesReferencia = mesesAno[parseInt(mes, 10) - 1] || "";
-    const { data: pgtosReferencia = [] } = await supabase.from('historico_pagamentos')
-      .select('aluno_id')
-      .eq('tipo', 'mensalidade')
-      .like('descricao', `%${nomeMesReferencia}%${ano}%`);
+    const pgtosReferencia = historicoCompleto.filter((p: any) => {
+      if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return false;
+      if (!statusQuitados.has(normalizarTextoFinanceiro(p.status))) return false;
+      if (isMensalidadeSubstituidaPorAcordo(p)) return false;
+
+      const competencia = extrairCompetenciaFinanceira(p, ano);
+      return competencia.mes === parseInt(mes, 10) && competencia.ano === ano;
+    });
 
     const mapaPgtos = new Map();
     transacoesEntrada.forEach((p: any) => mapaPgtos.set(p.id, p));
@@ -234,7 +347,16 @@ export default function FinanceiroAdminPage() {
       pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100) || 0
     });
 
-    const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => p.data_pagamento && p.data_pagamento >= dataInicio && p.data_pagamento <= dataFim && (p.status === 'pago' || p.status === 'parcial'));
+    const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => {
+      const status = normalizarTextoFinanceiro(p.status);
+      const possuiValorRecebido = clean(p.valor_pago) > 0;
+      const statusRecebido = status === 'pago' || status === 'parcial' || (status === 'renegociado' && possuiValorRecebido);
+
+      return p.data_pagamento &&
+        p.data_pagamento >= dataInicio &&
+        p.data_pagamento <= dataFim &&
+        statusRecebido;
+    });
     const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
 
     const vMensalidadesPagos = pgtosEfetuadosEsteMes
@@ -281,8 +403,6 @@ export default function FinanceiroAdminPage() {
     const mensalidadeLocal = typeof window !== 'undefined' ? localStorage.getItem('valorPadraoMensalidade') : null;
     const mensalidadeBaseVigente = Number(mensalidadeLocal) || 550;
 
-    const stringFiltroMensalidade = `${nomeMesReferencia}/${ano}`;
-    
     const anoFiltro = parseInt(ano, 10);
     const mesFiltroNum = parseInt(mes, 10);
     const hojeAno = hoje.getFullYear();
@@ -292,7 +412,7 @@ export default function FinanceiroAdminPage() {
     const ehMesPassado = anoFiltro < hojeAno || (anoFiltro === hojeAno && mesFiltroNum < hojeMes);
     const ehMesAtual = anoFiltro === hojeAno && mesFiltroNum === hojeMes;
 
-    let vMensalidadesEmAtrasoNoMes = 0;
+    let vMensalidadesAReceberNoMes = 0;
     const mapaDevedores = new Map();
 
     // 1. Dívidas Globais do Banco de Dados
@@ -346,33 +466,41 @@ export default function FinanceiroAdminPage() {
         }
     });
 
-    // 2. Cálculo de Mensalidades em Atraso (Previsão Dinâmica)
+    // 2. Cálculo de Mensalidades a Receber no Mês (vencidas e ainda não vencidas)
     alunosSeguros.forEach((aluno) => {
       const valorAluno = parseFloat(aluno.valor) > 0 ? parseFloat(aluno.valor) : mensalidadeBaseVigente;
       const vencimento = parseInt(aluno.vencimento) || 1;
       
-      const pgtosDoAluno = pgtosFiltrados.filter((p: any) => 
-        p.tipo === 'mensalidade' && p.aluno_id === aluno.id && p.descricao && p.descricao.includes(stringFiltroMensalidade)
-      );
+      const pgtosDoAluno = historicoCompleto.filter((p: any) => {
+        if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return false;
+        if (String(p.aluno_id) !== String(aluno.id)) return false;
+        if (isMensalidadeSubstituidaPorAcordo(p)) return false;
+
+        const competencia = extrairCompetenciaFinanceira(p, ano);
+        return competencia.mes === mesFiltroNum && competencia.ano === ano;
+      });
       
       const valorPagoAluno = pgtosDoAluno.reduce((sum, curr) => sum + (parseFloat(curr.valor_pago) || 0), 0);
       
       // Se houver acordo para este mês, zera o saldo devedor pendente desta mensalidade (pois já foi contabilizado como acordo)
-      const temAcordoParaEsteMes = acordosSeguros.some(ac => {
-          const descLower = (ac.descricao || '').toLowerCase();
-          return ac.aluno_id === aluno.id && descLower.includes(nomeMesReferencia.toLowerCase()) && (ac.descricao || '').includes(ano);
+      const temAcordoParaEsteMes = acordosSeguros.some((ac: any) => {
+          if (String(ac.aluno_id) !== String(aluno.id)) return false;
+          const competencia = extrairCompetenciaFinanceira(ac, ano);
+          return competencia.mes === mesFiltroNum && competencia.ano === ano;
       });
 
       const saldoDevedor = temAcordoParaEsteMes ? 0 : Math.max(0, valorAluno - valorPagoAluno);
 
       if (saldoDevedor > 0) {
+        // O card "A receber no mês" inclui mensalidades vencidas e ainda não vencidas.
+        vMensalidadesAReceberNoMes += saldoDevedor;
+
         let isAtrasado = false;
         if (ehMesPassado) isAtrasado = true;
         else if (ehMesAtual && hojeDia > vencimento) isAtrasado = true;
 
+        // O radar de inadimplência continua exibindo somente valores realmente atrasados.
         if (isAtrasado) {
-          vMensalidadesEmAtrasoNoMes += saldoDevedor;
-          
           const hasPendingRecordInDB = pgtosDoAluno.some((p: any) => ['pendente', 'parcial', 'atrasado'].includes(p.status));
           if (!hasPendingRecordInDB) {
               if (!mapaDevedores.has(aluno.id)) {
@@ -390,40 +518,55 @@ export default function FinanceiroAdminPage() {
       }
     });
 
-    // 3. Extras Pendentes do Mês Selecionado (para a Métrica do Topo)
-    const extrasPendentesDesteMes = pgtosFiltrados.filter((p: any) => {
-      if (p.tipo === 'mensalidade') return false;
-      const dataAlvo = p.data_vencimento || p.data_pagamento || p.created_at;
-      const pertenceAoMes = dataAlvo ? dataAlvo.startsWith(mesFiltro) : (p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano));
-      if (!pertenceAoMes) return false;
+    // 3. Extras e parcelas de acordo a receber no mês selecionado, vencidos ou ainda não vencidos
+    const extrasPendentesDesteMes = pgtosPendentes.filter((p: any) => {
+      if (normalizarTextoFinanceiro(p.tipo) === 'mensalidade') return false;
 
-      let isAtrasado = false;
-      if (p.status === 'atrasado') isAtrasado = true;
-      else if (p.status === 'pendente' || p.status === 'parcial') {
-          if (p.data_vencimento) isAtrasado = new Date(p.data_vencimento + "T23:59:59") < hoje;
-          else isAtrasado = ehMesPassado;
-      }
-      return isAtrasado;
+      const dataAlvo = p.data_vencimento || p.data_pagamento || p.created_at;
+      return dataAlvo
+        ? String(dataAlvo).startsWith(mesFiltro)
+        : Boolean(p.descricao && p.descricao.includes(nomeMesReferencia) && p.descricao.includes(ano));
     });
 
-    const vExtrasEmAtrasoNoMes = extrasPendentesDesteMes.reduce((acc, pend) => {
-      const saldoDevedor = clean(pend.valor_total) - clean(pend.valor_pago);
+    const vExtrasAReceberNoMes = extrasPendentesDesteMes.reduce((acc, pend) => {
+      const saldoDevedor = clean(pend.valor_total || pend.valor) - clean(pend.valor_pago);
       return saldoDevedor > 0 ? acc + saldoDevedor : acc;
     }, 0);
 
-    const totalPendenteAtrasadoNoMes = vMensalidadesEmAtrasoNoMes + vExtrasEmAtrasoNoMes;
-    const totalGeralPrevisto = vPago + totalPendenteAtrasadoNoMes;
+    const totalAReceberNoMes = vMensalidadesAReceberNoMes + vExtrasAReceberNoMes;
+    const totalGeralPrevisto = vPago + totalAReceberNoMes;
     
     // 4. Fechamento de Métricas Superiores
+    // Calcula a concessão da mensalidade referente ao mês selecionado.
+    // Pagamentos antecipados continuam vinculados à competência correta.
     const totalDescontos = alunosSeguros.reduce((acc, curr) => {
-      const valorAluno = parseFloat(curr.valor);
-      if (valorAluno > 0 && valorAluno < mensalidadeBaseVigente) {
-          return acc + (mensalidadeBaseVigente - valorAluno);
+      const mensalidadesDaCompetencia = historicoCompleto.filter((p: any) => {
+        if (normalizarTextoFinanceiro(p.tipo) !== 'mensalidade') return false;
+        if (String(p.aluno_id) !== String(curr.id)) return false;
+
+        const status = normalizarTextoFinanceiro(p.status);
+        if (status === 'cancelado' || status === 'estornado') return false;
+
+        const competencia = extrairCompetenciaFinanceira(p, ano);
+        return competencia.mes === mesFiltroNum && competencia.ano === ano;
+      });
+
+      const valoresRegistrados = mensalidadesDaCompetencia
+        .map((p: any) => clean(p.valor_total || p.valor))
+        .filter((valor: number) => valor > 0);
+
+      const valorMensalidadeNoMes = valoresRegistrados.length > 0
+        ? Math.max(...valoresRegistrados)
+        : clean(curr.valor);
+
+      if (valorMensalidadeNoMes > 0 && valorMensalidadeNoMes < mensalidadeBaseVigente) {
+        return acc + (mensalidadeBaseVigente - valorMensalidadeNoMes);
       }
+
       return acc;
     }, 0);
     
-    setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalPendenteAtrasadoNoMes, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
+    setMetricas({ total: totalGeralPrevisto, pago: vPago, pendente: totalAReceberNoMes, descontos: totalDescontos, gastos: vGastos, lucro: vPago - vGastos });
 
     // 5. Fechamento do Radar Global (Top 3)
     const radarOrdenado = Array.from(mapaDevedores.values())
