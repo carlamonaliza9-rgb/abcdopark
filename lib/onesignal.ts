@@ -38,7 +38,7 @@ export async function dispararNotificacaoTurma(
 
 // 2. Função para avisar todos de um CARGO específico (ex: Lembrete para Professores)
 export async function dispararNotificacaoPorCargo(
-  cargo: string, 
+  cargo: string, // Ex: "professor"
   titulo: string, 
   mensagem: string
 ) {
@@ -55,6 +55,7 @@ export async function dispararNotificacaoPorCargo(
     },
     body: JSON.stringify({
       app_id: appId,
+      // Aqui a mágica acontece: ele busca quem tem a tag cargo = professor
       filters: [
         { field: "tag", key: "cargo", relation: "=", value: cargo }
       ],
