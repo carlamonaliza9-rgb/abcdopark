@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 import { removerAcentos } from "@/lib/utils"; 
 import { 
   Home, 
@@ -65,7 +64,6 @@ function extrairMesAnoInteligente(h: any, fallbackAno: string) {
 }
 
 export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
-  const router = useRouter();
   const [valorPadrao, setValorPadrao] = useState(550);
   const [editandoValor, setEditandoValor] = useState(false);
   const [inicializado, setInicializado] = useState(false);
@@ -673,7 +671,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                             </button>
                           ) : (
                             <>
-                              <button onClick={() => router.push(`/admin/pdv?alunoId=${aluno.id}`)} className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-black bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-[0_2px_10px_rgba(37,99,235,0.2)] transition-all active:scale-95 w-[85px] justify-center">
+                              <button onClick={() => window.open(`/admin/pdv?alunoId=${aluno.id}`, '_blank', 'noopener,noreferrer')} className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-black bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-[0_2px_10px_rgba(37,99,235,0.2)] transition-all active:scale-95 w-[85px] justify-center">
                                 <CreditCard size={14} /> Pagar
                               </button>
                               <button onClick={() => {

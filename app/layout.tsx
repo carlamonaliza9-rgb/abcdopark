@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// IMPORTAMOS O AVISO DO APP AQUI
-import { InstalarAppAviso } from "@/app/_components/InstalarAppAviso"; 
+import { InstalarAppAviso } from "@/app/_components/InstalarAppAviso";
+import OneSignalProvider from "@/app/_components/OneSignalProvider"; 
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,24 +38,15 @@ export default function RootLayout({
       lang="pt-BR" 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* 👇 A COR DE FUNDO GLOBAL FOI INJETADA AQUI 👇 */}
       <body className="min-h-full flex flex-col bg-[#e0ffff]">
-        {children}
-        
-        {/* COMPONENTE FLUTUANTE DE INSTALAÇÃO RENDERIZADO AQUI */}
+        {/* O PROVIDER INICIALIZA O ONESIGNAL AUTOMATICAMENTE */}
+        <OneSignalProvider>
+          {children}
+        </OneSignalProvider>
+
         <InstalarAppAviso />
         
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js');
-                });
-              }
-            `,
-          }}
-        />
+        {/* REMOVEMOS O BLOCO <script> AQUI. Ele era a causa dos erros 404 e conflitos. */}
       </body>
     </html>
   );

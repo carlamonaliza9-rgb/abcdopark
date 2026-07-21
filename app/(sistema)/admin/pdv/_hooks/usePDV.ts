@@ -4,6 +4,20 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams, useRouter } from "next/navigation";
 import { clean, gerarReciboPDF } from "../_utils/gerarReciboPDF";
+import { mesesAno, precosUniformes } from "./pdvConstants";
+import {
+  parseDetalhesMetodos,
+  extrairMesReferencia,
+  extrairAnoReferencia,
+  inferirAnoCompetenciaLegado,
+  competenciasDoRegistro,
+  chaveCompetencia,
+  registroEhDaCompetencia,
+  calcularStatusPeloPagamento,
+  obterDataOrdenacaoRegistro,
+  parseDataLocal,
+  formatarRegistrosRecentes
+} from "./pdvUtils";
 
 export function usePDV() {
   const router = useRouter();
@@ -38,12 +52,22 @@ export function usePDV() {
   const dataHojeStr = dataLocal.toISOString().split('T')[0];
   
   const [dataPagamentoPDV, setDataPagamentoPDV] = useState(dataHojeStr);
+
+  const [registrosRecentes, setRegistrosRecentes] = useState<any[]>([]);
+  const [modalEditarRegistroRecente, setModalEditarRegistroRecente] = useState(false);
+  const [registroRecenteSelecionado, setRegistroRecenteSelecionado] = useState<any>(null);
+  const [formRegistroRecente, setFormRegistroRecente] = useState({
+    descricao: "",
+    valor_total: "",
+    valor_pago: "",
+    data_pagamento: dataHojeStr,
+    observacao: ""
+  });
   
   const [novoItem, setNovoItem] = useState({ tipo: 'uniforme', descricao: '', valor: '' });
   const [uniformesVenda, setUniformesVenda] = useState({ camisaPadrao: 0, camisaEdFisica: 0, calca: 0, shortSaia: 0, short: 0, casaco: 0 });
   const [uniformesTamanhos, setUniformesTamanhos] = useState({ camisaPadrao: "4 anos", camisaEdFisica: "4 anos", calca: "4 anos", shortSaia: "4 anos", short: "4 anos", casaco: "4 anos" });
   
-  const precosUniformes = { camisaPadrao: 60, camisaEdFisica: 60, calca: 80, shortSaia: 60, short: 60, casaco: 130 };
   const totalVendaUniforme = 
     (uniformesVenda.camisaPadrao * precosUniformes.camisaPadrao) + 
     (uniformesVenda.camisaEdFisica * precosUniformes.camisaEdFisica) + 
@@ -61,7 +85,48 @@ export function usePDV() {
   const [processando, setProcessando] = useState(false);
   const [acaoTroco, setAcaoTroco] = useState<'credito' | 'devolver'>('credito');
 
-  const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const filtrarPagamentosRecentes48h = (historico: any[] = [], caixaIdAtual?: any) => {
+    const agora = new Date();
+    const limite48h = new Date(agora.getTime() - 48 * 60 * 60 * 1000);
+    const caixaIdReferencia = caixaIdAtual || caixaAtual?.id;
+
+    return (historico || []).filter((h: any) => {
+      const status = (h.status || '').toLowerCase().trim();
+      const tipo = (h.tipo || '').toLowerCase().trim();
+
+      if (!['pago', 'parcial'].includes(status)) return false;
+      if (tipo === 'estorno') return false;
+      if (clean(h.valor_pago) <= 0) return false;
+
+      // Se foi lançado no caixa aberto, deve aparecer imediatamente,
+      // mesmo que a mensalidade seja de outro mês ou o registro seja antigo.
+      if (caixaIdReferencia && h.caixa_id && String(h.caixa_id) === String(caixaIdReferencia)) {
+        return true;
+      }
+
+      const dataRegistro = obterDataOrdenacaoRegistro(h);
+      if (!dataRegistro) return false;
+
+      const data = parseDataLocal(dataRegistro) || new Date(dataRegistro);
+      if (Number.isNaN(data.getTime())) return false;
+
+      return data >= limite48h;
+    });
+  };
+
+  const registroPodeSerAlterado = (registro: any) => {
+    const status = (registro?.status || '').toLowerCase().trim();
+    if (!registro || ['estornado', 'cancelado'].includes(status)) return false;
+    if (!caixaAtual?.id || !registro?.caixa_id) return false;
+
+    return String(registro.caixa_id) === String(caixaAtual.id);
+  };
+
+  const atualizarAlunoSelecionadoAposRegistro = (registro: any) => {
+    if (alunoSelecionado && String(alunoSelecionado.id) === String(registro?.aluno_id)) {
+      setAlunoSelecionado((prev: any) => prev ? { ...prev } : prev);
+    }
+  };
 
   const temLivroNoCarrinho = carrinho.some(item => item.tipo === 'livro' || (item.descricao || '').toLowerCase().includes('livro'));
 
@@ -91,6 +156,7 @@ export function usePDV() {
     if (listaAlunos && historico) {
       setAlunos(listaAlunos); 
       setHistoricoGeral(historico);
+      setRegistrosRecentes(formatarRegistrosRecentes(filtrarPagamentosRecentes48h(historico, sessaoAberta?.id), listaAlunos));
       
       if (sessaoAberta) {
         setRecebimentosTurno(historico.filter(h => h.caixa_id === sessaoAberta.id && (h.status === 'pago' || h.status === 'parcial') && clean(h.valor_pago) > 0));
@@ -117,7 +183,6 @@ export function usePDV() {
       const hojeRadar = new Date();
       hojeRadar.setHours(0,0,0,0);
 
-      // NOVO BLOCO: Prevenir Duplicação de Dívida de Acordos no Radar
       let idsDuvidasRenegociadas: string[] = [];
       historico.forEach(ac => {
          if (ac.tipo === 'acordo') {
@@ -126,7 +191,7 @@ export function usePDV() {
                try { detalhes = JSON.parse(detalhes); } catch(e) { detalhes = {}; }
              }
              if (detalhes?.ids_origem_acordo) {
-                idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
+                 idsDuvidasRenegociadas = idsDuvidasRenegociadas.concat(detalhes.ids_origem_acordo);
              }
          }
       });
@@ -136,7 +201,6 @@ export function usePDV() {
           const status = pend.status?.toLowerCase();
           if (['pago', 'renegociado', 'cancelado', 'estornado'].includes(status)) return;
           
-          // IGNORA A DÍVIDA SE ELA TIVER SIDO TRANSFORMADA EM ACORDO
           if (idsDuvidasRenegociadas.includes(String(pend.id))) return;
           
           const devedorRestante = clean(pend.valor_total || pend.valor) - clean(pend.valor_pago);
@@ -181,45 +245,67 @@ export function usePDV() {
         try {
           const { data: mData } = await supabase.from('mensalidades').select('*').eq('aluno_id', alunoSelecionado.id);
           if (mData) {
-            const extraMensalidades = mData.map((m: any) => ({ 
-              id: m.id, aluno_id: m.aluno_id, tipo: 'mensalidade', 
-              descricao: m.descricao || `Mensalidade - Ref: ${m.mes_referencia || 'Recorrente'}`, 
-              valor_total: m.valor_total || m.valor || 0, valor_pago: m.valor_pago || 0, 
-              status: m.status || 'pendente', data_pagamento: m.data_vencimento || m.vencimento || dataHojeStr, 
-              isMensalidadeTable: true 
-            }));
+            const extraMensalidades = mData.map((m: any) => {
+              const vencimentoMensalidade = m.data_vencimento || m.vencimento || dataHojeStr;
+              const mesReferencia = m.mes_referencia || extrairMesReferencia(m) || 'Recorrente';
+
+              return { 
+                id: m.id,
+                aluno_id: m.aluno_id,
+                tipo: 'mensalidade',
+                descricao: m.descricao || `Mensalidade - Ref: ${mesReferencia}`,
+                mes_referencia: mesReferencia,
+                valor_total: m.valor_total || m.valor || 0,
+                valor_pago: m.valor_pago || 0,
+                status: m.status || 'pendente',
+                data_pagamento: vencimentoMensalidade,
+                data_vencimento: vencimentoMensalidade,
+                detalhes_metodos: m.detalhes_metodos || {},
+                isMensalidadeTable: true 
+              };
+            });
             registrosPuros = [...registrosPuros, ...extraMensalidades];
           }
         } catch (e) {}
 
         const dataAtual = new Date(); 
-        const mesAtualNum = dataAtual.getMonth(); 
-        const diaAtual = dataAtual.getDate(); 
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
         const anoAtual = dataAtual.getFullYear().toString(); 
         const diaVencimentoAluno = parseInt(alunoSelecionado.vencimento) || 5; 
         const valorMensalidadeBase = parseFloat(alunoSelecionado.valor) || 0;
 
         if (valorMensalidadeBase > 0) {
-          for (let i = 0; i <= mesAtualNum; i++) {
-            if ((i < mesAtualNum) || (i === mesAtualNum && diaAtual > diaVencimentoAluno)) {
+          for (let i = 0; i < 12; i++) {
               const nomeMes = mesesAno[i];
-              const jaExiste = registrosPuros.some((h: any) => 
-                (h.tipo?.toLowerCase() === 'mensalidade' || h.tipo?.toLowerCase() === 'acordo') && 
-                h.mes_referencia?.toLowerCase().trim() === nomeMes.toLowerCase() && 
-                (h.data_pagamento?.startsWith(anoAtual) || (h.descricao || "").includes(anoAtual)) && 
-                !['cancelado', 'estornado', 'renegociado'].includes(h.status) // IGNORA RENOGOCIADAS
-              );
+              
+              const jaExiste = registrosPuros.some((h: any) => {
+                const tipo = h.tipo?.toLowerCase();
+                const status = (h.status || "").toLowerCase().trim();
+
+                if (!['mensalidade', 'acordo'].includes(tipo)) return false;
+                if (['cancelado', 'estornado'].includes(status)) return false;
+
+                return registroEhDaCompetencia(h, nomeMes, anoAtual);
+              });
               
               if (!jaExiste) {
+                const dataVencimentoReal = new Date(dataAtual.getFullYear(), i, diaVencimentoAluno);
+                const dataVencimentoZero = new Date(dataVencimentoReal);
+                dataVencimentoZero.setHours(0,0,0,0);
+                
+                const isAtrasado = dataVencimentoZero < hoje;
+                
                 registrosPuros.push({ 
                   id: `temp_mens_${nomeMes}_${Date.now()}_${i}`, tipo: 'mensalidade', 
                   descricao: `Mensalidade - ${nomeMes}/${anoAtual}`, mes_referencia: nomeMes, 
                   valor_total: valorMensalidadeBase, valor_pago: 0, 
-                  data_pagamento: new Date(dataAtual.getFullYear(), i, diaVencimentoAluno).toISOString(), 
-                  status: 'atrasado', atraso_automatico: true, isTemp: true 
+                  data_pagamento: dataVencimentoReal.toISOString(),
+                  data_vencimento: dataVencimentoReal.toISOString(),
+                  detalhes_metodos: { competencia: { mes: nomeMes, ano: anoAtual } },
+                  status: isAtrasado ? 'atrasado' : 'pendente', 
+                  atraso_automatico: isAtrasado, isTemp: true 
                 });
               }
-            }
           }
         }
 
@@ -240,7 +326,6 @@ export function usePDV() {
           }
         } catch(e) {}
 
-        // Busca IDs que viraram Acordo
         let idsDuvidasRenegociadas: string[] = [];
         registrosPuros.forEach(ac => {
            if (ac.tipo === 'acordo') {
@@ -255,22 +340,72 @@ export function usePDV() {
         });
         idsDuvidasRenegociadas = Array.from(new Set(idsDuvidasRenegociadas));
 
+        const competenciasComAcordo = new Set(
+          registrosPuros
+            .filter((h: any) => {
+              const tipo = h.tipo?.toLowerCase();
+              const status = (h.status || "").toLowerCase().trim();
+
+              return tipo === 'acordo' && !['cancelado', 'estornado'].includes(status);
+            })
+            .flatMap((h: any) =>
+              competenciasDoRegistro(h).map(comp => chaveCompetencia(comp.mes, comp.ano))
+            )
+        );
+
+        const competenciasQuitadas = new Set(
+          registrosPuros
+            .filter((h: any) => {
+              const tipo = h.tipo?.toLowerCase();
+              const status = (h.status || "").toLowerCase().trim();
+              const saldoDevedor = clean(h.valor_total) - clean(h.valor_pago);
+
+              return tipo === 'mensalidade' &&
+                !['cancelado', 'estornado'].includes(status) &&
+                (status === 'pago' || saldoDevedor <= 0);
+            })
+            .flatMap((h: any) =>
+              competenciasDoRegistro(h).map(comp => chaveCompetencia(comp.mes, comp.ano))
+            )
+        );
 
         if (registrosPuros.length > 0) {
           const pendenciasFiltradas = registrosPuros.filter((h: any) => {
             const saldoDevedor = clean(h.valor_total) - clean(h.valor_pago);
-            if (['pago', 'renegociado', 'cancelado', 'estornado'].includes((h.status || '').toLowerCase().trim()) || saldoDevedor <= 0) return false;
-            
-            // FILTRO DE DEDUPLICAÇÃO
-            if (idsDuvidasRenegociadas.includes(String(h.id))) return false;
+            const status = (h.status || '').toLowerCase().trim();
+            const tipo = h.tipo?.toLowerCase();
 
-            if (h.tipo?.toLowerCase() === 'mensalidade' && !h.isTemp) {
-                const dataVenc = new Date(h.data_pagamento || h.vencimento);
-                const hoje = new Date(); hoje.setHours(0,0,0,0); dataVenc.setHours(0,0,0,0);
-                if (dataVenc >= hoje) return false; 
+            if (['pago', 'renegociado', 'cancelado', 'estornado'].includes(status) || saldoDevedor <= 0) {
+              return false;
             }
+
+            if (idsDuvidasRenegociadas.includes(String(h.id))) {
+              return false;
+            }
+
+            if (tipo === 'mensalidade') {
+              const competenciasMensalidade = competenciasDoRegistro(h);
+
+              const jaExistePagamentoQuitadoParaEssaMensalidade = competenciasMensalidade.some(comp =>
+                competenciasQuitadas.has(chaveCompetencia(comp.mes, comp.ano))
+              );
+
+              if (jaExistePagamentoQuitadoParaEssaMensalidade) {
+                return false;
+              }
+
+              const existeAcordoParaEssaMensalidade = competenciasMensalidade.some(comp =>
+                competenciasComAcordo.has(chaveCompetencia(comp.mes, comp.ano))
+              );
+
+              if (existeAcordoParaEssaMensalidade) {
+                return false;
+              }
+            }
+
             return true;
           });
+          
           setDividasAluno(pendenciasFiltradas.sort((a, b) => new Date(a.data_pagamento).getTime() - new Date(b.data_pagamento).getTime()));
         } else {
           setDividasAluno([]);
@@ -353,6 +488,214 @@ export function usePDV() {
     } catch (e: any) { alert("Erro ao fechar caixa: " + e.message); } finally { setProcessando(false); }
   };
 
+  const carregarRegistrosRecentes = async () => {
+    try {
+      const { data: listaAlunos } = await supabase.from('alunos').select('*').order('nome');
+      const { data: historico, error } = await supabase
+        .from('historico_pagamentos')
+        .select('*');
+
+      if (error) throw error;
+
+      if (historico) {
+        setRegistrosRecentes(formatarRegistrosRecentes(filtrarPagamentosRecentes48h(historico, caixaAtual?.id), listaAlunos || alunos));
+        setHistoricoGeral(historico);
+      }
+    } catch (error: any) {
+      alert("Erro ao carregar registros recentes: " + error.message);
+    }
+  };
+
+  const abrirModalEditarRegistroRecente = (registro: any) => {
+    const detalhes = parseDetalhesMetodos(registro?.detalhes_metodos);
+
+    setRegistroRecenteSelecionado(registro);
+    setFormRegistroRecente({
+      descricao: registro?.descricao || "",
+      valor_total: clean(registro?.valor_total || registro?.valor).toFixed(2),
+      valor_pago: clean(registro?.valor_pago).toFixed(2),
+      data_pagamento: String(registro?.data_pagamento || dataHojeStr).split('T')[0],
+      observacao: detalhes?.observacao_edicao || detalhes?.observacao || ""
+    });
+    setModalEditarRegistroRecente(true);
+  };
+
+  const salvarEdicaoRegistroRecente = async () => {
+    if (processando || !registroRecenteSelecionado) return;
+    if (!registroPodeSerAlterado(registroRecenteSelecionado)) {
+      return alert("Este registro não pode ser editado. Só é permitido editar registros do caixa que está aberto no momento.");
+    }
+
+    const valorTotalNovo = clean(formRegistroRecente.valor_total);
+    const valorPagoNovo = clean(formRegistroRecente.valor_pago);
+
+    if (valorTotalNovo < 0 || valorPagoNovo < 0) return alert("Informe valores válidos.");
+    if (!formRegistroRecente.descricao.trim()) return alert("Informe uma descrição para o registro.");
+
+    const statusNovo = calcularStatusPeloPagamento(valorTotalNovo, valorPagoNovo);
+    const detalhesAtuais = parseDetalhesMetodos(registroRecenteSelecionado.detalhes_metodos);
+    const detalhesAtualizados = {
+      ...detalhesAtuais,
+      observacao_edicao: formRegistroRecente.observacao,
+      ultima_edicao: {
+        data: new Date().toISOString(),
+        operador: 'Administração',
+        antes: {
+          descricao: registroRecenteSelecionado.descricao,
+          valor_total: clean(registroRecenteSelecionado.valor_total || registroRecenteSelecionado.valor),
+          valor_pago: clean(registroRecenteSelecionado.valor_pago),
+          data_pagamento: registroRecenteSelecionado.data_pagamento,
+          status: registroRecenteSelecionado.status
+        },
+        depois: {
+          descricao: formRegistroRecente.descricao.trim(),
+          valor_total: valorTotalNovo,
+          valor_pago: valorPagoNovo,
+          data_pagamento: formRegistroRecente.data_pagamento,
+          status: statusNovo
+        }
+      }
+    };
+
+    setProcessando(true);
+    try {
+      const { error } = await supabase
+        .from('historico_pagamentos')
+        .update({
+          descricao: formRegistroRecente.descricao.trim(),
+          valor_total: valorTotalNovo,
+          valor_pago: valorPagoNovo,
+          status: statusNovo,
+          data_pagamento: formRegistroRecente.data_pagamento,
+          detalhes_metodos: detalhesAtualizados
+        })
+        .eq('id', registroRecenteSelecionado.id);
+
+      if (error) throw error;
+
+      if (detalhesAtuais?.mensalidade_table_id) {
+        await supabase
+          .from('mensalidades')
+          .update({ valor_total: valorTotalNovo, valor_pago: valorPagoNovo, status: statusNovo })
+          .eq('id', detalhesAtuais.mensalidade_table_id);
+      }
+
+      setModalEditarRegistroRecente(false);
+      setRegistroRecenteSelecionado(null);
+      await carregarDadosBase();
+      atualizarAlunoSelecionadoAposRegistro(registroRecenteSelecionado);
+      alert("Registro atualizado com sucesso.");
+    } catch (error: any) {
+      alert("Erro ao editar registro: " + error.message);
+    } finally {
+      setProcessando(false);
+    }
+  };
+
+  const desfazerRegistroRecente = async (registroParametro?: any) => {
+    if (processando) return;
+
+    const registro = registroParametro || registroRecenteSelecionado;
+    if (!registro) return;
+
+    if (!registroPodeSerAlterado(registro)) {
+      return alert("Este registro não pode ser desfeito. Só é permitido desfazer registros do caixa que está aberto no momento.");
+    }
+
+    const motivo = window.prompt("Informe o motivo do estorno/desfazimento:", "Lançamento corrigido no PDV");
+    if (motivo === null) return;
+
+    const confirmar = window.confirm(`Deseja realmente desfazer este registro?\n\n${registro.descricao || 'Registro'}\nValor pago atual: R$ ${clean(registro.valor_pago).toFixed(2)}`);
+    if (!confirmar) return;
+
+    setProcessando(true);
+    try {
+      const detalhesAtuais = parseDetalhesMetodos(registro.detalhes_metodos);
+      const historicoParciais = Array.isArray(detalhesAtuais?.historico_parciais) ? detalhesAtuais.historico_parciais : [];
+      const ultimaParcial = historicoParciais[historicoParciais.length - 1];
+
+      const valorPagoAtual = clean(registro.valor_pago);
+      const valorTotalAtual = clean(registro.valor_total || registro.valor);
+      const valorEstornado = Math.min(
+        valorPagoAtual,
+        clean(ultimaParcial?.valor_pago_rodada) > 0 ? clean(ultimaParcial.valor_pago_rodada) : valorPagoAtual
+      );
+
+      let novoValorPago = Number(Math.max(0, valorPagoAtual - valorEstornado).toFixed(2));
+      let novoStatus = calcularStatusPeloPagamento(valorTotalAtual, novoValorPago);
+      const tipoRegistro = (registro.tipo || '').toLowerCase();
+      const novosParciais = historicoParciais.length > 0 ? historicoParciais.slice(0, -1) : [];
+
+      if (historicoParciais.length === 0 && ['uniforme', 'material', 'outros', 'credito'].includes(tipoRegistro)) {
+        novoValorPago = 0;
+        novoStatus = 'estornado';
+      }
+
+      const estorno = {
+        data: new Date().toISOString(),
+        operador: 'Administração',
+        motivo: motivo.trim() || 'Sem motivo informado',
+        valor_estornado: valorEstornado,
+        registro_original_id: registro.id
+      };
+
+      const detalhesAtualizados = {
+        ...detalhesAtuais,
+        historico_parciais: novosParciais,
+        estornos: Array.isArray(detalhesAtuais?.estornos) ? [...detalhesAtuais.estornos, estorno] : [estorno],
+        ultimo_estorno: estorno
+      };
+
+      const { error } = await supabase
+        .from('historico_pagamentos')
+        .update({
+          valor_pago: novoValorPago,
+          status: novoStatus,
+          detalhes_metodos: detalhesAtualizados
+        })
+        .eq('id', registro.id);
+
+      if (error) throw error;
+
+      if (detalhesAtuais?.mensalidade_table_id) {
+        await supabase
+          .from('mensalidades')
+          .update({ valor_pago: novoValorPago, status: novoStatus })
+          .eq('id', detalhesAtuais.mensalidade_table_id);
+      }
+
+      await supabase.from('historico_pagamentos').insert({
+        aluno_id: registro.aluno_id,
+        tipo: 'estorno',
+        descricao: `Estorno: ${registro.descricao || 'Registro do PDV'}`,
+        mes_referencia: registro.mes_referencia || 'Avulso',
+        valor_total: valorEstornado,
+        valor_pago: 0,
+        status: 'estornado',
+        data_pagamento: dataHojeStr,
+        data_vencimento: dataHojeStr,
+        caixa_id: caixaAtual.id,
+        detalhes_metodos: {
+          registro_original_id: registro.id,
+          motivo: motivo.trim() || 'Sem motivo informado',
+          valor_estornado: valorEstornado,
+          caixa_original_id: registro.caixa_id,
+          data_estorno: new Date().toISOString()
+        }
+      });
+
+      setModalEditarRegistroRecente(false);
+      setRegistroRecenteSelecionado(null);
+      await carregarDadosBase();
+      atualizarAlunoSelecionadoAposRegistro(registro);
+      alert("Registro desfeito com sucesso. O estorno ficou registrado para auditoria.");
+    } catch (error: any) {
+      alert("Erro ao desfazer registro: " + error.message);
+    } finally {
+      setProcessando(false);
+    }
+  };
+
   const carregarHistoricoCaixas = async () => {
     setModalMeusCaixas(true);
     const { data } = await supabase.from('sessoes_caixa').select('*').order('data_abertura', { ascending: false }).limit(20);
@@ -395,9 +738,22 @@ export function usePDV() {
     if (processando) return; 
     if (!caixaAtual) return alert("Atenção: Você precisa Abrir o Caixa antes de registrar pagamentos.");
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
-    if (faltaPagar > 0 && !window.confirm(`ATENÇÃO: PAGAMENTO PARCIAL!\n\nO cliente está a pagar R$ ${totalPagoRodada.toFixed(2)}, mas o valor total é R$ ${totalComAcrescimos.toFixed(2)}.\n\nO restante será convertido num Acordo ou continuará aberto.\n\nDeseja confirmar?`)) return;
     if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
+
+    let gerarAcordo = false;
+    let numeroParcelas = 0;
+
+    if (faltaPagar > 0) {
+        const prosseguir = window.confirm(`ATENÇÃO: PAGAMENTO PARCIAL!\n\nO cliente está a pagar R$ ${totalPagoRodada.toFixed(2)}, mas o valor total é R$ ${totalComAcrescimos.toFixed(2)}.\n\nO restante continuará aberto ou poderá ser convertido num Acordo.\n\nDeseja confirmar a transação?`);
+        if (!prosseguir) return;
+
+        gerarAcordo = window.confirm(`Deseja transformar o saldo restante de R$ ${faltaPagar.toFixed(2)} em um Acordo / Renegociação agora?`);
+        if (gerarAcordo) {
+            numeroParcelas = parseInt(prompt(`Em quantas vezes deseja dividir o restante de R$ ${faltaPagar.toFixed(2)}?`, "2") || "0");
+            if (numeroParcelas <= 0) gerarAcordo = false;
+        }
+    }
 
     setProcessando(true);
     try {
@@ -424,7 +780,9 @@ export function usePDV() {
         if (novoValorPago >= clean(item.valor_total) - 0.01) novoStatus = 'pago';
         else if (novoValorPago > 0) novoStatus = 'parcial';
 
-        if (valorAbatido === 0 && !item.isNovo && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0 && clean(acrescimos.juros_cartao) === 0) continue;
+        if (valorAbatido === 0 && !item.isNovo && !item.isTemp && !idString.startsWith('temp_') && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0 && clean(acrescimos.juros_cartao) === 0 && !gerarAcordo) {
+            continue; 
+        }
 
         const formasStrArray = [];
         if (clean(pagamentos.pix) > 0) formasStrArray.push("Pix");
@@ -437,18 +795,55 @@ export function usePDV() {
         if (clean(pagamentos.debito_editora) > 0) formasStrArray.push("Cartão Débito (Editora)");
         if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
         
-        const registroParcial = { data_recebimento: dataPagamentoPDV, valor_pago_rodada: valorAbatido, formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste", desconto: acrescimos.desconto, multa: acrescimos.multa, juros_cartao: acrescimos.juros_cartao };
-        const historicoAntigo = Array.isArray(item.detalhes_metodos?.historico_parciais) ? item.detalhes_metodos.historico_parciais : [];
-        const payloadMetodos = { ...pagamentos, troco_devolvido_fisico: trocoDevolvidoFisico, url_recibo: urlReciboOficial, historico_parciais: valorAbatido > 0 || clean(acrescimos.desconto) > 0 ? [...historicoAntigo, registroParcial] : historicoAntigo };
+        const registroParcial = { data_recebimento: dataPagamentoPDV, data_operacao: new Date().toISOString(), valor_pago_rodada: valorAbatido, formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste", desconto: acrescimos.desconto, multa: acrescimos.multa, juros_cartao: acrescimos.juros_cartao };
+        const detalhesItem = parseDetalhesMetodos(item.detalhes_metodos);
+        const historicoAntigo = Array.isArray(detalhesItem?.historico_parciais) ? detalhesItem.historico_parciais : [];
+
+        const mesCompetenciaItem = extrairMesReferencia(item);
+        const anoCompetenciaItem =
+          extrairAnoReferencia(item) ||
+          inferirAnoCompetenciaLegado(item, mesCompetenciaItem) ||
+          (
+            item.data_vencimento
+              ? String(parseDataLocal(item.data_vencimento)?.getFullYear() || "")
+              : ""
+          ) ||
+          dataPagamentoPDV.slice(0, 4);
+
+        const competenciaItem =
+          mesCompetenciaItem && anoCompetenciaItem
+            ? { mes: mesCompetenciaItem, ano: anoCompetenciaItem }
+            : undefined;
+
+        const payloadMetodos = {
+          ...detalhesItem,
+          ...pagamentos,
+          troco_devolvido_fisico: trocoDevolvidoFisico,
+          url_recibo: urlReciboOficial,
+          origem_pdv: {
+            caixa_id: caixaAtual.id,
+            data_operacao: new Date().toISOString(),
+            aluno_id: alunoSelecionado.id,
+            item_original_id: item.id,
+            item_novo: !!item.isNovo || !!item.isTemp || idString.startsWith('temp_'),
+            mensalidade_table_id: item.isMensalidadeTable ? item.id : detalhesItem?.mensalidade_table_id
+          },
+          ...(item.isMensalidadeTable ? { mensalidade_table_id: item.id } : {}),
+          ...(competenciaItem ? { competencia: competenciaItem } : {}),
+          historico_parciais:
+            valorAbatido > 0 || clean(acrescimos.desconto) > 0
+              ? [...historicoAntigo, registroParcial]
+              : historicoAntigo
+        };
 
         let savedId = item.id;
         
         if (item.isNovo || item.isTemp || idString.startsWith('temp_')) {
-          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: item.mes_referencia || 'Avulso', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
+          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Avulso', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: item.data_vencimento || item.data_pagamento || dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
           if (data) savedId = data.id;
         } else if (item.isMensalidadeTable) {
           await supabase.from('mensalidades').update({ status: novoStatus, valor_pago: novoValorPago }).eq('id', item.id);
-          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: 'mensalidade', descricao: item.descricao, mes_referencia: 'Recorrente', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
+          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Recorrente', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: item.data_vencimento || item.data_pagamento || dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
           if (data) savedId = data.id;
         } else {
           await supabase.from('historico_pagamentos').update({ status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).eq('id', item.id);
@@ -456,44 +851,58 @@ export function usePDV() {
         if (savedId) idsProcessados.push(String(savedId));
       }
 
-      // --- LOGICA DE RENEGOCIAÇÃO E ACORDO (REGRA 1) ---
-      if (faltaPagar > 0) {
-          const gerarAcordo = window.confirm(`Deseja transformar o saldo restante de R$ ${faltaPagar.toFixed(2)} em um Acordo / Renegociação?`);
-          if (gerarAcordo) {
-             const numeroParcelas = parseInt(prompt(`Em quantas vezes deseja dividir o restante de R$ ${faltaPagar.toFixed(2)}?`, "2") || "0");
-             if (numeroParcelas > 0) {
-                 const valorParcela = faltaPagar / numeroParcelas;
-                 const novasParcelas = [];
-                 
-                 for (let i = 1; i <= numeroParcelas; i++) {
-                     let dtVencimento = new Date(dataPagamentoPDV);
-                     dtVencimento.setMonth(dtVencimento.getMonth() + i);
-                     const pData = dtVencimento.toISOString().split('T')[0];
-                     
-                     novasParcelas.push({
-                         aluno_id: alunoSelecionado.id,
-                         tipo: 'acordo',
-                         descricao: `Acordo ${i}/${numeroParcelas} - Ref: ${carrinho.map(c=>c.descricao).join(', ').substring(0,40)}...`,
-                         mes_referencia: 'Avulso',
-                         valor_total: valorParcela,
-                         valor_pago: 0,
-                         status: 'pendente',
-                         data_pagamento: pData,
-                         data_vencimento: pData,
-                         caixa_id: caixaAtual.id,
-                         detalhes_metodos: { ids_origem_acordo: idsProcessados }
-                     });
+      if (gerarAcordo && numeroParcelas > 0) {
+         const competenciasOrigemAcordo = carrinho
+           .map((c: any) => {
+             const mes = extrairMesReferencia(c);
+             const ano =
+               extrairAnoReferencia(c) ||
+               inferirAnoCompetenciaLegado(c, mes) ||
+               (
+                 c.data_vencimento
+                   ? String(parseDataLocal(c.data_vencimento)?.getFullYear() || "")
+                   : ""
+               );
+
+             return mes && ano ? { mes, ano } : null;
+           })
+           .filter(Boolean);
+
+         const valorParcela = faltaPagar / numeroParcelas;
+         const novasParcelas = [];
+         
+         for (let i = 1; i <= numeroParcelas; i++) {
+             let dtVencimento = new Date(dataPagamentoPDV);
+             dtVencimento.setMonth(dtVencimento.getMonth() + i);
+             const pData = dtVencimento.toISOString().split('T')[0];
+             
+             novasParcelas.push({
+                 aluno_id: alunoSelecionado.id,
+                 tipo: 'acordo',
+                 descricao: `Acordo ${i}/${numeroParcelas} - Ref: ${carrinho.map(c=>c.descricao).join(', ').substring(0,40)}...`,
+                 mes_referencia: 'Avulso',
+                 valor_total: valorParcela,
+                 valor_pago: 0,
+                 status: 'pendente',
+                 data_pagamento: pData,
+                 data_vencimento: pData,
+                 caixa_id: caixaAtual.id,
+                 detalhes_metodos: {
+                     ids_origem_acordo: idsProcessados,
+                     competencias_origem: competenciasOrigemAcordo
                  }
-                 
-                 // Insere as parcelas
-                 await supabase.from('historico_pagamentos').insert(novasParcelas);
-                 
-                 // MÁGICA DE SUBSTITUIÇÃO: Muda as originais para 'renegociado'
-                 await supabase.from('historico_pagamentos').update({ status: 'renegociado' }).in('id', idsProcessados);
-                 
-                 alert("Acordo gerado com sucesso e dívidas originais substituídas.");
-             }
-          }
+             });
+         }
+         
+         await supabase.from('historico_pagamentos').insert(novasParcelas);
+         await supabase.from('historico_pagamentos').update({ status: 'renegociado' }).in('id', idsProcessados);
+         
+         const idsMensalidades = carrinho.filter((c:any) => c.isMensalidadeTable).map((c:any) => c.id);
+         if (idsMensalidades.length > 0) {
+             await supabase.from('mensalidades').update({ status: 'renegociado' }).in('id', idsMensalidades);
+         }
+         
+         alert("Acordo gerado com sucesso e dívidas originais substituídas.");
       }
 
       const trocoParaAdicionar = acaoTroco === 'credito' ? trocoGerado : 0;
@@ -509,6 +918,7 @@ export function usePDV() {
       alert("Transação registrada no Caixa!");
       const querContinuar = window.confirm("Deseja fazer mais algum registro para este aluno?");
       await carregarDadosBase();
+      await carregarRegistrosRecentes();
       
       setCarrinho([]); setPagamentos({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", pix_editora: "", credito_editora: "", debito_editora: "", parcelas: "1" }); setAcrescimos({ multa: "", desconto: "", juros_cartao: "" }); setModalCheckoutAberto(false);
       if (!querContinuar) setAlunoSelecionado(null);
@@ -527,6 +937,9 @@ export function usePDV() {
     dataPagamentoPDV, setDataPagamentoPDV, novoItem, setNovoItem, uniformesVenda, setUniformesVenda,
     uniformesTamanhos, setUniformesTamanhos, totalVendaUniforme, modalCheckoutAberto, setModalCheckoutAberto,
     pagamentos, setPagamentos, acrescimos, setAcrescimos, processando, acaoTroco, setAcaoTroco,
+    registrosRecentes, carregarRegistrosRecentes, modalEditarRegistroRecente, setModalEditarRegistroRecente,
+    registroRecenteSelecionado, formRegistroRecente, setFormRegistroRecente, abrirModalEditarRegistroRecente,
+    salvarEdicaoRegistroRecente, desfazerRegistroRecente, registroPodeSerAlterado,
     temLivroNoCarrinho, clean, abrirCaixa, handleRegistrarMovimentacao, confirmarFechamentoCaixa,
     carregarHistoricoCaixas, adicionarAoCarrinho, removerDoCarrinho, lancarItemAvulsoNoCarrinho,
     subtotalCarrinho, totalComAcrescimos, totalPagoRodada, faltaPagar, trocoGerado, saldoAtualAluno, finalizarVenda

@@ -41,7 +41,7 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
                 <button 
                   onClick={onExcluir} 
                   className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white font-bold px-4 py-3 rounded-xl shadow-md transition-all flex items-center gap-2 border border-rose-200"
-                  title="Excluir Permanentemente"
+                  title="Excluir Permanentemente o Aluno"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -57,9 +57,6 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
   );
 }
 
-// ==========================================================
-// NOVO MODAL: OBSERVAÇÕES E ALERTAS DO DIÁRIO
-// ==========================================================
 export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any) {
   const [observacoes, setObservacoes] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -85,7 +82,6 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
       <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
         
-        {/* Cabeçalho "Vivo" e Acolhedor */}
         <div className="bg-indigo-400 p-6 border-b border-indigo-400 flex justify-between items-center shrink-0">
           <div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
@@ -98,14 +94,12 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
           </button>
         </div>
 
-        {/* Conteúdo Rolável */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
           {carregando ? (
             <div className="text-center p-10 text-indigo-400 font-bold text-xs uppercase tracking-widest animate-pulse">Consultando registros...</div>
           ) : (
             <div className="space-y-6">
               
-              {/* Média com destaque pedagógico */}
               <div className="flex flex-col items-center justify-center bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Média Geral do Aluno</span>
                 <div className="text-3xl font-black text-indigo-700">
@@ -157,13 +151,12 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
 }
 
 export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
-  // Controle do Modal de Observações e Cálculo Real da Média
   const [modalObsAberto, setModalObsAberto] = useState(false);
   const [mediaReal, setMediaReal] = useState(0);
 
   useEffect(() => {
-    // Esse UseEffect garante que as estrelas do Diário sempre apareçam no card!
     async function buscarMediaReal() {
+      // Usando 'atividades' em vez do termo legado para prevenir falhas futuras
       const { data } = await supabase.from('avaliacoes').select('participacao, comportamento, atividades, socioemocional').eq('aluno_id', alunoId);
       if (data && data.length > 0) {
         let somaTotal = 0; let qtdNotas = 0;
@@ -189,7 +182,6 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8 animate-in slide-in-from-bottom-4 duration-300">
       
-      {/* Modal é montado aqui de forma invisível até ser chamado */}
       {modalObsAberto && <ModalObservacoesDiario alunoId={alunoId} mediaCalculada={mediaReal} onClose={() => setModalObsAberto(false)} />}
 
       <div className="xl:col-span-12 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
@@ -203,12 +195,10 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <p className={`text-xl lg:text-2xl font-black ${totalPendenteGeral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
         
-        {/* CARD DE MÉDIA PEDAGÓGICA (AGORA CLICÁVEL) */}
         <div onClick={() => setModalObsAberto(true)} className="p-4 rounded-3xl border border-amber-200 bg-amber-50 cursor-pointer hover:shadow-md hover:border-amber-300 hover:-translate-y-1 transition-all relative overflow-hidden group">
           <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-1">Média Pedagógica</span>
           <p className="text-lg lg:text-xl drop-shadow-sm">{mediaReal > 0 ? "⭐".repeat(Math.round(mediaReal)) : <span className="text-amber-800/40 text-sm font-bold">Sem Notas</span>}</p>
           
-          {/* Botãozinho de "Ver mais" que aparece no hover */}
           <div className="absolute top-4 right-4 w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
           </div>
@@ -332,9 +322,6 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
   );
 }
 
-// ==========================================================
-// NOVO COMPONENTE: RELATÓRIOS DO PROFESSOR (AVANÇOS/DIFICULDADES)
-// ==========================================================
 export function RelatoriosAluno({ alunoId, setVerRelatorios }: { alunoId: string, setVerRelatorios: (v: boolean) => void }) {
   const [relatorios, setRelatorios] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -430,7 +417,6 @@ export function RelatoriosAluno({ alunoId, setVerRelatorios }: { alunoId: string
   );
 }
 
-// Demais componentes mantidos inalterados abaixo
 export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, onAbrirPDV, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
@@ -486,12 +472,12 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
                   {!renegociandoEste && (
                      <div className="flex gap-2">
                         {onAbrirPDV && (
-                           <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pend.id); }} className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors uppercase shadow-sm flex items-center gap-1">
+                           <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pend.id); }} className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Pagar Dívida">
                               💵 Quitar Fatura
                            </button>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); setIdRenegociacao(pend.id); }} className="bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center gap-1">
-                           🔄 Dividir / Acordo
+                            🔄 Dividir / Acordo
                         </button>
                      </div>
                   )}
@@ -587,10 +573,8 @@ export function CreditoAluno({ historicoLocal, saldoCreditoVisivel, setVerCredit
                     </span>
                     {podeGerenciar && (
                       <div className="flex gap-2 pl-4 border-l border-slate-200">
-                        <button onClick={() => processarAcaoPagamento(h, 'estornar')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors text-xs" title="Estornar/Desfazer">🔄</button>
-                        {userEmail === 'carlamonaliza9@gmail.com' && (
-                          <button onClick={() => processarAcaoPagamento(h, 'excluir')} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors text-xs" title="Excluir Definitivamente do Sistema">🗑️</button>
-                        )}
+                        {/* Como solicitou, a opção excluir também foi removida daqui, ficando só para edição manual se precisar, 
+                            mas o estorno automático já deleta esse registro fantasma na função principal. */}
                       </div>
                     )}
                   </div>
@@ -728,17 +712,12 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, processarAcaoPagamento, userEmail, SENHA_MESTRA, onAbrirPDV, onRecarregar }: any) {
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, userEmail, SENHA_MESTRA, onAbrirPDV, onRecarregar }: any) {
   
-  // 🛡️ A MURALHA DE FERRO: Filtro inteligente que cruza 4 campos
   const historicoFiltradoExibicao = (historicoLocal || []).filter((h: any) => {
-    // 1. Esconde créditos puros daqui (vão para a carteira virtual)
     if (h.tipo?.toLowerCase() === 'credito') return false;
-
-    // 2. Se o usuário escolher "todos", exibe absolutamente tudo
     if (anoPagamentoSelecionado === 'todos') return true;
 
-    // 3. Procura o ano em qualquer lugar possível (Data, Vencimento, Descrição, Criação)
     const strData = h.data_pagamento ? String(h.data_pagamento) : "";
     const strDesc = h.descricao ? String(h.descricao) : "";
     const strVenc = h.data_vencimento ? String(h.data_vencimento) : "";
@@ -791,155 +770,78 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     return "Baixa Manual / Legado";
   };
 
-  // 🔴 ESTORNO CIRÚRGICO: Nova função blindada
- // 🔴 ESTORNO CIRÚRGICO: Nova função blindada e com Exclusão Real de Crédito
+  // ESTORNO CIRÚRGICO SIMPLIFICADO C/ REVERSÃO AUTOMÁTICA DE SALDO/TROCO
   const estornoCirurgico = async (pgto: any) => {
-    if (prompt("Digite a Senha Mestra para ESTORNAR/DESFAZER:") !== (SENHA_MESTRA || "1234")) {
+    if (prompt("⚠️ ATENÇÃO: Esta ação fará com que o recebimento seja totalmente estornado.\nA dívida voltará a ficar 'pendente' e saldos gerados serão reajustados.\n\nDigite a Senha Mestra para confirmar:") !== (SENHA_MESTRA || "1234")) {
       return alert("Senha incorreta.");
     }
 
-    // Busca o dado ao vivo do banco de dados (A Verdade Absoluta)
-    const { data: registroReal, error: fetchError } = await supabase
-      .from('historico_pagamentos')
-      .select('*')
-      .eq('id', pgto.id)
-      .single();
-
-    if (fetchError || !registroReal) return alert("Não foi possível encontrar este registro na base de dados.");
-
-    let metodosObj = registroReal.detalhes_metodos;
-    if (typeof metodosObj === 'string') {
-      try { metodosObj = JSON.parse(metodosObj); } catch (e) { metodosObj = {}; }
-    }
-
-    const historicoParciais = metodosObj?.historico_parciais || [];
-    let indexParaEstornar = -1;
-    let valorSendoEstornado = clean(registroReal.valor_pago);
-
-    if (historicoParciais.length > 0) {
-      let msg = "Esta cobrança possui pagamentos parciais.\nQual parcela deseja CANCELAR?\n\n";
-      historicoParciais.forEach((p: any, i: number) => {
-        let dataFormatada = p.data_recebimento;
-        if (dataFormatada && dataFormatada.includes('-')) dataFormatada = dataFormatada.split('-').reverse().join('/');
-        msg += `[${i + 1}] Dia ${dataFormatada} - R$ ${clean(p.valor_pago_rodada).toFixed(2)} (${p.formas})\n`;
-      });
-      msg += "\n[0] CANCELAR TUDO (Zerar a cobrança inteira)";
-
-      const resposta = prompt(msg);
-      if (resposta === null) return;
-
-      const op = parseInt(resposta);
-      if (isNaN(op) || op < 0 || op > historicoParciais.length) return alert("Opção inválida. Operação cancelada.");
-
-      indexParaEstornar = op - 1;
-      if (indexParaEstornar !== -1) {
-          valorSendoEstornado = clean(historicoParciais[indexParaEstornar].valor_pago_rodada);
-      }
-    } else {
-      if (!confirm("Deseja realmente estornar este faturamento? O valor pago será zerado.")) return;
-    }
-
-    // GESTÃO DE TROCO / CRÉDITO
-    let mudancaSaldo = 0;
-    const saldoAtualSeguro = clean(aluno.saldo_credito) || 0;
-    let registroAjusteParaDeletar = null; // 🛡️ NOVO: Variável para capturar o ID do crédito que deve sumir
-
-    const usouSaldo = confirm(`Essa parcela de R$ ${valorSendoEstornado.toFixed(2)} foi paga usando SALDO VIRTUAL do aluno?\n\n(OK = Sim, Cancelar = Não)`);
-    if (usouSaldo) {
-        const val = prompt(`Qual valor de saldo virtual deve ser DEVOLVIDO à conta do aluno?\n(Exemplo: 50.00)`);
-        if (val) {
-            const valorDevolver = Math.abs(clean(val));
-            mudancaSaldo += valorDevolver;
-            
-            // Busca o registro de subtração que foi criado quando o aluno USOU o saldo
-            const { data: possiveisBaixas } = await supabase
-                .from('historico_pagamentos')
-                .select('id, valor_total, detalhes_metodos')
-                .eq('aluno_id', aluno.id)
-                .eq('tipo', 'credito')
-                .eq('data_pagamento', registroReal.data_pagamento);
-
-            if (possiveisBaixas && possiveisBaixas.length > 0) {
-                 const baixaExata = possiveisBaixas.find(c => c.detalhes_metodos?.e_subtracao === true && Math.abs(clean(c.valor_total) - valorDevolver) < 0.01);
-                 if (baixaExata) registroAjusteParaDeletar = baixaExata.id;
-            }
-        }
-    } else {
-        const gerouSaldo = confirm(`Esse pagamento GEROU troco/crédito na conta do aluno na época?\n\n(OK = Sim, Cancelar = Não)`);
-        if (gerouSaldo) {
-            const val = prompt(`Qual valor de troco/crédito deve ser RETIRADO da conta do aluno agora? (Saldo atual: R$ ${saldoAtualSeguro.toFixed(2)})\n(Exemplo: 15.00)`);
-            if (val) {
-                const valorRetirar = Math.abs(clean(val));
-                mudancaSaldo -= valorRetirar;
-
-                // Busca o registro do crédito que foi GERADO como troco na época
-                const { data: possiveisCreditos } = await supabase
-                    .from('historico_pagamentos')
-                    .select('id, valor_total, detalhes_metodos')
-                    .eq('aluno_id', aluno.id)
-                    .eq('tipo', 'credito')
-                    .eq('data_pagamento', registroReal.data_pagamento);
-
-                if (possiveisCreditos && possiveisCreditos.length > 0) {
-                    const creditoExato = possiveisCreditos.find(c => c.detalhes_metodos?.e_subtracao !== true && Math.abs(clean(c.valor_total) - valorRetirar) < 0.01);
-                    if (creditoExato) registroAjusteParaDeletar = creditoExato.id;
-                }
-            }
-        }
-    }
-
     try {
-      // 1. Atualiza o status da cobrança original
-      if (indexParaEstornar === -1) {
-        const { error } = await supabase.from('historico_pagamentos').update({
-          status: 'pendente',
-          valor_pago: 0,
-          detalhes_metodos: {}
-        }).eq('id', pgto.id);
-        if (error) throw error;
-      } else {
-        const parcelaRemovida = historicoParciais[indexParaEstornar];
-        const valorAAbater = clean(parcelaRemovida.valor_pago_rodada);
-        const novoValorPago = clean(registroReal.valor_pago) - valorAAbater;
+      // 1. Busca os dados reais e profundos deste pagamento no banco
+      const { data: registroReal, error: fetchError } = await supabase
+        .from('historico_pagamentos')
+        .select('*')
+        .eq('id', pgto.id)
+        .single();
 
-        const novoStatus = novoValorPago <= 0 ? 'pendente' : 'parcial';
+      if (fetchError || !registroReal) return alert("Erro ao localizar registro na base de dados.");
 
-        const novoHistorico = [...historicoParciais];
-        novoHistorico.splice(indexParaEstornar, 1);
-        const novosMetodos = { ...metodosObj, historico_parciais: novoHistorico };
-
-        const { error } = await supabase.from('historico_pagamentos').update({
-          status: novoStatus,
-          valor_pago: Math.max(0, novoValorPago),
-          detalhes_metodos: novoHistorico.length === 0 ? {} : novosMetodos
-        }).eq('id', pgto.id);
-        if (error) throw error;
+      let detalhesObj = registroReal.detalhes_metodos;
+      if (typeof detalhesObj === 'string') {
+        try { detalhesObj = JSON.parse(detalhesObj); } catch (e) { detalhesObj = {}; }
       }
 
-      // 2. Atualiza a carteira virtual e deleta o crédito "fantasma"
-      if (mudancaSaldo !== 0) {
-          const novoSaldo = Math.max(0, saldoAtualSeguro + mudancaSaldo);
-          await supabase.from('alunos').update({ saldo_credito: novoSaldo }).eq('id', aluno.id);
+      // 2. Localiza o saldo atual da carteira virtual do aluno
+      const { data: dadosAluno } = await supabase
+        .from('alunos')
+        .select('saldo_credito')
+        .eq('id', registroReal.aluno_id)
+        .single();
+      
+      let saldoAtualizado = clean(dadosAluno?.saldo_credito);
 
-          if (registroAjusteParaDeletar) {
-              // 🗑️ DELETA fisicamente a linha de crédito gerada/usada
-              await supabase.from('historico_pagamentos').delete().eq('id', registroAjusteParaDeletar);
-          } else {
-              // Fallback: Se não encontrou o ID exato para deletar, gera o registro de compensação
-              await supabase.from('historico_pagamentos').insert({
-                  aluno_id: aluno.id,
-                  tipo: 'credito',
-                  descricao: mudancaSaldo > 0 ? 'ESTORNO: Saldo Devolvido à Conta' : 'ESTORNO: Troco Removido',
-                  valor_total: Math.abs(mudancaSaldo),
-                  valor_pago: Math.abs(mudancaSaldo),
-                  status: 'pago',
-                  data_pagamento: new Date().toISOString().split('T')[0],
-                  detalhes_metodos: { forma_geradora: "Ajuste Sistêmico Automático", e_subtracao: mudancaSaldo < 0 }
-              });
+      // CASO A: A venda utilizou Saldo Virtual do aluno -> Devolve o saldo para ele
+      const saldoUtilizadoNaEpoca = detalhesObj?.credito_aluno ? clean(detalhesObj.credito_aluno) : 0;
+      if (saldoUtilizadoNaEpoca > 0) {
+          saldoAtualizado += saldoUtilizadoNaEpoca;
+      }
+
+      // CASO B: A venda gerou Crédito de Troco na época -> Remove o troco gerado do saldo dele
+      const { data: creditosVinculados } = await supabase
+          .from('historico_pagamentos')
+          .select('id, valor_total, detalhes_metodos')
+          .eq('aluno_id', registroReal.aluno_id)
+          .eq('tipo', 'credito');
+
+      if (creditosVinculados && creditosVinculados.length > 0) {
+          for (const cred of creditosVinculados) {
+              let credDet = cred.detalhes_metodos;
+              if (typeof credDet === 'string') {
+                  try { credDet = JSON.parse(credDet); } catch(e) { credDet = {}; }
+              }
+              // Localiza o crédito de troco que nasceu a partir desta transação específica
+              const origens = credDet?.ids_origem || [];
+              if (Array.isArray(origens) && origens.map(String).includes(String(registroReal.id))) {
+                  saldoAtualizado -= clean(cred.valor_total);
+                  // Apaga fisicamente a linha de crédito para limpar o extrato
+                  await supabase.from('historico_pagamentos').delete().eq('id', cred.id);
+              }
           }
       }
 
-      alert("Estorno processado e saldos ajustados com sucesso!");
+      // 3. Salva a correção final do saldo na ficha do aluno
+      await supabase.from('alunos').update({ saldo_credito: Math.max(0, saldoAtualizado) }).eq('id', registroReal.aluno_id);
+
+      // 4. Retorna o faturamento original para o estado aberto/pendente
+      const { error } = await supabase.from('historico_pagamentos').update({
+        status: 'pendente',
+        valor_pago: 0,
+        detalhes_metodos: null
+      }).eq('id', pgto.id);
+
+      if (error) throw error;
+
+      alert("Estorno processado com sucesso! Saldos corrigidos e dívida reaberta.");
       if (onRecarregar) onRecarregar();
     } catch (error: any) {
       alert("Erro operacional ao estornar: " + error.message);
@@ -968,6 +870,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
     doc.text("TELEFONE (91) 3268-3484 / (91) 98622-7715", 52, 33);
     doc.text("INEP - 15159213", 52, 37);
     doc.line(20, 50, 190, 50);
+    doc.line(20, 50, 190, 50);
     doc.setFontSize(12); doc.text("EXTRATO FINANCEIRO DETALHADO - ESCOLA ABC DO PARK", 105, 57, { align: "center" });
     doc.setFontSize(10); doc.text(`Aluno: ${aluno?.nome?.toUpperCase()}`, 15, 65);
     
@@ -994,7 +897,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
       ]);
 
       const parciais = h.detalhes_metodos?.historico_parciais || [];
-      const temMultaOuDesconto = parciais.some((p:any) => clean(p.desconto) > 0 || clean(p.multa) > 0 || clean(p.juros_cartao) > 0);
       const mostrarSubTabela = parciais.length > 1; 
 
       if (mostrarSubTabela) {
@@ -1080,9 +982,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
           
           const mostrarHistoricoParcial = parciais.length > 1;
           
-          // 🛡️ TRAVA DA LIXEIRA
-          const isSagrado = pgto.tipo?.toLowerCase() === 'mensalidade' || pgto.tipo?.toLowerCase() === 'acordo';
-          
           return (
             <div 
               key={i} 
@@ -1126,13 +1025,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
                       <button onClick={(e) => { e.stopPropagation(); if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
                       
-                      {/* 🔴 ESTORNO CIRÚRGICO IMPLEMENTADO AQUI */}
                       <button onClick={(e) => { e.stopPropagation(); estornoCirurgico(pgto); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
-                      
-                      {/* 🛡️ LIXEIRA OCULTA PARA MENSALIDADES */}
-                      {userEmail === 'carlamonaliza9@gmail.com' && !isSagrado && (
-                          <button onClick={(e) => { e.stopPropagation(); processarAcaoPagamento(pgto, 'excluir'); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors" title="Excluir Permanentemente">🗑️</button>
-                      )}
                     </div>
                   )}
                 </div>

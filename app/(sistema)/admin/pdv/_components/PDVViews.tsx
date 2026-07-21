@@ -53,7 +53,185 @@ export function StatusCaixaReduzido({ caixaAtual, setModalFechamentoAberto, carr
     </div>
   );
 }
+export function RegistrosRecentesPDV({ registrosRecentes, clean, abrirModalEditarRegistroRecente, desfazerRegistroRecente, registroPodeSerAlterado, carregarRegistrosRecentes, processando }: any) {
+  const [verTodos, setVerTodos] = useState(false);
+  const lista = verTodos ? (registrosRecentes || []) : (registrosRecentes || []).slice(0, 5);
 
+ const formatarDataHora = (valor: any) => {
+  if (!valor) return "Sem data";
+
+  const texto = String(valor).trim();
+
+  // Evita o erro: 2026-07-09 virar 08/07/2026 21:00 no Brasil
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    const [ano, mes, dia] = texto.split("-").map(Number);
+    const dataLocal = new Date(ano, mes - 1, dia, 12, 0, 0);
+
+    return dataLocal.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit"
+    });
+  }
+
+  const data = new Date(texto);
+  if (Number.isNaN(data.getTime())) return texto;
+
+  return data.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
+  const statusClass = (status: string) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'pago') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (s === 'parcial') return 'bg-amber-50 text-amber-700 border-amber-100';
+    if (s === 'estornado' || s === 'cancelado') return 'bg-slate-100 text-slate-500 border-slate-200';
+    if (s === 'renegociado') return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+    return 'bg-rose-50 text-rose-700 border-rose-100';
+  };
+
+  const tipoLabel = (tipo: string) => {
+    const t = (tipo || '').toLowerCase();
+    if (t === 'mensalidade') return 'Mensalidade';
+    if (t === 'acordo') return 'Acordo';
+    if (t === 'uniforme') return 'Uniforme';
+    if (t === 'material') return 'Material';
+    if (t === 'evento') return 'Evento';
+    if (t === 'credito') return 'Crédito';
+    if (t === 'estorno') return 'Estorno';
+    return tipo || 'Registro';
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-50 rounded-lg">
+            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 leading-tight">Registros Recentes</h3>
+            <p className="text-xs text-slate-500">Acompanhe os últimos lançamentos do PDV e corrija registros do caixa aberto.</p>
+          </div>
+        </div>
+
+        <button
+          onClick={carregarRegistrosRecentes}
+          disabled={processando}
+          className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+        >
+          Atualizar
+        </button>
+      </div>
+
+      {lista.length === 0 ? (
+        <div className="py-8 flex flex-col items-center justify-center text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          <span className="text-3xl mb-2">🧾</span>
+          <p className="text-xs text-slate-500 font-medium">Nenhum registro recente encontrado.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {lista.map((registro: any) => {
+            const podeAlterar = registroPodeSerAlterado ? registroPodeSerAlterado(registro) : false;
+            const detalhes = registro.detalhes_metodos || {};
+            const urlRecibo = detalhes?.url_recibo;
+            const valorPago = clean ? clean(registro.valor_pago) : Number(registro.valor_pago || 0);
+
+            return (
+              <div key={registro.id} className="p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        {tipoLabel(registro.tipo)}
+                      </span>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${statusClass(registro.status)}`}>
+                        {registro.status || 'pendente'}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {formatarDataHora(registro.data_registro_recente || registro.data_pagamento)}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-black text-slate-800 truncate" title={registro.descricao}>
+                      {registro.descricao || 'Registro sem descrição'}
+                    </h4>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-slate-500">
+                      <span><b>Aluno:</b> {registro.aluno_nome || 'Não identificado'}</span>
+                      {registro.forma_resumo && <span><b>Forma:</b> {registro.forma_resumo}</span>}
+                      {registro.aluno_turma && <span><b>Turma:</b> {registro.aluno_turma}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between xl:justify-end gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase">Valor registrado</span>
+                      <span className={`text-base font-black ${(registro.status || '').toLowerCase() === 'estornado' ? 'text-slate-400 line-through' : 'text-emerald-600'}`}>
+                        R$ {valorPago.toFixed(2)}
+                      </span>
+                    </div>
+
+                    {urlRecibo && (
+                      <a
+                        href={urlRecibo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 text-xs font-bold transition-colors"
+                      >
+                        Recibo
+                      </a>
+                    )}
+
+                    <button
+                      onClick={() => abrirModalEditarRegistroRecente(registro)}
+                      disabled={!podeAlterar || processando}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${podeAlterar ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      onClick={() => desfazerRegistroRecente(registro)}
+                      disabled={!podeAlterar || processando}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${podeAlterar ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                    >
+                      Desfazer
+                    </button>
+                  </div>
+                </div>
+
+                {!podeAlterar && (
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Somente registros do caixa aberto podem ser editados ou desfeitos.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {(registrosRecentes || []).length > 5 && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setVerTodos(!verTodos)}
+            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            {verTodos ? 'Mostrar menos' : `Ver mais registros (${registrosRecentes.length})`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 export function IdentificacaoCliente({ alunoSelecionado, setAlunoSelecionado, buscaAluno, setBuscaAluno, alunosFiltrados, saldoAtualAluno }: any) {
   return (
     <div className="mb-2">
@@ -125,7 +303,6 @@ export function RadarInadimplencia({ inadimplentesTop5, setAlunoSelecionado }: a
             <p className="text-xs text-slate-500">Alunos com maiores débitos em aberto</p>
           </div>
         </div>
-        <button className="text-rose-600 text-xs font-bold bg-rose-50 hover:bg-rose-100 px-4 py-2 rounded-lg transition-colors">Ver todos</button>
       </div>
       
       <div className="space-y-3">
@@ -560,7 +737,146 @@ export function ModalMovimentacaoCaixa({ modalMovimentacao, setModalMovimentacao
     </div>
   );
 }
+export function ModalEditarRegistroRecente({
+  modalEditarRegistroRecente,
+  setModalEditarRegistroRecente,
+  registroRecenteSelecionado,
+  formRegistroRecente,
+  setFormRegistroRecente,
+  salvarEdicaoRegistroRecente,
+  desfazerRegistroRecente,
+  registroPodeSerAlterado,
+  processando,
+  clean
+}: any) {
+  if (!modalEditarRegistroRecente || !registroRecenteSelecionado) return null;
 
+  const podeAlterar = registroPodeSerAlterado ? registroPodeSerAlterado(registroRecenteSelecionado) : false;
+  const valorOriginal = clean ? clean(registroRecenteSelecionado.valor_pago) : Number(registroRecenteSelecionado.valor_pago || 0);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 overflow-hidden">
+        <div className="p-5 bg-indigo-600 flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-black text-white">Editar registro recente</h3>
+            <p className="text-xs text-indigo-100 mt-0.5">Correções ficam salvas no histórico para auditoria.</p>
+          </div>
+
+          <button
+            onClick={() => setModalEditarRegistroRecente(false)}
+            className="text-indigo-200 hover:text-white transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {!podeAlterar && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+              Este registro pertence a um caixa fechado ou diferente do caixa atual. Ele pode ser consultado, mas não editado.
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Descrição</label>
+            <input
+              type="text"
+              value={formRegistroRecente.descricao}
+              onChange={(e) => setFormRegistroRecente({ ...formRegistroRecente, descricao: e.target.value })}
+              disabled={!podeAlterar || processando}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-medium disabled:opacity-60"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Valor total</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formRegistroRecente.valor_total}
+                onChange={(e) => setFormRegistroRecente({ ...formRegistroRecente, valor_total: e.target.value })}
+                disabled={!podeAlterar || processando}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-bold disabled:opacity-60"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Valor pago</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formRegistroRecente.valor_pago}
+                onChange={(e) => setFormRegistroRecente({ ...formRegistroRecente, valor_pago: e.target.value })}
+                disabled={!podeAlterar || processando}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-bold disabled:opacity-60"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Data</label>
+              <input
+                type="date"
+                value={formRegistroRecente.data_pagamento}
+                onChange={(e) => setFormRegistroRecente({ ...formRegistroRecente, data_pagamento: e.target.value })}
+                disabled={!podeAlterar || processando}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-bold disabled:opacity-60"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Observação da correção</label>
+            <textarea
+              value={formRegistroRecente.observacao}
+              onChange={(e) => setFormRegistroRecente({ ...formRegistroRecente, observacao: e.target.value })}
+              disabled={!podeAlterar || processando}
+              rows={3}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-medium disabled:opacity-60"
+              placeholder="Ex: valor digitado errado, forma de pagamento corrigida..."
+            />
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+            Valor registrado antes da edição: <b>R$ {valorOriginal.toFixed(2)}</b>
+          </div>
+        </div>
+
+        <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-3 justify-between">
+          <button
+            onClick={() => desfazerRegistroRecente(registroRecenteSelecionado)}
+            disabled={!podeAlterar || processando}
+            className="px-4 py-3 rounded-xl font-bold text-sm bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Desfazer / Estornar
+          </button>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setModalEditarRegistroRecente(false)}
+              className="px-4 py-3 rounded-xl font-bold text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+
+            <button
+              onClick={salvarEdicaoRegistroRecente}
+              disabled={!podeAlterar || processando}
+              className="px-5 py-3 rounded-xl font-bold text-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {processando ? 'Salvando...' : 'Salvar edição'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export function ModalCheckout({ aberto, setAberto, carrinho, subtotalCarrinho, acrescimos, setAcrescimos, totalComAcrescimos, pagamentos, setPagamentos, temLivroNoCarrinho, saldoAtualAluno, trocoGerado, acaoTroco, setAcaoTroco, faltaPagar, finalizarVenda, processando, clean, totalPagoRodada, dataPagamentoPDV, setDataPagamentoPDV }: any) {
   const [taxaDebito, setTaxaDebito] = useState("");
   const [taxaCredito, setTaxaCredito] = useState("");

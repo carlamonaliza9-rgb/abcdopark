@@ -11,7 +11,6 @@ interface ModalAgendaTurmaProps {
 }
 
 export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: ModalAgendaTurmaProps) {
-  // Ajustado para usar a data local correta (en-CA gera AAAA-MM-DD local), evitando o fuso UTC à noite
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
   const [conteudoAula, setConteudoAula] = useState("");
   const [tarefaCasa, setTarefaCasa] = useState("");
@@ -19,10 +18,8 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
   const [carregando, setCarregando] = useState(false);
   const [estaEditando, setEstaEditando] = useState(modo === 'registrar');
 
-  // Estado interno para rastrear as informações de Antes x Depois
   const [valoresOriginais, setValoresOriginais] = useState({ conteudo: "", tarefa: "", existe: false });
 
-  // --- FUNÇÃO AUXILIAR DE AUDITORIA (LOGS) ---
   async function registrarLog(acao: string, detalhes: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -41,7 +38,14 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
 
   async function carregarRegistroDaData(data: string) {
     setCarregando(true);
-    const { data: registro } = await supabase.from('agenda_escolar').select('*').eq('nome_turma', turma.nome).eq('data', data).single();
+    // .maybeSingle() evita o erro 406 ao buscar uma data que ainda não existe
+    const { data: registro } = await supabase
+      .from('agenda_escolar')
+      .select('*')
+      .eq('nome_turma', turma.nome)
+      .eq('data', data)
+      .maybeSingle();
+
     if (registro) {
       setConteudoAula(registro.conteudo_aula || "");
       setTarefaCasa(registro.tarefa_casa || "");
@@ -51,14 +55,10 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
         existe: true
       });
     } else {
-      setConteudoAula(""); setTarefaCasa("");
-      setValoresOriginais({
-        conteudo: "",
-        tarefa: "",
-        existe: false
-      });
+      setConteudoAula(""); 
+      setTarefaCasa("");
+      setValoresOriginais({ conteudo: "", tarefa: "", existe: false });
     }
-    carregando && setCarregando(false);
     setCarregando(false);
   }
 
@@ -71,7 +71,6 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
     if (!conteudoAula && !tarefaCasa) return alert("Preencha ao menos um campo.");
     setSalvando(true);
 
-    // Montagem detalhada do Antes x Depois estruturado
     const acaoRealizada = valoresOriginais.existe ? "EDIÇÃO" : "INSERÇÃO";
     const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString('pt-BR');
     let textoDetalhes = "";
@@ -87,15 +86,47 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
     }
 
     const { error } = await supabase.from('agenda_escolar').upsert({
-      nome_turma: turma.nome, data: dataSelecionada,
-      conteudo_aula: conteudoAula, tarefa_casa: tarefaCasa,
+      nome_turma: turma.nome, 
+      data: dataSelecionada,
+      conteudo_aula: conteudoAula, 
+      tarefa_casa: tarefaCasa,
       professor_email: userEmail
     }, { onConflict: 'nome_turma, data' });
 
-    if (error) alert("Erro ao salvar: " + error.message);
-    else {
-      // Envia o relatório estruturado para o banco de logs
+    if (error) {
+      alert("Erro ao salvar: " + error.message);
+    } else {
       await registrarLog(acaoRealizada, textoDetalhes);
+
+      // --- INÍCIO DA INTEGRAÇÃO ONESIGNAL (COM MODO RAIO-X) ---
+      // Apenas dispara a notificação se for um novo registro daquele dia
+      if (acaoRealizada === "INSERÇÃO") {
+        try {
+          console.log("🔔 [Modo Raio-X] 1. Tentando chamar a API de notificação para a turma:", turma.nome);
+          
+          const respostaNotificacao = await fetch('/api/notificar-turma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              turma: turma.nome,
+              titulo: "📘 Nova Atualização na Agenda!",
+              mensagem: `O professor atualizou a agenda da turma ${turma.nome}. Toque para conferir o que foi feito em sala!`
+            })
+          });
+
+          const dadosResposta = await respostaNotificacao.json().catch(() => null);
+          console.log("📡 [Modo Raio-X] 2. Resposta do Servidor:", respostaNotificacao.status, dadosResposta);
+
+          if (!respostaNotificacao.ok) {
+            console.error("❌ [Modo Raio-X] 3. ERRO: O servidor recusou o envio da notificação.", dadosResposta);
+          } else {
+            console.log("✅ [Modo Raio-X] 3. SUCESSO: O servidor processou e enviou o comando para o OneSignal!");
+          }
+        } catch (erroGatilho) {
+          console.error("❌ [Modo Raio-X] 3. ERRO FATAL: Falha de conexão ao tentar chamar a API /api/notificar-turma:", erroGatilho);
+        }
+      }
+      // --- FIM DA INTEGRAÇÃO ONESIGNAL ---
 
       alert("Agenda salva com sucesso! 📝");
       if (modo === 'registrar') onClose();
@@ -107,7 +138,6 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
     setSalvando(false);
   }
 
-  // NOVA FUNÇÃO: EXCLUIR REGISTRO COM SENHA
   async function handleExcluir() {
     const senha = prompt("🔒 Digite a senha para EXCLUIR este registro:");
     
@@ -115,7 +145,7 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
       const confirmou = confirm("Tem certeza que deseja apagar permanentemente a agenda deste dia?");
       if (confirmou) {
         const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString('pt-BR');
-        const textoDetalhes = `🗑/🗑️ Excluiu permanentemente o registro da agenda diária da turma ${turma.nome} na data ${dataFormatada}.\n` +
+        const textoDetalhes = `🗑️ Excluiu permanentemente o registro da agenda diária da turma ${turma.nome} na data ${dataFormatada}.\n` +
                               `• Conteúdo que foi removido:\n` +
                               `  - Em sala: ${conteudoAula || "(Vazio)"}\n` +
                               `  - Casa: ${tarefaCasa || "(Vazio)"}`;
@@ -129,11 +159,8 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
         if (error) {
           alert("Erro ao excluir: " + error.message);
         } else {
-          // Registra o log de exclusão com os dados que sumiram
           await registrarLog("EXCLUSÃO", textoDetalhes);
-
           alert("Registro removido com sucesso!");
-          // Limpa os campos após excluir
           setConteudoAula("");
           setTarefaCasa("");
           setValoresOriginais({ conteudo: "", tarefa: "", existe: false });
@@ -154,8 +181,6 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
         style={{ backgroundColor: 'white', borderRadius: '30px', width: '95%', maxWidth: '500px', padding: '30px', position: 'relative' }}
         onClick={(e) => e.stopPropagation()}
       >
-        
-        {/* BOTÃO EXCLUIR: Visível apenas no modo consultar */}
         {modo === 'consultar' && (
           <button 
             onClick={handleExcluir}

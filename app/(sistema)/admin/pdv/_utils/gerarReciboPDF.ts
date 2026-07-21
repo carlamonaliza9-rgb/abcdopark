@@ -36,31 +36,26 @@ export async function gerarReciboPDF({
   const dataHoraEmissao = new Date();
   const reciboNum = `${dataHoraEmissao.getFullYear()}${String(dataHoraEmissao.getMonth()+1).padStart(2,'0')}${String(dataHoraEmissao.getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // Logo da Escola
   try { doc.addImage(logoUrl, "PNG", 14, 12, 24, 24); } catch (e) {}
 
-  // ============================================================================
-  // CABEÇALHO (Intacto conforme solicitado)
-  // ============================================================================
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.setTextColor(30, 58, 138); // Azul escuro
+  doc.setTextColor(30, 58, 138); 
   doc.text("ESCOLA ABC DO PARK", 40, 18);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139); // Slate-500
+  doc.setTextColor(100, 116, 139); 
   doc.text("CNPJ: 05.067.797/0001-68", 40, 23);
   doc.text("CONJ PARKLANDIA - QUADRA A CASA 02 - Belém/PA", 40, 27);
   doc.text("Telefone: (91) 3268-3484 / (91) 98622-7715", 40, 31);
 
-  // Bloco azul claro à direita
-  doc.setFillColor(240, 244, 255); // Fundo azul bem claro
+  doc.setFillColor(240, 244, 255); 
   doc.roundedRect(132, 12, 64, 24, 2, 2, 'F');
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(67, 56, 202); // Roxo/Indigo do texto
+  doc.setTextColor(67, 56, 202); 
   doc.text("RECIBO DE PAGAMENTO", 164, 18, { align: "center" });
   
   doc.setFont("helvetica", "normal");
@@ -70,32 +65,25 @@ export async function gerarReciboPDF({
   doc.text(`Referência: ${dataPagamentoPDV.split('-').reverse().join('/')}`, 164, 28, { align: "center" });
   doc.text(`Emissão: ${dataHoraEmissao.toLocaleTimeString('pt-BR')}`, 164, 33, { align: "center" });
 
-  // Linha divisória fina (Separação do Cabeçalho)
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
   doc.line(14, 42, 196, 42); 
 
-  // ============================================================================
-  // DADOS DO ALUNO (Moderno e Espaçado)
-  // ============================================================================
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184); // Slate-400
+  doc.setTextColor(148, 163, 184); 
   doc.text("ALUNO:", 14, 50);
   doc.text("TURMA:", 120, 50);
   doc.text("CPF/DOC:", 160, 50);
 
   doc.setFontSize(10);
-  doc.setTextColor(30, 41, 59); // Slate-800
+  doc.setTextColor(30, 41, 59); 
   doc.text((aluno?.nome || 'NÃO IDENTIFICADO').toUpperCase(), 14, 55);
   doc.text((aluno?.turma || 'NÃO DEFINIDA').toUpperCase(), 120, 55);
   doc.text(aluno?.cpf_aluno || aluno?.cpf_responsavel || 'N/A', 160, 55);
 
   let currentY = 64;
 
-  // ============================================================================
-  // TABELA PRINCIPAL DE ITENS (Fundo cinza claro no cabeçalho, sem bordas verticais)
-  // ============================================================================
   const tableRows = itensCarrinho.map((item: any) => {
     const saldoDevedorAnterior = clean(item.valor_total) - clean(item.valor_pago);
     return [
@@ -110,30 +98,27 @@ export async function gerarReciboPDF({
     startY: currentY,
     head: [['DESCRIÇÃO DO ITEM', 'CATEGORIA', 'VALOR ORIGINAL', 'PENDENTE ANTERIOR']],
     body: tableRows,
-    theme: 'plain', // Sem grid/bordas
+    theme: 'plain', 
     headStyles: { 
-      fillColor: [248, 250, 252], // Slate-50 (fundo cinza super claro elegante)
-      textColor: [100, 116, 139], // Slate-500
+      fillColor: [248, 250, 252], 
+      textColor: [100, 116, 139], 
       fontStyle: 'bold', 
       fontSize: 7.5,
-      cellPadding: { top: 5, bottom: 5, left: 4, right: 4 } // Mais respiro no título
+      cellPadding: { top: 5, bottom: 5, left: 4, right: 4 } 
     }, 
     styles: { 
       fontSize: 8.5, 
-      cellPadding: { top: 6, bottom: 6, left: 4, right: 4 }, // Linhas mais altas e elegantes
+      cellPadding: { top: 6, bottom: 6, left: 4, right: 4 }, 
       textColor: [51, 65, 85] 
     },
     columnStyles: { 
       2: { halign: 'center' }, 
-      3: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] } // Vermelho
+      3: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] } 
     }
   });
 
   currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : currentY + 30;
 
-  // ============================================================================
-  // HISTÓRICO DE ABATIMENTOS ANTERIORES
-  // ============================================================================
   const historicalRows: any[] = [];
   itensCarrinho.forEach(item => {
     if (item.detalhes_metodos && Array.isArray(item.detalhes_metodos.historico_parciais)) {
@@ -155,7 +140,7 @@ export async function gerarReciboPDF({
   if (historicalRows.length > 0) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184); // Slate-400
+    doc.setTextColor(148, 163, 184); 
     doc.text("HISTÓRICO DE ABATIMENTOS ANTERIORES", 14, currentY);
 
     (autoTable as any)(doc, {
@@ -165,22 +150,18 @@ export async function gerarReciboPDF({
       styles: { fontSize: 8, cellPadding: { top: 4, bottom: 4, left: 4, right: 4 }, textColor: [100, 116, 139] },
       columnStyles: { 
         0: { cellWidth: 80 }, 
-        3: { halign: 'right', fontStyle: 'bold', textColor: [22, 163, 74] } // Verde
+        3: { halign: 'right', fontStyle: 'bold', textColor: [22, 163, 74] } 
       }
     });
     
     currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : currentY + 20;
   }
 
-  // Linha divisória antes do bloco de fechamento (Substitui bordas por uma divisão limpa)
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
   doc.line(14, currentY, 196, currentY);
   currentY += 8;
 
-  // ============================================================================
-  // PROCESSAMENTO DE VALORES E TOTAIS (DUAS COLUNAS DIVIDIDAS)
-  // ============================================================================
   const metodosUsados = [];
   if (clean(pagamentosFeitos.pix) > 0) metodosUsados.push(['Pix', `R$ ${clean(pagamentosFeitos.pix).toFixed(2)}`]);
   if (clean(pagamentosFeitos.dinheiro) > 0) metodosUsados.push(['Dinheiro em Espécie', `R$ ${clean(pagamentosFeitos.dinheiro).toFixed(2)}`]);
@@ -220,7 +201,6 @@ export async function gerarReciboPDF({
     [{ content: 'Total a Pagar:', styles: { fontStyle: 'bold', textColor: [30, 41, 59], fontSize: 10 } }, { content: `R$ ${totalVenda.toFixed(2)}`, styles: { fontStyle: 'bold', textColor: [30, 41, 59], fontSize: 10 } }],
   ];
 
-  // Adiciona a linha de SALDO RESTANTE se for pagamento parcial
   if (isParcial) {
     valoresResumo.push([
       { content: 'Saldo Restante (Pendente):', styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
@@ -228,7 +208,6 @@ export async function gerarReciboPDF({
     ]);
   }
 
-  // Renderiza as colunas simultaneamente (Esquerda e Direita)
   (autoTable as any)(doc, {
     startY: currentY, margin: { left: 14, right: 105 }, 
     body: formasPagamentoSection, theme: 'plain', styles: { fontSize: 9, cellPadding: 4, textColor: [71, 85, 105] },
@@ -246,14 +225,11 @@ export async function gerarReciboPDF({
   const posicaoMaisBaixa = Math.max(alturaTabelaEsquerda, alturaTabelaDireita);
   const carimboY = posicaoMaisBaixa + 18;
 
-  // ============================================================================
-  // CARIMBO DE STATUS (Moderno e Limpo)
-  // ============================================================================
   doc.setLineWidth(0.4);
   if (isParcial) {
     doc.setDrawColor(220, 38, 38);
     doc.setTextColor(220, 38, 38);
-    doc.roundedRect(14, carimboY, 48, 9, 1.5, 1.5, 'D'); // Apenas a borda colorida
+    doc.roundedRect(14, carimboY, 48, 9, 1.5, 1.5, 'D'); 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.text("PAGAMENTO PARCIAL", 38, carimboY + 6, { align: 'center' });
@@ -266,21 +242,19 @@ export async function gerarReciboPDF({
     doc.text("QUITADO", 32, carimboY + 6, { align: 'center' });
   }
 
-  // ============================================================================
-  // RODAPÉ DISCRETO
-  // ============================================================================
   const pageHeight = doc.internal.pageSize.height;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184); // Slate-400
+  doc.setTextColor(148, 163, 184); 
   doc.text("Escola ABC do Park - Documento gerado eletronicamente comprovando os lançamentos na data especificada.", 105, pageHeight - 12, { align: 'center' });
 
-  // ============================================================================
-  // DOWNLOAD E UPLOAD
-  // ============================================================================
   const pdfBlob = doc.output('blob');
   const nomeArquivoBaixado = `Recibo_${(aluno?.nome || 'Avulso').replace(/\s+/g, '_')}_${dataPagamentoPDV}.pdf`;
-  doc.save(nomeArquivoBaixado);
+  
+  // AQUI ENTRA A TRAVA DO DOWNLOAD
+  if (typeof window !== "undefined" && window.confirm("Deseja fazer o download do recibo (PDF) neste dispositivo agora?")) {
+    doc.save(nomeArquivoBaixado);
+  }
 
   const nomeArquivoStorage = `recibo_${aluno?.id || 'avulso'}_${Date.now()}.pdf`;
 
