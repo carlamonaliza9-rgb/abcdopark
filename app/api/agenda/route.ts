@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // Ajuste o caminho do seu cliente Prisma se necessário
 import { dispararNotificacaoTurma } from "@/lib/onesignal";
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
