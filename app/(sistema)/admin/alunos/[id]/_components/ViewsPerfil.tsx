@@ -6,6 +6,118 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { clean, calcularIdade, obterMediaFinal, extrairFormaPagamento, mCPF, mWhatsApp, abrirWhatsApp } from "./alunoUtils";
 
+
+
+const VALOR_PADRAO_MENSALIDADE_FALLBACK = 550;
+
+function obterMensalidadePadraoSalva() {
+  if (typeof window === "undefined") return VALOR_PADRAO_MENSALIDADE_FALLBACK;
+
+  const valorSalvo = clean(window.localStorage.getItem("valorPadraoMensalidade"));
+  return valorSalvo > 0 ? valorSalvo : VALOR_PADRAO_MENSALIDADE_FALLBACK;
+}
+
+function useMensalidadePadrao() {
+  const [mensalidadePadrao, setMensalidadePadrao] = useState(
+    VALOR_PADRAO_MENSALIDADE_FALLBACK
+  );
+
+  useEffect(() => {
+    const sincronizarMensalidadePadrao = () => {
+      setMensalidadePadrao(obterMensalidadePadraoSalva());
+    };
+
+    sincronizarMensalidadePadrao();
+
+    window.addEventListener("storage", sincronizarMensalidadePadrao);
+    window.addEventListener("recarregarBalançoGlobal", sincronizarMensalidadePadrao);
+
+    return () => {
+      window.removeEventListener("storage", sincronizarMensalidadePadrao);
+      window.removeEventListener("recarregarBalançoGlobal", sincronizarMensalidadePadrao);
+    };
+  }, []);
+
+  return mensalidadePadrao;
+}
+
+function normalizarTextoDivida(valor: any) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function ehParcelaDeAcordo(pendencia: any) {
+  const tipo = normalizarTextoDivida(pendencia?.tipo);
+  const descricao = normalizarTextoDivida(pendencia?.descricao);
+
+  return tipo.includes("acordo") ||
+         tipo.includes("renegoci") ||
+         descricao.includes("acordo") ||
+         descricao.includes("renegoci");
+}
+
+function ehMensalidadeVencida(pendencia: any) {
+  if (!pendencia || ehParcelaDeAcordo(pendencia)) return false;
+
+  const tipo = normalizarTextoDivida(pendencia.tipo);
+  const descricao = normalizarTextoDivida(pendencia.descricao);
+  const ehMensalidade = tipo === "mensalidade" || descricao.includes("mensalidade");
+
+  if (!ehMensalidade) return false;
+  if (pendencia.atraso_automatico === true) return true;
+
+  const status = normalizarTextoDivida(pendencia.status);
+  if (status === "atrasado" || status.includes("atraso")) return true;
+
+  const dataReferencia = pendencia.data_vencimento || pendencia.data_pagamento;
+  if (!dataReferencia) return false;
+
+  const dataVencimento = new Date(`${String(dataReferencia).split("T")[0]}T23:59:59`);
+  if (Number.isNaN(dataVencimento.getTime())) return false;
+
+  return dataVencimento.getTime() < Date.now();
+}
+
+function obterValorIntegralMensalidade(mensalidadePadrao: any) {
+  const valorPadrao = clean(mensalidadePadrao);
+  return valorPadrao > 0 ? valorPadrao : VALOR_PADRAO_MENSALIDADE_FALLBACK;
+}
+
+function obterSaldoIntegralPendencia(pendencia: any, mensalidadePadrao: any) {
+  const valorPago = clean(pendencia?.valor_pago);
+
+  if (ehMensalidadeVencida(pendencia)) {
+    return Math.max(
+      0,
+      obterValorIntegralMensalidade(mensalidadePadrao) - valorPago
+    );
+  }
+
+  return Math.max(0, clean(pendencia?.valor_total) - valorPago);
+}
+
+function calcularTotalDividaIntegral(
+  listaPendencias: any[],
+  mensalidadePadrao: any
+) {
+  return (listaPendencias || []).reduce(
+    (total: number, pendencia: any) =>
+      total + obterSaldoIntegralPendencia(pendencia, mensalidadePadrao),
+    0
+  );
+}
+
+function abrirPDVAlunoEmNovaAba(alunoId: any) {
+  if (!alunoId || typeof window === "undefined") return;
+
+  const urlPDV = `/admin/pdv?alunoId=${encodeURIComponent(String(alunoId))}`;
+  const novaAba = window.open(urlPDV, "_blank", "noopener,noreferrer");
+  if (novaAba) novaAba.opener = null;
+}
+
 export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onExcluir }: any) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden relative">
@@ -58,37 +170,44 @@ export function BannerAluno({ aluno, router, ehVisitante, abrirEdicaoFicha, onEx
 }
 
 export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any) {
-  const [observacoes, setObservacoes] = useState<any[]>([]);
+  const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    async function buscarAlertas() {
+    async function buscarAvaliacoes() {
       const { data } = await supabase
         .from('avaliacoes')
         .select('data_avaliacao, participacao, comportamento, atividades, socioemocional, comentario')
         .eq('aluno_id', alunoId)
         .order('data_avaliacao', { ascending: false });
 
-      if (data) {
-        const comAlertas = data.filter(obs => obs.comentario && obs.comentario.trim().length > 0);
-        setObservacoes(comAlertas);
-      }
+      setAvaliacoes(Array.isArray(data) ? data : []);
       setCarregando(false);
     }
-    buscarAlertas();
+
+    buscarAvaliacoes();
   }, [alunoId]);
+
+  const camposAvaliacao = [
+    { chave: 'participacao', nome: 'Participação' },
+    { chave: 'comportamento', nome: 'Comportamento' },
+    { chave: 'atividades', nome: 'Atividades' },
+    { chave: 'socioemocional', nome: 'Socioemocional' }
+  ];
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-      <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
-        
+      <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="bg-indigo-400 p-6 border-b border-indigo-400 flex justify-between items-center shrink-0">
           <div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>⭐</span> Diário de Desempenho
+              <span>⭐</span> Avaliações Pedagógicas
             </h2>
-            <p className="text-indigo-100 text-[11px] font-bold uppercase tracking-widest mt-1">Registros Pedagógicos</p>
+            <p className="text-indigo-100 text-[11px] font-bold uppercase tracking-widest mt-1">
+              Avaliações realizadas pelos professores
+            </p>
           </div>
+
           <button onClick={onClose} className="w-10 h-10 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl flex items-center justify-center transition-colors shadow-lg active:scale-95">
             ✕
           </button>
@@ -96,50 +215,138 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
           {carregando ? (
-            <div className="text-center p-10 text-indigo-400 font-bold text-xs uppercase tracking-widest animate-pulse">Consultando registros...</div>
+            <div className="text-center p-10 text-indigo-400 font-bold text-xs uppercase tracking-widest animate-pulse">
+              Consultando avaliações...
+            </div>
           ) : (
             <div className="space-y-6">
-              
               <div className="flex flex-col items-center justify-center bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Média Geral do Aluno</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                  Média Geral do Aluno
+                </span>
+
                 <div className="text-3xl font-black text-indigo-700">
                   {mediaCalculada > 0 ? mediaCalculada.toFixed(1) : "—"}
                   <span className="text-sm text-slate-300 font-medium ml-1">/ 5.0</span>
                 </div>
+
                 <div className="mt-2 flex gap-1">
-                   {mediaCalculada > 0 && Array.from({length: 5}).map((_, i) => (
-                     <span key={i} className={`text-base ${i < Math.round(mediaCalculada) ? 'opacity-100' : 'opacity-20'}`}>⭐</span>
-                   ))}
+                  {mediaCalculada > 0 && Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} className={`text-base ${i < Math.round(mediaCalculada) ? 'opacity-100' : 'opacity-20'}`}>
+                      ⭐
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
-                Alertas e Observações
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                Histórico de avaliações
               </h3>
 
-              {observacoes.length > 0 ? (
+              {avaliacoes.length > 0 ? (
                 <div className="flex flex-col gap-4">
-                  {observacoes.map((obs, idx) => (
-                    <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:border-indigo-100">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-400 rounded-l-2xl"></div>
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
-                          🗓️ {new Date(obs.data_avaliacao).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                        </span>
+                  {avaliacoes.map((avaliacao, index) => {
+                    const notasAbaixoDeQuatro = camposAvaliacao.filter(({ chave }) => {
+                      const nota = Number(avaliacao?.[chave]);
+                      return nota > 0 && nota < 4;
+                    });
+
+                    return (
+                      <div key={index} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className={`absolute top-0 left-0 w-1.5 h-full ${notasAbaixoDeQuatro.length > 0 ? 'bg-rose-400' : 'bg-emerald-400'}`}></div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg w-fit">
+                            🗓️ {avaliacao.data_avaliacao
+                              ? new Date(avaliacao.data_avaliacao).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                              : 'Data não informada'}
+                          </span>
+
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg w-fit ${
+                            notasAbaixoDeQuatro.length > 0
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'bg-emerald-50 text-emerald-600'
+                          }`}>
+                            {notasAbaixoDeQuatro.length > 0 ? 'Requer atenção' : 'Desempenho satisfatório'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {camposAvaliacao.map(({ chave, nome }) => {
+                            const nota = Number(avaliacao?.[chave]) || 0;
+                            const abaixoDeQuatro = nota > 0 && nota < 4;
+
+                            return (
+                              <div
+                                key={chave}
+                                className={`p-3 rounded-xl border ${
+                                  abaixoDeQuatro
+                                    ? 'bg-rose-50 border-rose-200'
+                                    : 'bg-slate-50 border-slate-100'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                    abaixoDeQuatro ? 'text-rose-600' : 'text-slate-500'
+                                  }`}>
+                                    {nome}
+                                  </span>
+
+                                  <span className={`text-sm font-black ${
+                                    abaixoDeQuatro ? 'text-rose-700' : 'text-slate-700'
+                                  }`}>
+                                    {nota > 0 ? `${nota}/5` : '—'}
+                                  </span>
+                                </div>
+
+                                {nota > 0 && (
+                                  <div className="mt-2 flex gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <span key={i} className={`text-sm ${i < nota ? 'opacity-100' : 'opacity-20'}`}>
+                                        ⭐
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {notasAbaixoDeQuatro.length > 0 && (
+                          <div className="mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50">
+                            <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-2">
+                              Motivo das notas abaixo de 4
+                            </span>
+
+                            <p className="text-sm font-semibold text-rose-800 leading-relaxed whitespace-pre-wrap">
+                              {avaliacao.comentario?.trim()
+                                ? avaliacao.comentario
+                                : 'O professor não registrou um motivo para esta avaliação.'}
+                            </p>
+                          </div>
+                        )}
+
+                        {notasAbaixoDeQuatro.length === 0 && avaliacao.comentario?.trim() && (
+                          <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">
+                              Observação do professor
+                            </span>
+
+                            <p className="text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap">
+                              {avaliacao.comentario}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm font-medium text-slate-600 leading-relaxed mb-4 italic">"{obs.comentario}"</p>
-                      
-                      <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-50">
-                        {obs.participacao <= 3 && obs.participacao > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Part: {obs.participacao}★</span>}
-                        {obs.comportamento <= 3 && obs.comportamento > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Comp: {obs.comportamento}★</span>}
-                        {obs.atividades <= 3 && obs.atividades > 0 && <span className="bg-rose-50 text-rose-600 text-[9px] font-black px-2 py-1 rounded border border-rose-100 uppercase">Ativ: {obs.atividades}★</span>}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="text-center py-8 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-xs font-bold text-slate-400">Nenhum comentário registrado.</p>
+                <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs font-bold text-slate-400">
+                    Nenhuma avaliação pedagógica registrada.
+                  </p>
                 </div>
               )}
             </div>
@@ -150,9 +357,14 @@ export function ModalObservacoesDiario({ alunoId, onClose, mediaCalculada }: any
   );
 }
 
-export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
+export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, percentualPresenca, router, alunoId, setVerBoletim, setVerHistorico, setVerRelatorios }: any) {
   const [modalObsAberto, setModalObsAberto] = useState(false);
-  const [mediaReal, setMediaReal] = useState(0);
+  const [mediaReal, setMediaReal] = useState(5);
+  const mensalidadePadrao = useMensalidadePadrao();
+
+  const totalDividaIntegral = Array.isArray(listaPendenciasGerais)
+    ? calcularTotalDividaIntegral(listaPendenciasGerais, mensalidadePadrao)
+    : clean(totalPendenteGeral);
 
   useEffect(() => {
     async function buscarMediaReal() {
@@ -167,7 +379,9 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
             qtdNotas++;
           }
         });
-        if (qtdNotas > 0) setMediaReal(somaTotal / qtdNotas);
+        setMediaReal(qtdNotas > 0 ? somaTotal / qtdNotas : 5);
+      } else {
+        setMediaReal(5);
       }
     }
     if (alunoId) buscarMediaReal();
@@ -190,9 +404,9 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
           <p className={`text-xl lg:text-2xl font-black ${saldoCreditoVisivel > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{saldoCreditoVisivel > 0 ? `R$ ${saldoCreditoVisivel.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
         
-        <div onClick={() => { if(totalPendenteGeral > 0) setVerDividasGlobais(true); }} className={`p-4 rounded-3xl border transition-all ${totalPendenteGeral > 0 ? 'bg-rose-50 border-rose-200 cursor-pointer hover:shadow-md hover:-translate-y-1' : 'bg-white border-slate-100 opacity-60'}`}>
-          <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${totalPendenteGeral > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Dívida Ativa</span>
-          <p className={`text-xl lg:text-2xl font-black ${totalPendenteGeral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalPendenteGeral > 0 ? `R$ ${totalPendenteGeral.toFixed(2)}` : 'R$ 0,00'}</p>
+        <div onClick={() => { if(totalDividaIntegral > 0) setVerDividasGlobais(true); }} className={`p-4 rounded-3xl border transition-all ${totalDividaIntegral > 0 ? 'bg-rose-50 border-rose-200 cursor-pointer hover:shadow-md hover:-translate-y-1' : 'bg-white border-slate-100 opacity-60'}`}>
+          <span className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${totalDividaIntegral > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Dívida Ativa</span>
+          <p className={`text-xl lg:text-2xl font-black ${totalDividaIntegral > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{totalDividaIntegral > 0 ? `R$ ${totalDividaIntegral.toFixed(2)}` : 'R$ 0,00'}</p>
         </div>
         
         <div onClick={() => setModalObsAberto(true)} className="p-4 rounded-3xl border border-amber-200 bg-amber-50 cursor-pointer hover:shadow-md hover:border-amber-300 hover:-translate-y-1 transition-all relative overflow-hidden group">
@@ -211,7 +425,7 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
         
         <div className="col-span-2 md:col-span-4 xl:col-span-1 p-4 rounded-3xl border border-indigo-100 bg-indigo-50 flex flex-col justify-center">
           <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Mensalidade Padrão</span>
-          <p className="text-xl lg:text-2xl font-black text-indigo-700 leading-none">{aluno.valor ? parseFloat(aluno.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
+          <p className="text-xl lg:text-2xl font-black text-indigo-700 leading-none">{clean(aluno.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
           <span className="text-[10px] font-bold text-indigo-400 mt-1 block">Vence dia {aluno.vencimento || '--'}</span>
         </div>
       </div>
@@ -227,6 +441,10 @@ export function VisaoGeralAluno({ aluno, saldoCreditoVisivel, setVerCreditoGloba
               <p className="text-lg font-bold text-slate-800 bg-slate-50 p-4 rounded-2xl border border-slate-200">{aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Não registrado'}</p>
             </div>
             <div className="space-y-1">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sexo</span>
+              <p className="text-lg font-bold text-slate-800 bg-slate-50 p-4 rounded-2xl border border-slate-200">{aluno.sexo || 'Não registrado'}</p>
+            </div>
+            <div className="space-y-1 md:col-span-2">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CPF do Aluno</span>
               <p className="text-lg font-bold text-slate-800 bg-slate-50 p-4 rounded-2xl border border-slate-200">{mCPF(aluno.cpf_aluno) || 'Não registrado'}</p>
             </div>
@@ -417,7 +635,18 @@ export function RelatoriosAluno({ alunoId, setVerRelatorios }: { alunoId: string
   );
 }
 
-export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, onAbrirPDV, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
+export function DividasAluno({ aluno, totalPendenteGeral, listaPendenciasGerais, setVerDividasGlobais, ehVisitante, idRenegociacao, setIdRenegociacao, formRenegociacao, setFormRenegociacao, confirmarRenegociacao, isProcessandoAcao }: any) {
+  const mensalidadePadrao = useMensalidadePadrao();
+  const pendencias = Array.isArray(listaPendenciasGerais) ? listaPendenciasGerais : [];
+  const alunoIdPDV = aluno?.id || pendencias.find((pend: any) => pend?.aluno_id)?.aluno_id;
+  const totalIntegralEmAberto = pendencias.length > 0
+    ? calcularTotalDividaIntegral(pendencias, mensalidadePadrao)
+    : clean(totalPendenteGeral);
+
+  const abrirPDV = (pendencia?: any) => {
+    abrirPDVAlunoEmNovaAba(aluno?.id || pendencia?.aluno_id || alunoIdPDV);
+  };
+
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-6">
@@ -428,10 +657,10 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
       <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl mb-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="text-center md:text-left">
           <span className="text-xs text-rose-600 font-bold uppercase tracking-widest">Valor Total em Aberto</span>
-          <p className="text-3xl font-black text-rose-700 mt-1">R$ {totalPendenteGeral.toFixed(2)}</p>
+          <p className="text-3xl font-black text-rose-700 mt-1">R$ {totalIntegralEmAberto.toFixed(2)}</p>
         </div>
-        {!ehVisitante && (
-          <button onClick={() => onAbrirPDV && onAbrirPDV(null)} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
+        {!ehVisitante && alunoIdPDV && (
+          <button onClick={() => abrirPDV()} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
             RECEBER MÚLTIPLAS DÍVIDAS
           </button>
@@ -439,22 +668,21 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
       </div>
 
       <div className="space-y-4">
-        {listaPendenciasGerais.length > 0 ? listaPendenciasGerais.map((pend: any, i: number) => {
-          const valorTotal = clean(pend.valor_total);
-          const valorPago = clean(pend.valor_pago);
-          const restante = valorTotal - valorPago;
+        {pendencias.length > 0 ? pendencias.map((pend: any, i: number) => {
+          const restanteIntegral = obterSaldoIntegralPendencia(pend, mensalidadePadrao);
           const renegociandoEste = idRenegociacao === pend.id;
 
           return (
-            <div 
-              key={i} 
-              onClick={(e) => { 
-                if (!renegociandoEste && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'INPUT') {
-                  onAbrirPDV(pend.id); 
+            <div
+              key={i}
+              onClick={(e) => {
+                const elemento = e.target as HTMLElement;
+                if (!renegociandoEste && elemento.tagName !== 'BUTTON' && elemento.tagName !== 'INPUT') {
+                  abrirPDV(pend);
                 }
-              }} 
+              }}
               className={`p-5 rounded-2xl border transition-all ${renegociandoEste ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer'}`}
-              title={!renegociandoEste ? "Clique para pagar esta fatura" : ""}
+              title={!renegociandoEste ? "Clique para abrir esta fatura no PDV" : ""}
             >
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
@@ -467,19 +695,19 @@ export function DividasAluno({ totalPendenteGeral, listaPendenciasGerais, setVer
                   </div>
                 </div>
                 <div className="text-left md:text-right flex flex-col items-end gap-2">
-                  <span className="text-lg font-black text-rose-600 block">R$ {restante.toFixed(2)}</span>
-                  
+                  <span className="text-lg font-black text-rose-600 block">R$ {restanteIntegral.toFixed(2)}</span>
+
                   {!renegociandoEste && (
-                     <div className="flex gap-2">
-                        {onAbrirPDV && (
-                           <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pend.id); }} className="bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Pagar Dívida">
-                              💵 Quitar Fatura
-                           </button>
-                        )}
-                        <button onClick={(e) => { e.stopPropagation(); setIdRenegociacao(pend.id); }} className="bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center gap-1">
-                            🔄 Dividir / Acordo
+                    <div className="flex gap-2">
+                      {(aluno?.id || pend?.aluno_id) && (
+                        <button onClick={(e) => { e.stopPropagation(); abrirPDV(pend); }} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Abrir no Ponto de Venda">
+                          💵 Quitar Fatura
                         </button>
-                     </div>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); setIdRenegociacao(pend.id); }} className="bg-white border border-amber-500 text-amber-600 text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center gap-1">
+                        🔄 Dividir / Acordo
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -712,7 +940,7 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, userEmail, SENHA_MESTRA, onAbrirPDV, onRecarregar }: any) {
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, userEmail, SENHA_MESTRA, onRecarregar }: any) {
   
   const historicoFiltradoExibicao = (historicoLocal || []).filter((h: any) => {
     if (h.tipo?.toLowerCase() === 'credito') return false;
@@ -730,44 +958,53 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
   });
 
   const higienizarFormaPagamento = (detalhes: any, stringLegado?: string | null) => {
-    let limpa = String(stringLegado || "").toUpperCase().trim();
-    if (limpa === 'UNDEFINED' || limpa === 'NULL') limpa = '';
-    
-    if (limpa.includes("PIX") || limpa.includes("DINHEIRO") || limpa.includes("BOLETO") || limpa.includes("DÉBITO")) {
-        if (!limpa.includes("CRÉDITO") && !limpa.includes("CARTÃO")) {
-            limpa = limpa.replace(/\s*\+?\s*PARCELAS?/gi, '').trim();
-            if (limpa.endsWith('+')) limpa = limpa.slice(0, -1).trim();
-        }
-    }
-    
-    if (limpa && limpa !== 'INDEFINIDA' && limpa !== 'NÃO REGISTRADA') {
-        return limpa;
-    }
+    const formasEncontradas: string[] = [];
+
+    const adicionarForma = (forma: string) => {
+      if (!formasEncontradas.includes(forma)) formasEncontradas.push(forma);
+    };
+
+    const analisarTexto = (valor: any) => {
+      const texto = String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim();
+
+      if (!texto || texto === "UNDEFINED" || texto === "NULL") return;
+
+      if (texto.includes("DINHEIRO")) adicionarForma("Dinheiro");
+      if (texto.includes("PIX")) adicionarForma("PIX");
+      if (texto.includes("DEBITO")) adicionarForma("Cartão de débito");
+
+      const possuiCredito = texto.includes("CREDITO");
+      const possuiCartao = texto.includes("CARTAO");
+      const possuiDebito = texto.includes("DEBITO");
+
+      if (possuiCredito || (possuiCartao && !possuiDebito)) {
+        adicionarForma("Cartão de crédito");
+      }
+    };
+
+    analisarTexto(stringLegado);
 
     if (detalhes) {
-        const permitidos = ['pix', 'pix_editora', 'dinheiro', 'credito', 'credito_editora', 'debito', 'debito_editora', 'boleto', 'credito_aluno'];
-        const metodosReais = Object.keys(detalhes).filter(key => permitidos.includes(key) && clean(detalhes[key]) > 0);
-        
-        if (metodosReais.length > 0) {
-            let resultadoFinal = metodosReais.map(m => {
-                if (m === 'pix' || m === 'pix_editora') return 'PIX';
-                if (m === 'dinheiro') return 'DINHEIRO';
-                if (m === 'credito' || m === 'credito_editora') {
-                    const parc = parseInt(detalhes.parcelas) || 1;
-                    return parc > 1 ? `CARTÃO DE CRÉDITO ${parc}X` : 'CARTÃO DE CRÉDITO';
-                }
-                if (m === 'debito' || m === 'debito_editora') return 'CARTÃO DE DÉBITO';
-                if (m === 'boleto') return 'BOLETO';
-                if (m === 'credito_aluno') return 'SALDO VIRTUAL';
-                return '';
-            }).filter(Boolean).join(' + ');
+      if (clean(detalhes.dinheiro) > 0) adicionarForma("Dinheiro");
+      if (clean(detalhes.pix) > 0 || clean(detalhes.pix_editora) > 0) adicionarForma("PIX");
+      if (clean(detalhes.credito) > 0 || clean(detalhes.credito_editora) > 0) adicionarForma("Cartão de crédito");
+      if (clean(detalhes.debito) > 0 || clean(detalhes.debito_editora) > 0) adicionarForma("Cartão de débito");
 
-            resultadoFinal = Array.from(new Set(resultadoFinal.split(' + '))).join(' + ');
-            return resultadoFinal;
-        }
+      analisarTexto(detalhes.formas);
+      analisarTexto(detalhes.forma_geradora);
     }
 
-    return "Baixa Manual / Legado";
+    return formasEncontradas.length > 0
+      ? formasEncontradas.join(" + ")
+      : "Não registrada";
+  };
+
+  const abrirPDVEmNovaAba = () => {
+    abrirPDVAlunoEmNovaAba(aluno?.id);
   };
 
   // ESTORNO CIRÚRGICO SIMPLIFICADO C/ REVERSÃO AUTOMÁTICA DE SALDO/TROCO
@@ -986,11 +1223,11 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
             <div 
               key={i} 
               onClick={(e) => { 
-                if (devedorRestante > 0 && onAbrirPDV && (e.target as HTMLElement).tagName !== 'BUTTON') {
-                  onAbrirPDV(pgto.id); 
+                if (devedorRestante > 0 && aluno?.id && (e.target as HTMLElement).tagName !== 'BUTTON') {
+                  abrirPDVEmNovaAba();
                 }
               }}
-              className={`p-5 rounded-2xl border transition-all ${devedorRestante > 0 && onAbrirPDV ? 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer' : 'bg-white border-slate-200 shadow-sm'}`}
+              className={`p-5 rounded-2xl border transition-all ${devedorRestante > 0 && aluno?.id ? 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md cursor-pointer' : 'bg-white border-slate-200 shadow-sm'}`}
               title={devedorRestante > 0 ? "Clique para quitar a pendência" : ""}
             >
               
@@ -1017,8 +1254,8 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                   {podeGerenciar && (
                     <div className="flex gap-2 pl-4 border-l border-slate-200 h-full items-center">
                       
-                      {devedorRestante > 0 && onAbrirPDV && (
-                        <button onClick={(e) => { e.stopPropagation(); onAbrirPDV(pgto.id); }} className="mr-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Pagar Dívida">
+                      {devedorRestante > 0 && aluno?.id && (
+                        <button onClick={(e) => { e.stopPropagation(); abrirPDVEmNovaAba(); }} className="mr-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors uppercase flex items-center gap-1" title="Abrir no Ponto de Venda">
                           💵 Quitar
                         </button>
                       )}

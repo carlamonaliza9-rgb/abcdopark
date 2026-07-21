@@ -84,9 +84,14 @@ export function VisaoPrincipal({
           <p style={EstiloDado}>{aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</p>
         </div>
         <div style={EstiloCard}>
-          <span style={EstiloLabel}>CPF Aluno</span>
-          <p style={EstiloDado}>{mCPF(aluno.cpf_aluno) || '--'}</p>
+          <span style={EstiloLabel}>Sexo</span>
+          <p style={EstiloDado}>{aluno.sexo || '--'}</p>
         </div>
+      </div>
+
+      <div style={EstiloCard}>
+        <span style={EstiloLabel}>CPF Aluno</span>
+        <p style={EstiloDado}>{mCPF(aluno.cpf_aluno) || '--'}</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

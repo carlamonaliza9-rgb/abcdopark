@@ -34,6 +34,7 @@ export default function AlunosAdminPage() {
   const [cpfAluno, setCpfAluno] = useState("");
   const [turma, setTurma] = useState("");
   const [turno, setTurno] = useState("");
+  const [sexo, setSexo] = useState("");
 
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -474,7 +475,7 @@ export default function AlunosAdminPage() {
       }
       
       const dadosParaEnviar = { 
-        nome, cpf_aluno: cpfAluno, turma, turno,
+        nome, cpf_aluno: cpfAluno, turma, turno, sexo: sexo || null,
         cep, endereco, numero, bairro, cidade, estado,
         responsavel, parentesco_1: parentesco1, whatsapp, cpf_responsavel: cpfResponsavel,
         email_responsavel: emailResponsavel,
@@ -565,7 +566,7 @@ export default function AlunosAdminPage() {
   }
 
   function limparEContinuar() {
-    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setTurno("");
+    setIdEdicao(null); setNome(""); setCpfAluno(""); setTurma(""); setTurno(""); setSexo("");
     setCep(""); setEndereco(""); setNumero(""); setBairro(""); setCidade(""); setEstado("");
     setResponsavel(""); setParentesco1("Mãe"); setCpfResponsavel(""); setWhatsapp(""); 
     setEmailResponsavel(""); setProfissaoResponsavel("");
@@ -586,7 +587,7 @@ export default function AlunosAdminPage() {
       return;
     }
 
-    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); setTurno(aluno.turno || "");
+    setIdEdicao(aluno.id); setNome(aluno.nome); setCpfAluno(aluno.cpf_aluno || ""); setTurma(aluno.turma); setTurno(aluno.turno || ""); setSexo(aluno.sexo || "");
     setCep(aluno.cep || ""); setEndereco(aluno.endereco || ""); setNumero(aluno.numero || ""); 
     setBairro(aluno.bairro || ""); setCidade(aluno.cidade || ""); setEstado(aluno.estado || "");
     setResponsavel(aluno.responsavel); setParentesco1(aluno.parentesco_1 || "Mãe"); 
@@ -658,7 +659,7 @@ export default function AlunosAdminPage() {
         {modalAberto && !modoEdicao && (
           <FichaAlunoModal 
             aluno={{
-              id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno,
+              id: idEdicao, nome, cpf_aluno: cpfAluno, turma, turno, sexo,
               cep, endereco, numero, bairro, cidade, estado,
               responsavel, parentesco1, whatsapp, cpf_responsavel: cpfResponsavel, 
               email_responsavel: emailResponsavel, profissao_responsavel: profissaoResponsavel,
@@ -685,13 +686,14 @@ export default function AlunosAdminPage() {
         {modalAberto && modoEdicao && (
           <FormAlunoModal 
             idEdicao={idEdicao} previewUrl={previewUrl} carregando={carregando} mCPF={mCPF} mWhatsApp={mWhatsApp}
-            form={{nome, cpfAluno, dataNascimento, turma, turno, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
+            form={{nome, cpfAluno, dataNascimento, turma, turno, sexo, cep, endereco, numero, bairro, cidade, estado, valor, vencimento, responsavel, parentesco1, whatsapp, cpfResponsavel, emailResponsavel, profissaoResponsavel, responsavel2, parentesco2, whatsapp2, cpfResponsavel2, emailResponsavel2, profissaoResponsavel2, responsavel3, parentesco3, whatsapp3, emailResponsavel3, eAutista, temAlergia, alergiaDescricao, observacoes}}
             setForm={(d: any) => { 
               if (d.nome !== undefined) setNome(d.nome);
               if (d.cpfAluno !== undefined) setCpfAluno(d.cpfAluno);
               if (d.dataNascimento !== undefined) setDataNascimento(d.dataNascimento);
               if (d.turma !== undefined) setTurma(d.turma);
               if (d.turno !== undefined) setTurno(d.turno);
+              if (d.sexo !== undefined) setSexo(d.sexo);
               if (d.cep !== undefined) setCep(d.cep);
               if (d.endereco !== undefined) setEndereco(d.endereco);
               if (d.numero !== undefined) setNumero(d.numero);

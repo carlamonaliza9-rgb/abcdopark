@@ -465,7 +465,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   const abrirEdicaoFicha = () => {
     setFormEdicao({
       nome: aluno.nome || "", cpfAluno: aluno.cpf_aluno || "", dataNascimento: aluno.data_nascimento || "",
-      turma: aluno.turma || "", turno: aluno.turno || "", cep: aluno.cep || "", endereco: aluno.endereco || "",
+      turma: aluno.turma || "", turno: aluno.turno || "", sexo: aluno.sexo || "", cep: aluno.cep || "", endereco: aluno.endereco || "",
       numero: aluno.numero || "", bairro: aluno.bairro || "", cidade: aluno.cidade || "", estado: aluno.estado || "",
       valor: aluno.valor || "", vencimento: aluno.vencimento || "", responsavel: aluno.responsavel || "",
       parentesco1: aluno.parentesco_1 || aluno.parentesco1 || "Mãe", whatsapp: aluno.whatsapp || "",
@@ -519,7 +519,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       }
       
       const dadosParaEnviar = { 
-        nome: formEdicao.nome, cpf_aluno: formEdicao.cpfAluno, turma: formEdicao.turma, turno: formEdicao.turno,
+        nome: formEdicao.nome, cpf_aluno: formEdicao.cpfAluno, turma: formEdicao.turma, turno: formEdicao.turno, sexo: formEdicao.sexo || null,
         cep: formEdicao.cep, endereco: formEdicao.endereco, numero: formEdicao.numero, bairro: formEdicao.bairro, cidade: formEdicao.cidade, estado: formEdicao.estado,
         responsavel: formEdicao.responsavel, parentesco_1: formEdicao.parentesco1, whatsapp: formEdicao.whatsapp, cpf_responsavel: formEdicao.cpfResponsavel,
         email_responsavel: formEdicao.emailResponsavel, profissao_responsavel: formEdicao.profissaoResponsavel,
@@ -882,8 +882,22 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         ) : verRelatorios ? (
           <RelatoriosAluno alunoId={alunoId} setVerRelatorios={setVerRelatorios} />
         ) : (
-          <VisaoGeralAluno aluno={aluno} saldoCreditoVisivel={saldoCreditoVisivel} setVerCreditoGlobal={setVerCreditoGlobal} totalPendenteGeral={totalPendenteGeral} setVerDividasGlobais={setVerDividasGlobais} mediaEstrelas={mediaEstrelas} percentualPresenca={percentualPresenca} router={router} alunoId={alunoId} setVerBoletim={setVerBoletim} setVerHistorico={setVerHistorico} setVerRelatorios={setVerRelatorios} />
-        )}
+<VisaoGeralAluno
+  aluno={aluno}
+  saldoCreditoVisivel={saldoCreditoVisivel}
+  setVerCreditoGlobal={setVerCreditoGlobal}
+  totalPendenteGeral={totalPendenteGeral}
+  listaPendenciasGerais={listaPendenciasGerais}
+  setVerDividasGlobais={setVerDividasGlobais}
+  mediaEstrelas={mediaEstrelas}
+  percentualPresenca={percentualPresenca}
+  router={router}
+  alunoId={alunoId}
+  setVerBoletim={setVerBoletim}
+  setVerHistorico={setVerHistorico}
+  setVerRelatorios={setVerRelatorios}
+/>
+)}
 
       </div>
 

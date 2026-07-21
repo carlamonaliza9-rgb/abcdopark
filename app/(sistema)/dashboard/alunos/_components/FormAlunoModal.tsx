@@ -125,9 +125,17 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             <input type="text" placeholder="CPF do Aluno" value={form?.cpfAluno || ""} onChange={(e)=>setForm({...form, cpfAluno: mCPF(e.target.value)})} style={EstiloInput} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <input type="date" value={form?.dataNascimento || ""} onChange={(e)=>setForm({...form, dataNascimento: e.target.value})} required style={EstiloInput} />
-            
+
+            <select value={form?.sexo || ""} onChange={(e) => setForm({...form, sexo: e.target.value})} required style={EstiloInput}>
+              <option value="">Sexo...</option>
+              <option value="Feminino">Feminino</option>
+              <option value="Masculino">Masculino</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <select value={form?.turma || ""} onChange={(e) => setForm({...form, turma: e.target.value})} required style={EstiloInput}>
               <option value="">Turma...</option>
               <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
@@ -142,7 +150,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
               <option value="Integral">Integral</option>
             </select>
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <input type="number" placeholder="Mensalidade (R$)" value={form?.valor || ""} onChange={(e)=>setForm({...form, valor: e.target.value})} style={EstiloInput} />
             <input type="number" placeholder="Dia Vencimento" value={form?.vencimento || ""} onChange={(e)=>setForm({...form, vencimento: e.target.value})} style={EstiloInput} />
