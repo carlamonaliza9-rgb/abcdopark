@@ -4,7 +4,26 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { removerAcentos } from "@/lib/utils";
-import { Tag, PieChart as PieChartIcon } from "lucide-react";
+import {
+  Tag,
+  PieChart as PieChartIcon,
+  CalendarDays,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  Trophy,
+  FileText,
+  Eye,
+  RotateCcw,
+  Plus,
+  LayoutGrid,
+  Filter,
+  CircleDollarSign,
+  WalletCards,
+  MoreVertical,
+  Pencil,
+  LockKeyhole
+} from "lucide-react";
 
 // --- IMPORTAÇÕES DOS COMPONENTES DE UNIFORMES E TAXAS ---
 import { ModalUniforme } from "@/app/(sistema)/dashboard/financeiro/_components/ModalUniforme";
@@ -16,7 +35,6 @@ import { TabelaUniformes } from "./_components/TabelaUniformes";
 import { TabelaTaxas } from "./_components/TabelaTaxas";
 import { ModaisInline } from "./_components/ModaisInline";
 
-import { CardEvento } from "./_components/CardEvento";
 import { ModalSetupEvento } from "./_components/ModalSetupEvento";
 import { ModalLancamentoCaixa } from "./_components/ModalLancamentoCaixa";
 import { ModalDetalhesExtrato } from "./_components/ModalDetalhesExtrato";
@@ -53,6 +71,7 @@ export default function DashboardFinanceiroPage() {
   const [userCargo, setUserCargo] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState<"eventos" | "vendas_taxas">("eventos");
+  const [filtroEventos, setFiltroEventos] = useState<"todos" | "ativos" | "encerrados">("todos");
 
   // --- ESTADOS DE DADOS COMPARTILHADOS ---
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -483,6 +502,522 @@ export default function DashboardFinanceiroPage() {
   const maxPecas = Math.max(camisasVendidas, inferioresVendidos, casacosVendidos, 10);
   const hCamisas = (camisasVendidas / maxPecas) * 100; const hInferiores = (inferioresVendidos / maxPecas) * 100; const hCasacos = (casacosVendidos / maxPecas) * 100;
 
+
+  const formatarMoeda = (valor: number) =>
+    valor.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    });
+
+  const ehGincana = (evento: any) =>
+    removerAcentos(String(evento?.nome || "").toLowerCase()).includes("gincana");
+
+  const obterResumoEvento = (evento: any) => {
+    const transacoes = historicoPagamentosEventos.filter((item: any) => {
+      const detalhes = getDetalhes(item);
+      return String(detalhes?.evento_id || "") === String(evento.id);
+    });
+
+    const entradas = transacoes.filter((item: any) => {
+      const detalhes = getDetalhes(item);
+      const descricao = String(item.descricao || "").toUpperCase();
+
+      return (
+        detalhes?.sub_tipo === "entrada" ||
+        item.tipo === "evento_entrada" ||
+        descricao.includes("[ENTRADA]")
+      );
+    });
+
+    const saidas = transacoes.filter((item: any) => {
+      const detalhes = getDetalhes(item);
+      const descricao = String(item.descricao || "").toUpperCase();
+
+      return (
+        detalhes?.sub_tipo === "saida" ||
+        item.tipo === "evento_saida" ||
+        descricao.includes("[SAIDA]")
+      );
+    });
+
+    const valorDaTransacao = (item: any) =>
+      parseCurrency(item.valor_total ?? item.valor_pago ?? 0);
+
+    const totalEntradas = entradas.reduce(
+      (total: number, item: any) => total + valorDaTransacao(item),
+      0
+    );
+
+    const totalSaidas = saidas.reduce(
+      (total: number, item: any) => total + valorDaTransacao(item),
+      0
+    );
+
+    const categoriasEntrada = new Set(
+      entradas
+        .map((item: any) => {
+          const detalhes = getDetalhes(item);
+          return detalhes?.categoria_tag || item.descricao || "";
+        })
+        .filter(Boolean)
+    ).size;
+
+    const categoriasSaida = new Set(
+      saidas
+        .map((item: any) => {
+          const detalhes = getDetalhes(item);
+          return detalhes?.categoria_tag || item.descricao || "";
+        })
+        .filter(Boolean)
+    ).size;
+
+    const arrecadacaoEquipes: Record<string, number> = {};
+
+    entradas.forEach((item: any) => {
+      const equipe = getDetalhes(item)?.equipe_nome;
+      if (!equipe) return;
+
+      arrecadacaoEquipes[equipe] =
+        (arrecadacaoEquipes[equipe] || 0) + valorDaTransacao(item);
+    });
+
+    const equipesComArrecadacao = Object.entries(arrecadacaoEquipes)
+      .map(([nome, valor]) => ({ nome, valor }))
+      .sort((a, b) => b.valor - a.valor);
+
+    const equipesSemArrecadacao = (evento.equipes || [])
+      .filter((nome: string) => !Object.prototype.hasOwnProperty.call(arrecadacaoEquipes, nome))
+      .map((nome: string) => ({ nome, valor: 0 }));
+
+    return {
+      totalEntradas,
+      totalSaidas,
+      lucro: totalEntradas - totalSaidas,
+      categoriasEntrada,
+      categoriasSaida,
+      placar: [...equipesComArrecadacao, ...equipesSemArrecadacao]
+    };
+  };
+
+  const eventosComResumo = eventosAtivos.map((evento: any) => ({
+    evento,
+    resumo: obterResumoEvento(evento)
+  }));
+
+  const eventosFiltrados = eventosComResumo.filter(({ evento }) => {
+    if (filtroEventos === "ativos") return !evento.encerrado;
+    if (filtroEventos === "encerrados") return !!evento.encerrado;
+    return true;
+  });
+
+  const totalGanhosEventos = eventosComResumo.reduce(
+    (total, item) => total + item.resumo.totalEntradas,
+    0
+  );
+
+  const totalCustosEventos = eventosComResumo.reduce(
+    (total, item) => total + item.resumo.totalSaidas,
+    0
+  );
+
+  const totalLucroEventos = totalGanhosEventos - totalCustosEventos;
+
+  const totalParticipantesEventos = eventosAtivos.reduce(
+    (total: number, evento: any) =>
+      total + Number(evento.total_alunos || evento.participantes?.length || 0),
+    0
+  );
+
+  const totalEventosAbertos = eventosAtivos.filter(
+    (evento: any) => !evento.encerrado
+  ).length;
+
+  const abrirNovoEvento = () => {
+    setIdEdicaoEvento(null);
+    setNomeEvento("");
+    setDataEvento(new Date().toISOString().split("T")[0]);
+    setTagsEntrada([
+      { nome: "Ingressos", valor: 0 },
+      { nome: "Votos", valor: 0 }
+    ]);
+    setTagsSaida([
+      { nome: "Decoração", valor: 0 },
+      { nome: "Som", valor: 0 }
+    ]);
+    setEquipes(["Equipe Azul", "Equipe Amarela"]);
+    setAlunosSelecionadosEvento([]);
+    setTagTipoFoco("entrada");
+    setModalSetupAberto(true);
+  };
+
+  const renderCardEventoResponsivo = (
+    evento: any,
+    resumo: any,
+    indice: number
+  ) => {
+    const mostrarPlacar = ehGincana(evento);
+    const participantes = Number(
+      evento.total_alunos || evento.participantes?.length || 0
+    );
+    const maiorValorEquipe = Math.max(
+      ...resumo.placar.map((equipe: any) => Number(equipe.valor || 0)),
+      1
+    );
+
+    const temas = [
+      {
+        fundo: "from-blue-50 via-indigo-50 to-violet-100",
+        icone: "🏆"
+      },
+      {
+        fundo: "from-cyan-50 via-sky-50 to-blue-100",
+        icone: "🏛️"
+      },
+      {
+        fundo: "from-violet-50 via-purple-50 to-fuchsia-100",
+        icone: "🎭"
+      },
+      {
+        fundo: "from-amber-50 via-orange-50 to-yellow-100",
+        icone: "🎉"
+      }
+    ];
+
+    const tema = temas[indice % temas.length];
+
+    return (
+      <article
+        key={evento.id}
+        className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_3px_14px_rgba(15,23,42,0.045)] transition-shadow duration-300 hover:shadow-[0_6px_20px_rgba(15,23,42,0.07)] md:rounded-2xl"
+      >
+        <div className="grid grid-cols-1 xl:grid-cols-12">
+          <section
+            className={`border-b border-slate-100 p-3 sm:p-4 md:p-4 xl:border-b-0 xl:border-r ${
+              mostrarPlacar ? "xl:col-span-4" : "xl:col-span-5"
+            }`}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[88px_minmax(0,1fr)] sm:items-stretch">
+              <div
+                className={`relative flex min-h-[92px] items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br ${tema.fundo} sm:min-h-full`}
+              >
+                <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/50" />
+                <div className="absolute -bottom-7 -left-5 h-20 w-20 rounded-full bg-white/60" />
+                <span className="relative text-4xl drop-shadow-sm">
+                  {mostrarPlacar ? "🏆" : tema.icone}
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] ${
+                        mostrarPlacar
+                          ? "bg-violet-50 text-violet-700"
+                          : "bg-blue-50 text-blue-700"
+                      }`}
+                    >
+                      {mostrarPlacar ? "Gincana" : "Evento"}
+                    </span>
+
+                    <h3 className="mt-2 break-words text-base font-extrabold leading-tight text-slate-800 sm:text-lg">
+                      {evento.nome}
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => prepararEdicaoSetup(evento)}
+                    disabled={evento.encerrado}
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    title="Editar evento"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] font-semibold text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays size={13} className="text-blue-500" />
+                    {evento.data_evento
+                      ? new Date(
+                          `${evento.data_evento}T00:00:00`
+                        ).toLocaleDateString("pt-BR")
+                      : "--"}
+                  </span>
+
+                  <span className="flex items-center gap-1.5">
+                    <Users size={13} className="text-blue-500" />
+                    {participantes} alunos
+                  </span>
+                </div>
+
+                <span
+                  className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[8px] font-extrabold uppercase tracking-[0.12em] ${
+                    evento.encerrado
+                      ? "bg-slate-100 text-slate-600"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      evento.encerrado ? "bg-slate-400" : "bg-emerald-500"
+                    }`}
+                  />
+                  {evento.encerrado ? "Encerrado" : "Em andamento"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3.5 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-3">
+              <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                Lucro final
+              </p>
+
+              <p
+                className={`mt-1 break-words text-xl font-extrabold ${
+                  resumo.lucro >= 0 ? "text-emerald-600" : "text-rose-600"
+                }`}
+              >
+                {formatarMoeda(resumo.lucro)}
+              </p>
+
+              <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                Margem de{" "}
+                {resumo.totalEntradas > 0
+                  ? (
+                      (resumo.lucro / resumo.totalEntradas) *
+                      100
+                    ).toFixed(1)
+                  : "0,0"}
+                %
+              </p>
+            </div>
+          </section>
+
+          <section
+            className={`border-b border-slate-100 p-3 sm:p-4 md:p-4 xl:border-b-0 ${
+              mostrarPlacar
+                ? "xl:col-span-3 xl:border-r"
+                : "xl:col-span-7"
+            }`}
+          >
+            <div
+              className={`grid h-full grid-cols-1 gap-3 ${
+                mostrarPlacar ? "" : "md:grid-cols-2"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  abrirDetalhesTransacoes(evento.id, "entrada")
+                }
+                className="group rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-left transition hover:border-emerald-200 hover:bg-emerald-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-[8px] font-extrabold uppercase tracking-[0.12em] text-emerald-700">
+                    <TrendingUp size={14} />
+                    Ganhos
+                  </span>
+                  <Eye
+                    size={15}
+                    className="text-emerald-400 transition group-hover:text-emerald-600"
+                  />
+                </div>
+
+                <p className="mt-1.5 break-words text-base font-extrabold text-emerald-700">
+                  {formatarMoeda(resumo.totalEntradas)}
+                </p>
+
+                <p className="mt-1 text-[10px] font-bold text-slate-500">
+                  {resumo.categoriasEntrada}{" "}
+                  {resumo.categoriasEntrada === 1
+                    ? "categoria"
+                    : "categorias"}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => abrirDetalhesTransacoes(evento.id, "saida")}
+                className="group rounded-xl border border-rose-100 bg-rose-50/60 p-3 text-left transition hover:border-rose-200 hover:bg-rose-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-[8px] font-extrabold uppercase tracking-[0.12em] text-rose-700">
+                    <TrendingDown size={14} />
+                    Custos
+                  </span>
+                  <Eye
+                    size={15}
+                    className="text-rose-400 transition group-hover:text-rose-600"
+                  />
+                </div>
+
+                <p className="mt-1.5 break-words text-base font-extrabold text-rose-700">
+                  {formatarMoeda(resumo.totalSaidas)}
+                </p>
+
+                <p className="mt-1 text-[10px] font-bold text-slate-500">
+                  {resumo.categoriasSaida}{" "}
+                  {resumo.categoriasSaida === 1
+                    ? "categoria"
+                    : "categorias"}
+                </p>
+              </button>
+            </div>
+          </section>
+
+          {mostrarPlacar && (
+            <section className="p-3 sm:p-4 md:p-4 xl:col-span-5">
+              <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">
+                  <Trophy size={14} />
+                  Placar de equipes
+                </h4>
+
+                <span
+                  className={`rounded-full px-3 py-1 text-[8px] font-extrabold uppercase tracking-[0.12em] ${
+                    evento.encerrado
+                      ? "bg-slate-100 text-slate-600"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {evento.encerrado ? "Encerrado" : "Aberto"}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {resumo.placar.length > 0 ? (
+                  resumo.placar
+                    .slice(0, 5)
+                    .map((equipe: any, posicao: number) => (
+                      <div
+                        key={`${evento.id}-${equipe.nome}`}
+                        className="grid grid-cols-[24px_minmax(0,1fr)] gap-2.5 sm:grid-cols-[24px_minmax(0,1fr)_auto] sm:items-center"
+                      >
+                        <span
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-extrabold ${
+                            posicao === 0
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {posicao + 1}
+                        </span>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-extrabold text-slate-700">
+                            {equipe.nome}
+                          </p>
+
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${
+                                posicao === 0
+                                  ? "from-blue-500 to-indigo-600"
+                                  : "from-sky-400 to-blue-500"
+                              }`}
+                              style={{
+                                width: `${Math.max(
+                                  4,
+                                  (Number(equipe.valor || 0) /
+                                    maiorValorEquipe) *
+                                    100
+                                )}%`
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <span className="col-start-2 whitespace-nowrap text-[10px] font-extrabold text-slate-700 sm:col-start-auto">
+                          {formatarMoeda(Number(equipe.valor || 0))}
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <div className="flex min-h-[90px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Nenhuma equipe cadastrada
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 border-t border-slate-100 bg-slate-50/50 sm:grid-cols-2 xl:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => abrirRelatorioEvento(evento)}
+            className="flex min-h-10 items-center justify-center gap-2 border-b border-slate-200 px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-700 transition hover:bg-blue-50 sm:border-r xl:border-b-0"
+          >
+            <FileText size={14} />
+            Relatório analítico
+          </button>
+
+          <button
+            type="button"
+            onClick={() => abrirDetalhesTransacoes(evento.id, "entrada")}
+            className="flex min-h-10 items-center justify-center gap-2 border-b border-slate-200 px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-700 transition hover:bg-blue-50 xl:border-b-0 xl:border-r"
+          >
+            <Eye size={14} />
+            Ver detalhes
+          </button>
+
+          {evento.encerrado ? (
+            <button
+              type="button"
+              onClick={() => reabrirEvento(evento.id)}
+              className="flex min-h-10 items-center justify-center gap-2 px-3 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-amber-700 transition hover:bg-amber-50 sm:col-span-2 xl:col-span-1"
+            >
+              <RotateCcw size={14} />
+              Reabrir evento
+            </button>
+          ) : (
+            <div className="grid grid-cols-1 sm:col-span-2 sm:grid-cols-4 xl:col-span-1 xl:grid-cols-2 2xl:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => abrirLancamento(evento.id, "entrada")}
+                className="flex min-h-10 items-center justify-center gap-1 border-b border-slate-200 px-2 py-2.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-emerald-700 transition hover:bg-emerald-50 sm:border-b-0 sm:border-r"
+              >
+                <Plus size={13} />
+                Entrada
+              </button>
+
+              <button
+                type="button"
+                onClick={() => abrirLancamento(evento.id, "saida")}
+                className="flex min-h-10 items-center justify-center gap-1 border-b border-slate-200 px-2 py-2.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-rose-700 transition hover:bg-rose-50 sm:border-b-0 sm:border-r"
+              >
+                <Plus size={13} />
+                Custo
+              </button>
+
+              <button
+                type="button"
+                onClick={() => prepararEdicaoSetup(evento)}
+                className="flex min-h-10 items-center justify-center gap-1 border-b border-slate-200 px-2 py-2.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-slate-600 transition hover:bg-slate-100 sm:border-b-0 sm:border-r"
+              >
+                <Pencil size={13} />
+                Editar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => encerrarEventoDefinitivamente(evento.id)}
+                className="flex min-h-10 items-center justify-center gap-1 px-2 py-2.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-slate-600 transition hover:bg-slate-100"
+              >
+                <LockKeyhole size={13} />
+                Encerrar
+              </button>
+            </div>
+          )}
+        </div>
+      </article>
+    );
+  };
+
   if (verificandoAcesso || carregando) {
     return <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse text-xs md:text-sm">Carregando controle financeiro integrado...</div>;
   }
@@ -503,56 +1038,187 @@ export default function DashboardFinanceiroPage() {
       </div>
 
       {abaAtiva === "eventos" ? (
-        <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
-          
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm gap-3 md:gap-4 print:hidden">
-            <div>
-              <h2 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">🎟️ Gestão de Eventos e Gincanas</h2>
-              <p className="text-[9px] md:text-[10px] text-slate-400 uppercase tracking-widest font-black mt-0.5 md:mt-1">Planejamento Estratégico, Equipes e Fluxo de Caixa</p>
-            </div>
-            <button
-              onClick={() => {
-                setIdEdicaoEvento(null); setNomeEvento(""); setDataEvento(new Date().toISOString().split('T')[0]);
-                setTagsEntrada([{ nome: "Ingressos", valor: 0 }, { nome: "Votos", valor: 0 }]); 
-                setTagsSaida([{ nome: "Decoração", valor: 0 }, { nome: "Som", valor: 0 }]);
-                setEquipes(["Equipe Azul", "Equipe Amarela"]); setAlunosSelecionadosEvento([]); setTagTipoFoco('entrada');
-                setModalSetupAberto(true);
-              }}
-              className="w-full md:w-auto px-4 py-2.5 md:px-6 md:py-3 bg-slate-900 hover:bg-slate-800 text-white text-[10px] md:text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-all active:scale-95 mt-2 md:mt-0"
-            >
-              + Configurar Novo Evento
-            </button>
-          </div>
+        <div className="space-y-3 md:space-y-4 animate-in fade-in duration-500">
+          <section className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-[0_2px_10px_rgba(15,23,42,0.04)] md:rounded-2xl md:p-4 print:hidden">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-tight text-slate-800 md:text-base">
+                  🎟️ Gestão de Eventos e Gincanas
+                </h2>
 
-          <div className="flex flex-col gap-4 md:gap-8 print:hidden">
-            {eventosAtivos.map(evento => (
-              <CardEvento
-                key={evento.id}
-                evento={evento}
-                historicoPagamentosEventos={historicoPagamentosEventos}
-                parseCurrency={parseCurrency}
-                getDetalhes={getDetalhes}
-                renderDonutChart={renderDonutChart}
-                prepararEdicaoSetup={prepararEdicaoSetup}
-                abrirDetalhesTransacoes={abrirDetalhesTransacoes}
-                abrirLancamento={abrirLancamento}
-                abrirRelatorioEvento={abrirRelatorioEvento}
-                encerrarEventoDefinitivamente={encerrarEventoDefinitivamente}
-                reabrirEvento={reabrirEvento} 
-              />
-            ))}
-            
-            {eventosAtivos.length === 0 && (
-              <div className="w-full p-8 md:p-16 bg-white rounded-2xl md:rounded-[2.5rem] border border-dashed border-slate-300 text-center shadow-sm print:hidden">
-                <Tag size={48} className="mx-auto text-slate-300 mb-4 animate-bounce md:w-[56px] md:h-[56px]" />
-                <h3 className="text-lg md:text-xl font-black text-slate-700">Nenhum evento estruturado</h3>
-                <p className="text-xs md:text-sm font-bold text-slate-400 mt-2 max-w-md mx-auto">Clique em "Configurar Novo Evento" para começar a rastrear entradas e saídas e criar a bilheteria.</p>
+                <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-slate-400 md:text-[9px]">
+                  Planejamento estratégico e fluxo de caixa
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={abrirNovoEvento}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-slate-800 active:scale-95 sm:w-auto md:px-4"
+              >
+                <Plus size={14} />
+                Configurar novo evento
+              </button>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4 md:gap-3 print:hidden">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_2px_10px_rgba(15,23,42,0.035)] md:rounded-2xl md:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    Eventos ativos
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-slate-800">
+                    {totalEventosAbertos}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                    Neste momento
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-xl bg-blue-50 p-2.5 text-blue-600">
+                  <CalendarDays size={18} />
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_2px_10px_rgba(15,23,42,0.035)] md:rounded-2xl md:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    Lucro total
+                  </p>
+                  <p
+                    className={`mt-1.5 break-words text-lg font-extrabold sm:text-xl ${
+                      totalLucroEventos >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {formatarMoeda(totalLucroEventos)}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                    Total dos eventos
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
+                  <CircleDollarSign size={18} />
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_2px_10px_rgba(15,23,42,0.035)] md:rounded-2xl md:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    Participantes
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold text-slate-800">
+                    {totalParticipantesEventos}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                    Alunos nos eventos
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-xl bg-violet-50 p-2.5 text-violet-600">
+                  <Users size={18} />
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_2px_10px_rgba(15,23,42,0.035)] md:rounded-2xl md:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[8px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    Custos totais
+                  </p>
+                  <p className="mt-1.5 break-words text-lg font-extrabold text-orange-600 sm:text-xl">
+                    {formatarMoeda(totalCustosEventos)}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                    Total dos eventos
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-xl bg-orange-50 p-2.5 text-orange-600">
+                  <WalletCards size={18} />
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-2.5 rounded-xl border border-slate-200/80 bg-white p-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between md:rounded-2xl print:hidden">
+            <div className="grid w-full grid-cols-3 rounded-lg bg-slate-100 p-1 sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setFiltroEventos("todos")}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[8px] font-extrabold uppercase tracking-[0.12em] transition sm:px-4 ${
+                  filtroEventos === "todos"
+                    ? "bg-blue-600 text-white shadow"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <LayoutGrid size={13} />
+                Todos
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFiltroEventos("ativos")}
+                className={`rounded-md px-2 py-2 text-[8px] font-extrabold uppercase tracking-[0.12em] transition sm:px-4 ${
+                  filtroEventos === "ativos"
+                    ? "bg-white text-emerald-700 shadow"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Ativos
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFiltroEventos("encerrados")}
+                className={`rounded-md px-2 py-2 text-[8px] font-extrabold uppercase tracking-[0.12em] transition sm:px-4 ${
+                  filtroEventos === "encerrados"
+                    ? "bg-white text-slate-700 shadow"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Encerrados
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 px-3 text-[8px] font-extrabold uppercase tracking-[0.12em] text-slate-400 sm:justify-end">
+              <Filter size={13} />
+              {eventosFiltrados.length}{" "}
+              {eventosFiltrados.length === 1 ? "registro" : "registros"}
+            </div>
+          </section>
+
+          <div className="flex flex-col gap-3 md:gap-4 print:hidden">
+            {eventosFiltrados.map(({ evento, resumo }, indice) =>
+              renderCardEventoResponsivo(evento, resumo, indice)
+            )}
+
+            {eventosFiltrados.length === 0 && (
+              <div className="w-full rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm md:rounded-[2.5rem] md:p-16">
+                <Tag
+                  size={48}
+                  className="mx-auto mb-4 text-slate-300"
+                />
+                <h3 className="text-lg font-black text-slate-700 md:text-xl">
+                  Nenhum evento encontrado
+                </h3>
+                <p className="mx-auto mt-2 max-w-md text-xs font-bold text-slate-400 md:text-sm">
+                  Não existem registros dentro do filtro selecionado.
+                </p>
               </div>
             )}
           </div>
 
-          {/* --- INSERÇÃO DE TODOS OS MODAIS DE EVENTOS COMPONENTIZADOS --- */}
-          <ModalSetupEvento 
+          <ModalSetupEvento
             aberto={modalSetupAberto}
             onFechar={() => setModalSetupAberto(false)}
             nomeEvento={nomeEvento}
@@ -578,7 +1244,7 @@ export default function DashboardFinanceiroPage() {
             salvarSetupEvento={salvarSetupEvento}
           />
 
-          <ModalLancamentoCaixa 
+          <ModalLancamentoCaixa
             aberto={modalLancamentoAberto}
             onFechar={() => setModalLancamentoAberto(false)}
             tipoLancamento={tipoLancamento}
@@ -601,7 +1267,7 @@ export default function DashboardFinanceiroPage() {
             normalizarCategorias={normalizarCategorias}
           />
 
-          <ModalDetalhesExtrato 
+          <ModalDetalhesExtrato
             aberto={modalDetalhesAberto}
             onFechar={() => setModalDetalhesAberto(false)}
             detalhesTipo={detalhesTipo}
@@ -623,7 +1289,6 @@ export default function DashboardFinanceiroPage() {
             getDetalhes={getDetalhes}
             renderDonutChart={renderDonutChart}
           />
-
         </div>
 
       ) : (
