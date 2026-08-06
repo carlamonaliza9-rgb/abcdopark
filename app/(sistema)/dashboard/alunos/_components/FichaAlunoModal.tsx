@@ -5,6 +5,46 @@ import { supabase } from "@/lib/supabase";
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
 import { VisaoPrincipal, VisaoDividas, VisaoCredito, VisaoBoletim, VisaoHistorico } from "./FichaAlunoViews"; 
 
+const valorVazio = (valor: any) =>
+  valor === null ||
+  valor === undefined ||
+  (typeof valor === "string" && valor.trim() === "");
+
+const obterPendenciasFicha = (aluno: any): string[] => {
+  const campos = [
+    ["Foto", aluno?.foto_url],
+    ["Nome", aluno?.nome],
+    ["CPF do aluno", aluno?.cpf_aluno],
+    ["Data de nascimento", aluno?.data_nascimento],
+    ["Sexo", aluno?.sexo],
+    ["Turma", aluno?.turma],
+    ["Turno", aluno?.turno],
+    ["Mensalidade", aluno?.valor],
+    ["Dia de vencimento", aluno?.vencimento],
+    ["CEP", aluno?.cep],
+    ["Endereço", aluno?.endereco],
+    ["Número", aluno?.numero],
+    ["Bairro", aluno?.bairro],
+    ["Cidade", aluno?.cidade],
+    ["Estado", aluno?.estado],
+    ["Nome do responsável", aluno?.responsavel],
+    ["Parentesco do responsável", aluno?.parentesco1 ?? aluno?.parentesco_1],
+    ["CPF do responsável", aluno?.cpf_responsavel],
+    ["WhatsApp do responsável", aluno?.whatsapp],
+    ["E-mail do responsável", aluno?.email_responsavel],
+  ];
+
+  const pendencias = campos
+    .filter(([, valor]) => valorVazio(valor))
+    .map(([rotulo]) => String(rotulo));
+
+  if (aluno?.tem_alergia && valorVazio(aluno?.alergia_descricao)) {
+    pendencias.push("Descrição da alergia");
+  }
+
+  return pendencias;
+};
+
 interface FichaAlunoModalProps {
   aluno: any;
   verBoletim: boolean;
@@ -348,6 +388,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
 
   if (!aluno) return null;
 
+  const pendenciasFicha = obterPendenciasFicha(aluno);
+  const temPendenciasFicha = pendenciasFicha.length > 0;
+
   return (
     <div 
       className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center md:p-4"
@@ -366,9 +409,9 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
         <div className="flex flex-col items-center">
           <div className="relative mb-4 md:mb-5 mt-2 md:mt-0">
             {aluno.foto_url ? (
-              <img src={aluno.foto_url} className="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
+              <img src={aluno.foto_url} className="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover border-4 shadow-sm" style={{ borderColor: valorVazio(aluno.foto_url) ? "#ef4444" : "#f1f5f9" }} />
             ) : (
-              <div className="h-28 w-28 md:h-36 md:w-36 rounded-full bg-slate-50 border border-slate-100 shadow-sm flex items-center justify-center text-slate-300 text-5xl md:text-6xl">👤</div>
+              <div className="h-28 w-28 md:h-36 md:w-36 rounded-full bg-red-50 border-2 border-red-400 shadow-sm flex items-center justify-center text-red-300 text-5xl md:text-6xl">👤</div>
             )}
             {aluno.e_autista && <span className="absolute bottom-1 right-1 text-xl md:text-2xl bg-white rounded-full p-1 shadow-sm">🧩</span>}
           </div>
@@ -377,8 +420,22 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
           
           <div className="flex flex-wrap justify-center gap-2 items-center mt-2 mb-6">
             <span className="text-xs md:text-sm text-slate-500 font-semibold">{calcularIdade(aluno.data_nascimento)}</span>
-            <span className="text-blue-600 font-bold text-[10px] md:text-xs bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">{aluno.turma} • {aluno.turno || 'Turno não inf.'}</span>
+            <span className={`font-bold text-[10px] md:text-xs px-3 py-1 rounded-full uppercase tracking-widest ${valorVazio(aluno.turma) || valorVazio(aluno.turno) ? "text-red-700 bg-red-50 border border-red-300" : "text-blue-600 bg-blue-50"}`}>{aluno.turma || "Turma não informada"} • {aluno.turno || "Turno não inf."}</span>
           </div>
+
+          {temPendenciasFicha && !verHistorico && !verBoletim && !verDividasGlobais && !verCreditoGlobal && (
+            <div className="w-full mb-4 rounded-2xl border border-red-300 bg-red-50 p-4">
+              <p className="m-0 text-[11px] font-black uppercase tracking-widest text-red-700">⚠️ Ficha incompleta</p>
+              <p className="mt-1 mb-2 text-xs font-semibold text-red-700">Preencha os seguintes dados:</p>
+              <div className="flex flex-wrap gap-2">
+                {pendenciasFicha.map((pendencia) => (
+                  <span key={pendencia} className="rounded-full border border-red-200 bg-white px-2.5 py-1 text-[10px] font-bold text-red-600">
+                    {pendencia}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {verDividasGlobais ? (
             <VisaoDividas 

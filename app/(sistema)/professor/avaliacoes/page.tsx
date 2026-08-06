@@ -225,7 +225,7 @@ export default function AvaliacoesProfessorPage() {
       }
       
       if (operacoesUpsert.length > 0) {
-        const { error } = await supabase.from('boletins').upsert(operacoesUpsert, { onConflict: 'aluno_id, disciplina, year' });
+        const { error } = await supabase.from('boletins').upsert(operacoesUpsert, { onConflict: 'aluno_id, disciplina, ano' });
         if (error) throw error;
       }
       

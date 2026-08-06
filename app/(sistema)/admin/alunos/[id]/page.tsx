@@ -15,6 +15,50 @@ import { BannerAluno, VisaoGeralAluno, DividasAluno, CreditoAluno, BoletimAluno,
 // --- IMPORTAÇÃO DO MODAL DE TRANSFERÊNCIA ---
 import { ModalTransferencia } from "./_components/ModalTransferencia";
 
+
+// --- VALIDAÇÃO DOS DADOS OBRIGATÓRIOS DA FICHA ---
+const valorObrigatorioVazio = (valor: any) =>
+  valor === null ||
+  valor === undefined ||
+  (typeof valor === "string" && valor.trim() === "");
+
+const obterPendenciasFicha = (aluno: any): string[] => {
+  if (!aluno) return [];
+
+  const camposObrigatorios: Array<[string, any]> = [
+    ["Foto", aluno.foto_url],
+    ["Nome completo", aluno.nome],
+    ["CPF do aluno", aluno.cpf_aluno],
+    ["Data de nascimento", aluno.data_nascimento],
+    ["Sexo", aluno.sexo],
+    ["Turma", aluno.turma],
+    ["Turno", aluno.turno],
+    ["Mensalidade", aluno.valor],
+    ["Dia de vencimento", aluno.vencimento],
+    ["CEP", aluno.cep],
+    ["Endereço", aluno.endereco],
+    ["Número", aluno.numero],
+    ["Bairro", aluno.bairro],
+    ["Cidade", aluno.cidade],
+    ["Estado", aluno.estado],
+    ["Nome do responsável", aluno.responsavel],
+    ["Parentesco do responsável", aluno.parentesco_1 ?? aluno.parentesco1],
+    ["CPF do responsável", aluno.cpf_responsavel],
+    ["WhatsApp do responsável", aluno.whatsapp],
+    ["E-mail do responsável", aluno.email_responsavel],
+  ];
+
+  const pendencias = camposObrigatorios
+    .filter(([, valor]) => valorObrigatorioVazio(valor))
+    .map(([rotulo]) => rotulo);
+
+  if (aluno.tem_alergia && valorObrigatorioVazio(aluno.alergia_descricao)) {
+    pendencias.push("Descrição da alergia");
+  }
+
+  return pendencias;
+};
+
 export default function PerfilAlunoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const resolvedParams = use(params);
@@ -830,6 +874,10 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     doc.save(`Extrato_${aluno?.nome?.replace(/\s+/g, '_')}_${anoPagamentoSelecionado}.pdf`);
   }
 
+
+  const pendenciasFicha = obterPendenciasFicha(aluno);
+  const fichaIncompleta = pendenciasFicha.length > 0;
+
   if (carregando || !aluno) return <div className="flex justify-center items-center h-screen bg-white md:bg-[#f8fafc] text-slate-400 font-black uppercase tracking-widest text-xs animate-pulse">Carregando Perfil...</div>;
 
   return (
@@ -845,6 +893,59 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
           onExcluir={handleDeletarFicha} 
           isProcessandoAcao={isProcessandoAcao} 
         />
+
+
+        {/* AVISO VISÍVEL DE FICHA INCOMPLETA — APARECE SEM ABRIR A EDIÇÃO */}
+        {fichaIncompleta &&
+          !verDividasGlobais &&
+          !verCreditoGlobal &&
+          !verBoletim &&
+          !verHistorico &&
+          !verRelatorios && (
+            <div className="mx-4 md:mx-0 rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 md:p-5 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-lg text-rose-700">
+                      ⚠️
+                    </div>
+                    <div>
+                      <p className="m-0 text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">
+                        Ficha incompleta
+                      </p>
+                      <h3 className="mt-1 text-sm font-extrabold text-rose-950 md:text-base">
+                        {pendenciasFicha.length} {pendenciasFicha.length === 1 ? "informação precisa" : "informações precisam"} ser preenchida{pendenciasFicha.length === 1 ? "" : "s"}
+                      </h3>
+                      <p className="mt-1 text-xs font-medium leading-relaxed text-rose-700">
+                        Os dados abaixo estão pendentes. Os campos do responsável 2 e as profissões não são considerados obrigatórios.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {pendenciasFicha.map((pendencia) => (
+                      <span
+                        key={pendencia}
+                        className="rounded-full border border-rose-300 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-rose-700 shadow-sm"
+                      >
+                        {pendencia}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {!ehVisitante && (
+                  <button
+                    type="button"
+                    onClick={abrirEdicaoFicha}
+                    className="w-full shrink-0 rounded-xl bg-rose-600 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-rose-600/20 transition-all hover:bg-rose-700 active:scale-95 md:w-auto"
+                  >
+                    Corrigir dados
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
         {/* BOTÃO ESTRATÉGICO DE TRANSFERÊNCIA */}
         {aluno?.status !== 'transferido' && !ehVisitante && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && !verRelatorios && (

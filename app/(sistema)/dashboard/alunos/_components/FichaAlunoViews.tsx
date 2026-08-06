@@ -6,6 +6,17 @@ const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', f
 const EstiloDado: React.CSSProperties = { fontSize: '14px', color: '#1e293b', fontWeight: '600', margin: 0 };
 const EstiloCard: React.CSSProperties = { backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' };
 
+const valorVazio = (valor: any) =>
+  valor === null ||
+  valor === undefined ||
+  (typeof valor === "string" && valor.trim() === "");
+
+const estiloPendente = (pendente: boolean, base: React.CSSProperties = EstiloCard): React.CSSProperties => ({
+  ...base,
+  border: pendente ? "2px solid #ef4444" : base.border,
+  backgroundColor: pendente ? "#fff7f7" : base.backgroundColor,
+});
+
 // --- FUNÇÕES AUXILIARES VISUAIS ---
 const abrirWhatsApp = (numero: any) => {
   if (!numero) return;
@@ -37,6 +48,18 @@ export function VisaoPrincipal({
     { nome: aluno.responsavel2 || aluno.responsavel_2_nome, whats: aluno.whatsapp2 || aluno.responsavel_2_contato, cpf: aluno.cpf_responsavel2 || aluno.cpf_responsavel_2, profissao: aluno.profissao_responsavel2 || aluno.responsavel_2_profissao, tag: aluno.parentesco2 || aluno.parentesco_2 || "Responsável 2", cor: "#2563eb", bg: "#eff6ff" },
     { nome: aluno.responsavel3 || aluno.responsavel_3_nome, whats: aluno.whatsapp3 || aluno.responsavel_3_contato, cpf: aluno.cpf_responsavel_3, profissao: aluno.profissao_responsavel3, tag: aluno.parentesco3 || aluno.parentesco_3 || "Responsável 3", cor: "#16a34a", bg: "#f0fdf4" }
   ];
+
+  const responsavelPrincipalPendente = [
+    aluno.responsavel,
+    aluno.parentesco1 ?? aluno.parentesco_1,
+    aluno.whatsapp,
+    aluno.cpf_responsavel,
+    aluno.email_responsavel,
+  ].some(valorVazio);
+
+  const enderecoPendente = [
+    aluno.cep, aluno.endereco, aluno.numero, aluno.bairro, aluno.cidade, aluno.estado
+  ].some(valorVazio);
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -79,35 +102,36 @@ export function VisaoPrincipal({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div style={EstiloCard}>
-          <span style={EstiloLabel}>Nascimento</span>
+        <div style={estiloPendente(valorVazio(aluno.data_nascimento))}>
+          <span style={{ ...EstiloLabel, color: valorVazio(aluno.data_nascimento) ? "#dc2626" : EstiloLabel.color }}>Nascimento</span>
           <p style={EstiloDado}>{aluno.data_nascimento ? new Date(aluno.data_nascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--'}</p>
         </div>
-        <div style={EstiloCard}>
-          <span style={EstiloLabel}>Sexo</span>
+        <div style={estiloPendente(valorVazio(aluno.sexo))}>
+          <span style={{ ...EstiloLabel, color: valorVazio(aluno.sexo) ? "#dc2626" : EstiloLabel.color }}>Sexo</span>
           <p style={EstiloDado}>{aluno.sexo || '--'}</p>
         </div>
       </div>
 
-      <div style={EstiloCard}>
-        <span style={EstiloLabel}>CPF Aluno</span>
+      <div style={estiloPendente(valorVazio(aluno.cpf_aluno))}>
+        <span style={{ ...EstiloLabel, color: valorVazio(aluno.cpf_aluno) ? "#dc2626" : EstiloLabel.color }}>CPF Aluno</span>
         <p style={EstiloDado}>{mCPF(aluno.cpf_aluno) || '--'}</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div style={{ ...EstiloCard, backgroundColor: '#f8fafc' }}>
-          <span style={{ ...EstiloLabel }}>Mensalidade Base</span>
+        <div style={estiloPendente(valorVazio(aluno.valor), { ...EstiloCard, backgroundColor: '#f8fafc' })}>
+          <span style={{ ...EstiloLabel, color: valorVazio(aluno.valor) ? '#dc2626' : EstiloLabel.color }}>Mensalidade Base</span>
           <p style={{ ...EstiloDado, color: '#15803d' }}>{aluno.valor ? parseFloat(aluno.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</p>
         </div>
-        <div style={EstiloCard}>
-          <span style={EstiloLabel}>Vencimento</span>
+        <div style={estiloPendente(valorVazio(aluno.vencimento))}>
+          <span style={{ ...EstiloLabel, color: valorVazio(aluno.vencimento) ? "#dc2626" : EstiloLabel.color }}>Vencimento</span>
           <p style={EstiloDado}>Dia {aluno.vencimento || '--'}</p>
         </div>
       </div>
 
-      <div style={EstiloCard}>
-        <span style={{ ...EstiloLabel, marginBottom: '12px' }}>Contatos e Responsáveis</span>
+      <div style={estiloPendente(responsavelPrincipalPendente)}>
+        <span style={{ ...EstiloLabel, marginBottom: '12px', color: responsavelPrincipalPendente ? "#dc2626" : EstiloLabel.color }}>Contatos e Responsáveis</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {valorVazio(aluno.responsavel) && <p style={{ ...EstiloDado, color: '#dc2626' }}>Responsável principal não informado</p>}
           {contatos.map((contato, index) => contato.nome && (
             <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -128,8 +152,8 @@ export function VisaoPrincipal({
         </div>
       </div>
 
-      <div style={{ ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
-        <span style={{ ...EstiloLabel, color: '#15803d' }}>Endereço Residencial</span>
+      <div style={estiloPendente(enderecoPendente, { ...EstiloCard, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' })}>
+        <span style={{ ...EstiloLabel, color: enderecoPendente ? '#dc2626' : '#15803d' }}>Endereço Residencial</span>
         <p style={EstiloDado}>
           {aluno.endereco ? `${aluno.endereco}, ${aluno.numero || 'S/N'}` : 'Endereço não cadastrado'}
         </p>

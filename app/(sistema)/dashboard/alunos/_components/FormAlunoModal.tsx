@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FotoAlunoCropper } from "./FotoAlunoCropper";
 
 interface FormAlunoModalProps {
   idEdicao: string | null;
@@ -18,11 +18,50 @@ interface FormAlunoModalProps {
 export function FormAlunoModal(props: FormAlunoModalProps) {
   const { idEdicao, form, setForm, previewUrl, carregando, mCPF, mWhatsApp, onTrocarFoto, onSalvar, onCancelar } = props;
 
-  const [zoomFoto, setZoomFoto] = useState(1);
 
   const listaTags = ["Mãe", "Pai", "Avó", "Avô", "Tio", "Tia", "Madrasta", "Padrasto", "Irmão", "Irmã", "Outro"];
 
   const EstiloInput = { padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' };
+
+  const valorVazio = (valor: any) =>
+    valor === null ||
+    valor === undefined ||
+    (typeof valor === "string" && valor.trim() === "");
+
+  const estiloObrigatorio = (valor: any, base: React.CSSProperties = EstiloInput): React.CSSProperties => ({
+    ...base,
+    border: valorVazio(valor) ? "2px solid #ef4444" : base.border,
+    backgroundColor: valorVazio(valor) ? "#fff7f7" : base.backgroundColor,
+  });
+
+  const pendenciasFicha = [
+    ["Foto", previewUrl],
+    ["Nome", form?.nome],
+    ["CPF do aluno", form?.cpfAluno],
+    ["Data de nascimento", form?.dataNascimento],
+    ["Sexo", form?.sexo],
+    ["Turma", form?.turma],
+    ["Turno", form?.turno],
+    ["Mensalidade", form?.valor],
+    ["Dia de vencimento", form?.vencimento],
+    ["CEP", form?.cep],
+    ["Endereço", form?.endereco],
+    ["Número", form?.numero],
+    ["Bairro", form?.bairro],
+    ["Cidade", form?.cidade],
+    ["Estado", form?.estado],
+    ["Nome do responsável", form?.responsavel],
+    ["Parentesco do responsável", form?.parentesco1],
+    ["CPF do responsável", form?.cpfResponsavel],
+    ["WhatsApp do responsável", form?.whatsapp],
+    ["E-mail do responsável", form?.emailResponsavel],
+  ]
+    .filter(([, valor]) => valorVazio(valor))
+    .map(([rotulo]) => String(rotulo));
+
+  if (form?.temAlergia && valorVazio(form?.alergiaDescricao)) {
+    pendenciasFicha.push("Descrição da alergia");
+  }
 
   // --- FUNÇÃO PARA BUSCAR CEP ---
   const buscarCep = async (valor: string) => {
@@ -50,18 +89,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
     }
   };
 
-  // --- FUNÇÃO PARA REMOVER A FOTO ---
-  const removerFotoAtual = () => {
-    if (confirm("Deseja realmente remover a foto deste aluno?")) {
-      setForm({ ...form, foto_url: null });
-      const inputElement = document.getElementById("upload-foto") as HTMLInputElement;
-      if (inputElement) inputElement.value = "";
-      
-      const eventoSimulado = { target: { files: null } } as any;
-      onTrocarFoto(eventoSimulado);
-      setZoomFoto(1);
-    }
-  };
+
 
   return (
     <div 
@@ -74,61 +102,39 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
       >
         <form onSubmit={onSalvar} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <h2 style={{ textAlign: 'center', fontWeight: '800', color: '#1e293b' }}>{idEdicao ? "Editando Ficha" : "Novo Aluno"}</h2>
-          
-          {/* SEÇÃO DA FOTO COM AJUSTE DE RECORTE/ZOOM E REMOÇÃO */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '0 auto 10px' }}>
-            <label htmlFor="upload-foto" style={{ cursor: 'pointer' }}>
-              <div style={{ height: '120px', width: '120px', borderRadius: '50%', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
-                {previewUrl ? (
-                  <img 
-                    src={previewUrl} 
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'cover',
-                      transform: `scale(${zoomFoto})`,
-                      transition: 'transform 0.1s ease-out'
-                    }} 
-                  />
-                ) : (
-                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}>FOTO</span>
-                )}
+
+          {pendenciasFicha.length > 0 && (
+            <div style={{ backgroundColor: '#fff1f2', border: '1px solid #fca5a5', borderRadius: '14px', padding: '12px' }}>
+              <p style={{ margin: 0, color: '#b91c1c', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase' }}>⚠️ Dados pendentes</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                {pendenciasFicha.map((item) => (
+                  <span key={item} style={{ backgroundColor: 'white', border: '1px solid #fecaca', color: '#dc2626', padding: '4px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: '700' }}>{item}</span>
+                ))}
               </div>
-            </label>
-            <input id="upload-foto" type="file" accept="image/*" onChange={onTrocarFoto} style={{ display: 'none' }} />
-            
-            {previewUrl && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', maxWidth: '160px' }}>
-                <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ajustar / Recortar</span>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="3" 
-                  step="0.1" 
-                  value={zoomFoto} 
-                  onChange={(e) => setZoomFoto(parseFloat(e.target.value))}
-                  style={{ width: '100%', cursor: 'pointer' }}
-                />
-                <button 
-                  type="button" 
-                  onClick={removerFotoAtual}
-                  style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '10px', fontWeight: '800', cursor: 'pointer', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                >
-                  ❌ Remover Foto
-                </button>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
-            <input type="text" placeholder="Nome Completo" value={form?.nome || ""} onChange={(e)=>setForm({...form, nome: e.target.value})} required style={EstiloInput} />
-            <input type="text" placeholder="CPF do Aluno" value={form?.cpfAluno || ""} onChange={(e)=>setForm({...form, cpfAluno: mCPF(e.target.value)})} style={EstiloInput} />
+          {/* FOTO COM POSICIONAMENTO, ZOOM E RECORTE REAL */}
+          <FotoAlunoCropper
+            previewUrl={previewUrl}
+            obrigatoria
+            onTrocarFoto={onTrocarFoto}
+            onRemover={() => {
+              setForm({ ...form, foto_url: null });
+              const eventoSimulado = { target: { files: null } } as any;
+              onTrocarFoto(eventoSimulado);
+            }}
+          />
+
+         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
+            <input type="text" placeholder="Nome Completo" value={form?.nome || ""} onChange={(e)=>setForm({...form, nome: e.target.value})} required style={estiloObrigatorio(form?.nome)} />
+            <input type="text" placeholder="CPF do Aluno" value={form?.cpfAluno || ""} onChange={(e)=>setForm({...form, cpfAluno: mCPF(e.target.value)})} style={estiloObrigatorio(form?.cpfAluno)} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <input type="date" value={form?.dataNascimento || ""} onChange={(e)=>setForm({...form, dataNascimento: e.target.value})} required style={EstiloInput} />
+            <input type="date" value={form?.dataNascimento || ""} onChange={(e)=>setForm({...form, dataNascimento: e.target.value})} required style={estiloObrigatorio(form?.dataNascimento)} />
 
-            <select value={form?.sexo || ""} onChange={(e) => setForm({...form, sexo: e.target.value})} required style={EstiloInput}>
+            <select value={form?.sexo || ""} onChange={(e) => setForm({...form, sexo: e.target.value})} required style={estiloObrigatorio(form?.sexo)}>
               <option value="">Sexo...</option>
               <option value="Feminino">Feminino</option>
               <option value="Masculino">Masculino</option>
@@ -136,14 +142,14 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <select value={form?.turma || ""} onChange={(e) => setForm({...form, turma: e.target.value})} required style={EstiloInput}>
+            <select value={form?.turma || ""} onChange={(e) => setForm({...form, turma: e.target.value})} required style={estiloObrigatorio(form?.turma)}>
               <option value="">Turma...</option>
               <option value="Maternal">Maternal</option><option value="Jardim I">Jardim I</option><option value="Jardim II">Jardim II</option>
               <option value="1º Ano">1º Ano</option><option value="2º Ano">2º Ano</option><option value="3º Ano">3º Ano</option>
               <option value="4º Ano">4º Ano</option><option value="5º Ano">5º Ano</option>
             </select>
 
-            <select value={form?.turno || ""} onChange={(e) => setForm({...form, turno: e.target.value})} required style={EstiloInput}>
+            <select value={form?.turno || ""} onChange={(e) => setForm({...form, turno: e.target.value})} required style={estiloObrigatorio(form?.turno)}>
               <option value="">Turno...</option>
               <option value="Manhã">Manhã</option>
               <option value="Tarde">Tarde</option>
@@ -152,8 +158,8 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <input type="number" placeholder="Mensalidade (R$)" value={form?.valor || ""} onChange={(e)=>setForm({...form, valor: e.target.value})} style={EstiloInput} />
-            <input type="number" placeholder="Dia Vencimento" value={form?.vencimento || ""} onChange={(e)=>setForm({...form, vencimento: e.target.value})} style={EstiloInput} />
+            <input type="number" placeholder="Mensalidade (R$)" value={form?.valor || ""} onChange={(e)=>setForm({...form, valor: e.target.value})} style={estiloObrigatorio(form?.valor)} />
+            <input type="number" placeholder="Dia Vencimento" value={form?.vencimento || ""} onChange={(e)=>setForm({...form, vencimento: e.target.value})} style={estiloObrigatorio(form?.vencimento)} />
           </div>
 
           {/* --- SEÇÃO: ENDEREÇO --- */}
@@ -161,18 +167,18 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#15803d', marginBottom: '10px', marginTop: '0', textTransform: 'uppercase' }}>Endereço Residencial</p>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
-              <input type="text" placeholder="CEP (Automático)" value={form?.cep || ""} onChange={(e) => buscarCep(e.target.value)} maxLength={8} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-              <input type="text" placeholder="Rua / Avenida" value={form?.endereco || ""} onChange={(e)=>setForm({...form, endereco: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="CEP (Automático)" value={form?.cep || ""} onChange={(e) => buscarCep(e.target.value)} maxLength={8} style={{ ...estiloObrigatorio(form?.cep), fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Rua / Avenida" value={form?.endereco || ""} onChange={(e)=>setForm({...form, endereco: e.target.value})} style={{ ...estiloObrigatorio(form?.endereco), fontSize: '12px', padding: '10px' }} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
-              <input type="text" placeholder="Número" value={form?.numero || ""} onChange={(e)=>setForm({...form, numero: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-              <input type="text" placeholder="Bairro" value={form?.bairro || ""} onChange={(e)=>setForm({...form, bairro: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Número" value={form?.numero || ""} onChange={(e)=>setForm({...form, numero: e.target.value})} style={{ ...estiloObrigatorio(form?.numero), fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="Bairro" value={form?.bairro || ""} onChange={(e)=>setForm({...form, bairro: e.target.value})} style={{ ...estiloObrigatorio(form?.bairro), fontSize: '12px', padding: '10px' }} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-              <input type="text" placeholder="Cidade" value={form?.cidade || ""} onChange={(e)=>setForm({...form, city: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-              <input type="text" placeholder="UF" value={form?.estado || ""} onChange={(e)=>setForm({...form, estado: e.target.value})} maxLength={2} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', textAlign: 'center' }} />
+              <input type="text" placeholder="Cidade" value={form?.cidade || ""} onChange={(e)=>setForm({...form, cidade: e.target.value})} style={{ ...estiloObrigatorio(form?.cidade), fontSize: '12px', padding: '10px' }} />
+              <input type="text" placeholder="UF" value={form?.estado || ""} onChange={(e)=>setForm({...form, estado: e.target.value})} maxLength={2} style={{ ...estiloObrigatorio(form?.estado), fontSize: '12px', padding: '10px', textAlign: 'center' }} />
             </div>
           </div>
 
@@ -181,18 +187,18 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
             
             {/* RESPONSÁVEL 1 */}
             <div style={{ borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
-              <select value={form?.parentesco1 || "Mãe"} onChange={(e)=>setForm({...form, parentesco1: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 'bold' }}>
+              <select value={form?.parentesco1 || "Mãe"} onChange={(e)=>setForm({...form, parentesco1: e.target.value})} style={{ width: '100%', marginBottom: '8px', padding: '6px', borderRadius: '8px', border: valorVazio(form?.parentesco1) ? '2px solid #ef4444' : '1px solid #cbd5e1', backgroundColor: valorVazio(form?.parentesco1) ? '#fff7f7' : 'white', fontSize: '11px', fontWeight: 'bold' }}>
                 {listaTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
               </select>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                <input type="text" placeholder="Nome" value={form?.responsavel || ""} onChange={(e)=>setForm({...form, responsavel: e.target.value})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
-                <input type="text" placeholder="CPF" value={form?.cpfResponsavel || ""} onChange={(e)=>setForm({...form, cpfResponsavel: mCPF(e.target.value)})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="text" placeholder="Nome" value={form?.responsavel || ""} onChange={(e)=>setForm({...form, responsavel: e.target.value})} required style={{ ...estiloObrigatorio(form?.responsavel), fontSize: '12px', padding: '10px' }} />
+                <input type="text" placeholder="CPF" value={form?.cpfResponsavel || ""} onChange={(e)=>setForm({...form, cpfResponsavel: mCPF(e.target.value)})} style={{ ...estiloObrigatorio(form?.cpfResponsavel), fontSize: '12px', padding: '10px' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <input type="text" placeholder="WhatsApp" value={form?.whatsapp || ""} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
+                <input type="text" placeholder="WhatsApp" value={form?.whatsapp || ""} onChange={(e)=>setForm({...form, whatsapp: mWhatsApp(e.target.value)})} required style={{ ...estiloObrigatorio(form?.whatsapp), fontSize: '12px', padding: '10px' }} />
                 <input type="text" placeholder="Profissão do Responsável 1" value={form?.profissaoResponsavel || ""} onChange={(e)=>setForm({...form, profissaoResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px' }} />
               </div>
-              <input type="email" placeholder="E-mail" value={form?.emailResponsavel || ""} onChange={(e)=>setForm({...form, emailResponsavel: e.target.value})} style={{ ...EstiloInput, fontSize: '12px', padding: '10px', width: '100%', marginTop: '8px' }} />
+              <input type="email" placeholder="E-mail" value={form?.emailResponsavel || ""} onChange={(e)=>setForm({...form, emailResponsavel: e.target.value})} style={{ ...estiloObrigatorio(form?.emailResponsavel), fontSize: '12px', padding: '10px', width: '100%', marginTop: '8px' }} />
             </div>
 
             {/* RESPONSÁVEL 2 */}
@@ -239,7 +245,7 @@ export function FormAlunoModal(props: FormAlunoModalProps) {
           </div>
 
           {form?.temAlergia && ( 
-            <input type="text" placeholder="Qual alergia?" value={form?.alergiaDescricao || ""} onChange={(e) => setForm({...form, alergiaDescricao: e.target.value})} required style={{ ...EstiloInput, width: '100%', border: '1px solid #fed7d7' }} /> 
+            <input type="text" placeholder="Qual alergia?" value={form?.alergiaDescricao || ""} onChange={(e) => setForm({...form, alergiaDescricao: e.target.value})} required style={{ ...estiloObrigatorio(form?.alergiaDescricao), width: '100%' }} /> 
           )}
 
           <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
