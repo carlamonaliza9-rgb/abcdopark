@@ -11,7 +11,7 @@ import PainelComunicados from "./_components/PainelComunicados";
 import PainelProvas from "./_components/PainelProvas";
 import PainelCodes from "./_components/PainelCodes";
 import PainelDocumentosGerais from "./_components/PainelDocumentosGerais";
-import PainelHistorico from "./_components/PainelHistorico"; // Novo Painel Importado
+import PainelHistorico from "./_components/PainelHistorico";
 
 export default function DocumentacoesAdminPage() {
   const router = useRouter();
@@ -73,7 +73,8 @@ export default function DocumentacoesAdminPage() {
               {documentoAtivo === 'codes' && <PainelCodes alunos={alunos} />}
               {documentoAtivo === 'historico' && <PainelHistorico />}
               
-              {['matricula', 'quitacao', 'ressalva', 'notificacao'].includes(documentoAtivo) && (
+              {/* ADICIONADO 'comparecimento' NA LISTA ABAIXO */}
+              {['matricula', 'comparecimento', 'quitacao', 'ressalva', 'notificacao'].includes(documentoAtivo) && (
                 <PainelDocumentosGerais alunos={alunos} documentoAtivo={documentoAtivo} />
               )}
             </div>

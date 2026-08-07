@@ -6,6 +6,7 @@ import { gerarPDFMatricula } from "@/app/(sistema)/dashboard/documentacoes/_lib/
 import { gerarPDFImpostoRenda } from "@/app/(sistema)/dashboard/documentacoes/_lib/geradorImpostoRenda";
 import { gerarPDFRessalva } from "@/app/(sistema)/dashboard/documentacoes/_lib/geradorRessalva";
 import { gerarNotificacaoExtrajudicial } from "@/app/(sistema)/dashboard/documentacoes/_lib/geradorNotificacaoExtrajudicial"; 
+import { gerarPDFComparecimento } from "@/app/(sistema)/dashboard/documentacoes/_lib/geradorComparecimento"; // <-- IMPORTAÇÃO DA NOVA FUNÇÃO
 
 interface PainelDocumentosProps {
   alunos: any[];
@@ -28,6 +29,11 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
   const [valorMensalidade, setValorMensalidade] = useState<string>("450,00");
   const [mesesPagos, setMesesPagos] = useState<string>("12");
   const [anoBase, setAnoBase] = useState<string>("2025");
+
+  // --- NOVOS ESTADOS PARA A DECLARAÇÃO DE COMPARECIMENTO ---
+  const [horaInicio, setHoraInicio] = useState<string>("08:00");
+  const [horaFim, setHoraFim] = useState<string>("10:00");
+  const [motivoComparecimento, setMotivoComparecimento] = useState<string>("Plantão Pedagógico");
 
   const [dataReferencia, setDataReferencia] = useState("");
   const [valorPagoNotificacao, setValorPagoNotificacao] = useState("");
@@ -111,11 +117,12 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
     const numeroLimpo = resp.telefone.replace(/\D/g, "");
     let nomeDoc = "";
     if (documentoAtivo === 'matricula') nomeDoc = "Declaração de Matrícula";
+    else if (documentoAtivo === 'comparecimento') nomeDoc = "Declaração de Comparecimento";
     else if (documentoAtivo === 'quitacao') nomeDoc = "Quitação de Imposto de Renda";
     else if (documentoAtivo === 'ressalva') nomeDoc = "Ressalva (Transferência)";
     else if (documentoAtivo === 'notificacao') nomeDoc = "Notificação Extrajudicial";
     
-    const mensagem = `Olá! Aqui é da *Escola ABC do Park*. Segue a ${nomeDoc} de *${aluno.nome}*. Por favor, salve o arquivo PDF que acabei de gerar para você.`;
+    const mensagem = `Olá! Aqui é da *Escola ABC do Park*. Segue a ${nomeDoc} referente a *${aluno.nome}*. Por favor, salve o arquivo PDF que acabei de gerar para você.`;
     
     const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, "_blank");
@@ -142,16 +149,18 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
     await gerarNotificacaoExtrajudicial(dados);
   };
 
-  // --- NOVA FUNÇÃO QUE GERA O PDF E SALVA NO HISTÓRICO ---
+  // --- GERAÇÃO DO PDF E HISTÓRICO ---
   const gerarESalvarDocumento = async (comWhatsapp: boolean = false) => {
     if (!alunoSelecionado) return;
 
     let tituloDocumento = "";
 
-    // 1. Gera o PDF correto baseado no menu ativo
     if (documentoAtivo === 'matricula') {
       tituloDocumento = "Declaração de Matrícula";
       gerarPDFMatricula(alunoSelecionado, responsavelEscolhido, sexoAluno);
+    } else if (documentoAtivo === 'comparecimento') {
+      tituloDocumento = "Declaração de Comparecimento";
+      gerarPDFComparecimento(responsavelEscolhido, horaInicio, horaFim, motivoComparecimento);
     } else if (documentoAtivo === 'quitacao') {
       tituloDocumento = "Quitação de Imposto de Renda";
       const vMensalidade = parseFloat(valorMensalidade.replace(/\./g, '').replace(',', '.'));
@@ -164,7 +173,7 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
       await executarGeracaoNotificacao();
     }
 
-    // 2. Registra no banco de dados (Supabase)
+    // Registra no banco de dados (Supabase)
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -185,7 +194,6 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
       console.error("Erro interno ao salvar histórico:", err);
     }
 
-    // 3. Envia o WhatsApp se o botão verde foi clicado
     if (comWhatsapp) {
       enviarWhatsApp(alunoSelecionado, responsavelEscolhido);
     }
@@ -195,6 +203,7 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
     <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxWidth: '600px', width: '100%', overflowX: 'auto' }}>
       <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '20px' }}>
         {documentoAtivo === 'matricula' && 'Gerar Declaração de Matrícula'}
+        {documentoAtivo === 'comparecimento' && 'Gerar Declaração de Comparecimento'}
         {documentoAtivo === 'quitacao' && 'Gerar Quitação de Imposto de Renda'}
         {documentoAtivo === 'ressalva' && 'Gerar Ressalva'}
         {documentoAtivo === 'notificacao' && 'Gerar Notificação Extrajudicial'}
@@ -220,6 +229,26 @@ export default function PainelDocumentosGerais({ alunos, documentoAtivo }: Paine
       {alunoSelecionado && (
         <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
           
+          {/* CAMPOS ESPECÍFICOS PARA COMPARECIMENTO */}
+          {documentoAtivo === 'comparecimento' && (
+            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>HORA DE CHEGADA</label>
+                  <input type="text" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} placeholder="Ex: 08:00" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>HORA DE SAÍDA</label>
+                  <input type="text" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} placeholder="Ex: 10:00" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MOTIVO DO COMPARECIMENTO</label>
+                <input type="text" value={motivoComparecimento} onChange={(e) => setMotivoComparecimento(e.target.value)} placeholder="Ex: Plantão Pedagógico, Reunião, etc." style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#1e293b' }} />
+              </div>
+            </div>
+          )}
+
           {documentoAtivo === 'quitacao' && (
             <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div>

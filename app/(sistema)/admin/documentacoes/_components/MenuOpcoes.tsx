@@ -11,7 +11,8 @@ import {
   Megaphone,
   ArrowRight,
   LockKeyhole,
-  FileClock
+  FileClock,
+  UserCheck // <-- Ícone novo importado para o Comparecimento
 } from "lucide-react";
 
 interface MenuProps {
@@ -25,12 +26,14 @@ const temas = {
   orange: { iconBg: 'bg-orange-50', iconText: 'text-orange-500', btnBg: 'bg-orange-50', btnText: 'text-orange-600', btnHover: 'group-hover:bg-orange-100' },
   teal: { iconBg: 'bg-teal-50', iconText: 'text-teal-500', btnBg: 'bg-teal-50', btnText: 'text-teal-600', btnHover: 'group-hover:bg-teal-100' },
   pink: { iconBg: 'bg-pink-50', iconText: 'text-pink-500', btnBg: 'bg-pink-50', btnText: 'text-pink-600', btnHover: 'group-hover:bg-pink-100' },
-  indigo: { iconBg: 'bg-indigo-50', iconText: 'text-indigo-500', btnBg: 'bg-indigo-50', btnText: 'text-indigo-600', btnHover: 'group-hover:bg-indigo-100' }
+  indigo: { iconBg: 'bg-indigo-50', iconText: 'text-indigo-500', btnBg: 'bg-indigo-50', btnText: 'text-indigo-600', btnHover: 'group-hover:bg-indigo-100' },
+  amber: { iconBg: 'bg-amber-50', iconText: 'text-amber-500', btnBg: 'bg-amber-50', btnText: 'text-amber-600', btnHover: 'group-hover:bg-amber-100' } // <-- Tema novo ambar
 };
 
 export default function MenuOpcoes({ setDocumentoAtivo }: MenuProps) {
   const opcoes = [
     { id: 'matricula', Icone: FileBadge, tema: temas.purple, titulo: 'Declaração de Matrícula', desc: 'Gera o documento padrão com dados do aluno.' },
+    { id: 'comparecimento', Icone: UserCheck, tema: temas.amber, titulo: 'Declaração de Comparecimento', desc: 'Comprova o comparecimento do responsável à escola.' }, // <-- ADICIONADO AQUI
     { id: 'quitacao', Icone: BadgeDollarSign, tema: temas.emerald, titulo: 'Quitação Imposto de Renda', desc: 'Declaração de valores pagos no ano base.' },
     { id: 'ressalva', Icone: RefreshCcwDot, tema: temas.blue, titulo: 'Ressalva', desc: 'Documento de transferência com direito à matrícula.' },
     { id: 'codes', Icone: ClipboardList, tema: temas.orange, titulo: 'CODES', desc: 'Relatório oficial (1º ao 5º Ano) exigido pela SEDUC.' },
