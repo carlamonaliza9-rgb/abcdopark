@@ -78,22 +78,40 @@ export default function DiarioClassePage() {
           const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
           const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
 
-          const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
-          
           let turmasFinais: string[] = [];
 
           if (ehAdmin) {
             turmasFinais = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
           } else {
-            // Usa .filter e .map para pegar todas as turmas, não apenas a primeira
-            const minhasTurmas = (turmasInfo || []).filter(t => 
+            // 1. Busca o nome do professor (Igual na página de Notas)
+            const { data: funcData } = await supabase.from('funcionarios').select('nome').eq('email', emailAtual).single();
+            const nomeDoProf = funcData?.nome || "";
+
+            // 2. Busca turmas pela tabela de DISCIPLINAS
+            let turmasViaDisciplinas: string[] = [];
+            if (nomeDoProf) {
+              const { data: turmasDoProf } = await supabase
+                .from('turma_disciplinas')
+                .select('nome_turma')
+                .eq('professor_vinculado', nomeDoProf)
+                .eq('ano', '2026');
+                
+              if (turmasDoProf) {
+                turmasViaDisciplinas = turmasDoProf.map(t => t.nome_turma);
+              }
+            }
+
+            // 3. Busca turmas pela tabela INFO (como garantia extra)
+            const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
+            const turmasViaInfo = (turmasInfo || []).filter(t => 
               t.email_prof_fixo_1 === emailAtual || 
               t.email_prof_fixo_2 === emailAtual || 
               t.email_prof_especifico_1 === emailAtual || 
               t.email_prof_especifico_2 === emailAtual
             ).map(t => t.nome_turma);
 
-            turmasFinais = Array.from(new Set(minhasTurmas)); // Remove duplicatas
+            // 4. Junta tudo e remove as turmas repetidas
+            turmasFinais = Array.from(new Set([...turmasViaDisciplinas, ...turmasViaInfo]));
           }
 
           setListaTurmas(turmasFinais);
@@ -430,7 +448,7 @@ export default function DiarioClassePage() {
               onClick={() => router.push('/professor/frequencia')} 
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl md:border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
             >
-              <ClipboardList size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> <span className="hidden md:inline">Relatório Mês</span><span className="md:hidden">Relatório</span>
+              <ClipboardList size={16} className="md:w-[38px] md:h-[18px]" strokeWidth={2.5} /> <span className="hidden md:inline">Relatório Mês</span><span className="md:hidden">Relatório</span>
             </button>
             <button 
               onClick={() => { setAcaoPendente('excluir'); setModalSeguranca(true); }} 
