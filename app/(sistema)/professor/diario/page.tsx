@@ -12,6 +12,7 @@ import {
 export default function DiarioClassePage() {
   const router = useRouter();
   const [alunos, setAlunos] = useState<any[]>([]);
+  const [listaTurmas, setListaTurmas] = useState<string[]>([]); // NOVO ESTADO
   const [turmaSelecionada, setTurmaSelecionada] = useState("");
   const [nomeUsuario, setNomeUsuario] = useState("Professor");
   const [nomeCompleto, setNomeCompleto] = useState(""); 
@@ -73,18 +74,34 @@ export default function DiarioClassePage() {
             setNomeUsuario(nome.split(' ')[0]);
           }
 
-          const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
-          const minhaTurma = (turmasInfo || []).find(t => 
-            t.email_prof_fixo_1 === emailAtual || 
-            t.email_prof_fixo_2 === emailAtual || 
-            t.email_prof_especifico_1 === emailAtual || 
-            t.email_prof_especifico_2 === emailAtual
-          );
+          // PERMISSÕES E BUSCA DAS MÚLTIPLAS TURMAS
+          const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
+          const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
 
-          if (minhaTurma) {
-            setTurmaSelecionada(minhaTurma.nome_turma);
+          const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
+          
+          let turmasFinais: string[] = [];
+
+          if (ehAdmin) {
+            turmasFinais = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
+          } else {
+            // Usa .filter e .map para pegar todas as turmas, não apenas a primeira
+            const minhasTurmas = (turmasInfo || []).filter(t => 
+              t.email_prof_fixo_1 === emailAtual || 
+              t.email_prof_fixo_2 === emailAtual || 
+              t.email_prof_especifico_1 === emailAtual || 
+              t.email_prof_especifico_2 === emailAtual
+            ).map(t => t.nome_turma);
+
+            turmasFinais = Array.from(new Set(minhasTurmas)); // Remove duplicatas
           }
 
+          setListaTurmas(turmasFinais);
+          if (turmasFinais.length > 0) {
+            setTurmaSelecionada(turmasFinais[0]); // Seleciona a primeira turma por padrão
+          }
+
+          // ANIVERSARIANTES
           const { data: todosFuncs } = await supabase.from('funcionarios').select('*');
           const { data: todosAlus } = await supabase.from('alunos').select('*').neq('status', 'transferido');
 
@@ -235,7 +252,7 @@ export default function DiarioClassePage() {
   async function handleSalvarNovo() {
     setSalvando(true);
     try {
-      // Trava de segurança: Valida se algum aluno recebeu nota <= 3 e está sem observação
+      // Trava de segurança
       for (const aluno of alunos) {
         const reg = registrosLocal[aluno.id];
         if (reg) {
@@ -248,7 +265,7 @@ export default function DiarioClassePage() {
           if (possuiNotaBaixa && !reg.comentario?.trim()) {
             alert(`Aviso obrigatório:\nO aluno ${aluno.nome} recebeu uma avaliação de 3 estrelas (ou menos) em algum critério. É necessário preencher uma observação justificando a nota antes de salvar para os pais e a diretoria.`);
             setSalvando(false);
-            return; // Interrompe o processo de salvamento geral
+            return;
           }
         }
       }
@@ -354,12 +371,12 @@ export default function DiarioClassePage() {
 
   const getCorTurmaInfo = (turma: string) => {
     const cores: Record<string, string> = {
-      "Maternal": "text-sky-700",
-      "Jardim I": "text-emerald-700",
-      "Jardim II": "text-pink-700",
-      "1º Ano": "text-purple-700"
+      "Maternal": "text-sky-700 md:border-sky-200 md:bg-sky-50",
+      "Jardim I": "text-emerald-700 md:border-emerald-200 md:bg-emerald-50",
+      "Jardim II": "text-pink-700 md:border-pink-200 md:bg-pink-50",
+      "1º Ano": "text-purple-700 md:border-purple-200 md:bg-purple-50"
     };
-    return cores[turma] || "text-slate-700";
+    return cores[turma] || "text-slate-700 bg-slate-50 border-slate-200";
   };
   const temaTurmaAtual = getCorTurmaInfo(turmaSelecionada);
 
@@ -379,9 +396,23 @@ export default function DiarioClassePage() {
             </h1>
             
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4 mt-4 md:mt-5">
-              <div className={`px-1 md:px-4 md:py-2.5 md:rounded-xl md:border-2 font-black uppercase tracking-widest text-[11px] md:text-[10px] ${temaTurmaAtual}`}>
-                Turma: {turmaSelecionada || "Não localizada"}
+              
+              {/* O NOVO MENU DROPDOWN DE TURMAS */}
+              <div className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-black uppercase tracking-widest text-[11px] md:text-[10px] border-2 transition-colors ${temaTurmaAtual}`}>
+                <span>Turma:</span>
+                <select 
+                  value={turmaSelecionada}
+                  onChange={(e) => setTurmaSelecionada(e.target.value)}
+                  className="bg-transparent font-black outline-none cursor-pointer text-current w-full pr-2"
+                >
+                  {listaTurmas.length === 0 ? (
+                    <option value="">Nenhuma turma</option>
+                  ) : (
+                    listaTurmas.map(t => <option key={t} value={t}>{t}</option>)
+                  )}
+                </select>
               </div>
+
               <div className="flex items-center gap-3 bg-slate-50 md:border md:border-slate-200 px-4 py-3 md:py-2 rounded-xl">
                 <CalendarDays size={18} className="text-slate-400 shrink-0" />
                 <input 
@@ -653,7 +684,7 @@ export default function DiarioClassePage() {
               </h2>
               {aniversariantesHoje.some(p => p.email === userEmail) && (
                 <p className="mt-4 text-blue-50 text-sm font-medium leading-relaxed px-4">
-                  Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈 Que este novo ciclo seja repleto de paz, saúde e conquests.
+                  Hoje o dia amanheceu mais feliz porque é o seu aniversário! 🎈 Que este novo ciclo seja repleto de paz, saúde e conquistas.
                 </p>
               )}
             </div>
