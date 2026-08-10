@@ -49,6 +49,11 @@ export default function DashboardProfessorPage() {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
 
+  const ordemHierarquicaTurmas = [
+    "maternal", "jardim", "jardim i", "jardim ii", "jardim 1", "jardim 2",
+    "1º ano", "2º ano", "3º ano", "4º ano", "5º ano"
+  ];
+
   async function carregarDados() {
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -302,9 +307,15 @@ export default function DashboardProfessorPage() {
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl px-4 py-2 flex flex-col justify-center min-w-[160px]">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Turmas Atribuídas</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {dados.minhasTurmas.length > 0 ? dados.minhasTurmas.map(t => (
-                      <span key={t} className="text-[11px] font-bold bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">{t}</span>
-                    )) : (
+                    {dados.minhasTurmas.length > 0 ? (
+                      dados.minhasTurmas.map(t => {
+                        const turmaValida = ordemHierarquicaTurmas.findIndex(th => t.toLowerCase().includes(th)) !== -1;
+
+                        return turmaValida ? (
+                          <span key={t} className="text-[11px] font-bold bg-white text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">{t}</span>
+                        ) : null;
+                      })
+                    ) : (
                       <span className="text-[11px] font-medium text-slate-400">Nenhuma</span>
                     )}
                   </div>
