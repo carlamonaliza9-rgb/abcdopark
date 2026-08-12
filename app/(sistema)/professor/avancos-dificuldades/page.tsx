@@ -5,6 +5,35 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
+
+const ORDEM_TURMAS = [
+  "Maternal",
+  "Jardim I",
+  "Jardim II",
+  "1º Ano",
+  "2º Ano",
+  "3º Ano",
+  "4º Ano",
+  "5º Ano"
+];
+
+const ordenarTurmas = (turmas: string[]) => {
+  return [...turmas].sort((a, b) => {
+    const indiceA = ORDEM_TURMAS.indexOf(a);
+    const indiceB = ORDEM_TURMAS.indexOf(b);
+
+    // Turmas conhecidas seguem a ordem escolar definida acima.
+    // Nomes não previstos ficam depois das turmas conhecidas,
+    // mantendo uma ordem alfabética estável entre si.
+    if (indiceA === -1 && indiceB === -1) {
+      return a.localeCompare(b, "pt-BR");
+    }
+    if (indiceA === -1) return 1;
+    if (indiceB === -1) return -1;
+    return indiceA - indiceB;
+  });
+};
+
 export default function AvancosDificuldadesPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -61,52 +90,97 @@ export default function AvancosDificuldadesPage() {
         setEhAdmin(adminVerificado);
 
         if (adminVerificado) {
-          const nomesTurmas = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
-          setListaTurmas(nomesTurmas);
+          const nomesTurmas = [
+            "Maternal",
+            "Jardim I",
+            "Jardim II",
+            "1º Ano",
+            "2º Ano",
+            "3º Ano",
+            "4º Ano",
+            "5º Ano"
+          ];
+
+          const turmasOrdenadas = ordenarTurmas(nomesTurmas);
+          setListaTurmas(turmasOrdenadas);
+
+          if (turmasOrdenadas.length > 0) {
+            setTurmaSelecionada(turmasOrdenadas[0]);
+          }
         } else {
-          // LÓGICA DE BUSCA BLINDADA PARA O PROFESSOR (Igual à TurmasProfessorPage)
+          /*
+           * MESMA REGRA OFICIAL DA PÁGINA /professor/turmas
+           *
+           * 1) Professor vinculado em turma_disciplinas para o ano letivo 2026.
+           * 2) Professor cadastrado como auxiliar em turmas_info.
+           *
+           * NÃO usamos:
+           * - ilike/parcial no nome do professor;
+           * - email_prof_fixo_1;
+           * - email_prof_fixo_2;
+           * - outros campos de e-mail.
+           *
+           * Isso impede que uma turma antiga continue aparecendo
+           * somente porque o e-mail ainda está registrado nela.
+           */
           const turmasNomes = new Set<string>();
 
+          // 1. Vínculos por disciplina — exatamente como na página /professor/turmas.
           if (nomeDoProf) {
-            // Busca nas disciplinas vinculadas
-            const { data: turmasProf } = await supabase
+            const { data: turmasProf, error: erroTurmasProf } = await supabase
               .from('turma_disciplinas')
               .select('nome_turma')
-              .ilike('professor_vinculado', `%${nomeDoProf}%`);
-            
-            if (turmasProf) {
-              turmasProf.forEach(t => {
-                if (t.nome_turma) turmasNomes.add(t.nome_turma);
-              });
+              .eq('professor_vinculado', nomeDoProf)
+              .eq('ano', '2026');
+
+            if (erroTurmasProf) {
+              console.error("Erro ao buscar turmas em turma_disciplinas:", erroTurmasProf);
             }
-          }
 
-          // Busca de Fallback na tabela turmas_info (Caso seja Auxiliar ou Prof Fixo de e-mail)
-          const { data: resInfos } = await supabase
-            .from('turmas_info')
-            .select('nome_turma, auxiliar, email_prof_fixo_1, email_prof_fixo_2');
-
-          if (resInfos) {
-            resInfos.forEach(t => {
-              if (
-                t.auxiliar === nomeDoProf || 
-                t.email_prof_fixo_1 === email || 
-                t.email_prof_fixo_2 === email
-              ) {
-                if (t.nome_turma) turmasNomes.add(t.nome_turma);
+            (turmasProf || []).forEach(turma => {
+              if (turma.nome_turma) {
+                turmasNomes.add(turma.nome_turma.trim());
               }
             });
           }
 
-          const nomesUnicos = Array.from(turmasNomes);
+          // 2. Vínculo como auxiliar — exatamente como na página /professor/turmas.
+          const { data: resInfos, error: erroTurmasInfo } = await supabase
+            .from('turmas_info')
+            .select('nome_turma, auxiliar');
+
+          if (erroTurmasInfo) {
+            console.error("Erro ao buscar turmas_info:", erroTurmasInfo);
+          }
+
+          (resInfos || []).forEach(turma => {
+            const auxiliar = typeof turma.auxiliar === "string"
+              ? turma.auxiliar.trim()
+              : "";
+
+            if (
+              nomeDoProf &&
+              auxiliar === nomeDoProf &&
+              turma.nome_turma
+            ) {
+              turmasNomes.add(turma.nome_turma.trim());
+            }
+          });
+
+          const nomesUnicos = ordenarTurmas(Array.from(turmasNomes));
+
           setListaTurmas(nomesUnicos);
-          
+
           if (nomesUnicos.length > 0) {
             setTurmaSelecionada(nomesUnicos[0]);
           } else {
-            console.warn(`⚠️ Nenhuma turma encontrada para o professor: "${nomeDoProf}" ou email: "${email}"`);
+            setTurmaSelecionada("");
+            console.warn(
+              `Nenhuma turma encontrada para o professor "${nomeDoProf}" no ano letivo 2026.`
+            );
           }
         }
+
       } catch (err) {
         console.error("Erro fatal na inicialização:", err);
       } finally {

@@ -7,6 +7,35 @@ import { Save, BookOpenCheck, Loader2, Lock, FileDown, X, Layers, Layout } from 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+
+const ORDEM_TURMAS = [
+  "Maternal",
+  "Jardim I",
+  "Jardim II",
+  "1º Ano",
+  "2º Ano",
+  "3º Ano",
+  "4º Ano",
+  "5º Ano"
+];
+
+const ordenarTurmas = (turmas: string[]) => {
+  return [...turmas].sort((a, b) => {
+    const indiceA = ORDEM_TURMAS.indexOf(a);
+    const indiceB = ORDEM_TURMAS.indexOf(b);
+
+    // Turmas conhecidas seguem a ordem escolar definida acima.
+    // Nomes não previstos ficam depois das turmas conhecidas,
+    // mantendo uma ordem alfabética estável entre si.
+    if (indiceA === -1 && indiceB === -1) {
+      return a.localeCompare(b, "pt-BR");
+    }
+    if (indiceA === -1) return 1;
+    if (indiceB === -1) return -1;
+    return indiceA - indiceB;
+  });
+};
+
 export default function AvaliacoesProfessorPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
@@ -57,7 +86,7 @@ export default function AvaliacoesProfessorPage() {
 
       if (adminVerificado) {
         const nomesTurmas = ["Maternal", "Jardim I", "Jardim II", "1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano"];
-        setListaTurmas(nomesTurmas);
+        setListaTurmas(ordenarTurmas(nomesTurmas));
       } else {
         if (nomeDoProf) {
             const { data: turmasDoProf } = await supabase
@@ -67,7 +96,9 @@ export default function AvaliacoesProfessorPage() {
               .eq('ano', '2026');
 
             if (turmasDoProf && turmasDoProf.length > 0) {
-              const nomesUnicos = Array.from(new Set(turmasDoProf.map(t => t.nome_turma)));
+              const nomesUnicos = ordenarTurmas(
+                Array.from(new Set(turmasDoProf.map(t => t.nome_turma)))
+              );
               setListaTurmas(nomesUnicos);
               if (nomesUnicos.length === 1) setTurmaSelecionada(nomesUnicos[0]);
             }
@@ -471,18 +502,18 @@ export default function AvaliacoesProfessorPage() {
             {/* Seletor de Turma */}
             <div className="flex flex-col gap-1.5 flex-1 xl:w-60">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Minhas Turmas</label>
-              {(ehAdmin || listaTurmas.length > 1) ? (
+              {(ehAdmin || listaTurmas.length > 1) ? ( 
                 <select 
                   value={turmaSelecionada} 
                   onChange={(e) => setTurmaSelecionada(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 md:bg-white bg-slate-50 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-blue-100 md:focus:border-blue-400 transition-colors shadow-sm md:shadow-sm"
                 >
-                  <option value="">Escolha uma turma...</option>
-                  {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="">Escolha uma turma...</option> 
+                  {listaTurmas.map(t => <option key={t} value={t}>{t}</option>)} 
                 </select>
               ) : (
                 <div className="w-full px-4 py-3 rounded-xl bg-slate-50 md:bg-white border border-slate-200 font-bold text-slate-700 shadow-sm md:shadow-sm truncate">
-                  {turmaSelecionada || "Nenhuma turma vinculada"}
+                  {turmaSelecionada || "Nenhuma turma vinculada"} 
                 </div>
               )}
             </div>

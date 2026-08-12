@@ -14,6 +14,35 @@ import {
 import { ModalFichaAlunoTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalFichaAlunoTurma";
 import { ModalAgendaTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalAgendaTurma";
 
+
+const ORDEM_TURMAS = [
+  "Maternal",
+  "Jardim I",
+  "Jardim II",
+  "1º Ano",
+  "2º Ano",
+  "3º Ano",
+  "4º Ano",
+  "5º Ano"
+];
+
+const ordenarTurmas = (turmas: string[]) => {
+  return [...turmas].sort((a, b) => {
+    const indiceA = ORDEM_TURMAS.indexOf(a);
+    const indiceB = ORDEM_TURMAS.indexOf(b);
+
+    // Turmas conhecidas seguem a ordem escolar definida acima.
+    // Nomes não previstos ficam depois das turmas conhecidas,
+    // mantendo uma ordem alfabética estável entre si.
+    if (indiceA === -1 && indiceB === -1) {
+      return a.localeCompare(b, "pt-BR");
+    }
+    if (indiceA === -1) return 1;
+    if (indiceB === -1) return -1;
+    return indiceA - indiceB;
+  });
+};
+
 export default function TurmasProfessorPage() {
   const router = useRouter();
   const [turmas, setTurmas] = useState<any[]>([]);
@@ -110,9 +139,14 @@ export default function TurmasProfessorPage() {
           }
       });
 
-      const turmasDoProfessor = resInfos.data
-        .filter(t => turmasNomes.includes(t.nome_turma))
-        .map(t => ({
+      const turmasNomesOrdenadas = ordenarTurmas(
+        Array.from(new Set(turmasNomes))
+      );
+
+      const turmasDoProfessor = turmasNomesOrdenadas
+        .map(nomeTurma => resInfos.data?.find(t => t.nome_turma === nomeTurma))
+        .filter(Boolean)
+        .map((t: any) => ({
           nome: t.nome_turma,
           cor: coresAtuais[t.nome_turma] || "#4f46e5",
           horario_url: t.horario_url

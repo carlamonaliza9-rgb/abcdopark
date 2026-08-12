@@ -9,6 +9,35 @@ import {
   Cake, Smartphone, BookOpen, MessageSquareText
 } from "lucide-react";
 
+
+const ORDEM_TURMAS = [
+  "Maternal",
+  "Jardim I",
+  "Jardim II",
+  "1º Ano",
+  "2º Ano",
+  "3º Ano",
+  "4º Ano",
+  "5º Ano"
+];
+
+const ordenarTurmas = (turmas: string[]) => {
+  return [...turmas].sort((a, b) => {
+    const indiceA = ORDEM_TURMAS.indexOf(a);
+    const indiceB = ORDEM_TURMAS.indexOf(b);
+
+    // Turmas conhecidas seguem a ordem escolar definida acima.
+    // Nomes não previstos ficam depois das turmas conhecidas,
+    // mantendo uma ordem alfabética estável entre si.
+    if (indiceA === -1 && indiceB === -1) {
+      return a.localeCompare(b, "pt-BR");
+    }
+    if (indiceA === -1) return 1;
+    if (indiceB === -1) return -1;
+    return indiceA - indiceB;
+  });
+};
+
 export default function DiarioClassePage() {
   const router = useRouter();
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -87,7 +116,8 @@ export default function DiarioClassePage() {
             const { data: funcData } = await supabase.from('funcionarios').select('nome').eq('email', emailAtual).single();
             const nomeDoProf = funcData?.nome || "";
 
-            // 2. Busca turmas pela tabela de DISCIPLINAS
+            // MESMA REGRA DA PÁGINA /professor/turmas
+            // 1. Turmas vinculadas diretamente ao professor em turma_disciplinas
             let turmasViaDisciplinas: string[] = [];
             if (nomeDoProf) {
               const { data: turmasDoProf } = await supabase
@@ -95,24 +125,47 @@ export default function DiarioClassePage() {
                 .select('nome_turma')
                 .eq('professor_vinculado', nomeDoProf)
                 .eq('ano', '2026');
-                
+
               if (turmasDoProf) {
-                turmasViaDisciplinas = turmasDoProf.map(t => t.nome_turma);
+                turmasViaDisciplinas = turmasDoProf
+                  .map(t => t.nome_turma)
+                  .filter(Boolean);
               }
             }
 
-            // 3. Busca turmas pela tabela INFO (como garantia extra)
-            const { data: turmasInfo } = await supabase.from('turmas_info').select('*');
-            const turmasViaInfo = (turmasInfo || []).filter(t => 
-              t.email_prof_fixo_1 === emailAtual || 
-              t.email_prof_fixo_2 === emailAtual || 
-              t.email_prof_especifico_1 === emailAtual || 
-              t.email_prof_especifico_2 === emailAtual
-            ).map(t => t.nome_turma);
+            // 2. Auxiliar também possui acesso à turma.
+            // IMPORTANTE: não usar os campos de e-mail de turmas_info aqui.
+            // A página /professor/turmas usa somente "auxiliar".
+            const { data: turmasInfo } = await supabase
+              .from('turmas_info')
+              .select('nome_turma, auxiliar');
 
-            // 4. Junta tudo e remove as turmas repetidas
-            turmasFinais = Array.from(new Set([...turmasViaDisciplinas, ...turmasViaInfo]));
+            const turmasNomes = Array.from(
+              new Set(turmasViaDisciplinas)
+            );
+
+            (turmasInfo || []).forEach(t => {
+              if (
+                t.auxiliar === nomeDoProf &&
+                t.nome_turma &&
+                !turmasNomes.includes(t.nome_turma)
+              ) {
+                turmasNomes.push(t.nome_turma);
+              }
+            });
+
+            // 3. A lista final é formada pelas mesmas regras da página /professor/turmas.
+            turmasFinais = Array.from(
+              new Set(
+                (turmasInfo || [])
+                  .filter(t => turmasNomes.includes(t.nome_turma))
+                  .map(t => t.nome_turma)
+                  .filter(Boolean)
+              )
+            );
           }
+
+          turmasFinais = ordenarTurmas(turmasFinais);
 
           setListaTurmas(turmasFinais);
           if (turmasFinais.length > 0) {
