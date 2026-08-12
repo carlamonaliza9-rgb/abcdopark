@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
-import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle, Lock } from "lucide-react";
 
 
 const ORDEM_TURMAS = [
@@ -44,13 +44,22 @@ export default function AvancosDificuldadesPage() {
   
   const [listaTurmas, setListaTurmas] = useState<string[]>([]);
   const [turmaSelecionada, setTurmaSelecionada] = useState("");
-  const [semestreSelecionado, setSemestreSelecionado] = useState("1º Semestre");
+  const [trimestreSelecionado, setTrimestreSelecionado] = useState("1º Trimestre");
   
   const [alunos, setAlunos] = useState<any[]>([]);
   
-  // Estrutura de estado para os textos: { [alunoId]: { avancos: "...", dificuldades: "..." } }
+  // Estrutura local dos textos por aluno.
   const [textosLocais, setTextosLocais] = useState<{ [alunoId: string]: { avancos: string; dificuldades: string } }>({});
   const [textosOriginais, setTextosOriginais] = useState<{ [alunoId: string]: { avancos: string; dificuldades: string } }>({});
+
+  // Quando existe um registro para o aluno no trimestre selecionado, o parecer está fechado.
+  const [registrosExistentes, setRegistrosExistentes] = useState<{
+    [alunoId: string]: {
+      id: string | number;
+      data_registro: string | null;
+      professor_nome: string | null;
+    }
+  }>({});
 
   useEffect(() => {
     async function inicializar() {
@@ -190,48 +199,85 @@ export default function AvancosDificuldadesPage() {
     inicializar();
   }, [router]);
 
-  // Carrega alunos da turma e os pareceres semestrais existentes
+  // Carrega alunos da turma e o parecer trimestral existente.
   useEffect(() => {
-    async function carregarDadosSemestre() {
-      if (!turmaSelecionada) return;
+    async function carregarDadosTrimestre() {
+      if (!turmaSelecionada) {
+        setAlunos([]);
+        setTextosLocais({});
+        setTextosOriginais({});
+        setRegistrosExistentes({});
+        return;
+      }
+
       setCarregando(true);
 
-      const { data: listaAlunos } = await supabase
-        .from('alunos')
-        .select('id, nome, foto_url')
-        .eq('turma', turmaSelecionada)
-        .order('nome', { ascending: true });
+      try {
+        const { data: listaAlunos, error: alunosError } = await supabase
+          .from('alunos')
+          .select('id, nome, foto_url')
+          .eq('turma', turmaSelecionada)
+          .order('nome', { ascending: true });
 
-      if (listaAlunos) {
-        setAlunos(listaAlunos);
+        if (alunosError) throw alunosError;
 
-        const idsAlunos = listaAlunos.map(a => a.id);
-        const { data: pareceresBD } = await supabase
+        const alunosCarregados = listaAlunos || [];
+        setAlunos(alunosCarregados);
+
+        if (alunosCarregados.length === 0) {
+          setTextosLocais({});
+          setTextosOriginais({});
+          setRegistrosExistentes({});
+          return;
+        }
+
+        const idsAlunos = alunosCarregados.map(a => a.id);
+        const { data: pareceresBD, error: parecerError } = await supabase
           .from('avancos_dificuldades')
-          .select('*')
+          .select('id, aluno_id, avancos, dificuldades, data_registro, professor_nome')
           .in('aluno_id', idsAlunos)
-          .eq('semestre', semestreSelecionado)
+          .eq('trimestre', trimestreSelecionado)
           .eq('ano', '2026');
 
+        if (parecerError) throw parecerError;
+
         const mapaTextos: { [alunoId: string]: { avancos: string; dificuldades: string } } = {};
-        
-        // Inicializa o mapa para todos os alunos encontrados
-        listaAlunos.forEach(aluno => {
-          const dadosRegistro = pareceresBD?.find(p => String(p.aluno_id) === String(aluno.id));
+        const mapaRegistros: {
+          [alunoId: string]: { id: string | number; data_registro: string | null; professor_nome: string | null }
+        } = {};
+
+        alunosCarregados.forEach(aluno => {
+          const registro = (pareceresBD || []).find(
+            p => String(p.aluno_id) === String(aluno.id)
+          );
+
           mapaTextos[String(aluno.id)] = {
-            avancos: dadosRegistro?.avancos || "",
-            dificuldades: dadosRegistro?.dificuldades || ""
+            avancos: registro?.avancos || "",
+            dificuldades: registro?.dificuldades || ""
           };
+
+          if (registro) {
+            mapaRegistros[String(aluno.id)] = {
+              id: registro.id,
+              data_registro: registro.data_registro || null,
+              professor_nome: registro.professor_nome || null
+            };
+          }
         });
 
         setTextosLocais(mapaTextos);
         setTextosOriginais(JSON.parse(JSON.stringify(mapaTextos)));
+        setRegistrosExistentes(mapaRegistros);
+      } catch (err) {
+        console.error("Erro ao carregar parecer trimestral:", err);
+        alert("Erro ao carregar os pareceres deste trimestre.");
+      } finally {
+        setCarregando(false);
       }
-      setCarregando(false);
     }
 
-    carregarDadosSemestre();
-  }, [turmaSelecionada, semestreSelecionado]);
+    carregarDadosTrimestre();
+  }, [turmaSelecionada, trimestreSelecionado]);
 
   const handleTextoChange = (alunoId: string, campo: "avancos" | "dificuldades", valor: string) => {
     setTextosLocais(prev => ({
@@ -247,42 +293,131 @@ export default function AvancosDificuldadesPage() {
     const dadosFicha = textosLocais[alunoId];
     if (!dadosFicha) return;
 
+    // Regra principal: um único registro por aluno/trimestre/ano.
+    if (registrosExistentes[alunoId]) {
+      alert(
+        `O parecer do ${trimestreSelecionado} deste aluno já foi registrado e está bloqueado para novas alterações.`
+      );
+      return;
+    }
+
+    if (!dadosFicha.avancos.trim() && !dadosFicha.dificuldades.trim()) {
+      alert("Preencha pelo menos um dos campos antes de salvar o parecer.");
+      return;
+    }
+
     setSalvandoId(alunoId);
+
     try {
-      const { error } = await supabase
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id || null;
+
+      // INSERT proposital: o banco, através do índice UNIQUE, impede uma segunda gravação.
+      const { data: novoRegistro, error } = await supabase
         .from('avancos_dificuldades')
-        .upsert({
+        .insert({
           aluno_id: parseInt(alunoId),
-          semestre: semestreSelecionado,
+          trimestre: trimestreSelecionado,
           ano: "2026",
           avancos: dadosFicha.avancos,
           dificuldades: dadosFicha.dificuldades,
-          professor_nome: nomeLogado || "Professor"
-        }, { onConflict: 'aluno_id, semestre, ano' });
+          professor_id: userId,
+          professor_nome: nomeLogado || "Professor",
+          data_registro: new Date().toISOString()
+        })
+        .select('id, data_registro, professor_nome')
+        .single();
 
       if (error) throw error;
 
-      // Sincroniza o estado original deste aluno específico
       setTextosOriginais(prev => ({
         ...prev,
         [alunoId]: { ...dadosFicha }
       }));
 
-      // Log de auditoria simples
+      setRegistrosExistentes(prev => ({
+        ...prev,
+        [alunoId]: {
+          id: novoRegistro.id,
+          data_registro: novoRegistro.data_registro || null,
+          professor_nome: novoRegistro.professor_nome || nomeLogado || "Professor"
+        }
+      }));
+
       const nomeAluno = alunos.find(a => String(a.id) === String(alunoId))?.nome || alunoId;
       await supabase.from('logs_sistema').insert([{
         usuario_email: userEmail,
-        acao: "GRAVAÇÃO PARECER",
+        acao: "GRAVAÇÃO PARECER TRIMESTRAL",
         tabela: "avancos_dificuldades",
-        detalhes: `Preencheu parecer semestral (${semestreSelecionado}/2026) do aluno(a) ${nomeAluno}.`
+        detalhes: `Registrou parecer do ${trimestreSelecionado}/2026 do aluno(a) ${nomeAluno} na turma ${turmaSelecionada}. Data do registro: ${
+          novoRegistro.data_registro
+            ? new Date(novoRegistro.data_registro).toLocaleString('pt-BR')
+            : 'não informada'
+        }.`
       }]);
-
     } catch (err: any) {
-      alert("Erro ao salvar dados: " + err.message);
+      console.error("Erro ao salvar parecer:", err);
+
+      if (err?.code === "23505") {
+        alert("Este parecer já foi registrado para este aluno neste trimestre. O sistema bloqueou uma segunda gravação.");
+        await carregarDadosTrimestreParaAluno(alunoId);
+      } else {
+        alert("Erro ao salvar dados: " + (err?.message || "erro desconhecido"));
+      }
     } finally {
       setSalvandoId(null);
     }
   }
+
+  async function carregarDadosTrimestreParaAluno(alunoId: string) {
+    const { data, error } = await supabase
+      .from('avancos_dificuldades')
+      .select('id, avancos, dificuldades, data_registro, professor_nome')
+      .eq('aluno_id', Number(alunoId))
+      .eq('trimestre', trimestreSelecionado)
+      .eq('ano', '2026')
+      .maybeSingle();
+
+    if (error || !data) return;
+
+    setTextosLocais(prev => ({
+      ...prev,
+      [alunoId]: {
+        avancos: data.avancos || "",
+        dificuldades: data.dificuldades || ""
+      }
+    }));
+
+    setTextosOriginais(prev => ({
+      ...prev,
+      [alunoId]: {
+        avancos: data.avancos || "",
+        dificuldades: data.dificuldades || ""
+      }
+    }));
+
+    setRegistrosExistentes(prev => ({
+      ...prev,
+      [alunoId]: {
+        id: data.id,
+        data_registro: data.data_registro || null,
+        professor_nome: data.professor_nome || null
+      }
+    }));
+  }
+
+  const formatarDataRegistro = (data: string | null) => {
+    if (!data) return "Data não registrada";
+    const dataObj = new Date(data);
+    if (Number.isNaN(dataObj.getTime())) return "Data inválida";
+    return dataObj.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
 
   return (
     <div className="animate-in fade-in duration-500 w-full min-h-screen pb-10 bg-white md:bg-[#d8e8f2]">
@@ -300,7 +435,7 @@ export default function AvancosDificuldadesPage() {
               Avanços e Dificuldades
             </h1>
             <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1.5 md:mt-2">
-              {ehAdmin ? "Acompanhamento Pedagógico Global" : `Registro de Pareceres Semestrais • Prof. ${nomeLogado}`}
+              {ehAdmin ? "Acompanhamento Pedagógico Global" : `Registro de Pareceres Trimestrais • Prof. ${nomeLogado}`}
             </p>
           </div>
           
@@ -318,14 +453,16 @@ export default function AvancosDificuldadesPage() {
             </div>
 
             <div className="flex flex-col gap-1.5 flex-1 sm:w-48">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Período Semestral</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Trimestre</label>
               <select 
-                value={semestreSelecionado} 
-                onChange={(e) => setSemestreSelecionado(e.target.value)}
+                value={trimestreSelecionado} 
+                onChange={(e) => setTrimestreSelecionado(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 md:bg-white text-slate-700 font-bold outline-none focus:ring-2 focus:ring-indigo-100 md:focus:border-indigo-400 transition-colors shadow-sm md:shadow-sm"
               >
-                <option value="1º Semestre">1º Semestre</option>
-                <option value="2º Semestre">2º Semestre</option>
+                <option value="1º Trimestre">1º Trimestre</option>
+                <option value="2º Trimestre">2º Trimestre</option>
+                <option value="3º Trimestre">3º Trimestre</option>
+                <option value="4º Trimestre">4º Trimestre</option>
               </select>
             </div>
           </div>
@@ -340,21 +477,32 @@ export default function AvancosDificuldadesPage() {
             {alunos.map(aluno => {
               const local = textosLocais[String(aluno.id)] || { avancos: "", dificuldades: "" };
               const original = textosOriginais[String(aluno.id)] || { avancos: "", dificuldades: "" };
+              const registro = registrosExistentes[String(aluno.id)];
               
               const foiAlterado = local.avancos !== original.avancos || local.dificuldades !== original.dificuldades;
               const estaPreenchido = local.avancos.trim().length > 3 || local.dificuldades.trim().length > 3;
               const isSaving = salvandoId === String(aluno.id);
+              const estaBloqueado = Boolean(registro);
 
               return (
                 <div key={aluno.id} className="bg-white md:rounded-[2rem] border-b-[8px] md:border border-slate-50 md:border-slate-100 md:shadow-sm p-4 md:p-6 flex flex-col justify-between md:hover:shadow-md transition-all gap-4 md:gap-5 relative overflow-hidden group">
                   
                   {/* Status superior de preenchimento */}
-                  <div className="absolute top-0 right-0 m-4 md:m-5 flex items-center gap-1.5">
-                    {foiAlterado ? (
+                  <div className="absolute top-0 right-0 m-4 md:m-5 flex flex-col items-end gap-1.5">
+                    {estaBloqueado ? (
+                      <>
+                        <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-2.5 py-1 rounded-md flex items-center gap-1">
+                          <Lock size={10} strokeWidth={3}/> Parecer registrado
+                        </span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">
+                          {formatarDataRegistro(registro?.data_registro || null)}
+                        </span>
+                      </>
+                    ) : foiAlterado ? (
                       <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md animate-pulse">Não Salvo</span>
                     ) : estaPreenchido ? (
                       <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-md flex items-center gap-1">
-                        <CheckCircle2 size={10} strokeWidth={3}/> <span className="hidden sm:inline">Preenchido</span>
+                        <CheckCircle2 size={10} strokeWidth={3}/> <span className="hidden sm:inline">Pronto para salvar</span>
                       </span>
                     ) : (
                       <span className="text-[9px] font-black uppercase bg-rose-50 text-rose-500 px-2.5 py-1 rounded-md flex items-center gap-1 border border-rose-100">
@@ -393,9 +541,10 @@ export default function AvancosDificuldadesPage() {
                       <textarea
                         value={local.avancos}
                         onChange={(e) => handleTextoChange(String(aluno.id), "avancos", e.target.value)}
+                        readOnly={estaBloqueado}
                         placeholder="Quais foram as conquistas pedagógicas, evolução na leitura, escrita, raciocínio ou socialização neste semestre?"
                         rows={5}
-                        className="w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 bg-slate-50 md:bg-slate-50/50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-100 md:focus:border-emerald-400 focus:bg-white transition-all resize-none leading-relaxed"
+                        className={`w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed ${estaBloqueado ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-emerald-100 md:focus:border-emerald-400 focus:bg-white'}`}
                       />
                     </div>
 
@@ -407,9 +556,10 @@ export default function AvancosDificuldadesPage() {
                       <textarea
                         value={local.dificuldades}
                         onChange={(e) => handleTextoChange(String(aluno.id), "dificuldades", e.target.value)}
+                        readOnly={estaBloqueado}
                         placeholder="Quais conteúdos exigem maior fixação? Há alguma barreira comportamental, de concentração ou faltas que prejudicaram o rendimento?"
                         rows={5}
-                        className="w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 bg-slate-50 md:bg-slate-50/50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-100 md:focus:border-rose-400 focus:bg-white transition-all resize-none leading-relaxed"
+                        className={`w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed ${estaBloqueado ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-rose-100 md:focus:border-rose-400 focus:bg-white'}`}
                       />
                     </div>
 
@@ -419,7 +569,7 @@ export default function AvancosDificuldadesPage() {
                   <div className="flex justify-end pt-3 mt-1 md:border-t md:border-slate-50">
                     <button
                       onClick={() => salvarFichaIndividual(String(aluno.id))}
-                      disabled={isSaving || !foiAlterado}
+                      disabled={isSaving || estaBloqueado || !foiAlterado}
                       className={`w-full md:w-auto px-5 py-3 md:py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center md:justify-start gap-2 transition-all ${
                         isSaving 
                           ? 'bg-indigo-300 text-indigo-50 cursor-not-allowed' 
@@ -428,8 +578,8 @@ export default function AvancosDificuldadesPage() {
                             : 'bg-slate-100 md:bg-slate-100 text-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                      {isSaving ? "Gravando..." : "Salvar Semestre"}
+                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : estaBloqueado ? <Lock size={14} /> : <Save size={14} />}
+                      {isSaving ? "Gravando..." : estaBloqueado ? "Parecer Bloqueado" : "Salvar Parecer"}
                     </button>
                   </div>
 

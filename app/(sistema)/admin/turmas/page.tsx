@@ -23,6 +23,7 @@ import { ModalHorario } from "@/app/(sistema)/dashboard/turmas/_components/Modal
 import { ModalDetalhesTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalDetalhesTurma";
 import { ModalFichaAlunoTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalFichaAlunoTurma";
 import { ModalAgendaTurma } from "@/app/(sistema)/dashboard/turmas/_components/ModalAgendaTurma";
+import { ModalAvancosDificuldades } from "@/app/(sistema)/dashboard/turmas/_components/ModalAvancosDificuldades";
 
 // --- FUNÇÕES AUXILIARES DE CORTE ---
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number) {
@@ -89,6 +90,9 @@ export default function TurmasAdminPage() {
   const [modalAgendaAberto, setModalAgendaAberto] = useState(false);
   const [turmaParaAgenda, setTurmaParaAgenda] = useState<any>(null);
   const [modoAgenda, setModoAgenda] = useState<'registrar' | 'consultar'>('registrar');
+  const [modalAvancosAberto, setModalAvancosAberto] = useState(false);
+  const [turmaParaAvancos, setTurmaParaAvancos] = useState<any>(null);
+
 
   const [modalVincularAberto, setModalVincularAberto] = useState(false);
   const [turmaVincular, setTurmaVincular] = useState<string>("");
@@ -250,6 +254,12 @@ export default function TurmasAdminPage() {
     } finally {
       setCarregando(false);
     }
+  }
+
+  function abrirAvancosDificuldades(e: React.MouseEvent, turma: any) {
+    e.stopPropagation();
+    setTurmaParaAvancos(turma);
+    setModalAvancosAberto(true);
   }
 
   async function gerenciarMaterias(e: React.MouseEvent, nomeTurma: string) {
@@ -458,11 +468,22 @@ export default function TurmasAdminPage() {
             }}
             onEditarProfessor={editarProfessor}
             onGerenciarMaterias={gerenciarMaterias}
+            onAbrirAvancosDificuldades={abrirAvancosDificuldades}
             onAbrirUploadHorario={(e: any, t: any) => { e.stopPropagation(); setTurmaParaHorario(t); setArquivoHorario(null); setPreviewHorario(t.horario_url || null); setModalHorarioAberto(true); }}
             onAbrirAgenda={(e: any, t: any) => { e.stopPropagation(); setTurmaParaAgenda(t); setModoAgenda('consultar'); setModalAgendaAberto(true); }}
           />
         ))}
       </div>
+
+      {modalAvancosAberto && turmaParaAvancos && (
+        <ModalAvancosDificuldades
+          turma={turmaParaAvancos}
+          onClose={() => {
+            setModalAvancosAberto(false);
+            setTurmaParaAvancos(null);
+          }}
+        />
+      )}
 
       {modalHorarioAberto && (
         <ModalHorario turma={turmaParaHorario} previewHorario={previewHorario} arrastandoHorario={arrastandoHorario} salvandoHorario={salvandoHorario} onClose={() => setModalHorarioAberto(false)} onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop} onFileSelect={(e: any) => { const file = e.target.files?.[0]; if (file) { setArquivoHorario(file); setPreviewHorario(URL.createObjectURL(file)); } }} onSalvar={salvarHorarioImagem} />
