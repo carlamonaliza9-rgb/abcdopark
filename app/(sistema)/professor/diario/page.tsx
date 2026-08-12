@@ -53,6 +53,7 @@ export default function DiarioClassePage() {
   const [modalSeguranca, setModalSeguranca] = useState(false);
   const [senhaConfirmacao, setSenhaConfirmacao] = useState("");
   const [acaoPendente, setAcaoPendente] = useState<'excluir' | 'editar' | null>(null);
+  const [modoEdicaoAtivo, setModoEdicaoAtivo] = useState(false);
 
   const [modalBdayAberto, setModalBdayAberto] = useState(false);
   const [aniversariantesHoje, setAniversariantesHoje] = useState<any[]>([]);
@@ -208,10 +209,12 @@ export default function DiarioClassePage() {
   }, []);
 
   useEffect(() => {
+    setModoEdicaoAtivo(false);
     if (turmaSelecionada) buscarAlunos();
   }, [turmaSelecionada]);
 
   useEffect(() => {
+    setModoEdicaoAtivo(false);
     if (alunos.length > 0) carregarDadosSalvosDoDia();
   }, [dataLancamento, alunos]);
 
@@ -395,6 +398,7 @@ export default function DiarioClassePage() {
       }
 
       setRegistrosOriginais(JSON.parse(JSON.stringify(registrosLocal)));
+      setModoEdicaoAtivo(false);
       alert("Lançamento do diário salvo com sucesso!");
 
     } catch (error) { alert("Erro ao salvar lançamento."); } finally { setSalvando(false); }
@@ -403,17 +407,85 @@ export default function DiarioClassePage() {
   async function handleEditarDiario() {
     const autorizado = await confirmarSeguranca();
     if (!autorizado) return;
-    await handleSalvarNovo(); 
+
+    // Apenas desbloqueia a pauta para edição.
+    // O professor fará as alterações (inclusive apagar estrelas)
+    // e então usará "Salvar Pauta".
+    setModoEdicaoAtivo(true);
     setModalSeguranca(false);
     setSenhaConfirmacao("");
     setAcaoPendente(null);
   }
 
-  const handlePresencaLocal = (alunoId: number, status: boolean | null) => { setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], presenca: status } })); };
+  const handlePresencaLocal = (alunoId: number, status: boolean | null) => {
+    setRegistrosLocal(prev => {
+      const atual = prev[alunoId] || {
+        presenca: null,
+        participacao: 0,
+        comportamento: 0,
+        atividades: 0,
+        socioemocional: 0,
+        comentario: ""
+      };
+
+      // Aluno ausente não pode receber avaliação por estrelas.
+      // Ao marcar F, todas as estrelas do dia são zeradas.
+      if (status === false) {
+        return {
+          ...prev,
+          [alunoId]: {
+            ...atual,
+            presenca: false,
+            participacao: 0,
+            comportamento: 0,
+            atividades: 0,
+            socioemocional: 0
+          }
+        };
+      }
+
+      return {
+        ...prev,
+        [alunoId]: {
+          ...atual,
+          presenca: status
+        }
+      };
+    });
+  };
   
-  const handleParametroLocal = (alunoId: number, nomeAluno: string, campo: string, labelContexto: string, qtd: number) => { 
-    setRegistrosLocal(prev => ({ ...prev, [alunoId]: { ...prev[alunoId], [campo]: qtd } })); 
-    if (qtd <= 3) {
+  const handleParametroLocal = (
+    alunoId: number,
+    nomeAluno: string,
+    campo: string,
+    labelContexto: string,
+    qtd: number
+  ) => {
+    const registroAluno = registrosLocal[alunoId];
+
+    // Faltou = sem avaliação. Não permite atribuir/alterar estrelas.
+    if (registroAluno?.presenca === false) {
+      return;
+    }
+
+    const valorAtual = Number((registroAluno as any)?.[campo] || 0);
+
+    // Durante o modo Edição:
+    // clicar novamente na última estrela ativa apaga a avaliação daquele critério,
+    // retornando para 0 (sem avaliação).
+    const novoValor = modoEdicaoAtivo && valorAtual === qtd ? 0 : qtd;
+
+    setRegistrosLocal(prev => ({
+      ...prev,
+      [alunoId]: {
+        ...prev[alunoId],
+        [campo]: novoValor
+      }
+    }));
+
+    // Se a nova avaliação for baixa, abre a observação normalmente.
+    // Ao apagar (0), não abre o modal.
+    if (novoValor > 0 && novoValor <= 3) {
       abrirModalObs(alunoId, nomeAluno, labelContexto);
     }
   };
@@ -513,10 +585,23 @@ export default function DiarioClassePage() {
               <Trash2 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> Limpar
             </button>
             <button 
-              onClick={() => { setAcaoPendente('editar'); setModalSeguranca(true); }} 
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-600 hover:bg-amber-100 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+              onClick={() => { 
+                if (modoEdicaoAtivo) {
+                  setModoEdicaoAtivo(false);
+                  carregarDadosSalvosDoDia();
+                } else {
+                  setAcaoPendente('editar'); 
+                  setModalSeguranca(true); 
+                }
+              }} 
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 ${
+                modoEdicaoAtivo
+                  ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                  : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+              }`}
             >
-              <Edit3 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> Editar
+              <Edit3 size={16} className="md:w-[18px] md:h-[18px]" strokeWidth={2.5} /> 
+              {modoEdicaoAtivo ? 'Cancelar Edição' : 'Editar'}
             </button>
             
             <button 
@@ -528,6 +613,15 @@ export default function DiarioClassePage() {
             </button>
           </div>
         </header>
+
+        {modoEdicaoAtivo && (
+          <div className="mb-4 md:mb-6 mx-4 md:mx-0 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 print:hidden">
+            <Edit3 size={18} className="text-amber-600 shrink-0" strokeWidth={2.5} />
+            <p className="text-[10px] md:text-xs font-black uppercase tracking-wide text-amber-700">
+              Modo edição ativo. Para apagar uma avaliação de estrelas, clique novamente na última estrela preenchida. Depois clique em <span className="text-green-700">Salvar Pauta</span>.
+            </p>
+          </div>
+        )}
 
         {/* ================= GRID DE ALUNOS ================= */}
         <div className="flex flex-col md:grid md:grid-cols-2 xl:grid-cols-3 gap-0 md:gap-6 pt-2 md:pt-0">
@@ -594,6 +688,12 @@ export default function DiarioClassePage() {
                   </div>
                 </div>
 
+                {isFalta && (
+                  <div className="mb-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-[9px] font-black uppercase tracking-widest text-rose-500 text-center">
+                    Aluno ausente — avaliações por estrelas desabilitadas
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4 bg-slate-50/80 rounded-2xl md:rounded-[1.5rem] border border-slate-100">
                   {[
                     { label: "Participação", key: "participacao", icon: "🎯" }, 
@@ -612,7 +712,22 @@ export default function DiarioClassePage() {
                             <span 
                               key={num} 
                               onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
-                              className={`cursor-pointer text-base md:text-lg transition-colors hover:scale-110 active:scale-95 ${ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'}`}
+                              title={
+                                isFalta
+                                  ? 'Aluno ausente: avaliação desabilitada'
+                                  : modoEdicaoAtivo && ativo && num === (reg as any)[item.key]
+                                    ? 'Clique novamente para apagar esta avaliação'
+                                    : modoEdicaoAtivo
+                                      ? 'Clique para alterar a avaliação'
+                                      : 'Clique para avaliar'
+                              }
+                              className={`text-base md:text-lg transition-colors ${
+                                isFalta
+                                  ? 'cursor-not-allowed text-slate-100 opacity-50'
+                                  : 'cursor-pointer hover:scale-110 active:scale-95'
+                              } ${
+                                !isFalta && (ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200')
+                              }`}
                             >
                               ★
                             </span>
