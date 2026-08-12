@@ -688,55 +688,49 @@ export default function DiarioClassePage() {
                   </div>
                 </div>
 
-                {isFalta && (
-                  <div className="mb-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-[9px] font-black uppercase tracking-widest text-rose-500 text-center">
+                {isFalta ? (
+                  <div className="px-3 py-4 rounded-2xl bg-rose-50 border border-rose-100 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-rose-500 text-center">
                     Aluno ausente — avaliações por estrelas desabilitadas
                   </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4 bg-slate-50/80 rounded-2xl md:rounded-[1.5rem] border border-slate-100">
-                  {[
-                    { label: "Participação", key: "participacao", icon: "🎯" }, 
-                    { label: "Comportamento", key: "comportamento", icon: "🤝" }, 
-                    { label: "Atividades", key: "atividades", icon: "📝" }, 
-                    { label: "Socioemoc.", key: "socioemocional", icon: "🧠" }
-                  ].map((item) => (
-                    <div key={item.key} className="flex flex-col gap-1.5 bg-white p-2.5 md:p-3 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1 md:gap-1.5 truncate">
-                        <span>{item.icon}</span> {item.label}
-                      </span>
-                      <div className="flex gap-0.5 md:gap-1">
-                        {[1, 2, 3, 4, 5].map(num => {
-                          const ativo = num <= (reg as any)[item.key];
-                          return (
-                            <span 
-                              key={num} 
-                              onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
-                              title={
-                                isFalta
-                                  ? 'Aluno ausente: avaliação desabilitada'
-                                  : modoEdicaoAtivo && ativo && num === (reg as any)[item.key]
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 md:gap-3 p-3 md:p-4 bg-slate-50/80 rounded-2xl md:rounded-[1.5rem] border border-slate-100">
+                    {[
+                      { label: "Participação", key: "participacao", icon: "🎯" }, 
+                      { label: "Comportamento", key: "comportamento", icon: "🤝" }, 
+                      { label: "Atividades", key: "atividades", icon: "📝" }, 
+                      { label: "Socioemoc.", key: "socioemocional", icon: "🧠" }
+                    ].map((item) => (
+                      <div key={item.key} className="flex flex-col gap-1.5 bg-white p-2.5 md:p-3 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1 md:gap-1.5 truncate">
+                          <span>{item.icon}</span> {item.label}
+                        </span>
+                        <div className="flex gap-0.5 md:gap-1">
+                          {[1, 2, 3, 4, 5].map(num => {
+                            const ativo = num <= (reg as any)[item.key];
+                            return (
+                              <span 
+                                key={num} 
+                                onClick={() => handleParametroLocal(aluno.id, aluno.nome, item.key, item.label, num)} 
+                                title={
+                                  modoEdicaoAtivo && ativo && num === (reg as any)[item.key]
                                     ? 'Clique novamente para apagar esta avaliação'
                                     : modoEdicaoAtivo
                                       ? 'Clique para alterar a avaliação'
                                       : 'Clique para avaliar'
-                              }
-                              className={`text-base md:text-lg transition-colors ${
-                                isFalta
-                                  ? 'cursor-not-allowed text-slate-100 opacity-50'
-                                  : 'cursor-pointer hover:scale-110 active:scale-95'
-                              } ${
-                                !isFalta && (ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200')
-                              }`}
-                            >
-                              ★
-                            </span>
-                          );
-                        })}
+                                }
+                                className={`cursor-pointer text-base md:text-lg transition-colors hover:scale-110 active:scale-95 ${
+                                  ativo ? 'text-amber-400 drop-shadow-sm' : 'text-slate-200'
+                                }`}
+                              >
+                                ★
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
 
               </div>
             );
