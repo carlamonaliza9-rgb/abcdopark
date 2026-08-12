@@ -445,7 +445,10 @@ export default function DiarioClassePage() {
 
           <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-2 md:mt-0">
             <button 
-              onClick={() => router.push('/professor/frequencia')} 
+              onClick={() => {
+                if (!turmaSelecionada) return;
+                router.push(`/professor/frequencia?turma=${encodeURIComponent(turmaSelecionada)}`);
+              }} 
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl md:border border-slate-200 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
             >
               <ClipboardList size={16} className="md:w-[38px] md:h-[18px]" strokeWidth={2.5} /> <span className="hidden md:inline">Relatório Mês</span><span className="md:hidden">Relatório</span>
