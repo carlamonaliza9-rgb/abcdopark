@@ -326,8 +326,74 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   async function efetivarTransferencia(dataTransf: string, observacao: string) {
     if (isProcessandoAcao) return;
     setIsProcessandoAcao(true);
+
     try {
-      const { error } = await supabase
+      /*
+       * REGRA GLOBAL DA TRANSFERÊNCIA:
+       * - mantém todo o histórico acadêmico e financeiro;
+       * - cancela somente mensalidades futuras ainda não pagas;
+       * - usa a data de vencimento como referência;
+       * - mensalidades com vencimento >= data da transferência deixam de ser cobradas;
+       * - acordos são preservados, pois representam dívidas já renegociadas.
+       */
+      const { data: cobrancasFuturas, error: buscaCobrancasError } = await supabase
+        .from('historico_pagamentos')
+        .select('id, tipo, status, data_vencimento, vencimento, data_pagamento, detalhes_metodos')
+        .eq('aluno_id', aluno.id)
+        .eq('tipo', 'mensalidade');
+
+      if (buscaCobrancasError) throw buscaCobrancasError;
+
+      const dataLimite = new Date(`${dataTransf}T00:00:00`);
+
+      const futuras = (cobrancasFuturas || []).filter((cobranca: any) => {
+        const status = String(cobranca.status || '').toLowerCase();
+
+        if (['pago', 'cancelado', 'estornado', 'renegociado'].includes(status)) {
+          return false;
+        }
+
+        const dataReferencia =
+          cobranca.data_vencimento ||
+          cobranca.vencimento ||
+          cobranca.data_pagamento;
+
+        if (!dataReferencia) return false;
+
+        const dataTexto = String(dataReferencia);
+        const dataVenc = new Date(
+          dataTexto.includes('T')
+            ? dataTexto
+            : `${dataTexto.slice(0, 10)}T00:00:00`
+        );
+
+        return !Number.isNaN(dataVenc.getTime()) && dataVenc >= dataLimite;
+      });
+
+      for (const cobranca of futuras) {
+        const detalhesAntigos =
+          cobranca.detalhes_metodos && typeof cobranca.detalhes_metodos === 'object'
+            ? cobranca.detalhes_metodos
+            : {};
+
+        const { error: cancelamentoError } = await supabase
+          .from('historico_pagamentos')
+          .update({
+            status: 'cancelado',
+            detalhes_metodos: {
+              ...detalhesAntigos,
+              cancelamento_transferencia: {
+                motivo: 'Aluno transferido',
+                data_transferencia: dataTransf
+              }
+            }
+          })
+          .eq('id', cobranca.id);
+
+        if (cancelamentoError) throw cancelamentoError;
+      }
+
+      const { error: transferError } = await supabase
         .from('alunos')
         .update({
           status: 'transferido',
@@ -336,14 +402,23 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         })
         .eq('id', aluno.id);
 
-      if (error) throw error;
-      
-      alert("✅ Aluno transferido com sucesso! O histórico foi preservado no sistema.");
+      if (transferError) throw transferError;
+
+      alert(
+        `✅ Aluno transferido com sucesso!
+
+` +
+        `${futuras.length} mensalidade(s) futura(s) foi(ram) cancelada(s).
+` +
+        `O histórico anterior foi preservado.`
+      );
+
       setModalTransferenciaAberto(false);
-      await buscarAlunoBase(); 
+      await buscarAlunoBase();
       await buscarDadosAdicionais();
     } catch (err: any) {
-      alert("⚠️ Erro ao transferir aluno: " + err.message);
+      console.error("Erro ao efetivar transferência:", err);
+      alert("⚠️ Erro ao transferir aluno: " + (err?.message || "erro desconhecido"));
     } finally {
       setIsProcessandoAcao(false);
     }

@@ -113,7 +113,12 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       const nomeMesReferencia = mesesAno[parseInt(mes) - 1].toLowerCase();
       setMesReferencia(mesesAno[parseInt(mes) - 1]);
 
-      const { data: listaAlunos } = await supabase.from('alunos').select('*');
+      // A transferência é temporal:
+      // o aluno continua visível nos meses em que ainda estava ativo.
+      // Só deixa de aparecer quando o mês consultado já está fora do período de atividade.
+      const { data: listaAlunos } = await supabase
+        .from('alunos')
+        .select('*');
       
       const { data: pgtosAnoDB } = await supabase.from('historico_pagamentos')
         .select('*')
@@ -140,6 +145,26 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               const descMes = nomeMes.toLowerCase();
               const chaveGlobal = `${aluno.id}_${descMes}_${ano}`;
 
+              const diaVenc = parseInt(aluno.vencimento) || 5;
+              const dataVencStr = `${ano}-${String(indexMes + 1).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
+              const dataVencObj = new Date(`${dataVencStr}T00:00:00`);
+              dataVencObj.setHours(0,0,0,0);
+
+              // Não criar nova cobrança em período posterior à transferência.
+              // O histórico anterior continua intacto.
+              if (aluno.status === 'transferido' && aluno.data_transferencia) {
+                  const dataTransferencia = new Date(
+                    `${String(aluno.data_transferencia).slice(0, 10)}T00:00:00`
+                  );
+
+                  if (
+                    !Number.isNaN(dataTransferencia.getTime()) &&
+                    dataVencObj >= dataTransferencia
+                  ) {
+                      return;
+                  }
+              }
+
               if (mesesPagos.has(chaveGlobal)) return;
 
               const jaCriadoFisicamente = apenasMensalidades.some(p => {
@@ -148,11 +173,6 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
               });
 
               if (!jaCriadoFisicamente) {
-                  const diaVenc = parseInt(aluno.vencimento) || 5;
-                  const dataVencStr = `${ano}-${String(indexMes + 1).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
-                  const dataVencObj = new Date(`${dataVencStr}T12:00:00`);
-                  dataVencObj.setHours(0,0,0,0);
-
                   let statusInicial = 'pendente';
                   if (hojeObj > dataVencObj) statusInicial = 'atrasado';
 
@@ -187,9 +207,35 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       // --- FILTRO: Excluir da visão as que viraram Acordo ('renegociado') ---
       const pgtosDesteMes = historicoCompleto.filter((p: any) => {
           if (p.tipo !== 'mensalidade') return false;
-          if (p.status === 'renegociado') return false; // Trava de Ocultação
+          if (p.status === 'renegociado') return false;
+
           const ref = extrairMesAnoInteligente(p, ano);
-          return ref.mes === nomeMesReferencia && ref.ano === ano;
+          if (ref.mes !== nomeMesReferencia || ref.ano !== ano) return false;
+
+          const alunoDoPagamento = listaAlunos?.find(
+            (aluno: any) => String(aluno.id) === String(p.aluno_id)
+          );
+
+          if (alunoDoPagamento?.status === 'transferido' && alunoDoPagamento.data_transferencia) {
+              const dataTransferencia = new Date(
+                `${String(alunoDoPagamento.data_transferencia).slice(0, 10)}T00:00:00`
+              );
+
+              const dataReferencia = p.data_vencimento || p.vencimento || p.data_pagamento;
+              if (dataReferencia && !Number.isNaN(dataTransferencia.getTime())) {
+                  const dataVencimento = new Date(
+                    String(dataReferencia).includes('T')
+                      ? String(dataReferencia)
+                      : `${String(dataReferencia).slice(0, 10)}T00:00:00`
+                  );
+
+                  if (!Number.isNaN(dataVencimento.getTime()) && dataVencimento >= dataTransferencia) {
+                      return false;
+                  }
+              }
+          }
+
+          return true;
       });
       
       const acordosDesteMes = historicoCompleto.filter((p: any) => {
@@ -201,7 +247,28 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       });
 
       if (listaAlunos) {
-        const ordenados = listaAlunos.map((aluno: any) => {
+        const ordenados = listaAlunos
+          .filter((aluno: any) => {
+              if (aluno.status !== 'transferido' || !aluno.data_transferencia) return true;
+
+              const dataTransferencia = new Date(
+                `${String(aluno.data_transferencia).slice(0, 10)}T00:00:00`
+              );
+              if (Number.isNaN(dataTransferencia.getTime())) return true;
+
+              const diaVenc = parseInt(aluno.vencimento) || 5;
+              const dataVencimentoConsultado = new Date(
+                parseInt(ano),
+                parseInt(mes) - 1,
+                diaVenc,
+                0, 0, 0, 0
+              );
+
+              // Mantém o aluno nos períodos anteriores à transferência.
+              // A partir do vencimento da transferência, sai da rotina operacional.
+              return dataVencimentoConsultado < dataTransferencia;
+          })
+          .map((aluno: any) => {
           const chaveBusca = `${aluno.id}_${nomeMesReferencia}_${ano}`;
           const jaPagouNoCaderninho = mesesPagos.has(chaveBusca);
 
@@ -320,8 +387,13 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
       
       try {
         setCarregando(true);
-        const { data: listaAlunosBD } = await supabase.from('alunos').select('id, valor');
-        const alunosSemValorFixo = listaAlunosBD?.filter(a => !a.valor || clean(a.valor) === 0).map(a => a.id) || [];
+        const { data: listaAlunosBD } = await supabase
+          .from('alunos')
+          .select('id, valor, status');
+
+        const alunosSemValorFixo = listaAlunosBD
+          ?.filter(a => a.status !== 'transferido' && (!a.valor || clean(a.valor) === 0))
+          .map(a => a.id) || [];
         
         if (alunosSemValorFixo.length > 0) {
             const [ano, mes] = mesFiltro.split('-');

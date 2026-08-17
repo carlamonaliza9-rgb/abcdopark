@@ -215,8 +215,9 @@ export default function AvancosDificuldadesPage() {
       try {
         const { data: listaAlunos, error: alunosError } = await supabase
           .from('alunos')
-          .select('id, nome, foto_url')
+          .select('id, nome, foto_url, status')
           .eq('turma', turmaSelecionada)
+          .neq('status', 'transferido')
           .order('nome', { ascending: true });
 
         if (alunosError) throw alunosError;

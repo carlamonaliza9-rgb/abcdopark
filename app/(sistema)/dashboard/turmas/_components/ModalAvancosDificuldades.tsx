@@ -52,7 +52,7 @@ export function ModalAvancosDificuldades({
       try {
         const { data: alunosData, error: alunosError } = await supabase
           .from("alunos")
-          .select("id, nome, foto_url")
+          .select("id, nome, foto_url, status")
           .eq("turma", turma.nome)
           .neq("status", "transferido")
           .order("nome", { ascending: true });

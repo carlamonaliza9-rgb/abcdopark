@@ -150,8 +150,17 @@ export default function TurmasAdminPage() {
     }
     
     if (resAlunos.data) {
-      setTodosAlunos(resAlunos.data);
-      const contagem = resAlunos.data.reduce((acc: any, curr: any) => { acc[curr.turma] = (acc[curr.turma] || 0) + 1; return acc; }, {});
+      // Regra global operacional: transferidos não pertencem à base ativa.
+      const alunosAtivos = resAlunos.data.filter(
+        (aluno: any) => aluno.status !== 'transferido'
+      );
+
+      setTodosAlunos(alunosAtivos);
+
+      const contagem = alunosAtivos.reduce((acc: any, curr: any) => {
+        acc[curr.turma] = (acc[curr.turma] || 0) + 1;
+        return acc;
+      }, {});
       
       const listaTurmasCompilada = Object.keys(estiloFixoTurmas).map(nome => {
         const infoExtra = resInfos.data?.find(i => i.nome_turma === nome);
