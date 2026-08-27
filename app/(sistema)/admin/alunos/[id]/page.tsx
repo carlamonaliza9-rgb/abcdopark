@@ -122,7 +122,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
       const emailAtual = user.email || "";
       setUserEmail(emailAtual);
@@ -338,7 +338,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
        */
       const { data: cobrancasFuturas, error: buscaCobrancasError } = await supabase
         .from('historico_pagamentos')
-        .select('id, tipo, status, data_vencimento, vencimento, data_pagamento, detalhes_metodos')
+        .select('id, tipo, status, data_vencimento, data_pagamento, detalhes_metodos')
         .eq('aluno_id', aluno.id)
         .eq('tipo', 'mensalidade');
 
@@ -355,7 +355,6 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
         const dataReferencia =
           cobranca.data_vencimento ||
-          cobranca.vencimento ||
           cobranca.data_pagamento;
 
         if (!dataReferencia) return false;
@@ -464,9 +463,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
     setCarregando(true);
     try {
       await supabase.from('historico_pagamentos').delete().eq('aluno_id', alunoId);
-      await supabase.from('mensalidades').delete().eq('aluno_id', alunoId);
       await supabase.from('boletins').delete().eq('aluno_id', alunoId);
-      await supabase.from('taxas_eventos').delete().eq('aluno_id', alunoId);
       
       const { error } = await supabase.from('alunos').delete().eq('id', alunoId);
       if (error) throw error;

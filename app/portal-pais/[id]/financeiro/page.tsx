@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
-import { Wallet, QrCode, Calendar, CheckCircle2, Clock, PartyPopper, FileText, Eye, AlertCircle, Info } from "lucide-react";
+import { Wallet, QrCode, Calendar, CheckCircle2, Clock, PartyPopper, AlertCircle, Info } from "lucide-react";
 
 export default function FinanceiroPage() {
   const params = useParams();
@@ -13,8 +13,10 @@ export default function FinanceiroPage() {
   const [cronogramaAnual, setCronogramaAnual] = useState<any[]>([]);
   const [eventosTaxas, setEventosTaxas] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
 
   const CHAVE_PIX = "escolaabcdopark@gmail.com";
+  const anoLetivo = new Date().getFullYear();
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export default function FinanceiroPage() {
 
   async function buscarDadosFinanceiros() {
     setCarregando(true);
+    setErro("");
     
     // 1. Busca dados mestres do aluno
     const { data: a } = await supabase
@@ -34,55 +37,153 @@ export default function FinanceiroPage() {
     if (a) setAluno(a);
 
     // 2. Busca o histórico real de pagamentos
-    const { data: hData } = await supabase
+    const { data: hData, error: erroHistorico } = await supabase
       .from("historico_pagamentos")
       .select("*")
       .eq("aluno_id", id);
 
-    // 3. Busca Eventos na tabela 'eventos_controle'
-    const { data: eData } = await supabase
-      .from("eventos_controle")
-      .select("*")
-      .contains('participantes', [id]);
+    if (erroHistorico) {
+      setErro("Não foi possível consultar o histórico financeiro.");
+    }
+
+    // A função retorna somente os eventos do filho validado, sem expor a lista de participantes.
+    const { data: eData } = await supabase.rpc("portal_eventos_financeiros", {
+      p_aluno_id: Number(id),
+    });
     
     if (eData) {
-      const eventosProcessados = eData.map(ev => {
-        const pgtoEv = hData?.find(h => h.tipo === 'evento' && h.descricao.includes(ev.nome));
+      const eventosProcessados = eData.map((ev: any) => {
+        const pgtoEv = hData?.find(h =>
+          h.tipo === 'evento' &&
+          h.descricao?.toLowerCase().includes(ev.nome.toLowerCase()) &&
+          ['pago', 'parcial'].includes((h.status || '').toLowerCase()) &&
+          Number(h.valor_pago || 0) > 0
+        );
         return {
           ...ev,
           pago: !!pgtoEv,
           data_pagamento: pgtoEv?.data_pagamento,
-          valor_pago: pgtoEv?.valor_total,
-          comprovante: pgtoEv?.comprovante_url
+          valor_pago: pgtoEv?.valor_pago,
         };
       });
       setEventosTaxas(eventosProcessados);
     }
 
-    // 4. LÓGICA DO ADMIN: Geração do cronograma Jan-Dez cruzando com histórico
+    // 4. O portal apenas espelha as cobranças do financeiro administrativo.
+    // Ele não cria pagamentos nem deduz quitação pelo texto de outro lançamento.
     if (a) {
       const hoje = new Date();
       const diaVenc = parseInt(a.vencimento) || 10;
       const valorMensalidade = parseFloat(a.valor) || 0;
 
+      const normalizar = (valor: unknown) => String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+      const obterAnoCompetencia = (lancamento: any) => {
+        const anoNaDescricao = String(lancamento.descricao || "").match(/(?:19|20)\d{2}/)?.[0];
+        if (anoNaDescricao) return anoNaDescricao;
+
+        for (const data of [
+          lancamento.data_vencimento,
+          lancamento.data_pagamento,
+          lancamento.created_at,
+        ]) {
+          const ano = String(data || "").slice(0, 4);
+          if (/^(?:19|20)\d{2}$/.test(ano)) return ano;
+        }
+
+        return "";
+      };
+
+      const statusPrioridade: Record<string, number> = {
+        pago: 7,
+        parcial: 6,
+        pendente: 5,
+        atrasado: 4,
+        renegociado: 3,
+        cancelado: 2,
+        estornado: 1,
+      };
+
+      const obterFormaPagamento = (lancamento: any) => {
+        const detalhes = lancamento?.detalhes_metodos || {};
+        const parciais = Array.isArray(detalhes.historico_parciais)
+          ? detalhes.historico_parciais
+          : [];
+        const ultimaParcial = parciais.at(-1);
+        if (ultimaParcial?.formas) return ultimaParcial.formas;
+
+        const formas: Array<[string, string]> = [
+          ["pix", "PIX"],
+          ["dinheiro", "Dinheiro"],
+          ["credito", "Cartão de crédito"],
+          ["debito", "Cartão de débito"],
+          ["boleto", "Boleto"],
+          ["credito_aluno", "Crédito do aluno"],
+        ];
+
+        const utilizadas = formas
+          .filter(([chave]) => Number(detalhes[chave] || 0) > 0)
+          .map(([, rotulo]) => rotulo);
+
+        return utilizadas.join(" + ") || "Registrado pela escola";
+      };
+
       const cronograma = mesesAno.map((mesNome, index) => {
-        const dataVencimento = new Date(2026, index, diaVenc, 23, 59, 59);
-        
-        const pagamento = hData?.find(h => 
-          h.tipo === 'mensalidade' && 
-          h.descricao.toLowerCase().includes(mesNome.toLowerCase())
-        );
+        const dataVencimento = new Date(anoLetivo, index, diaVenc, 23, 59, 59);
+
+        const mesNormalizado = normalizar(mesNome);
+        const cobranca = (hData || [])
+          .filter((lancamento: any) => {
+            if (normalizar(lancamento.tipo) !== "mensalidade") return false;
+
+            const mesCadastrado = normalizar(lancamento.mes_referencia);
+            const correspondeAoMes = mesCadastrado
+              ? mesCadastrado === mesNormalizado
+              : normalizar(lancamento.descricao).includes(mesNormalizado);
+
+            return correspondeAoMes && obterAnoCompetencia(lancamento) === String(anoLetivo);
+          })
+          .sort((a: any, b: any) => {
+            const prioridadeA = statusPrioridade[normalizar(a.status)] || 0;
+            const prioridadeB = statusPrioridade[normalizar(b.status)] || 0;
+            if (prioridadeA !== prioridadeB) return prioridadeB - prioridadeA;
+            return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+          })[0];
+
+        const statusBanco = normalizar(cobranca?.status);
+        let status = statusBanco;
+
+        if (!status || status === "pendente") {
+          status = hoje > dataVencimento ? "atrasado" : "pendente";
+        }
+
+        if (![
+          "pago",
+          "parcial",
+          "pendente",
+          "atrasado",
+          "renegociado",
+          "cancelado",
+          "estornado",
+        ].includes(status)) {
+          status = hoje > dataVencimento ? "atrasado" : "pendente";
+        }
 
         return {
           mes: mesNome,
-          vencimento: dataVencimento.toISOString().split('T')[0],
-          valor: valorMensalidade,
-          status: pagamento ? 'pago' : (hoje > dataVencimento ? 'atrasado' : 'pendente'),
-          data_pagamento: pagamento?.data_pagamento,
-          forma_pagamento: pagamento?.tipo,
-          valor_pago: pagamento?.valor_total,
-          comprovante_url: pagamento?.comprovante_url,
-          descricao: pagamento?.descricao || `Mensalidade de ${mesNome}`
+          vencimento: cobranca?.data_vencimento || dataVencimento.toISOString().split('T')[0],
+          valor: Number(cobranca?.valor_total || valorMensalidade),
+          status,
+          data_pagamento: status === "pago" || status === "parcial"
+            ? cobranca?.data_pagamento
+            : null,
+          forma_pagamento: obterFormaPagamento(cobranca),
+          valor_pago: Number(cobranca?.valor_pago || 0),
+          descricao: cobranca?.descricao || `Mensalidade de ${mesNome}`
         };
       });
 
@@ -99,6 +200,16 @@ export default function FinanceiroPage() {
   const formatarMoeda = (valor: any) => parseFloat(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const formatarData = (d: string) => d ? d.split("-").reverse().join("/") : "---";
 
+  const rotuloStatus = (status: string) => {
+    if (status === "pago") return "Liquidado";
+    if (status === "atrasado") return "Vencido";
+    if (status === "parcial") return "Pagamento parcial";
+    if (status === "renegociado") return "Renegociado";
+    if (status === "cancelado") return "Cancelado";
+    if (status === "estornado") return "Estornado";
+    return "Pendente";
+  };
+
   if (carregando) return <div className="p-10 text-center text-sm md:text-[10px] font-black uppercase text-slate-300 animate-pulse tracking-widest">Sincronizando fluxo financeiro...</div>;
 
   return (
@@ -107,6 +218,12 @@ export default function FinanceiroPage() {
         <h1 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tighter italic">Financeiro</h1>
         <p className="text-xs md:text-[9px] font-bold uppercase text-slate-400 tracking-widest mt-2 italic">Acompanhamento: <span className="text-indigo-600 font-black">{aluno?.nome}</span></p>
       </header>
+
+      {erro && (
+        <div className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-xs font-bold text-rose-600">
+          {erro}
+        </div>
+      )}
 
       {/* CABEÇALHO DE RESUMO (DADOS DO CADASTRO) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
@@ -132,7 +249,7 @@ export default function FinanceiroPage() {
         <div className="lg:col-span-8 space-y-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600 shrink-0"><CheckCircle2 size={20} /></div>
-            <h2 className="text-sm md:text-xs font-black text-slate-800 uppercase tracking-widest">Mensalidades 2026</h2>
+            <h2 className="text-sm md:text-xs font-black text-slate-800 uppercase tracking-widest">Mensalidades {anoLetivo}</h2>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
@@ -152,12 +269,12 @@ export default function FinanceiroPage() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between sm:justify-end gap-3 sm:gap-6 mt-2 sm:mt-0">
                     <div className="text-left sm:text-right">
                       <p className={`text-sm md:text-sm font-black ${m.status === 'atrasado' ? 'text-rose-600' : 'text-slate-800'}`}>{formatarMoeda(m.valor)}</p>
-                      <span className={`inline-block mt-1 text-[10px] md:text-[7px] font-black uppercase px-2 py-0.5 rounded-md ${m.status === 'pago' ? 'bg-emerald-50 text-emerald-600' : (m.status === 'atrasado' ? 'bg-rose-50 text-rose-600 flex items-center gap-1 w-max' : 'bg-amber-50 text-amber-600')}`}>
-                        {m.status === 'pago' ? 'Liquidado' : (m.status === 'atrasado' ? <> <AlertCircle size={8}/> Vencido </> : 'Pendente')}
+                      <span className={`inline-flex items-center gap-1 mt-1 text-[10px] md:text-[7px] font-black uppercase px-2 py-0.5 rounded-md ${m.status === 'pago' ? 'bg-emerald-50 text-emerald-600' : (m.status === 'atrasado' ? 'bg-rose-50 text-rose-600' : (["cancelado", "estornado", "renegociado"].includes(m.status) ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-600'))}`}>
+                        {m.status === 'atrasado' && <AlertCircle size={8}/>} {rotuloStatus(m.status)}
                       </span>
                     </div>
 
-                    {m.status !== "pago" && (
+                    {["pendente", "atrasado", "parcial"].includes(m.status) && (
                       <button onClick={() => handlePagarPix(m.valor, `Mensalidade ${m.mes}`)} className="w-full sm:w-auto bg-slate-900 text-white px-5 py-3 rounded-xl font-black text-xs md:text-[9px] uppercase tracking-widest hover:bg-indigo-600 active:scale-95 transition-all flex items-center justify-center gap-2">
                         <QrCode size={14} /> Pagar
                       </button>
@@ -166,7 +283,7 @@ export default function FinanceiroPage() {
                 </div>
 
                 {/* DETALHAMENTO DO PAGAMENTO */}
-                {m.status === "pago" && (
+                {["pago", "parcial"].includes(m.status) && (
                   <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50/50 p-4 rounded-2xl">
                     <div>
                       <p className="text-[10px] md:text-[7px] font-black text-slate-400 uppercase tracking-widest">Data do Pagamento</p>
@@ -176,13 +293,7 @@ export default function FinanceiroPage() {
                       <p className="text-[10px] md:text-[7px] font-black text-slate-400 uppercase tracking-widest">Forma / Valor</p>
                       <p className="text-sm md:text-[10px] font-bold text-slate-600 uppercase">{m.forma_pagamento || "PIX"} • {formatarMoeda(m.valor_pago)}</p>
                     </div>
-                    <div className="sm:col-span-2 flex justify-start sm:justify-end mt-2 sm:mt-0">
-                      {m.comprovante_url && (
-                        <a href={m.comprovante_url} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs md:text-[9px] font-black text-indigo-600 uppercase hover:bg-indigo-50 shadow-sm">
-                          <FileText size={12} /> Comprovante
-                        </a>
-                      )}
-                    </div>
+                    <div className="sm:col-span-2" />
                   </div>
                 )}
               </div>
@@ -212,7 +323,6 @@ export default function FinanceiroPage() {
                   {e.pago ? (
                     <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                       <span className="text-[10px] md:text-[7px] font-black text-emerald-600 uppercase">Pago: {formatarData(e.data_pagamento)}</span>
-                      {e.comprovante && <a href={e.comprovante} target="_blank" className="text-indigo-600 hover:scale-110 transition-transform"><Eye size={14} /></a>}
                     </div>
                   ) : (
                     <button onClick={() => handlePagarPix(e.valor_unitario, e.nome)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl text-xs md:text-[8px] font-black uppercase shadow-md hover:bg-indigo-700">Pagar Taxa</button>

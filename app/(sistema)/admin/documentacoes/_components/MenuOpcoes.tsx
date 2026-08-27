@@ -12,12 +12,15 @@ import {
   ArrowRight,
   LockKeyhole,
   FileClock,
-  UserCheck // <-- Ícone novo importado para o Comparecimento
+  UserCheck,
+  BookOpen
 } from "lucide-react";
+
 
 interface MenuProps {
   setDocumentoAtivo: (doc: string) => void;
 }
+
 
 const temas = {
   purple: { iconBg: 'bg-purple-50', iconText: 'text-purple-500', btnBg: 'bg-purple-50', btnText: 'text-purple-600', btnHover: 'group-hover:bg-purple-100' },
@@ -27,56 +30,142 @@ const temas = {
   teal: { iconBg: 'bg-teal-50', iconText: 'text-teal-500', btnBg: 'bg-teal-50', btnText: 'text-teal-600', btnHover: 'group-hover:bg-teal-100' },
   pink: { iconBg: 'bg-pink-50', iconText: 'text-pink-500', btnBg: 'bg-pink-50', btnText: 'text-pink-600', btnHover: 'group-hover:bg-pink-100' },
   indigo: { iconBg: 'bg-indigo-50', iconText: 'text-indigo-500', btnBg: 'bg-indigo-50', btnText: 'text-indigo-600', btnHover: 'group-hover:bg-indigo-100' },
-  amber: { iconBg: 'bg-amber-50', iconText: 'text-amber-500', btnBg: 'bg-amber-50', btnText: 'text-amber-600', btnHover: 'group-hover:bg-amber-100' } // <-- Tema novo ambar
+  amber: { iconBg: 'bg-amber-50', iconText: 'text-amber-500', btnBg: 'bg-amber-50', btnText: 'text-amber-600', btnHover: 'group-hover:bg-amber-100' }
 };
+
 
 export default function MenuOpcoes({ setDocumentoAtivo }: MenuProps) {
   const opcoes = [
-    { id: 'matricula', Icone: FileBadge, tema: temas.purple, titulo: 'Declaração de Matrícula', desc: 'Gera o documento padrão com dados do aluno.' },
-    { id: 'comparecimento', Icone: UserCheck, tema: temas.amber, titulo: 'Declaração de Comparecimento', desc: 'Comprova o comparecimento do responsável à escola.' }, // <-- ADICIONADO AQUI
-    { id: 'quitacao', Icone: BadgeDollarSign, tema: temas.emerald, titulo: 'Quitação Imposto de Renda', desc: 'Declaração de valores pagos no ano base.' },
-    { id: 'ressalva', Icone: RefreshCcwDot, tema: temas.blue, titulo: 'Ressalva', desc: 'Documento de transferência com direito à matrícula.' },
-    { id: 'codes', Icone: ClipboardList, tema: temas.orange, titulo: 'CODES', desc: 'Relatório oficial (1º ao 5º Ano) exigido pela SEDUC.' },
-    { id: 'notificacao', Icone: Scale, tema: temas.teal, titulo: 'Notificação Extrajudicial', desc: 'Cobrança formal de débitos em aberto.' },
-    { id: 'provas', Icone: CalendarDays, tema: temas.pink, titulo: 'Cronograma de Provas', desc: 'Datas e conteúdos das avaliações e provas.' },
-    { id: 'comunicados', Icone: Megaphone, tema: temas.indigo, titulo: 'Avisos e Comunicados', desc: 'Avisos formatados para Pais (Azul) e Equipe (Verde).' }
+    { 
+      id: 'matricula', 
+      Icone: FileBadge, 
+      tema: temas.purple, 
+      titulo: 'Declaração de Matrícula', 
+      desc: 'Gera o documento padrão com dados do aluno.' 
+    },
+
+    { 
+      id: 'comparecimento', 
+      Icone: UserCheck, 
+      tema: temas.amber, 
+      titulo: 'Declaração de Comparecimento', 
+      desc: 'Comprova o comparecimento do responsável à escola.' 
+    },
+
+    { 
+      id: 'quitacao', 
+      Icone: BadgeDollarSign, 
+      tema: temas.emerald, 
+      titulo: 'Quitação Imposto de Renda', 
+      desc: 'Declaração de valores pagos no ano base.' 
+    },
+
+    { 
+      id: 'ressalva', 
+      Icone: RefreshCcwDot, 
+      tema: temas.blue, 
+      titulo: 'Ressalva', 
+      desc: 'Documento de transferência com direito à matrícula.' 
+    },
+
+    // NOVO HISTÓRICO ESCOLAR
+    { 
+      id: 'historico-escolar', 
+      Icone: BookOpen, 
+      tema: temas.indigo, 
+      titulo: 'Histórico Escolar', 
+      desc: 'Consolida a trajetória escolar, notas e estudos realizados.' 
+    },
+
+    { 
+      id: 'codes', 
+      Icone: ClipboardList, 
+      tema: temas.orange, 
+      titulo: 'CODES', 
+      desc: 'Relatório oficial (1º ao 5º Ano) exigido pela SEDUC.' 
+    },
+
+    { 
+      id: 'notificacao', 
+      Icone: Scale, 
+      tema: temas.teal, 
+      titulo: 'Notificação Extrajudicial', 
+      desc: 'Cobrança formal de débitos em aberto.' 
+    },
+
+    { 
+      id: 'provas', 
+      Icone: CalendarDays, 
+      tema: temas.pink, 
+      titulo: 'Cronograma de Provas', 
+      desc: 'Datas e conteúdos das avaliações e provas.' 
+    },
+
+    { 
+      id: 'comunicados', 
+      Icone: Megaphone, 
+      tema: temas.indigo, 
+      titulo: 'Avisos e Comunicados', 
+      desc: 'Avisos formatados para Pais (Azul) e Equipe (Verde).' 
+    }
   ];
+
 
   return (
     <div className="w-full h-full flex flex-col animate-in fade-in duration-500">
       
       {/* CABEÇALHO */}
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight mb-1">Documentações Administrativas</h1>
-        <p className="text-[13px] font-medium text-slate-500">Emissão de documentos oficiais da Escola ABC do Park.</p>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight mb-1">
+          Documentações Administrativas
+        </h1>
+
+        <p className="text-[13px] font-medium text-slate-500">
+          Emissão de documentos oficiais da Escola ABC do Park.
+        </p>
       </div>
+
 
       {/* BANNER SUPERIOR - LARGURA TOTAL */}
       <div className="w-full bg-slate-50/80 border border-slate-100 rounded-[1.5rem] p-5 md:px-8 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        
         <div className="flex items-center gap-4">
+          
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0 border border-blue-100">
             <ShieldCheck size={24} strokeWidth={2} />
           </div>
+
           <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-0.5">Documentos oficiais e seguros</h3>
-            <p className="text-[12px] font-medium text-slate-500">Emita documentos com validade legal e padronização exigida pelos órgãos competentes.</p>
+            <h3 className="text-sm font-bold text-slate-800 mb-0.5">
+              Documentos oficiais e seguros
+            </h3>
+
+            <p className="text-[12px] font-medium text-slate-500">
+              Emita documentos com validade legal e padronização exigida pelos órgãos competentes.
+            </p>
           </div>
+
         </div>
+
         <div className="hidden md:flex text-4xl drop-shadow-sm">
           📋✨
         </div>
       </div>
 
+
       {/* GRID FLUIDO */}
       <div className="w-full grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 mb-8">
+        
         {opcoes.map((opcao) => {
           const { Icone, tema } = opcao;
+
           return (
             <div 
               key={opcao.id}
               onClick={() => setDocumentoAtivo(opcao.id)} 
               className="group bg-white rounded-[1.5rem] p-6 flex flex-col items-center text-center border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer w-full h-full"
             >
+
               <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 ${tema.iconBg} ${tema.iconText}`}>
                 <Icone size={26} strokeWidth={2} />
               </div>
@@ -84,28 +173,45 @@ export default function MenuOpcoes({ setDocumentoAtivo }: MenuProps) {
               <h3 className="text-[15px] font-extrabold text-slate-800 mb-2 leading-tight">
                 {opcao.titulo}
               </h3>
+
               <p className="text-[12px] font-medium text-slate-400 mb-6 flex-1 px-2 leading-relaxed">
                 {opcao.desc}
               </p>
               
               <div className={`w-full py-3.5 mt-auto rounded-xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest transition-colors ${tema.btnBg} ${tema.btnText} ${tema.btnHover}`}>
-                Emitir <ArrowRight size={16} strokeWidth={2.5} className="group-hover:translate-x-1 transition-transform" />
+                Emitir 
+                <ArrowRight 
+                  size={16} 
+                  strokeWidth={2.5} 
+                  className="group-hover:translate-x-1 transition-transform" 
+                />
               </div>
+
             </div>
           );
         })}
       </div>
 
+
       {/* BANNER INFERIOR - LARGURA TOTAL */}
       <div className="w-full mt-auto bg-white border border-slate-200 rounded-[1.5rem] p-5 md:px-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+        
         <div className="flex items-center gap-4 w-full md:w-auto">
+          
           <div className="w-12 h-12 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0 border border-slate-100">
             <LockKeyhole size={22} strokeWidth={2} />
           </div>
+
           <div>
-            <h3 className="text-[14px] font-bold text-slate-800 mb-0.5">Seus documentos sempre disponíveis</h3>
-            <p className="text-[11px] font-medium text-slate-400">Visualize e reimprima documentos a qualquer momento com segurança.</p>
+            <h3 className="text-[14px] font-bold text-slate-800 mb-0.5">
+              Seus documentos sempre disponíveis
+            </h3>
+
+            <p className="text-[11px] font-medium text-slate-400">
+              Visualize e reimprima documentos a qualquer momento com segurança.
+            </p>
           </div>
+
         </div>
         
         <button 
@@ -114,7 +220,9 @@ export default function MenuOpcoes({ setDocumentoAtivo }: MenuProps) {
         >
           <FileClock size={18} strokeWidth={2.5} /> Ver histórico
         </button>
+
       </div>
+
 
     </div>
   );

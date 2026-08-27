@@ -1,0 +1,505 @@
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+.historico-preview-root {
+  width: 210mm;
+  min-width: 210mm;
+  background: #e5e7eb;
+  padding: 8mm;
+  font-family: "Times New Roman", Times, serif;
+  color: #111;
+}
+
+.historico-folha {
+  position: relative;
+  width: 194mm;
+  min-height: 281mm;
+  margin: 0 auto;
+  padding: 5mm 5mm 4mm;
+  background: #fff;
+  border: .45mm solid #2b9b5d;
+  overflow: hidden;
+}
+
+.historico-cabecalho {
+  text-align: center;
+  font-size: 2.55mm;
+  line-height: 1.28;
+  min-height: 31mm;
+}
+
+.historico-logo {
+  display: block;
+  width: 12mm;
+  height: 12mm;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.historico-escola {
+  display: block;
+  font-size: 5.1mm;
+  line-height: 1;
+  margin-top: -.7mm;
+}
+
+.historico-email {
+  color: #163fb0;
+}
+
+.historico-titulo {
+  height: 6mm;
+  border: .22mm solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.15mm;
+  font-weight: 700;
+}
+
+.historico-identificacao {
+  border: .22mm solid #222;
+  border-top: none;
+  font-size: 2.75mm;
+}
+
+.historico-identificacao > div {
+  min-height: 5.3mm;
+  padding: 0 1.5mm;
+  display: flex;
+  align-items: center;
+  border-bottom: .22mm solid #222;
+}
+
+.historico-id-final {
+  display: grid !important;
+  grid-template-columns: 1.85fr 1.25fr .55fr;
+  padding: 0 !important;
+}
+
+.historico-id-final span {
+  min-height: 5.3mm;
+  padding: 0 1.5mm;
+  display: flex;
+  align-items: center;
+  border-right: .22mm solid #222;
+}
+
+.historico-id-final span:last-child {
+  border-right: 0;
+}
+
+/* ============================================================
+   MATRIZ PRINCIPAL
+   Agora existem duas colunas verticais independentes:
+   1) Fundamento Legal
+   2) Base Nacional / Parte Diversificada
+   ============================================================ */
+
+.historico-matriz {
+  position: relative;
+  border: .22mm solid #222;
+  border-top: none;
+  margin-top: 0;
+}
+
+.historico-legal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12mm;
+  border-right: .22mm solid #222;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2.2mm;
+  font-weight: 700;
+  z-index: 4;
+  text-align: center;
+  padding: 2mm 1mm;
+}
+
+.historico-matriz-head {
+  margin-left: 24mm;
+  display: grid;
+  grid-template-columns: 53mm 1fr;
+  border-bottom: .22mm solid #222;
+}
+
+.historico-grupos-cabecalho {
+  position: absolute;
+  left: 12mm;
+  top: 0;
+  width: 12mm;
+  height: 12.8mm;
+  border-right: .22mm solid #222;
+  border-bottom: 0;
+}
+
+.historico-componentes-title {
+  height: 12.8mm;
+  border-right: .22mm solid #222;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-size: 3.35mm;
+  font-weight: 700;
+}
+
+.historico-series-title {
+  height: 5.1mm;
+  border-bottom: .22mm solid #222;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 3.2mm;
+  font-weight: 700;
+}
+
+.historico-series-grid {
+  height: 7.7mm;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.historico-serie-head {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-right: .22mm solid #222;
+  font-size: 2.35mm;
+  line-height: 1.03;
+  text-align: center;
+}
+
+.historico-serie-head:last-child {
+  border-right: 0;
+}
+
+.historico-matriz-body {
+  position: relative;
+  margin-left: 24mm;
+}
+
+.historico-grupos {
+  position: absolute;
+  left: -12mm;
+  top: 0;
+  width: 12mm;
+  height: calc(41.6mm + (var(--diversificada-rows, 0) * 5.2mm));
+  border-right: .22mm solid #222;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+}
+
+.grupo-base,
+.grupo-div {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-weight: 700;
+  font-size: 2.35mm;
+}
+
+.grupo-base {
+  height: 41.6mm;
+  border-bottom: .22mm solid #222;
+}
+
+.grupo-div {
+  height: calc(var(--diversificada-rows, 0) * 5.2mm);
+  min-height: 0;
+}
+
+.historico-linhas {
+  position: relative;
+  display: grid;
+  grid-template-columns: 53mm repeat(6, 1fr);
+}
+
+.historico-row {
+  display: contents;
+}
+
+.historico-cell {
+  min-height: 5.2mm;
+  border-right: .22mm solid #222;
+  border-bottom: .22mm solid #222;
+  display: flex;
+  align-items: center;
+  padding: .7mm 1.1mm;
+  font-size: 2.45mm;
+}
+
+.historico-cell.nome {
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
+.historico-cell.nota {
+  justify-content: center;
+  text-align: center;
+}
+
+.historico-cell.total {
+  font-weight: 700;
+}
+
+.historico-diagonal {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  top: 0;
+  left: calc(53mm + (var(--serie) - 1) * ((100% - 53mm) / 6));
+  width: calc((100% - 53mm) / 6);
+  height: calc(var(--academic-rows, 10) * 5.2mm);
+}
+
+.historico-diagonal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom right,
+    transparent 49.25%,
+    #555 49.8%,
+    #555 50.2%,
+    transparent 50.75%
+  );
+}
+
+.historico-origem {
+  border: .22mm solid #222;
+  border-top: none;
+}
+
+.historico-origem-titulo {
+  height: 6mm;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 3.35mm;
+  font-weight: 700;
+  border-bottom: .22mm solid #222;
+}
+
+.historico-origem-body {
+  display: grid;
+  grid-template-columns: 12mm 1fr;
+}
+
+.historico-estudos-vertical {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-right: .22mm solid #222;
+  font-size: 2.35mm;
+  font-weight: 700;
+}
+
+.historico-origem table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 2.3mm;
+}
+
+.historico-origem th,
+.historico-origem td {
+  height: 5.15mm;
+  padding: .65mm;
+  border-right: .22mm solid #222;
+  border-bottom: .22mm solid #222;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.historico-origem th:last-child,
+.historico-origem td:last-child {
+  border-right: 0;
+}
+
+.historico-origem th {
+  height: 6.1mm;
+  font-weight: 700;
+}
+
+.historico-origem th:nth-child(1) { width: 15%; }
+.historico-origem th:nth-child(2) { width: 11%; }
+.historico-origem th:nth-child(3) { width: 39%; }
+.historico-origem th:nth-child(4) { width: 24%; }
+.historico-origem th:nth-child(5) { width: 11%; }
+
+.historico-textos {
+  font-size: 2.55mm;
+}
+
+.historico-textos > div {
+  border: .22mm solid #2b9b5d;
+  border-top: none;
+  min-height: 10mm;
+  padding: 1.8mm;
+  line-height: 1.2;
+}
+
+.historico-textos > div:nth-child(2) {
+  min-height: 16mm;
+}
+
+.historico-textos > div:nth-child(3) {
+  min-height: 10mm;
+}
+
+.historico-footer {
+  position: relative;
+  height: 29mm;
+}
+
+.assinatura {
+  position: absolute;
+  top: 7mm;
+  width: 35%;
+  text-align: center;
+  font-size: 2.45mm;
+}
+
+.assinatura:nth-child(1) {
+  left: 3%;
+}
+
+.assinatura:nth-child(2) {
+  right: 3%;
+}
+
+.assinatura img {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  object-fit: contain;
+}
+
+.assinatura:nth-child(1) img {
+  width: 32mm;
+  height: 18mm;
+  top: -2mm;
+}
+
+.assinatura:nth-child(2) img {
+  width: 36mm;
+  height: 20mm;
+  top: -4mm;
+  opacity: .72;
+}
+
+.assinatura-linha {
+  margin-top: 10mm;
+  border-top: .22mm solid #222;
+}
+
+.assinatura strong,
+.assinatura span {
+  display: block;
+  margin-top: 1mm;
+}
+
+.historico-data {
+  position: absolute;
+  left: 50%;
+  bottom: 2mm;
+  transform: translateX(-50%);
+  font-size: 2.55mm;
+}
+
+@media screen {
+  .historico-folha {
+    box-shadow: 0 15px 36px rgba(0,0,0,.16);
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-preview-modal,
+  .print-preview-modal * {
+    visibility: visible !important;
+  }
+
+  .print-preview-modal {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 210mm !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .print-preview-modal > div {
+    width: 210mm !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .print-preview-scroll {
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .historico-preview-root {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  .historico-folha {
+    width: 194mm !important;
+    min-height: 281mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+  }
+}

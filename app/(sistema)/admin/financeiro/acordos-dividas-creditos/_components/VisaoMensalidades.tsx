@@ -41,8 +41,8 @@ function extrairMesAnoInteligente(h: any, fallbackAno: string) {
   const anoMatch = desc.match(/(20\d{2})/);
   let ano = anoMatch ? anoMatch[0] : null;
   
-  if (!ano && (h.data_vencimento || h.vencimento)) {
-      const dVenc = new Date(h.data_vencimento || h.vencimento);
+  if (!ano && h.data_vencimento) {
+      const dVenc = new Date(h.data_vencimento);
       if (!isNaN(dVenc.getTime())) ano = dVenc.getFullYear().toString();
   }
 
@@ -184,7 +184,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                       valor_total: clean(aluno.valor) || valorBaseVigente,
                       valor_pago: 0,
                       status: statusInicial,
-                      data_pagamento: dataVencStr,
+                      data_pagamento: null,
                       data_vencimento: dataVencStr,
                       detalhes_metodos: {}
                   });
@@ -221,7 +221,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                 `${String(alunoDoPagamento.data_transferencia).slice(0, 10)}T00:00:00`
               );
 
-              const dataReferencia = p.data_vencimento || p.vencimento || p.data_pagamento;
+              const dataReferencia = p.data_vencimento || p.data_pagamento;
               if (dataReferencia && !Number.isNaN(dataTransferencia.getTime())) {
                   const dataVencimento = new Date(
                     String(dataReferencia).includes('T')
@@ -460,7 +460,7 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
                      variacaoCredito += clean(p.credito_utilizado) + clean(p.credito_utilizado_nesta_parcela); 
                    });
 
-                   const dataVenc = new Date(`${m.data_vencimento || m.vencimento || m.data_pagamento}T12:00:00`);
+                   const dataVenc = new Date(`${m.data_vencimento || m.data_pagamento}T12:00:00`);
                    const statusCorreto = hoje > dataVenc ? 'atrasado' : 'pendente';
 
                    await supabase.from('historico_pagamentos').update({
