@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -13,7 +13,30 @@ export default function Login() {
   const [carregando, setCarregando] = useState(false);
   const [ehCadastro, setEhCadastro] = useState(false);
   const [esqueciSenha, setEsqueciSenha] = useState(false);
+  
+  // --- NOVOS ESTADOS PARA RECUPERAÇÃO DE SENHA ---
+  const [modoNovaSenha, setModoNovaSenha] = useState(false);
+  const [novaSenha, setNovaSenha] = useState("");
+  
   const router = useRouter();
+
+  // =========================================================================
+  // INTERCEPTADOR: Detecta quando a professora clica no link do e-mail
+  // =========================================================================
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setModoNovaSenha(true);
+        setEsqueciSenha(false);
+        setEhCadastro(false);
+        setSucesso("Link validado! Digite sua nova senha abaixo.");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const lidarRecuperacao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +46,8 @@ export default function Login() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/dashboard/redefinir-senha`,
+        // Redireciona de volta para esta mesma tela para o useEffect capturar o evento
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
       });
 
       if (error) {
@@ -33,6 +57,37 @@ export default function Login() {
       }
     } catch (err) {
       setErro("Ocorreu um erro no servidor. Tente mais tarde.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // --- NOVA FUNÇÃO: Salvar a senha após a professora voltar do e-mail ---
+  const salvarNovaSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro("");
+    setSucesso("");
+    setCarregando(true);
+
+    if (novaSenha.length < 6) {
+      setErro("A senha deve ter no mínimo 6 caracteres.");
+      setCarregando(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: novaSenha });
+      
+      if (error) {
+        setErro(`Erro ao redefinir: ${error.message}`);
+      } else {
+        setSucesso("Senha alterada com sucesso! Redirecionando...");
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 2000);
+      }
+    } catch (err) {
+      setErro("Ocorreu um erro ao salvar a nova senha.");
     } finally {
       setCarregando(false);
     }
@@ -166,7 +221,7 @@ export default function Login() {
           />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">ABC DO PARK</h1>
           <p className="text-gray-500">
-            {esqueciSenha ? "Recuperação de Acesso" : ehCadastro ? "Criar Conta" : "Portal da Escola"}
+            {modoNovaSenha ? "Criar Nova Senha" : esqueciSenha ? "Recuperação de Acesso" : ehCadastro ? "Criar Conta" : "Portal da Escola"}
           </p>
         </div>
 
@@ -182,7 +237,34 @@ export default function Login() {
           </div>
         )}
 
-        {esqueciSenha ? (
+        {modoNovaSenha ? (
+          /* ================= TELA 3: FORMULÁRIO DE CRIAR NOVA SENHA ================= */
+          <form onSubmit={salvarNovaSenha} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nova Senha
+              </label>
+              <input 
+                type="password" 
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                placeholder="Mínimo 6 caracteres" 
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={carregando}
+              className={`w-full text-white p-3 rounded-lg font-semibold transition-colors ${
+                carregando ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {carregando ? "Salvando..." : "Salvar Senha e Entrar"}
+            </button>
+          </form>
+        ) : esqueciSenha ? (
+          /* ================= TELA 2: FORMULÁRIO DE ESQUECI A SENHA ================= */
           <form onSubmit={lidarRecuperacao} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -215,6 +297,7 @@ export default function Login() {
             </button>
           </form>
         ) : (
+          /* ================= TELA 1: FORMULÁRIO NORMAL DE LOGIN/CADASTRO ================= */
           <form onSubmit={fazerLogin} className="space-y-5">
             {ehCadastro && (
               <div>
@@ -283,7 +366,7 @@ export default function Login() {
           </form>
         )}
 
-        {!esqueciSenha && (
+        {!esqueciSenha && !modoNovaSenha && (
           <div className="mt-6 text-center text-sm text-gray-600">
             {ehCadastro ? "Já tem uma conta?" : "Ainda não tem acesso?"}{" "}
             <button 
