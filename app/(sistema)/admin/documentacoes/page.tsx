@@ -12,6 +12,7 @@ import PainelCodes from "./_components/PainelCodes";
 import PainelDocumentosGerais from "./_components/PainelDocumentosGerais";
 import PainelHistorico from "./_components/PainelHistorico";
 import PainelHistoricoEscolar from "./_components/PainelHistoricoEscolar";
+import { temPermissao } from "@/lib/auth/permissions";
 
 export default function DocumentacoesAdminPage() {
   const router = useRouter();
@@ -27,11 +28,9 @@ export default function DocumentacoesAdminPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push("/login");
+        router.push("/");
         return;
       }
-
-      const emailAtual = user.email || "";
 
       const { data: perfil } = await supabase
         .from("perfis")
@@ -39,10 +38,7 @@ export default function DocumentacoesAdminPage() {
         .eq("id", user.id)
         .single();
 
-      const ehAdmin =
-        emailAtual === "carlamonaliza9@gmail.com" ||
-        emailAtual === "diretoria@abcdopark.com" ||
-        perfil?.cargo === "Admin";
+      const ehAdmin = temPermissao(perfil?.cargo, 'documentos.gerenciar');
 
       if (!ehAdmin) {
         router.push("/dashboard");

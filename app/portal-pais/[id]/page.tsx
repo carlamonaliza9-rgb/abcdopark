@@ -42,27 +42,15 @@ export default function DashboardAluno() {
     };
   };
 
-  const calcularIdade = (dataNasc: string) => {
-    if (!dataNasc) return "";
-    const hoje = new Date();
-    const nascimento = new Date(dataNasc);
-    let idade = hoje.getFullYear() - nascimento.getFullYear();
-    const m = hoje.getMonth() - nascimento.getMonth();
-    if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) { idade--; }
-    return `${idade} anos`;
-  };
-
-  const obterPesoCronologico = (dataString: string) => {
-    if (!dataString) return 9999;
-    const d = new Date(dataString + "T12:00:00");
-    return ((d.getUTCMonth() + 1) * 100) + d.getUTCDate();
-  };
-
   async function buscarMediaEstrelas() {
+    const anoAtual = new Date().getFullYear();
     const { data: avaliacoes } = await supabase
       .from("avaliacoes")
       .select("participacao, comportamento, atividades, socioemocional")
-      .eq("aluno_id", id);
+      .eq("aluno_id", id)
+      .eq("visivel_para_pais", true)
+      .gte("data_avaliacao", `${anoAtual}-01-01`)
+      .lte("data_avaliacao", `${anoAtual}-12-31`);
 
     if (avaliacoes && avaliacoes.length > 0) {
       let somaParticipacao = 0;
@@ -126,15 +114,21 @@ export default function DashboardAluno() {
       
       setNomeResponsavel(nomeCompletoResp?.split(' ')[0] || "Responsável");
 
-      const { data: c } = await supabase.from("alunos").select("nome, data_nascimento, foto_url").eq("turma", dadosAluno.turma);
-      if (c) setColegas(c.sort((a, b) => obterPesoCronologico(a.data_nascimento) - obterPesoCronologico(b.data_nascimento)));
+      const { data: aniversariantes, error: erroAniversarios } = await supabase.rpc(
+        "portal_aniversarios",
+        { p_aluno_id: Number(id) }
+      );
+
+      if (!erroAniversarios && aniversariantes) {
+        const ordenar = (a: any, b: any) => (a.mes * 100 + a.dia) - (b.mes * 100 + b.dia);
+        setColegas(aniversariantes.filter((p: any) => p.categoria === "turma").sort(ordenar));
+        setEquipe(aniversariantes.filter((p: any) => p.categoria === "equipe").sort(ordenar));
+      }
     }
 
     const { data: p } = await supabase.from("eventos_calendario").select("*").order("data", { ascending: true });
     if (p) setProgramacoes(p);
     
-    const { data: e } = await supabase.from("funcionarios").select("nome, data_nascimento, foto_url");
-    if (e) setEquipe(e.sort((a, b) => obterPesoCronologico(a.data_nascimento) - obterPesoCronologico(b.data_nascimento)));
   }
 
   const formatarData = (d: string) => d ? d.split("-").reverse().slice(0, 2).join("/") : "";
@@ -219,13 +213,12 @@ export default function DashboardAluno() {
           <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 gap-2 content-start custom-scrollbar">
             {(abaAniversario === "turma" ? colegas : equipe).map((p, idx) => (
               <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-transparent hover:border-slate-200 transition-all">
-                <div className="w-10 h-10 rounded-full bg-white border border-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-300">{p.foto_url ? <img src={p.foto_url} className="w-full h-full object-cover" /> : p.nome[0]}</div>
+                <div className="w-10 h-10 rounded-full bg-white border border-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-300">{p.nome?.[0] || "?"}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-slate-800 text-xs md:text-[10px] uppercase truncate leading-none">{abaAniversario === "equipe" ? `Tio(a) ${p.nome.split(' ')[0]}` : p.nome.split(' ')[0]}</p>
-                    {abaAniversario === "turma" && <span className="text-[10px] md:text-[8px] font-black text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-md uppercase">{calcularIdade(p.data_nascimento)}</span>}
+                    <p className="font-black text-slate-800 text-xs md:text-[10px] uppercase truncate leading-none">{abaAniversario === "equipe" ? `Tio(a) ${p.nome}` : p.nome}</p>
                   </div>
-                  <p className="text-xs md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {formatarData(p.data_nascimento)}</p>
+                  <p className="text-xs md:text-[9px] text-indigo-500 font-bold mt-1">🎂 {String(p.dia).padStart(2, "0")}/{String(p.mes).padStart(2, "0")}</p>
                 </div>
               </div>
             ))}

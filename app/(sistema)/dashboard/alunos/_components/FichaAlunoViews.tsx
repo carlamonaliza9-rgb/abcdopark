@@ -1,5 +1,6 @@
 import React from "react";
 import { supabase } from "@/lib/supabase"; // ADICIONADO PARA O ESTORNO FUNCIONAR AQUI
+import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 // --- ESTILOS COMPARTILHADOS ---
 const EstiloLabel: React.CSSProperties = { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', display: 'block' };
@@ -398,8 +399,8 @@ export function VisaoHistorico({
   anoPagamentoSelecionado, setAnoPagamentoSelecionado, onVerHistorico, aluno, onGerarPDFHistorico, onVoltarParaFicha, 
   saldoCreditoVisivel, setVerCreditoGlobal, totalPendenteGeral, setVerDividasGlobais, 
   historicoLocal, // RECEBENDO DADO PURO DO PAI (MURALHA DE FERRO)
-  userEmail, clean, onEditarPagamento, handleExcluirFaturamento, 
-  onRecarregar, senhaMestra 
+  clean, onEditarPagamento, handleExcluirFaturamento,
+  onRecarregar, podeGerenciar
 }: any) {
 
   // ============================================================================
@@ -428,9 +429,11 @@ export function VisaoHistorico({
   // 🔴 ESTORNO CIRÚRGICO: DESFAZ PARCELAS INDIVIDUAIS E RECUPERA CRÉDITO
   // ============================================================================
   const estornoCirurgico = async (pgto: any) => {
-    if (prompt("Digite a Senha Mestra para ESTORNAR/DESFAZER:") !== (senhaMestra || "1234")) {
-      return alert("Senha incorreta.");
-    }
+    if (!(await confirmarAcaoCritica({
+      permissao: "financeiro.estornar",
+      titulo: "Estornar lançamento",
+      descricao: "A dívida voltará a ficar pendente e os créditos relacionados serão recalculados.",
+    }))) return;
 
     // Busca o dado ao vivo do banco de dados (A Verdade Absoluta)
     const { data: registroReal, error: fetchError } = await supabase
@@ -578,7 +581,6 @@ export function VisaoHistorico({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {historicoFiltradoExibicao.length > 0 ? historicoFiltradoExibicao.map((pgto: any, i: number) => {
           const forma = extrairFormaPagamento(pgto.detalhes_metodos);
-          const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
           const devedorRestante = clean(pgto.valor_total) - clean(pgto.valor_pago);
           
           // 🛡️ A ARMADURA DO EXTRATO: IDENTIFICA REGISTROS SAGRADOS

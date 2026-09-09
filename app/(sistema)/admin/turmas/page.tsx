@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import ReactCrop, { PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+import { temPermissao } from "@/lib/auth/permissions";
 
 // Ícones da Lucide-React (Adicionado o GraduationCap para os alunos!)
 import { 
@@ -121,11 +122,11 @@ export default function TurmasAdminPage() {
   async function carregarDados() {
     setCarregando(true);
     const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) return router.push("/login");
+    if (!authData?.user) return router.push("/");
 
     const email = authData.user.email || "";
     const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', authData.user.id).single();
-    const verificadoAdmin = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+    const verificadoAdmin = temPermissao(perfil?.cargo, 'academico.visualizar');
     
     if (!verificadoAdmin) return router.push("/dashboard");
     setUserEmail(email);

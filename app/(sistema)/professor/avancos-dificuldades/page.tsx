@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
 import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle, Lock } from "lucide-react";
+import { temPermissao } from "@/lib/auth/permissions";
 
 
 const ORDEM_TURMAS = [
@@ -65,7 +66,7 @@ export default function AvancosDificuldadesPage() {
     async function inicializar() {
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) return router.push("/login");
+        if (userError || !user) return router.push("/");
 
         const email = user.email || "";
         setUserEmail(email);
@@ -89,12 +90,7 @@ export default function AvancosDificuldadesPage() {
         setNomeLogado(nomeDoProf || "Professor");
 
         // 3. Validação robusta de cargo administrativo
-        const cargoStr = perfil?.cargo?.toUpperCase() || "";
-        const adminVerificado = 
-          email === 'carlamonaliza9@gmail.com' || 
-          email === 'diretoria@abcdopark.com' || 
-          cargoStr === 'ADMIN' || 
-          cargoStr === 'ADMINISTRADOR';
+        const adminVerificado = temPermissao(perfil?.cargo, 'painel.admin');
           
         setEhAdmin(adminVerificado);
 

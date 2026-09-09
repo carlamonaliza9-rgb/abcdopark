@@ -9,6 +9,7 @@ import autoTable from "jspdf-autotable";
 
 export default function AvaliacoesPage() {
   const { id } = useParams();
+  const anoLetivo = new Date().getFullYear();
   const [aluno, setAluno] = useState<any>(null);
   const [notas, setNotas] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -24,6 +25,7 @@ export default function AvaliacoesPage() {
         .from("boletins")
         .select("*")
         .eq("aluno_id", id)
+        .eq("ano", String(anoLetivo))
         .order("disciplina", { ascending: true });
         
       if (n) setNotas(n);
@@ -44,7 +46,7 @@ export default function AvaliacoesPage() {
     
     doc.setFontSize(12);
     doc.setTextColor(100);
-    doc.text("Boletim Escolar Oficial - Ano Letivo 2026", 105, 28, { align: "center" });
+    doc.text(`Boletim Escolar Oficial - Ano Letivo ${anoLetivo}`, 105, 28, { align: "center" });
 
     // Informações do Aluno e Responsável
     doc.setDrawColor(226, 232, 240);
@@ -107,7 +109,7 @@ export default function AvaliacoesPage() {
               <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600"><BookOpen size={20} /></div>
               <h2 className="text-sm md:text-xs font-black text-slate-800 uppercase tracking-widest">Boletim Escolar</h2>
             </div>
-            <span className="bg-slate-100 px-4 py-2 rounded-xl text-[10px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest self-start sm:self-auto">Ano Letivo 2026</span>
+            <span className="bg-slate-100 px-4 py-2 rounded-xl text-[10px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest self-start sm:self-auto">Ano Letivo {anoLetivo}</span>
           </div>
 
           <div className="overflow-x-auto custom-scrollbar pb-2">

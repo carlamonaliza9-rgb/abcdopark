@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Megaphone
 } from "lucide-react";
+import { temPermissao } from "@/lib/auth/permissions";
 
 export default function DashboardProfessorPage() {
   const router = useRouter();
@@ -57,13 +58,13 @@ export default function DashboardProfessorPage() {
   async function carregarDados() {
     try {
       const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) return router.push("/login");
+      if (!authData?.user) return router.push("/");
       
       const emailAtual = authData.user.email || "";
       setUserEmail(emailAtual);
       
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', authData.user.id).single();
-      const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+      const ehAdmin = temPermissao(perfil?.cargo, 'painel.admin');
 
       if (ehAdmin) return router.push("/dashboard");
 

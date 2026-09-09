@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { abrirArquivoPrivado } from "@/lib/storage";
 import { useRouter, useParams } from "next/navigation";
+import { temPermissao } from "@/lib/auth/permissions";
 
 // Lista imutável dos documentos exigidos pela escola - HIGIENIZADA (RG e CPF Unificados)
 const DOCUMENTOS_EXIGIDOS = [
@@ -37,13 +39,12 @@ export default function PastaDocumentosAlunoPage() {
     
     // 1. Validação de Acesso
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return router.push("/login");
+    if (!user) return router.push("/");
 
-    const emailAtual = user.email || "";
     const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
     
     // Apenas Admin e Direção podem alterar os documentos
-    const isVisitante = emailAtual !== 'carlamonaliza9@gmail.com' && emailAtual !== 'diretoria@abcdopark.com' && perfil?.cargo !== 'Admin' && perfil?.cargo !== 'Direção';
+    const isVisitante = !temPermissao(perfil?.cargo, 'documentos.gerenciar');
     setEhVisitante(isVisitante);
 
     // 2. Busca Dados do Aluno para o Cabeçalho
@@ -91,14 +92,11 @@ export default function PastaDocumentosAlunoPage() {
 
       if (uploadError) throw uploadError;
 
-      // 2. Pega o link público gerado
-      const urlPublica = supabase.storage.from('documentos-alunos').getPublicUrl(nomeDoArquivoNoStorage).data.publicUrl;
-
-      // 3. Salva a referência na tabela para sabermos que ele entregou
+      // Salva somente o caminho. A visualização usa URL assinada e temporária.
       const { error: dbError } = await supabase.from('documentos_alunos').upsert({
         aluno_id: parseInt(alunoId), // Garante que é tratado como número (BIGINT)
         tipo_documento: tipoDocumentoId,
-        url_arquivo: urlPublica,
+        url_arquivo: nomeDoArquivoNoStorage,
         status: "Entregue",
         data_atualizacao: new Date().toISOString()
       }, { onConflict: 'aluno_id,tipo_documento' });
@@ -214,14 +212,16 @@ export default function PastaDocumentosAlunoPage() {
                     ) : arquivoNoBanco ? (
                       <>
                         <span className="text-[10px] font-black px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg uppercase tracking-wider border border-emerald-200">Entregue</span>
-                        <a 
-                          href={arquivoNoBanco.url_arquivo} 
-                          target="_blank" 
-                          rel="noreferrer" 
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const abriu = await abrirArquivoPrivado('documentos-alunos', arquivoNoBanco.url_arquivo);
+                            if (!abriu) alert('Não foi possível abrir este documento.');
+                          }}
                           className="bg-white border border-slate-200 hover:border-sky-300 hover:text-sky-700 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
                         >
                           👁️ Ver Arquivo
-                        </a>
+                        </button>
                         {!ehVisitante && (
                           <button 
                             onClick={() => handleExcluirArquivo(arquivoNoBanco.id, docExigido.id)} 

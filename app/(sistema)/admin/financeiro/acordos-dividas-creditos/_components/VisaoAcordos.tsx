@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { removerAcentos } from "@/lib/utils"; 
 import { Trophy } from "lucide-react";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 const clean = (val: any) => {
   if (val === null || val === undefined || val === "") return 0;
@@ -13,8 +14,6 @@ const clean = (val: any) => {
   if (str.includes(',')) return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
   return parseFloat(str) || 0;
 };
-const SENHA_MESTRA = "1234";
-
 interface VisaoAcordosProps {
   userEmail: string | null;
 }
@@ -105,14 +104,22 @@ export function VisaoAcordos({ userEmail }: VisaoAcordosProps) {
   }
 
   async function desfazerParcela(id: string) {
-    if (prompt("Digite a Senha Mestra para ESTORNAR o pagamento desta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!(await confirmarAcaoCritica({
+      permissao: "financeiro.estornar",
+      titulo: "Estornar parcela do acordo",
+      descricao: "A parcela voltará a ficar pendente e o valor recebido será zerado.",
+    }))) return;
     await supabase.from('historico_pagamentos').update({ status: 'pendente', valor_pago: 0, detalhes_metodos: {} }).eq('id', id);
     emitirRecarregamento();
     carregarDados();
   }
 
   async function excluirParcela(id: string) {
-    if (prompt("Digite a Senha Mestra para EXCLUIR esta parcela:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!(await confirmarAcaoCritica({
+      permissao: "financeiro.excluir",
+      titulo: "Excluir parcela do acordo",
+      descricao: "A parcela será removida e a operação ficará registrada na auditoria.",
+    }))) return;
     await supabase.from('historico_pagamentos').delete().eq('id', id);
     emitirRecarregamento();
     carregarDados();
@@ -120,7 +127,11 @@ export function VisaoAcordos({ userEmail }: VisaoAcordosProps) {
 
   // --- NOVA REGRA 1 (ESTORNO DE ACORDO) ---
   async function excluirAcordoInteiro(parcelas: any[]) {
-    if (prompt("ATENÇÃO: Digite a Senha Mestra para EXCLUIR O CONTRATO INTEIRO (todas as parcelas):") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!(await confirmarAcaoCritica({
+      permissao: "financeiro.excluir",
+      titulo: "Excluir contrato completo",
+      descricao: "Todas as parcelas deste acordo serão removidas e as dívidas originais serão restauradas.",
+    }))) return;
     
     const idsAcordo = parcelas.map(p => p.id);
     
@@ -154,7 +165,11 @@ export function VisaoAcordos({ userEmail }: VisaoAcordosProps) {
   }
 
   async function editarParcela(parcela: any) {
-    if (prompt("Digite a Senha Mestra para EDITAR os valores:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!(await confirmarAcaoCritica({
+      permissao: "financeiro.gerenciar",
+      titulo: "Editar parcela do acordo",
+      descricao: "Confirme sua identidade antes de alterar valor ou vencimento.",
+    }))) return;
     const novoValor = prompt("Novo valor da parcela (ex: 150.00):", clean(parcela.valor_total).toString());
     if (!novoValor) return;
     const novaData = prompt("Novo vencimento (AAAA-MM-DD):", parcela.data_pagamento);

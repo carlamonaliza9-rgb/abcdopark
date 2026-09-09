@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
 import { removerAcentos } from "@/lib/utils"; 
 import { 
   Home, 
@@ -26,8 +27,6 @@ const clean = (val: any) => {
 };
 
 const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-const SENHA_MESTRA = "1234";
-
 function extrairMesAnoInteligente(h: any, fallbackAno: string) {
   const desc = (h.descricao || "").toLowerCase();
   let mes = (h.mes_referencia || "").toLowerCase().trim();
@@ -376,10 +375,12 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
   const toggleEditValorPadrao = async () => {
     if (!editandoValor) {
-      if (prompt("Digite a Senha Mestra para desbloquear a mensalidade base:") === SENHA_MESTRA) {
+      if (await confirmarAcaoCritica({
+        permissao: "financeiro.gerenciar",
+        titulo: "Alterar mensalidade base",
+        descricao: "A alteração pode afetar novas cobranças mensais.",
+      })) {
         setEditandoValor(true);
-      } else {
-        alert("Senha incorreta!");
       }
     } else {
       setEditandoValor(false);
@@ -417,8 +418,11 @@ export function VisaoMensalidades({ userEmail }: { userEmail: string | null }) {
 
   const executarDesfazer = async (linha: any) => {
       const idAlunoSelecionado = linha.id;
-      if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a administração master pode desfazer registros salvos.");
-      if (prompt("Digite a Senha Mestra para confirmar o estorno financeiro e reajuste da carteira:") !== SENHA_MESTRA) return alert("Senha incorreta.");
+      if (!(await confirmarAcaoCritica({
+        permissao: "financeiro.estornar",
+        titulo: "Desfazer recebimento",
+        descricao: "O recebimento será estornado e o saldo do aluno será recalculado.",
+      }))) return;
       
       const alunoObj = alunosFiltrados.find((a: any) => a.id === idAlunoSelecionado);
       const [ano, mes] = mesFiltro.split('-');

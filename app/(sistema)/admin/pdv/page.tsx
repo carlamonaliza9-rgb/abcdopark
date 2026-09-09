@@ -3,8 +3,6 @@
 import { Suspense } from "react";
 import { 
   HeaderPDV, 
-  ModalAberturaCaixa, 
-  ModalFechamentoCaixa, 
   ModalMeusCaixas, 
   ModalMovimentacaoCaixa, 
   ModalCheckout,
@@ -38,27 +36,8 @@ function PDVContent() {
         
         <StatusCaixaReduzido 
           caixaAtual={pdv.caixaAtual} 
-          setModalFechamentoAberto={pdv.setModalFechamentoAberto} 
           carregarHistoricoCaixas={pdv.carregarHistoricoCaixas} 
           setModalMovimentacao={pdv.setModalMovimentacao} 
-        />
-
-        <ModalAberturaCaixa 
-          modalCaixaAberto={pdv.modalCaixaAberto} 
-          setModalCaixaAberto={pdv.setModalCaixaAberto} 
-          fundoTrocoAbertura={pdv.fundoTrocoAbertura} 
-          setFundoTrocoAbertura={pdv.setFundoTrocoAbertura} 
-          abrirCaixa={pdv.abrirCaixa} 
-          processando={pdv.processando} 
-        />
-
-        <ModalFechamentoCaixa 
-          modalFechamentoAberto={pdv.modalFechamentoAberto} 
-          setModalFechamentoAberto={pdv.setModalFechamentoAberto} 
-          gavetaInformada={pdv.gavetaInformada} 
-          setGavetaInformada={pdv.setGavetaInformada} 
-          confirmarFechamentoCaixa={pdv.confirmarFechamentoCaixa} 
-          processando={pdv.processando} 
         />
 
         <ModalMeusCaixas 
@@ -66,6 +45,8 @@ function PDVContent() {
           setModalMeusCaixas={pdv.setModalMeusCaixas} 
           historicoCaixas={pdv.historicoCaixas} 
           historicoGeral={pdv.historicoGeral}
+          movimentosCaixaMensal={pdv.movimentosCaixaMensal}
+          alunos={pdv.alunos}
           clean={pdv.clean} 
         />
 
@@ -146,14 +127,8 @@ function PDVContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
                     </div>
-                    <h4 className="font-black text-slate-800 mb-1">Caixa Fechado</h4>
-                    <p className="text-xs text-slate-500 mb-6">Abra o caixa para iniciar os recebimentos do turno.</p>
-                    <button
-                      onClick={() => pdv.setModalCaixaAberto(true)}
-                      className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md w-full"
-                    >
-                      Abrir Caixa Agora
-                    </button>
+                    <h4 className="font-black text-slate-800 mb-1">Caixa mensal indisponível</h4>
+                    <p className="text-xs text-slate-500">Atualize a página. O sistema abrirá automaticamente o caixa do mês atual com saldo inicial zerado.</p>
                   </div>
                 )}
               </div>
@@ -184,7 +159,6 @@ function PDVContent() {
             carrinho={pdv.carrinho}
             removerDoCarrinho={pdv.removerDoCarrinho} 
             subtotalCarrinho={pdv.subtotalCarrinho}
-            setModalCaixaAberto={pdv.setModalCaixaAberto} 
             abrirModalCheckout={() => pdv.setModalCheckoutAberto(true)} 
           />
         </div>

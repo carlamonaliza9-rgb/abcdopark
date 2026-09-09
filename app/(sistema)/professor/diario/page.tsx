@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
+import { temPermissao } from "@/lib/auth/permissions";
 import { 
   CalendarDays, Save, Trash2, Edit3, ClipboardList, 
   Undo2, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, 
@@ -106,7 +107,7 @@ export default function DiarioClassePage() {
 
           // PERMISSÕES E BUSCA DAS MÚLTIPLAS TURMAS
           const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
-          const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+          const ehAdmin = temPermissao(perfil?.cargo, 'painel.admin');
 
           let turmasFinais: string[] = [];
 

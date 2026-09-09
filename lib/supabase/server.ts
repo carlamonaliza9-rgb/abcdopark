@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { normalizarCargo, temPermissao, type AppPermission } from "@/lib/auth/permissions";
 
 export async function criarSupabaseServidor() {
   const cookieStore = await cookies();
@@ -32,11 +33,17 @@ export async function usuarioServidorComCargo() {
     .eq("id", user.id)
     .maybeSingle();
 
-  return { user, cargo: perfil?.cargo || null };
+  return { user, cargo: normalizarCargo(perfil?.cargo) };
 }
 
 export async function usuarioServidorEhEquipe() {
   const autenticacao = await usuarioServidorComCargo();
   if (!autenticacao) return false;
-  return ["Admin", "Direção", "Professor"].includes(autenticacao.cargo || "");
+  return temPermissao(autenticacao.cargo, "notificacoes.enviar");
+}
+
+export async function usuarioServidorTemPermissao(permissao: AppPermission) {
+  const autenticacao = await usuarioServidorComCargo();
+  if (!autenticacao) return false;
+  return temPermissao(autenticacao.cargo, permissao);
 }

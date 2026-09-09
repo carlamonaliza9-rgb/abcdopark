@@ -28,12 +28,9 @@ export function usePDV() {
   const [historicoGeral, setHistoricoGeral] = useState<any[]>([]);
   
   const [caixaAtual, setCaixaAtual] = useState<any>(null);
-  const [fundoTrocoAbertura, setFundoTrocoAbertura] = useState("");
-  const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
-  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
-  const [gavetaInformada, setGavetaInformada] = useState("");
   const [modalMeusCaixas, setModalMeusCaixas] = useState(false);
   const [historicoCaixas, setHistoricoCaixas] = useState<any[]>([]);
+  const [movimentosCaixaMensal, setMovimentosCaixaMensal] = useState<any[]>([]);
   const [recebimentosTurno, setRecebimentosTurno] = useState<any[]>([]);
   
   const [modalMovimentacao, setModalMovimentacao] = useState<{aberto: boolean, tipo: 'sangria' | 'suprimento'}>({aberto: false, tipo: 'sangria'});
@@ -132,15 +129,16 @@ export function usePDV() {
 
   const carregarDadosBase = async () => {
     setCarregando(true);
-    
-    const { data: sessoesAtivas } = await supabase
-      .from('sessoes_caixa')
-      .select('*')
-      .eq('status', 'aberto')
-      .order('data_abertura', { ascending: false })
-      .limit(1);
 
-    const sessaoAberta = sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null;
+    const { data: caixaMensal, error: erroCaixa } = await supabase
+      .rpc('obter_ou_criar_caixa_mensal')
+      .single();
+    const sessaoAberta: any = caixaMensal;
+
+    if (erroCaixa) {
+      console.error('Não foi possível inicializar o caixa mensal:', erroCaixa);
+    }
+
     setCaixaAtual(sessaoAberta);
 
     if (sessaoAberta) {
@@ -173,12 +171,6 @@ export function usePDV() {
         }
       }
       
-      let radarMensalidades: any[] = [];
-      try {
-        const { data: ms } = await supabase.from('mensalidades').select('*');
-        if (ms) radarMensalidades = ms;
-      } catch (e) {}
-
       const mapaDevedores = new Map();
       const hojeRadar = new Date();
       hojeRadar.setHours(0,0,0,0);
@@ -197,7 +189,7 @@ export function usePDV() {
       });
       idsDuvidasRenegociadas = Array.from(new Set(idsDuvidasRenegociadas));
 
-      [...historico, ...radarMensalidades].forEach(pend => {
+      historico.forEach(pend => {
           const status = pend.status?.toLowerCase();
           if (['pago', 'renegociado', 'cancelado', 'estornado'].includes(status)) return;
           
@@ -242,32 +234,6 @@ export function usePDV() {
         const { data: dataHistorico } = await supabase.from('historico_pagamentos').select('*').eq('aluno_id', alunoSelecionado.id);
         let registrosPuros = dataHistorico || [];
 
-        try {
-          const { data: mData } = await supabase.from('mensalidades').select('*').eq('aluno_id', alunoSelecionado.id);
-          if (mData) {
-            const extraMensalidades = mData.map((m: any) => {
-              const vencimentoMensalidade = m.data_vencimento || m.vencimento || dataHojeStr;
-              const mesReferencia = m.mes_referencia || extrairMesReferencia(m) || 'Recorrente';
-
-              return { 
-                id: m.id,
-                aluno_id: m.aluno_id,
-                tipo: 'mensalidade',
-                descricao: m.descricao || `Mensalidade - Ref: ${mesReferencia}`,
-                mes_referencia: mesReferencia,
-                valor_total: m.valor_total || m.valor || 0,
-                valor_pago: m.valor_pago || 0,
-                status: m.status || 'pendente',
-                data_pagamento: vencimentoMensalidade,
-                data_vencimento: vencimentoMensalidade,
-                detalhes_metodos: m.detalhes_metodos || {},
-                isMensalidadeTable: true 
-              };
-            });
-            registrosPuros = [...registrosPuros, ...extraMensalidades];
-          }
-        } catch (e) {}
-
         const dataAtual = new Date(); 
         const hoje = new Date(); hoje.setHours(0,0,0,0);
         const anoAtual = dataAtual.getFullYear().toString(); 
@@ -300,7 +266,7 @@ export function usePDV() {
                   descricao: `Mensalidade - ${nomeMes}/${anoAtual}`, mes_referencia: nomeMes, 
                   valor_total: valorMensalidadeBase, valor_pago: 0, 
                   data_pagamento: dataVencimentoReal.toISOString(),
-                  data_vencimento: dataVencimentoReal.toISOString(),
+                  data_vencimento: dataVencimentoReal.toISOString().split('T')[0],
                   detalhes_metodos: { competencia: { mes: nomeMes, ano: anoAtual } },
                   status: isAtrasado ? 'atrasado' : 'pendente', 
                   atraso_automatico: isAtrasado, isTemp: true 
@@ -423,15 +389,6 @@ export function usePDV() {
     }
   }, [alunoSelecionado]);
 
-  const abrirCaixa = async () => {
-    if (processando) return; setProcessando(true);
-    try {
-      const { data, error } = await supabase.from('sessoes_caixa').insert([{ operador_nome: 'Administração', fundo_inicial: clean(fundoTrocoAbertura), status: 'aberto' }]).select('*').single();
-      if (error) throw error;
-      setCaixaAtual(data); setModalCaixaAberto(false); alert("Caixa aberto com sucesso!"); carregarDadosBase();
-    } catch (e: any) { alert("Erro ao abrir caixa: " + e.message); } finally { setProcessando(false); }
-  };
-
   const handleRegistrarMovimentacao = async () => {
     if (processando || !caixaAtual) return;
     const valorDigitado = clean(formMovimentacao.valor);
@@ -455,37 +412,6 @@ export function usePDV() {
       setMovimentacoesTurno([...movimentacoesTurno, data]); setModalMovimentacao({aberto: false, tipo: 'sangria'}); setFormMovimentacao({valor: '', descricao: ''});
       alert(`${modalMovimentacao.tipo === 'sangria' ? 'Sangria' : 'Suprimento'} registrado com sucesso no caixa!`);
     } catch (error: any) { alert("Erro ao registrar movimentação: " + error.message); } finally { setProcessando(false); }
-  };
-
-  const confirmarFechamentoCaixa = async () => {
-    if (processando || !caixaAtual) return;
-    if (gavetaInformada === "") return alert("Informe o valor físico contado na gaveta.");
-    
-    setProcessando(true);
-    try {
-      let totalPix = 0, totalDinheiro = 0, totalCredito = 0, totalDebito = 0, totalBoleto = 0;
-      recebimentosTurno.forEach(h => {
-        const d = h.detalhes_metodos; if (!d) return;
-        totalPix += clean(d.pix) + clean(d.pix_editora); totalDinheiro += clean(d.dinheiro) - clean(d.troco_devolvido_fisico); totalCredito += clean(d.credito) + clean(d.credito_editora); totalDebito += clean(d.debito) + clean(d.debito_editora); totalBoleto += clean(d.boleto);
-      });
-
-      const totalSuprimentos = movimentacoesTurno.filter(m => m.tipo === 'suprimento').reduce((acc, curr) => acc + clean(curr.valor), 0);
-      const totalSangrias = movimentacoesTurno.filter(m => m.tipo === 'sangria').reduce((acc, curr) => acc + clean(curr.valor), 0);
-      const esperadoGaveta = clean(caixaAtual.fundo_inicial) + totalDinheiro + totalSuprimentos - totalSangrias;
-      const informado = clean(gavetaInformada); const quebra = informado - esperadoGaveta;
-
-      const totalEntradas = recebimentosTurno.reduce((acc, curr) => acc + clean(curr.valor_pago), 0);
-      const valorGeralApurado = totalEntradas + clean(caixaAtual.fundo_inicial);
-      
-      const { error } = await supabase.from('sessoes_caixa').update({
-        status: 'fechado', data_fechamento: new Date().toISOString(), total_apurado: valorGeralApurado, valor_em_dinheiro_informado: informado, quebra_caixa: quebra,
-        resumo_metodos: { pix: totalPix, dinheiro: totalDinheiro, credito: totalCredito, debito: totalDebito, boleto: totalBoleto, suprimentos: totalSuprimentos, sangrias: totalSangrias, esperadoGaveta: esperadoGaveta }
-      }).eq('id', caixaAtual.id);
-
-      if (error) throw error;
-      setCaixaAtual(null); setRecebimentosTurno([]); setMovimentacoesTurno([]); setModalFechamentoAberto(false); setGavetaInformada("");
-      alert(`Turno Encerrado!\nTotal Faturado no Sistema: R$ ${totalEntradas.toFixed(2)}\n\n${quebra === 0 ? "Caixa batendo perfeitamente." : (quebra > 0 ? `Sobra de R$ ${quebra.toFixed(2)}.` : `Falta de R$ ${Math.abs(quebra).toFixed(2)}.`)}`);
-    } catch (e: any) { alert("Erro ao fechar caixa: " + e.message); } finally { setProcessando(false); }
   };
 
   const carregarRegistrosRecentes = async () => {
@@ -573,13 +499,6 @@ export function usePDV() {
 
       if (error) throw error;
 
-      if (detalhesAtuais?.mensalidade_table_id) {
-        await supabase
-          .from('mensalidades')
-          .update({ valor_total: valorTotalNovo, valor_pago: valorPagoNovo, status: statusNovo })
-          .eq('id', detalhesAtuais.mensalidade_table_id);
-      }
-
       setModalEditarRegistroRecente(false);
       setRegistroRecenteSelecionado(null);
       await carregarDadosBase();
@@ -657,13 +576,6 @@ export function usePDV() {
 
       if (error) throw error;
 
-      if (detalhesAtuais?.mensalidade_table_id) {
-        await supabase
-          .from('mensalidades')
-          .update({ valor_pago: novoValorPago, status: novoStatus })
-          .eq('id', detalhesAtuais.mensalidade_table_id);
-      }
-
       await supabase.from('historico_pagamentos').insert({
         aluno_id: registro.aluno_id,
         tipo: 'estorno',
@@ -698,8 +610,24 @@ export function usePDV() {
 
   const carregarHistoricoCaixas = async () => {
     setModalMeusCaixas(true);
-    const { data } = await supabase.from('sessoes_caixa').select('*').order('data_abertura', { ascending: false }).limit(20);
-    if (data) setHistoricoCaixas(data);
+    const { data } = await supabase
+      .from('sessoes_caixa')
+      .select('*')
+      .eq('caixa_mensal', true)
+      .order('competencia', { ascending: false })
+      .limit(60);
+    if (data) {
+      setHistoricoCaixas(data);
+      const idsCaixas = data.map((caixa: any) => caixa.id);
+      if (idsCaixas.length > 0) {
+        const { data: movimentos } = await supabase
+          .from('recebimentos_caixa_mensal')
+          .select('*')
+          .in('caixa_id', idsCaixas)
+          .order('data_operacao', { ascending: false });
+        setMovimentosCaixaMensal(movimentos || []);
+      }
+    }
   };
 
   const adicionarAoCarrinho = (item: any) => { if (!carrinho.find(c => c.id === item.id)) setCarrinho([...carrinho, item]); };
@@ -736,7 +664,7 @@ export function usePDV() {
 
   const finalizarVenda = async () => {
     if (processando) return; 
-    if (!caixaAtual) return alert("Atenção: Você precisa Abrir o Caixa antes de registrar pagamentos.");
+    if (!caixaAtual) return alert("Atenção: o caixa mensal não pôde ser inicializado. Atualize a página e tente novamente.");
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
     if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
@@ -826,9 +754,8 @@ export function usePDV() {
             aluno_id: alunoSelecionado.id,
             item_original_id: item.id,
             item_novo: !!item.isNovo || !!item.isTemp || idString.startsWith('temp_'),
-            mensalidade_table_id: item.isMensalidadeTable ? item.id : detalhesItem?.mensalidade_table_id
+            registro_financeiro_id: item.id
           },
-          ...(item.isMensalidadeTable ? { mensalidade_table_id: item.id } : {}),
           ...(competenciaItem ? { competencia: competenciaItem } : {}),
           historico_parciais:
             valorAbatido > 0 || clean(acrescimos.desconto) > 0
@@ -839,11 +766,8 @@ export function usePDV() {
         let savedId = item.id;
         
         if (item.isNovo || item.isTemp || idString.startsWith('temp_')) {
-          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Avulso', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: item.data_vencimento || item.data_pagamento || dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
-          if (data) savedId = data.id;
-        } else if (item.isMensalidadeTable) {
-          await supabase.from('mensalidades').update({ status: novoStatus, valor_pago: novoValorPago }).eq('id', item.id);
-          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Recorrente', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: item.data_vencimento || item.data_pagamento || dataPagamentoPDV, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
+          const dataVencimento = String(item.data_vencimento || item.data_pagamento || dataPagamentoPDV).split('T')[0];
+          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Avulso', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: dataVencimento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
           if (data) savedId = data.id;
         } else {
           await supabase.from('historico_pagamentos').update({ status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).eq('id', item.id);
@@ -897,11 +821,6 @@ export function usePDV() {
          await supabase.from('historico_pagamentos').insert(novasParcelas);
          await supabase.from('historico_pagamentos').update({ status: 'renegociado' }).in('id', idsProcessados);
          
-         const idsMensalidades = carrinho.filter((c:any) => c.isMensalidadeTable).map((c:any) => c.id);
-         if (idsMensalidades.length > 0) {
-             await supabase.from('mensalidades').update({ status: 'renegociado' }).in('id', idsMensalidades);
-         }
-         
          alert("Acordo gerado com sucesso e dívidas originais substituídas.");
       }
 
@@ -928,10 +847,9 @@ export function usePDV() {
   const alunosFiltrados = buscaAluno === "" ? alunos.slice(0, 5) : alunos.filter(a => a.nome.toLowerCase().includes(buscaAluno.toLowerCase())).slice(0, 5);
 
   return {
-    router, carregando, alunos, historicoGeral, caixaAtual, fundoTrocoAbertura, setFundoTrocoAbertura,
-    modalCaixaAberto, setModalCaixaAberto, modalFechamentoAberto, setModalFechamentoAberto,
-    gavetaInformada, setGavetaInformada, modalMeusCaixas, setModalMeusCaixas,
-    historicoCaixas, recebimentosTurno, modalMovimentacao, setModalMovimentacao,
+    router, carregando, alunos, historicoGeral, caixaAtual,
+    modalMeusCaixas, setModalMeusCaixas,
+    historicoCaixas, movimentosCaixaMensal, recebimentosTurno, modalMovimentacao, setModalMovimentacao,
     formMovimentacao, setFormMovimentacao, movimentacoesTurno, inadimplentesTop5,
     buscaAluno, setBuscaAluno, alunoSelecionado, setAlunoSelecionado, dividasAluno, carrinho,
     dataPagamentoPDV, setDataPagamentoPDV, novoItem, setNovoItem, uniformesVenda, setUniformesVenda,
@@ -940,7 +858,7 @@ export function usePDV() {
     registrosRecentes, carregarRegistrosRecentes, modalEditarRegistroRecente, setModalEditarRegistroRecente,
     registroRecenteSelecionado, formRegistroRecente, setFormRegistroRecente, abrirModalEditarRegistroRecente,
     salvarEdicaoRegistroRecente, desfazerRegistroRecente, registroPodeSerAlterado,
-    temLivroNoCarrinho, clean, abrirCaixa, handleRegistrarMovimentacao, confirmarFechamentoCaixa,
+    temLivroNoCarrinho, clean, handleRegistrarMovimentacao,
     carregarHistoricoCaixas, adicionarAoCarrinho, removerDoCarrinho, lancarItemAvulsoNoCarrinho,
     subtotalCarrinho, totalComAcrescimos, totalPagoRodada, faltaPagar, trocoGerado, saldoAtualAluno, finalizarVenda
   };

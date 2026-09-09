@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { temPermissao } from "@/lib/auth/permissions";
 
 export default function DiarioClasseAdminPage() {
   const router = useRouter();
@@ -30,11 +31,11 @@ export default function DiarioClasseAdminPage() {
     async function verificarAcessoAdmin() {
       setCarregando(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       const email = user.email || "";
-      const ehAdmin = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+      const ehAdmin = temPermissao(perfil?.cargo, 'academico.gerenciar');
 
       if (!ehAdmin) return router.push("/dashboard");
 

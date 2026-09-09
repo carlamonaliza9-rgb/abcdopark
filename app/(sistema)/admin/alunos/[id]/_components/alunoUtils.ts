@@ -49,5 +49,4 @@ export const extrairFormaPagamento = (detalhes: any) => {
   return metodos.length > 0 ? metodos.join(" + ").toUpperCase() : null;
 };
 
-export const SENHA_MESTRA = "1234";
 export const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];

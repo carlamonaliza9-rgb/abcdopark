@@ -9,8 +9,10 @@ import { UserMinus } from "lucide-react";
 
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
 import { FormAlunoModal } from "@/app/(sistema)/dashboard/alunos/_components/FormAlunoModal";
-import { clean, SENHA_MESTRA, mesesAno, mCPF, mWhatsApp } from "./_components/alunoUtils";
+import { clean, mesesAno, mCPF, mWhatsApp } from "./_components/alunoUtils";
 import { BannerAluno, VisaoGeralAluno, DividasAluno, CreditoAluno, BoletimAluno, ExtratoAluno, RelatoriosAluno } from "./_components/ViewsPerfil";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
+import { temPermissao } from "@/lib/auth/permissions";
 
 // --- IMPORTAÇÃO DO MODAL DE TRANSFERÊNCIA ---
 import { ModalTransferencia } from "./_components/ModalTransferencia";
@@ -66,6 +68,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
   
   const [aluno, setAluno] = useState<any>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userCargo, setUserCargo] = useState<string | null>(null);
   const [ehVisitante, setEhVisitante] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [isProcessandoAcao, setIsProcessandoAcao] = useState(false);
@@ -127,12 +130,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
       const emailAtual = user.email || "";
       setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
-      
-      const isVisitante = emailAtual !== 'carlamonaliza9@gmail.com' && emailAtual !== 'diretoria@abcdopark.com' && perfil?.cargo !== 'Admin' && perfil?.cargo !== 'Direção';
-      setEhVisitante(isVisitante);
+      setUserCargo(perfil?.cargo ?? null);
+      setEhVisitante(!temPermissao(perfil?.cargo, 'alunos.gerenciar'));
 
-      const { data: sessoesAtivas } = await supabase.from('sessoes_caixa').select('*').eq('status', 'aberto').order('data_abertura', { ascending: false }).limit(1);
-      setCaixaAtual(sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null);
+      const { data: caixaMensal } = await supabase.rpc('obter_ou_criar_caixa_mensal').single();
+      setCaixaAtual(caixaMensal || null);
 
       await buscarAlunoBase();
     }
@@ -425,9 +427,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   async function desfazerTransferencia() {
     if (isProcessandoAcao) return;
-    if (userEmail !== 'carlamonaliza9@gmail.com') {
-      return alert("Acesso restrito: Apenas a administração master principal (Carla) pode desfazer transferências.");
-    }
+    if (!(await confirmarAcaoCritica({
+      permissao: 'alunos.gerenciar',
+      titulo: 'Desfazer transferência',
+      descricao: `Reativar a ficha de ${aluno.nome}.`,
+    }))) return;
     if (!confirm(`Deseja realmente reverter a transferência de ${aluno.nome} e reativar sua ficha na escola?`)) return;
 
     setIsProcessandoAcao(true);
@@ -455,20 +459,23 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   async function handleDeletarFicha() {
     if (isProcessandoAcao) return;
-    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Acesso negado: Apenas a administração master pode excluir uma ficha.");
-    if (prompt("Digite a Senha Mestra para DELETAR A FICHA DO ALUNO:") !== SENHA_MESTRA) return alert("Senha incorreta.");
-    if (!confirm(`ATENÇÃO! Você está prestes a excluir PERMANENTEMENTE a ficha de ${aluno.nome}. Todos os dados serão perdidos. Deseja realmente continuar?`)) return;
+    if (!(await confirmarAcaoCritica({
+      permissao: 'alunos.excluir',
+      titulo: 'Arquivar ficha do aluno',
+      descricao: `Retirar ${aluno.nome} da base ativa sem apagar o histórico.`,
+    }))) return;
+    if (!confirm(`Arquivar a ficha de ${aluno.nome}? Os dados acadêmicos e financeiros serão preservados.`)) return;
 
     setIsProcessandoAcao(true);
     setCarregando(true);
     try {
-      await supabase.from('historico_pagamentos').delete().eq('aluno_id', alunoId);
-      await supabase.from('boletins').delete().eq('aluno_id', alunoId);
-      
-      const { error } = await supabase.from('alunos').delete().eq('id', alunoId);
+      const { error } = await supabase
+        .from('alunos')
+        .update({ status: 'arquivado' })
+        .eq('id', alunoId);
       if (error) throw error;
       
-      alert("Ficha do aluno excluída com sucesso.");
+      alert("Ficha arquivada com sucesso. Nenhum histórico foi apagado.");
       router.push('/admin/alunos');
     } catch (error: any) {
       alert("Erro ao excluir ficha: " + error.message);
@@ -479,8 +486,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   async function processarAcaoPagamento(pgto: any, acao: 'estornar' | 'excluir') {
     if (isProcessandoAcao) return;
-    if (acao === 'excluir' && userEmail !== 'carlamonaliza9@gmail.com') return alert("Acesso negado: Apenas a administração master pode excluir registros permanentemente do banco.");
-    if (prompt(`Digite a Senha Mestra para ${acao.toUpperCase()}:`) !== SENHA_MESTRA) return alert("Senha incorreta.");
+    if (!(await confirmarAcaoCritica({
+      permissao: acao === 'excluir' ? 'financeiro.excluir' : 'financeiro.estornar',
+      titulo: acao === 'excluir' ? 'Excluir lançamento financeiro' : 'Estornar lançamento financeiro',
+      descricao: pgto.descricao || 'Alterar um lançamento do aluno.',
+    }))) return;
 
     let variacaoSaldoCredito = 0;
     let idsParaDeletar: string[] = [];
@@ -894,8 +904,11 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
 
   async function handleZerarCredito() {
     if (isProcessandoAcao) return;
-    
-    if (prompt("Digite a Senha Mestra para ZERAR o crédito:") === SENHA_MESTRA) {
+    if (await confirmarAcaoCritica({
+      permissao: 'financeiro.gerenciar',
+      titulo: 'Zerar crédito do aluno',
+      descricao: `Remover o saldo de crédito de ${aluno.nome}.`,
+    })) {
       const motivo = prompt("Informe o motivo para zerar este crédito (Obrigatório):");
       if (!motivo) return alert("Operação cancelada. O motivo é obrigatório.");
 
@@ -915,7 +928,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         await buscarDadosAdicionais();
       }
       setIsProcessandoAcao(false);
-    } else alert("Senha incorreta.");
+    }
   }
 
   function gerarPDFHistorico() {
@@ -1032,7 +1045,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         )}
 
         {/* NOVO BOTÃO EXCLUSIVO DA CARLA: DESFAZER TRANSFERÊNCIA */}
-        {aluno?.status === 'transferido' && userEmail === 'carlamonaliza9@gmail.com' && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && !verRelatorios && (
+        {aluno?.status === 'transferido' && temPermissao(userCargo, 'alunos.gerenciar') && !verDividasGlobais && !verCreditoGlobal && !verBoletim && !verHistorico && !verRelatorios && (
           <div className="flex justify-end -mt-2 mb-4 pr-2 md:pr-0 relative z-10">
             <button 
               onClick={desfazerTransferencia}
@@ -1051,7 +1064,7 @@ export default function PerfilAlunoPage({ params }: { params: Promise<{ id: stri
         ) : verBoletim ? (
           <BoletimAluno aluno={aluno} anoSelecionado={anoSelecionado} setAnoSelecionado={setAnoSelecionado} notas={notas} setVerBoletim={setVerBoletim} />
         ) : verHistorico ? (
-          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} userEmail={userEmail} SENHA_MESTRA={SENHA_MESTRA} onAbrirPDV={setModalPDVAberto} clean={clean} />
+          <ExtratoAluno aluno={aluno} historicoLocal={historicoLocal} anoPagamentoSelecionado={anoPagamentoSelecionado} setAnoPagamentoSelecionado={setAnoPagamentoSelecionado} setVerHistorico={setVerHistorico} ehVisitante={ehVisitante} isProcessandoAcao={isProcessandoAcao} handleEditarPagamento={handleEditarPagamento} processarAcaoPagamento={processarAcaoPagamento} podeGerenciar={temPermissao(userCargo, 'financeiro.gerenciar')} onAbrirPDV={setModalPDVAberto} clean={clean} />
         ) : verRelatorios ? (
           <RelatoriosAluno alunoId={alunoId} setVerRelatorios={setVerRelatorios} />
         ) : (

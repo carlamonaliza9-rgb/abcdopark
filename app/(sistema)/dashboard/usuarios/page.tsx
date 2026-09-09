@@ -2,24 +2,32 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
+import { APP_ROLES, temPermissao, type AppRole } from "@/lib/auth/permissions";
+
+type PerfilUsuario = {
+  id: string;
+  nome: string | null;
+  email: string | null;
+  cargo: string | null;
+};
 
 export default function GestaoUsuarios() {
   const router = useRouter();
-  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<PerfilUsuario[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [meuId, setMeuId] = useState<string | null>(null);
 
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
       setMeuId(user.id);
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
 
-      // BARREIRA DE SEGURANÇA: Somente o e-mail Master ou quem for Admin pode entrar aqui.
-      const ehAutorizado = user.email === 'carlamonaliza9@gmail.com' || perfil?.cargo === 'Admin';
+      const ehAutorizado = temPermissao(perfil?.cargo, 'usuarios.gerenciar');
       
       if (!ehAutorizado) {
         alert("Acesso Negado: Apenas a administração possui acesso a esta área.");
@@ -33,23 +41,19 @@ export default function GestaoUsuarios() {
 
   async function buscarUsuarios() {
     setCarregando(true);
-    const { data, error } = await supabase.from('perfis').select('*').order('nome');
+    const { data } = await supabase.from('perfis').select('id, nome, email, cargo').order('nome');
     if (data) setUsuarios(data);
     setCarregando(false);
   }
 
-  async function alternarCargo(idSelecionado: string, cargoAtual: string, emailSelecionado: string) {
+  async function alterarCargo(idSelecionado: string, cargoAtual: string | null, novoCargo: AppRole) {
     // PROTEÇÃO 1: Evita a auto-demissão acidental
     if (idSelecionado === meuId) {
       return alert("Operação bloqueada: Você não pode alterar o próprio nível de acesso para evitar perda de administração.");
     }
 
-    // PROTEÇÃO 2: Ninguém pode rebaixar a conta master
-    if (emailSelecionado === 'carlamonaliza9@gmail.com') {
-      return alert("Operação bloqueada: O cargo da conta raiz não pode ser alterado.");
-    }
-
-    const novoCargo = cargoAtual === 'Admin' ? 'Professor' : 'Admin';
+    if (novoCargo === cargoAtual) return;
+    if (!(await confirmarAcaoCritica({ permissao: 'usuarios.gerenciar', titulo: 'Alterar cargo do usuário', descricao: `Mudar o cargo de ${cargoAtual || 'não definido'} para ${novoCargo}.` }))) return;
     
     const confirmacao = confirm(`Tem a certeza absoluta que deseja mudar o cargo de ${cargoAtual} para ${novoCargo}?\nIsso alterará os acessos deste usuário imediatamente.`);
     if (!confirmacao) return;
@@ -100,8 +104,9 @@ export default function GestaoUsuarios() {
                   </span>
                 </td>
                 <td style={{ padding: '15px', textAlign: 'center' }}>
-                  <button 
-                    onClick={() => alternarCargo(u.id, u.cargo, u.email)}
+                  <select
+                    value={u.cargo || 'Responsável'}
+                    onChange={(evento) => alterarCargo(u.id, u.cargo, evento.target.value as AppRole)}
                     style={{ 
                       padding: '8px 15px', 
                       borderRadius: '10px', 
@@ -111,12 +116,12 @@ export default function GestaoUsuarios() {
                       fontSize: '13px',
                       fontWeight: 'bold',
                       color: '#334155',
-                      opacity: u.id === meuId || u.email === 'carlamonaliza9@gmail.com' ? 0.5 : 1
+                      opacity: u.id === meuId ? 0.5 : 1
                     }}
-                    disabled={u.id === meuId || u.email === 'carlamonaliza9@gmail.com'}
+                    disabled={u.id === meuId}
                   >
-                    ⚙️ Alterar Permissão
-                  </button>
+                    {APP_ROLES.map((cargo) => <option key={cargo} value={cargo}>{cargo}</option>)}
+                  </select>
                 </td>
               </tr>
             ))}

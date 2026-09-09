@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { converterValorSeguro } from "../_utils/financeUtils";
-
-const SENHA_MESTRA = "1234";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
+import { temPermissao } from "@/lib/auth/permissions";
 
 export function useDespesasVariaveis(userEmail: string | null, userCargo: string | null) {
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
@@ -53,8 +53,8 @@ export function useDespesasVariaveis(userEmail: string | null, userCargo: string
 
   async function adicionarGasto() {
     if (processando) return;
-    if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') {
-      return alert("A direção não possui permissão para registrar novas despesas.");
+    if (!temPermissao(userCargo, 'financeiro.gerenciar')) {
+      return alert("Sua conta não possui permissão para registrar despesas.");
     }
 
     if (!descGasto || !valorGasto) return alert("Preencha todos os campos.");
@@ -85,10 +85,13 @@ export function useDespesasVariaveis(userEmail: string | null, userCargo: string
     if (gasto.isContaFixa) {
       return alert("Contas fixas consolidadas devem ser gerenciadas diretamente no painel modular de Contas a Pagar.");
     }
-    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui privilégios de exclusão de fluxo.");
     if (processando) return;
 
-    if (prompt("Senha Mestra para EXCLUIR GASTO:") === SENHA_MESTRA) {
+    if (await confirmarAcaoCritica({
+      permissao: "financeiro.excluir",
+      titulo: "Excluir despesa",
+      descricao: "O registro será removido e permanecerá disponível na auditoria V3.",
+    })) {
        if (confirm("Confirmar exclusão definitiva deste registro de gasto?")) {
          setProcessando(true);
          try {
@@ -100,8 +103,6 @@ export function useDespesasVariaveis(userEmail: string | null, userCargo: string
            setProcessando(false);
          }
        }
-    } else { 
-      alert("Senha incorreta."); 
     }
   }
 

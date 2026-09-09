@@ -89,7 +89,6 @@ export default function AlunosAdminPage() {
     pix: "", dinheiro: "", credito: "", debito: "", boleto: "", credito_aluno: "", multa: "", desconto: "", juros_cartao: "", parcelas: "1" 
   });
 
-  const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   
   const ehVisitante = cargo === "Visitante"; 
@@ -97,7 +96,7 @@ export default function AlunosAdminPage() {
   useEffect(() => { 
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
       setUserEmail(user.email || null);
       
@@ -110,9 +109,9 @@ export default function AlunosAdminPage() {
 
       await buscarAlunos();
       
-      // BUSCA O CAIXA ABERTO NO PDV
-      const { data: sessoesAtivas } = await supabase.from('sessoes_caixa').select('*').eq('status', 'aberto').order('data_abertura', { ascending: false }).limit(1);
-      setCaixaAtual(sessoesAtivas && sessoesAtivas.length > 0 ? sessoesAtivas[0] : null);
+      // O caixa é mensal e aberto automaticamente com fundo inicial zerado.
+      const { data: caixaMensal } = await supabase.rpc('obter_ou_criar_caixa_mensal').single();
+      setCaixaAtual(caixaMensal || null);
 
       setVerificandoAcesso(false);
     }
@@ -173,7 +172,9 @@ export default function AlunosAdminPage() {
     const atendeBusca = nomeLimpo.includes(buscaLimpa);
     
     const isTransferido = aluno.status === 'transferido';
-    const atendeAba = abaAtiva === 'ativos' ? !isTransferido : isTransferido;
+    const atendeAba = abaAtiva === 'ativos'
+      ? !isTransferido && aluno.status !== 'arquivado'
+      : isTransferido;
 
     return atendeBusca && atendeAba;
   });
@@ -677,7 +678,7 @@ export default function AlunosAdminPage() {
             onVerBoletim={buscarBoletim} onVerHistorico={buscarHistoricoPagamento} onVoltarParaFicha={() => { setVerBoletim(false); setVerHistorico(false); }}
             onSalvarNota={salvarNota} onAdicionarDisciplina={adicionarDisciplina} onExcluirDisciplina={excluirDisciplina}
             onEditarPagamento={handleEditarPagamento} onExcluirPagamento={handleExcluirPagamento}
-            onExcluir={async () => { if(confirm("Excluir definitivamente?")) { await supabase.from('alunos').delete().eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
+            onExcluir={async () => { if(confirm("Arquivar esta ficha? O histórico será preservado.")) { await supabase.from('alunos').update({ status: 'arquivado' }).eq('id', idEdicao); setModalAberto(false); buscarAlunos(); } }}
             onGerarPDFBoletim={gerarPDFBoletim} onGerarPDFHistorico={gerarPDFHistorico}
             calcularIdade={calcularIdade}
           />

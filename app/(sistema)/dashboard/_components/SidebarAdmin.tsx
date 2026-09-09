@@ -3,13 +3,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { normalizarCargo, temPermissao, type AppRole } from "@/lib/auth/permissions";
 
 import { AlertaVencimento } from "./AlertaVencimento";
 import { AlertaEvasao } from "./AlertaEvasao";
 
-export default function SidebarAdmin({ children }: { children?: React.ReactNode }) {
-  const [ehAdmin, setEhAdmin] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null); // ESTADO PARA O EMAIL
+export default function SidebarAdmin({ cargoInicial }: { cargoInicial?: string | null }) {
+  const router = useRouter();
+  const [cargo, setCargo] = useState<AppRole | null>(normalizarCargo(cargoInicial));
   const [carregando, setCarregando] = useState(true);
   
   const [menuFinanceiroAberto, setMenuFinanceiroAberto] = useState(false);
@@ -19,22 +21,12 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
     async function verificarAcesso() {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
-        const email = authData.user.email ?? null;
-        setUserEmail(email); // GUARDA O EMAIL PARA VERIFICAÇÕES FUTURAS
-        
         const { data: perfil } = await supabase
           .from('perfis')
           .select('cargo')
           .eq('id', authData.user.id)
           .single();
-
-        if (
-          email === 'carlamonaliza9@gmail.com' || 
-          email === 'diretoria@abcdopark.com' || 
-          perfil?.cargo === 'Admin'
-        ) {
-          setEhAdmin(true);
-        }
+        setCargo(normalizarCargo(perfil?.cargo));
       }
       carregandoDados();
     }
@@ -46,10 +38,23 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
     verificarAcesso();
   }, []);
 
+  const podeVerAlunos = temPermissao(cargo, "alunos.visualizar");
+  const podeVerAcademico = temPermissao(cargo, "academico.visualizar");
+  const podeVerDocumentos = temPermissao(cargo, "documentos.visualizar");
+  const podeVerFuncionarios = temPermissao(cargo, "funcionarios.visualizar");
+  const podeVerFinanceiro = temPermissao(cargo, "financeiro.visualizar");
+  const podeFecharAno = temPermissao(cargo, "fechamento.executar");
+  const podeVerAuditoria = temPermissao(cargo, "auditoria.visualizar");
+
   const fecharMenuMobile = () => {
     if (window.innerWidth < 768) {
       setMenuMobileAberto(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/");
   };
 
   if (carregando) return <div className="hidden md:flex w-[280px] bg-gray-50 items-center justify-center border-r border-blue-100 h-screen">Carregando menu...</div>;
@@ -57,7 +62,7 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
   return (
     <>
       <AlertaVencimento />
-      {ehAdmin && <AlertaEvasao />}
+      {temPermissao(cargo, "alunos.gerenciar") && <AlertaEvasao />}
 
       {/* BOTÃO HAMBÚRGUER FLUTUANTE */}
       <button
@@ -109,7 +114,7 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
             📊 Painel de Controle
           </Link>
 
-          {ehAdmin && (
+          {podeVerAlunos && (
             <>
               <Link href="/admin/alunos" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 👨‍🎓 Alunos
@@ -117,26 +122,25 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
             </>
           )}
 
-          <Link href={ehAdmin ? "/admin/turmas" : "/professor/turmas"} onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
-            {ehAdmin ? "🏫 Turmas" : "🏫 Minha Turma"}
-          </Link>
-
-          {!ehAdmin && (
-            <Link href="/professor/diario" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
-              📒 Diário de Classe
+          {podeVerAcademico && (
+            <Link href="/admin/turmas" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
+              🏫 Turmas
             </Link>
           )}
-          
-          {ehAdmin && (
-            <>
+
+          {podeVerDocumentos && (
               <Link href="/dashboard/documentacoes" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 📑 Documentações
               </Link>
+          )}
 
+          {podeVerFuncionarios && (
               <Link href="/admin/funcionarios" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                 👥 Funcionários
               </Link>
+          )}
 
+          {podeVerFinanceiro && (
               <div className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden">
                 <button
                   onClick={() => setMenuFinanceiroAberto(!menuFinanceiroAberto)}
@@ -177,28 +181,25 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
                   </Link>
                 </div>
               </div>
+          )}
 
-              {/* CONDIÇÃO RESTRITA APENAS PARA O E-MAIL CARLA MONALIZA */}
-              {userEmail === 'carlamonaliza9@gmail.com' && (
-                <>
+          {podeFecharAno && (
                   <Link href="/admin/fechamento" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                     🎓 Fechamento Letivo
                   </Link>
+          )}
 
+          {podeVerAuditoria && (
                   <Link href="/admin/logs" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
                     🛡️ Logs do Sistema
                   </Link>
-                </>
-              )}
-
-            </>
           )}
         </nav>
 
         <div className="p-3 border-t border-blue-200 bg-white md:bg-transparent shrink-0">
-          <Link href="/" className="block p-2.5 rounded-lg text-red-600 hover:bg-red-50 text-sm md:text-xl font-bold transition-all text-center">
+          <button type="button" onClick={handleLogout} className="block w-full p-2.5 rounded-lg text-red-600 hover:bg-red-50 text-sm md:text-xl font-bold transition-all text-center">
             Sair do Sistema
-          </Link>
+          </button>
         </div>
       </aside>
 

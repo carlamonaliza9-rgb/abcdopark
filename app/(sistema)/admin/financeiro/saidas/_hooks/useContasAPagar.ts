@@ -136,8 +136,7 @@ export function useContasAPagar() {
         const { error: uploadError } = await supabase.storage.from('comprovantes').upload(fileName, file);
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage.from('comprovantes').getPublicUrl(fileName);
-        urlFinal = urlData.publicUrl;
+        urlFinal = fileName;
       }
 
       const { error: dbError } = await supabase.from('contas_a_pagar').update({

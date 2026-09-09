@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import OneSignal from 'react-onesignal';
+import { ehCargoAdministrativo, normalizarCargo } from "@/lib/auth/permissions";
 
 export default function DashboardRedirectorPage() {
   const router = useRouter();
@@ -20,18 +21,20 @@ export default function DashboardRedirectorPage() {
 
       const emailAtual = user.email || "";
       
-      // CORREÇÃO: Busca apenas o 'cargo', pois 'turma' não existe nesta tabela e quebrava a consulta
       const { data: perfil } = await supabase
         .from('perfis')
-        .select('cargo')
+        .select('cargo, troca_senha_obrigatoria')
         .eq('id', user.id)
         .single();
+
+      if (perfil?.troca_senha_obrigatoria) {
+        return router.push('/dashboard/redefinir-senha?obrigatoria=1');
+      }
+
+      const cargo = normalizarCargo(perfil?.cargo);
       
       // --- REGRA: ADMIN ---
-      const ehAdmin = 
-        emailAtual === 'carlamonaliza9@gmail.com' || 
-        emailAtual === 'diretoria@abcdopark.com' || 
-        perfil?.cargo === 'Admin';
+      const ehAdmin = ehCargoAdministrativo(cargo);
 
       if (ehAdmin) {
         try {
@@ -41,7 +44,7 @@ export default function DashboardRedirectorPage() {
       }
 
       // --- REGRA: PROFESSOR ---
-      const ehProfessor = perfil?.cargo === 'Professor';
+      const ehProfessor = cargo === 'Professor' || cargo === 'Auxiliar';
       if (ehProfessor) {
         try {
           // Identifica o usuário como professor para o despertador geral das 17h
@@ -51,7 +54,7 @@ export default function DashboardRedirectorPage() {
       }
 
       // --- REGRA: RESPONSÁVEL (PAIS) ---
-      if (perfil?.cargo === 'Responsável') {
+      if (cargo === 'Responsável') {
         const { data: alunosVinculados } = await supabase
           .from('alunos')
           .select('id, nome, turma')

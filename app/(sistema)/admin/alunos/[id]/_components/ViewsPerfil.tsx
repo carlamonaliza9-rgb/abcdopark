@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { clean, calcularIdade, obterMediaFinal, extrairFormaPagamento, mCPF, mWhatsApp, abrirWhatsApp } from "./alunoUtils";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 
 
@@ -940,7 +941,7 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
   );
 }
 
-export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, userEmail, SENHA_MESTRA, onRecarregar }: any) {
+export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, setAnoPagamentoSelecionado, setVerHistorico, ehVisitante, isProcessandoAcao, handleEditarPagamento, podeGerenciar, onRecarregar }: any) {
   
   const historicoFiltradoExibicao = (historicoLocal || []).filter((h: any) => {
     if (h.tipo?.toLowerCase() === 'credito') return false;
@@ -1009,9 +1010,11 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
 
   // ESTORNO CIRÚRGICO SIMPLIFICADO C/ REVERSÃO AUTOMÁTICA DE SALDO/TROCO
   const estornoCirurgico = async (pgto: any) => {
-    if (prompt("⚠️ ATENÇÃO: Esta ação fará com que o recebimento seja totalmente estornado.\nA dívida voltará a ficar 'pendente' e saldos gerados serão reajustados.\n\nDigite a Senha Mestra para confirmar:") !== (SENHA_MESTRA || "1234")) {
-      return alert("Senha incorreta.");
-    }
+    if (!(await confirmarAcaoCritica({
+      permissao: 'financeiro.estornar',
+      titulo: 'Estornar recebimento',
+      descricao: "A dívida voltará a ficar pendente e os saldos vinculados serão reajustados.",
+    }))) return;
 
     try {
       // 1. Busca os dados reais e profundos deste pagamento no banco
@@ -1215,8 +1218,6 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
           if (devedorRestante < 0.01) devedorRestante = 0; 
 
           const isVisualmentePago = pgto.status === 'pago' || devedorRestante === 0;
-          const podeGerenciar = userEmail === 'carlamonaliza9@gmail.com';
-          
           const mostrarHistoricoParcial = parciais.length > 1;
           
           return (
@@ -1260,7 +1261,7 @@ export function ExtratoAluno({ aluno, historicoLocal, anoPagamentoSelecionado, s
                         </button>
                       )}
 
-                      <button onClick={(e) => { e.stopPropagation(); if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) handleEditarPagamento(pgto); else alert("Senha incorreta."); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
+                      <button onClick={async (e) => { e.stopPropagation(); if (await confirmarAcaoCritica({ permissao: 'financeiro.gerenciar', titulo: 'Editar lançamento financeiro', descricao: pgto.descricao || 'Alterar valores do lançamento.' })) handleEditarPagamento(pgto); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors" title="Editar Valores">✏️</button>
                       
                       <button onClick={(e) => { e.stopPropagation(); estornoCirurgico(pgto); }} disabled={isProcessandoAcao} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 flex items-center justify-center transition-colors" title="Desfazer Lançamento (Estornar)">🔄</button>
                     </div>

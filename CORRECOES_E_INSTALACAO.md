@@ -24,9 +24,10 @@
 2. No Supabase, abra **SQL Editor > New query**.
 3. Abra `supabase/migrations/20260826_security_and_parent_portal.sql`.
 4. Copie todo o conteúdo, cole no SQL Editor e clique em **Run** uma única vez.
-5. Configure na Vercel as variáveis listadas em `.env.example`.
-6. Gere um valor longo e aleatório para `CRON_SECRET`.
-7. Publique o projeto e execute os testes abaixo.
+5. Execute também `supabase/migrations/20260826_financial_consistency.sql`.
+6. Configure na Vercel as variáveis listadas em `.env.example`.
+7. Gere um valor longo e aleatório para `CRON_SECRET`.
+8. Publique o projeto e execute os testes abaixo.
 
 A migração roda dentro de uma transação: se uma instrução falhar, nenhuma alteração
 daquele processamento é confirmada. Ela substitui as políticas RLS conflitantes,

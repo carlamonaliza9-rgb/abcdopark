@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -13,30 +13,7 @@ export default function Login() {
   const [carregando, setCarregando] = useState(false);
   const [ehCadastro, setEhCadastro] = useState(false);
   const [esqueciSenha, setEsqueciSenha] = useState(false);
-  
-  // --- NOVOS ESTADOS PARA RECUPERAÇÃO DE SENHA ---
-  const [modoNovaSenha, setModoNovaSenha] = useState(false);
-  const [novaSenha, setNovaSenha] = useState("");
-  
   const router = useRouter();
-
-  // =========================================================================
-  // INTERCEPTADOR: Detecta quando a professora clica no link do e-mail
-  // =========================================================================
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setModoNovaSenha(true);
-        setEsqueciSenha(false);
-        setEhCadastro(false);
-        setSucesso("Link validado! Digite sua nova senha abaixo.");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   const lidarRecuperacao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +23,7 @@ export default function Login() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // Redireciona de volta para esta mesma tela para o useEffect capturar o evento
-        redirectTo: `${window.location.origin}${window.location.pathname}`,
+        redirectTo: `${window.location.origin}/dashboard/redefinir-senha`,
       });
 
       if (error) {
@@ -62,37 +38,6 @@ export default function Login() {
     }
   };
 
-  // --- NOVA FUNÇÃO: Salvar a senha após a professora voltar do e-mail ---
-  const salvarNovaSenha = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErro("");
-    setSucesso("");
-    setCarregando(true);
-
-    if (novaSenha.length < 6) {
-      setErro("A senha deve ter no mínimo 6 caracteres.");
-      setCarregando(false);
-      return;
-    }
-
-    try {
-      const { error } = await supabase.auth.updateUser({ password: novaSenha });
-      
-      if (error) {
-        setErro(`Erro ao redefinir: ${error.message}`);
-      } else {
-        setSucesso("Senha alterada com sucesso! Redirecionando...");
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 2000);
-      }
-    } catch (err) {
-      setErro("Ocorreu um erro ao salvar a nova senha.");
-    } finally {
-      setCarregando(false);
-    }
-  };
-
   const fazerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro("");
@@ -100,11 +45,18 @@ export default function Login() {
     setCarregando(true);
 
     try {
+      const emailNormalizado = email.toLowerCase().trim();
+
       if (ehCadastro) {
-        const { data, error } = await supabase.auth.signUp({
-          email: email,
+        if (senha.length < 8) {
+          setErro("A senha deve ter pelo menos 8 caracteres.");
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({
+          email: emailNormalizado,
           password: senha,
-          options: { data: { nome: nome } },
+          options: { data: { nome: nome.trim() } },
         });
 
         if (error) {
@@ -114,90 +66,14 @@ export default function Login() {
           setEhCadastro(false);
         }
       } else {
-        console.log("🔍 1. Buscando todos os vínculos para:", email);
-        
-        // Busca todos os alunos sem o .maybeSingle() para evitar erro PGRST116
-        const { data: listaAlunos } = await supabase
-          .from('alunos')
-          .select('data_nascimento, responsavel, responsavel_2_nome, responsavel_3_nome, email_responsavel, email_responsavel_2, email_responsavel_3')
-          .or(`email_responsavel.eq.${email},email_responsavel_2.eq.${email},email_responsavel_3.eq.${email}`);
-
-        const datasValidas: string[] = [];
-        let alunoReferencia = null;
-
-        if (listaAlunos && listaAlunos.length > 0) {
-          alunoReferencia = listaAlunos[0];
-          listaAlunos.forEach(aluno => {
-            if (aluno.data_nascimento) {
-              const partes = aluno.data_nascimento.split("-");
-              datasValidas.push(`${partes[2]}${partes[1]}${partes[0]}`); // Formato DDMMAAAA
-            }
-          });
-        }
-
-        console.log("🔍 2. Datas de nascimento válidas encontradas:", datasValidas);
-
-        // --- TENTATIVA 1: Login com a senha digitada pelo usuário ---
-        let { data, error } = await supabase.auth.signInWithPassword({
-          email: email,
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailNormalizado,
           password: senha,
         });
 
-        // --- TENTATIVA 2: Se falhar, testamos as outras datas (caso a conta use a data do outro filho) ---
-        if (error && error.message.includes("Invalid login credentials") && datasValidas.length > 1) {
-          console.log("🔄 3. Senha não abriu. Testando datas dos outros filhos...");
-          for (const dataNasc of datasValidas) {
-            if (dataNasc === senha) continue; // Pula a que já testamos
-            
-            const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-              email: email,
-              password: dataNasc
-            });
-
-            if (!retryError) {
-              console.log("✅ 4. Login realizado com a data do outro filho!");
-              data = retryData;
-              error = null;
-              break;
-            }
-          }
-        }
-
-        // --- TENTATIVA 3: Auto-Cadastro (Se a senha for válida para um filho mas a conta não existe) ---
-        if (error && error.message.includes("Invalid login credentials") && alunoReferencia) {
-          const senhaEhValida = datasValidas.includes(senha);
-          
-          if (senhaEhValida) {
-            console.log("🔄 5. Conta inexistente. Iniciando Auto-Cadastro...");
-            
-            let nomeResp = alunoReferencia.responsavel;
-            if (alunoReferencia.email_responsavel_2 === email) nomeResp = alunoReferencia.responsavel_2_nome;
-            if (alunoReferencia.email_responsavel_3 === email) nomeResp = alunoReferencia.responsavel_3_nome;
-
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-              email: email,
-              password: senha, // A conta será criada com a data digitada
-              options: { data: { nome: nomeResp } }
-            });
-
-            if (!signUpError && signUpData.user) {
-              await supabase.from('perfis').upsert([{
-                id: signUpData.user.id,
-                email: email,
-                nome: nomeResp,
-                cargo: 'Responsável'
-              }], { onConflict: 'id' });
-
-              await supabase.auth.signInWithPassword({ email, password: senha });
-              router.push("/dashboard");
-              return;
-            }
-          }
-        }
-
         if (error) {
           setErro("E-mail ou senha incorretos. Tente novamente.");
-        } else if (data?.session) {
+        } else if (data.session) {
           router.push("/dashboard");
         }
       }
@@ -221,7 +97,7 @@ export default function Login() {
           />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">ABC DO PARK</h1>
           <p className="text-gray-500">
-            {modoNovaSenha ? "Criar Nova Senha" : esqueciSenha ? "Recuperação de Acesso" : ehCadastro ? "Criar Conta" : "Portal da Escola"}
+            {esqueciSenha ? "Recuperação de Acesso" : ehCadastro ? "Criar Conta" : "Portal da Escola"}
           </p>
         </div>
 
@@ -237,34 +113,7 @@ export default function Login() {
           </div>
         )}
 
-        {modoNovaSenha ? (
-          /* ================= TELA 3: FORMULÁRIO DE CRIAR NOVA SENHA ================= */
-          <form onSubmit={salvarNovaSenha} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nova Senha
-              </label>
-              <input 
-                type="password" 
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                placeholder="Mínimo 6 caracteres" 
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <button 
-              type="submit" 
-              disabled={carregando}
-              className={`w-full text-white p-3 rounded-lg font-semibold transition-colors ${
-                carregando ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-              }`}
-            >
-              {carregando ? "Salvando..." : "Salvar Senha e Entrar"}
-            </button>
-          </form>
-        ) : esqueciSenha ? (
-          /* ================= TELA 2: FORMULÁRIO DE ESQUECI A SENHA ================= */
+        {esqueciSenha ? (
           <form onSubmit={lidarRecuperacao} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -297,7 +146,6 @@ export default function Login() {
             </button>
           </form>
         ) : (
-          /* ================= TELA 1: FORMULÁRIO NORMAL DE LOGIN/CADASTRO ================= */
           <form onSubmit={fazerLogin} className="space-y-5">
             {ehCadastro && (
               <div>
@@ -349,6 +197,7 @@ export default function Login() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••" 
+                minLength={ehCadastro ? 8 : undefined}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -366,7 +215,7 @@ export default function Login() {
           </form>
         )}
 
-        {!esqueciSenha && !modoNovaSenha && (
+        {!esqueciSenha && (
           <div className="mt-6 text-center text-sm text-gray-600">
             {ehCadastro ? "Já tem uma conta?" : "Ainda não tem acesso?"}{" "}
             <button 

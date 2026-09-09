@@ -21,15 +21,18 @@ export function HeaderPDV({ router }: any) {
   );
 }
 
-export function StatusCaixaReduzido({ caixaAtual, setModalFechamentoAberto, carregarHistoricoCaixas, setModalMovimentacao }: any) {
+export function StatusCaixaReduzido({ caixaAtual, carregarHistoricoCaixas, setModalMovimentacao }: any) {
   if (!caixaAtual) return null;
+  const competencia = caixaAtual.competencia
+    ? new Date(`${caixaAtual.competencia}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    : new Date(caixaAtual.data_abertura).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/80 flex flex-col xl:flex-row justify-between items-center gap-4">
       <div className="flex items-center gap-3">
         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
         <div>
-          <h4 className="text-sm font-bold text-slate-800 leading-tight">Caixa Aberto</h4>
-          <span className="text-xs text-slate-500 font-medium">Iniciado às {new Date(caixaAtual.data_abertura).toLocaleTimeString('pt-BR')} por <span className="text-indigo-600 font-semibold">{caixaAtual.operador_nome || 'Monaliza'}</span></span>
+          <h4 className="text-sm font-bold text-slate-800 leading-tight">Caixa {competencia}</h4>
+          <span className="text-xs text-slate-500 font-medium">Aberto automaticamente com fundo inicial de <span className="text-indigo-600 font-semibold">R$ 0,00</span></span>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -41,13 +44,9 @@ export function StatusCaixaReduzido({ caixaAtual, setModalFechamentoAberto, carr
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
           Sangria (-) <br/>
         </button>
-        <button onClick={() => setModalFechamentoAberto(true)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          Fechar Caixa
-        </button>
         <button onClick={carregarHistoricoCaixas} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors">
           <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-          Auditoria
+          Histórico mensal
         </button>
       </div>
     </div>
@@ -351,7 +350,7 @@ export function RadarInadimplencia({ inadimplentesTop5, setAlunoSelecionado }: a
   );
 }
 
-export function CarrinhoLateral({ caixaAtual, alunoSelecionado, carrinho, removerDoCarrinho, subtotalCarrinho, setModalCaixaAberto, abrirModalCheckout }: any) {
+export function CarrinhoLateral({ caixaAtual, alunoSelecionado, carrinho, removerDoCarrinho, subtotalCarrinho, abrirModalCheckout }: any) {
   return (
     <div className="xl:col-span-4 relative flex flex-col">
       {!caixaAtual && alunoSelecionado && (
@@ -360,9 +359,8 @@ export function CarrinhoLateral({ caixaAtual, alunoSelecionado, carrinho, remove
             <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
             </div>
-            <h3 className="text-lg font-black text-slate-800 mb-2">Caixa Fechado</h3>
-            <p className="text-xs text-slate-500 mb-6">É necessário abrir uma sessão de caixa antes de registrar vendas ou pagamentos.</p>
-            <button onClick={() => setModalCaixaAberto(true)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">Abrir Caixa</button>
+            <h3 className="text-lg font-black text-slate-800 mb-2">Caixa mensal indisponível</h3>
+            <p className="text-xs text-slate-500">Atualize a página para o sistema inicializar automaticamente o caixa do mês.</p>
           </div>
         </div>
       )}
@@ -535,66 +533,64 @@ export function AreaDeVendasComAbas({ alunoSelecionado, dividasAluno, carrinho, 
 // OS RESTANTES MODAIS (Abertura, Fechamento, etc) FORAM MANTIDOS INTACTOS PARA PRESERVAR A SEGURANÇA.
 // Apenas as classes Tailwind foram limpas nos componentes principais.
 
-export function ModalAberturaCaixa({ modalCaixaAberto, setModalCaixaAberto, fundoTrocoAbertura, setFundoTrocoAbertura, abrirCaixa, processando }: any) {
-  if (!modalCaixaAberto) return null;
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
-        <h3 className="text-lg font-black text-slate-800 mb-2 flex items-center gap-2">
-          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg> Abertura de Caixa
-        </h3>
-        <p className="text-sm text-slate-500 mb-6">Informe o valor inicial que já está na gaveta (Fundo de Troco).</p>
-        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Fundo de Troco (R$)</label>
-        <input type="number" step="0.01" min="0" placeholder="0.00" value={fundoTrocoAbertura} onChange={(e) => setFundoTrocoAbertura(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium text-lg mb-6" />
-        <div className="flex gap-3">
-          <button onClick={() => setModalCaixaAberto(false)} className="flex-1 py-3 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200">Cancelar</button>
-          <button onClick={abrirCaixa} disabled={processando} className="flex-1 py-3 rounded-xl font-bold text-sm text-white bg-indigo-600 hover:bg-indigo-700">Abrir Caixa</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ModalFechamentoCaixa({ modalFechamentoAberto, setModalFechamentoAberto, gavetaInformada, setGavetaInformada, confirmarFechamentoCaixa, processando }: any) {
-  if (!modalFechamentoAberto) return null;
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
-        <h3 className="text-lg font-black text-slate-800 mb-2 flex items-center gap-2">
-          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> Fecho Cego
-        </h3>
-        <p className="text-sm text-slate-500 mb-6">Para auditoria, conte as notas e moedas e informe o valor físico exato na gaveta.</p>
-        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Dinheiro em Espécie (R$)</label>
-        <input type="number" step="0.01" min="0" placeholder="0.00" value={gavetaInformada} onChange={(e) => setGavetaInformada(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold text-lg mb-6" />
-        <div className="flex gap-3">
-          <button onClick={() => setModalFechamentoAberto(false)} className="flex-1 py-3 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200">Voltar</button>
-          <button onClick={confirmarFechamentoCaixa} disabled={processando} className="flex-1 py-3 rounded-xl font-bold text-sm text-white bg-slate-800 hover:bg-slate-900 shadow-md">Concluir Fecho</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historicoCaixas, historicoGeral, clean }: any) {
+export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historicoCaixas, historicoGeral, movimentosCaixaMensal, alunos, clean }: any) {
   const [caixaExpandido, setCaixaExpandido] = useState<string | null>(null);
+
+  const [competenciaSelecionada, setCompetenciaSelecionada] = useState('todos');
+  const formatarCompetencia = (competencia: string) => competencia
+    ? new Date(`${competencia}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    : 'Mês não informado';
+  const caixasFiltrados = competenciaSelecionada === 'todos'
+    ? historicoCaixas
+    : historicoCaixas.filter((caixa: any) => caixa.competencia === competenciaSelecionada);
   
   if (!modalMeusCaixas) return null;
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
         <div className="p-5 flex justify-between items-center border-b border-slate-100 bg-slate-50">
-          <h3 className="text-lg font-black text-slate-800">Meus Caixas (Auditoria)</h3>
+          <div>
+            <h3 className="text-lg font-black text-slate-800">Histórico de Caixas Mensais</h3>
+            <p className="text-xs text-slate-500 mt-1">Consulte cada mês e confira todos os movimentos registrados.</p>
+          </div>
           <button onClick={() => setModalMeusCaixas(false)} className="p-2 text-slate-400 hover:text-rose-600 bg-white rounded-lg border border-slate-200 shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
         </div>
         <div className="p-5 overflow-y-auto flex-1 bg-slate-50">
-          {historicoCaixas.length === 0 ? <p className="text-center text-slate-500 py-10">Nenhum caixa encontrado.</p> : (
+          {historicoCaixas.length > 0 && (
+            <div className="mb-5 bg-white border border-slate-200 rounded-xl p-4">
+              <label htmlFor="filtro-caixa-mensal" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Mês do caixa</label>
+              <select
+                id="filtro-caixa-mensal"
+                value={competenciaSelecionada}
+                onChange={(evento) => {
+                  setCompetenciaSelecionada(evento.target.value);
+                  setCaixaExpandido(null);
+                }}
+                className="w-full md:max-w-sm p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500"
+              >
+                <option value="todos">Todos os meses</option>
+                {historicoCaixas.map((caixa: any) => (
+                  <option key={caixa.id} value={caixa.competencia}>{formatarCompetencia(caixa.competencia)}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {caixasFiltrados.length === 0 ? <p className="text-center text-slate-500 py-10">Nenhum caixa mensal encontrado.</p> : (
             <div className="space-y-4">
-              {historicoCaixas.map((caixa: any) => {
+              {caixasFiltrados.map((caixa: any) => {
                 const isExpanded = caixaExpandido === caixa.id;
                 const resumo = caixa.resumo_metodos || {};
-                const quebra = clean(caixa.quebra_caixa);
                 
-                const recebimentosDesteCaixa = historicoGeral ? historicoGeral.filter((h: any) => h.caixa_id === caixa.id) : [];
+                const recebimentosDesteCaixa = caixa.caixa_mensal
+                  ? (movimentosCaixaMensal || [])
+                      .filter((movimento: any) => movimento.caixa_id === caixa.id)
+                      .map((movimento: any) => ({
+                        ...movimento,
+                        valor_pago: movimento.valor_movimento,
+                        detalhes_metodos: movimento.detalhes?.metodos || movimento.detalhes || {}
+                      }))
+                  : (historicoGeral || []).filter((h: any) => h.caixa_id === caixa.id);
 
                 return (
                   <div key={caixa.id} className="bg-white border border-slate-200 p-5 rounded-xl flex flex-col shadow-sm transition-all">
@@ -602,14 +598,16 @@ export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historico
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${caixa.status === 'aberto' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{caixa.status}</span>
-                          <span className="text-sm font-bold text-slate-800">Sessão de {new Date(caixa.data_abertura).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-sm font-bold text-slate-800">
+                            {formatarCompetencia(caixa.competencia)}
+                          </span>
                         </div>
-                        <span className="text-xs text-slate-500">Operador: {caixa.operador_nome}</span>
+                        <span className="text-xs text-slate-500">{caixa.status === 'aberto' ? 'Caixa atual' : 'Encerrado automaticamente na virada do mês'}</span>
                       </div>
                       <div className="text-right flex items-center gap-4">
                         <div>
-                          <span className="block text-[10px] font-bold text-slate-400 uppercase">Apurado Final</span>
-                          <span className="text-lg font-black text-indigo-700">R$ {clean(caixa.total_apurado).toFixed(2)}</span>
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase">Total líquido</span>
+                          <span className="text-lg font-black text-indigo-700">R$ {clean(resumo.total_liquido ?? caixa.total_apurado).toFixed(2)}</span>
                         </div>
                         <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
@@ -618,29 +616,19 @@ export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historico
                     {isExpanded && (
                       <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
                         <div className="space-y-2">
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Movimentações do Turno</h4>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Resumo do mês</h4>
                           <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Fundo Inicial:</span> <span>R$ {clean(caixa.fundo_inicial).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">(+) Entradas:</span> <span>R$ {(clean(caixa.total_apurado) - clean(caixa.fundo_inicial)).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-emerald-600"><span className="font-semibold">(+) Suprimentos:</span> <span>R$ {clean(resumo.suprimentos).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-rose-600"><span className="font-semibold">(-) Sangrias:</span> <span>R$ {clean(resumo.sangrias).toFixed(2)}</span></div>
-                          {caixa.status === 'fechado' && (
-                            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                              <div className="flex justify-between text-xs text-slate-700 mb-1"><span className="font-bold">Gaveta Esperada (Sistema):</span> <span>R$ {clean(resumo.esperadoGaveta).toFixed(2)}</span></div>
-                              <div className="flex justify-between text-xs text-slate-700 mb-2"><span className="font-bold">Gaveta Contada (Operador):</span> <span>R$ {clean(caixa.valor_em_dinheiro_informado).toFixed(2)}</span></div>
-                              <div className={`flex justify-between text-xs font-black ${quebra === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                <span>RESULTADO / QUEBRA:</span> <span>{quebra > 0 ? '+' : ''} R$ {quebra.toFixed(2)}</span>
-                              </div>
-                            </div>
-                          )}
+                          <div className="flex justify-between text-xs text-emerald-600"><span className="font-semibold">(+) Pagamentos:</span> <span>R$ {clean(resumo.pagamentos).toFixed(2)}</span></div>
+                          <div className="flex justify-between text-xs text-rose-600"><span className="font-semibold">(-) Estornos e ajustes:</span> <span>R$ {clean(resumo.estornos).toFixed(2)}</span></div>
+                          <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between text-sm text-indigo-700"><span className="font-black">Total líquido:</span> <span className="font-black">R$ {clean(resumo.total_liquido ?? caixa.total_apurado).toFixed(2)}</span></div>
                         </div>
 
                         <div className="space-y-2">
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Formas de Recebimento</h4>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Pix:</span> <span>R$ {clean(resumo.pix).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Dinheiro Físico:</span> <span>R$ {clean(resumo.dinheiro).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Cartão de Crédito:</span> <span>R$ {clean(resumo.credito).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Cartão de Débito:</span> <span>R$ {clean(resumo.debito).toFixed(2)}</span></div>
-                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Boleto:</span> <span>R$ {clean(resumo.boleto).toFixed(2)}</span></div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Informações do caixa</h4>
+                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Competência:</span> <span>{formatarCompetencia(caixa.competencia)}</span></div>
+                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Abertura:</span> <span>{new Date(caixa.data_abertura).toLocaleString('pt-BR')}</span></div>
+                          {caixa.data_fechamento && <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Fechamento:</span> <span>{new Date(caixa.data_fechamento).toLocaleString('pt-BR')}</span></div>}
+                          <div className="flex justify-between text-xs text-slate-600"><span className="font-semibold">Movimentos:</span> <span>{recebimentosDesteCaixa.length}</span></div>
                         </div>
 
                         <div className="col-span-1 md:col-span-2 mt-2 pt-4 border-t border-slate-200">
@@ -649,27 +637,31 @@ export function ModalMeusCaixas({ modalMeusCaixas, setModalMeusCaixas, historico
                             <table className="w-full text-left border-collapse">
                               <thead className="bg-slate-50 sticky top-0 shadow-sm">
                                 <tr>
-                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">Descrição do Item</th>
-                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">Forma de Pagto</th>
-                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Valor Pago</th>
+                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">Aluno e descrição</th>
+                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">Tipo e data</th>
+                                  <th className="p-3 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Movimento</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {recebimentosDesteCaixa.map((rec: any) => {
-                                  const metodos = rec.detalhes_metodos?.historico_parciais 
-                                    ? rec.detalhes_metodos.historico_parciais.map((p:any) => p.formas).join(' | ') 
-                                    : 'Não informado';
+                                  const natureza = rec.natureza === 'estorno' ? 'Estorno' : rec.natureza === 'ajuste' ? 'Ajuste' : 'Pagamento';
+                                  const dataMovimento = rec.data_operacao ? new Date(rec.data_operacao).toLocaleString('pt-BR') : 'Data não informada';
+                                  const valorMovimento = clean(rec.valor_pago);
+                                  const nomeAluno = (alunos || []).find((aluno: any) => String(aluno.id) === String(rec.aluno_id))?.nome || 'Aluno não localizado';
                                   return (
                                     <tr key={rec.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-                                      <td className="p-3 text-xs font-bold text-slate-700">{rec.descricao}</td>
-                                      <td className="p-3 text-[10px] font-medium text-slate-500">{metodos}</td>
-                                      <td className="p-3 text-xs font-black text-emerald-600 text-right">R$ {clean(rec.valor_pago).toFixed(2)}</td>
+                                      <td className="p-3">
+                                        <span className="block text-xs font-black text-slate-800">{nomeAluno}</span>
+                                        <span className="block text-[10px] font-medium text-slate-500 mt-1">{rec.descricao || 'Pagamento registrado'}</span>
+                                      </td>
+                                      <td className="p-3 text-[10px] font-medium text-slate-500"><span className="block font-bold">{natureza}</span>{dataMovimento}</td>
+                                      <td className={`p-3 text-xs font-black text-right ${valorMovimento < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{valorMovimento < 0 ? '-' : ''}R$ {Math.abs(valorMovimento).toFixed(2)}</td>
                                     </tr>
                                   );
                                 })}
                                 {recebimentosDesteCaixa.length === 0 && (
                                   <tr>
-                                    <td colSpan={3} className="p-4 text-xs text-slate-400 text-center font-medium">Nenhum recebimento registrado neste turno.</td>
+                                    <td colSpan={3} className="p-4 text-xs text-slate-400 text-center font-medium">Nenhum recebimento registrado neste mês.</td>
                                   </tr>
                                 )}
                               </tbody>

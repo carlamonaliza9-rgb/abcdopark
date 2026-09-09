@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Save, BookOpenCheck, Loader2, Lock, FileDown, X, Layers, Layout } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { temPermissao } from "@/lib/auth/permissions";
 
 
 const ORDEM_TURMAS = [
@@ -71,7 +72,7 @@ export default function AvaliacoesProfessorPage() {
   useEffect(() => {
     async function inicializar() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
       const email = user.email || "";
       setUserEmail(email);
@@ -81,7 +82,7 @@ export default function AvaliacoesProfessorPage() {
       setNomeLogado(nomeDoProf);
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
-      const adminVerificado = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+      const adminVerificado = temPermissao(perfil?.cargo, 'painel.admin');
       setEhAdmin(adminVerificado);
 
       if (adminVerificado) {

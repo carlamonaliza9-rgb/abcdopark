@@ -12,6 +12,8 @@ import { AlertTriangle, Info, BarChart2, Wallet, Banknote, CreditCard, RefreshCc
 import { FinanceiroHeader } from "@/app/(sistema)/dashboard/financeiro/_components/FinanceiroHeader";
 import { MetricasCard } from "@/app/(sistema)/dashboard/financeiro/_components/MetricasCard";
 import { ModalListaGastos } from "@/app/(sistema)/dashboard/financeiro/_components/ModalListaGastos";
+import { confirmarAcaoCritica } from "@/lib/auth/client";
+import { temPermissao } from "@/lib/auth/permissions";
 
 // Ícone Customizado para o PIX
 const PixIcon = () => (
@@ -34,6 +36,47 @@ const getDetalhes = (t: any) => {
       try { return JSON.parse(t.detalhes_metodos); } catch { return {}; }
   }
   return t.detalhes_metodos;
+};
+
+const obterDataOperacaoFinanceira = (valor: any) => {
+  if (!valor) return null;
+
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return null;
+
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(data);
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((item) => item.type === tipo)?.value || '';
+
+  return `${parte('year')}-${parte('month')}-${parte('day')}`;
+};
+
+const normalizarMovimentoMensalComoReceita = (movimento: any) => {
+  const detalhes = movimento?.detalhes && typeof movimento.detalhes === 'object'
+    ? movimento.detalhes
+    : {};
+  const valorMovimento = clean(movimento?.valor_movimento);
+
+  return {
+    id: movimento.id,
+    historico_pagamento_id: movimento.historico_pagamento_id,
+    aluno_id: movimento.aluno_id,
+    tipo: detalhes.tipo || 'outro',
+    descricao: movimento.descricao || 'Pagamento registrado',
+    valor_total: valorMovimento,
+    valor_pago: valorMovimento,
+    status: movimento.natureza === 'estorno' ? 'estornado' : 'pago',
+    natureza: movimento.natureza,
+    data_pagamento: obterDataOperacaoFinanceira(movimento.data_operacao),
+    data_operacao: movimento.data_operacao,
+    detalhes_metodos: detalhes.metodos || {},
+    tabela_origem: 'recebimentos_caixa_mensal'
+  };
 };
 
 const normalizarTextoFinanceiro = (valor: any) =>
@@ -136,7 +179,6 @@ export default function FinanceiroAdminPage() {
   // Controle de Tela
   const [carregando, setCarregando] = useState(true);
   const [userCargo, setUserCargo] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [mesFiltro, setMesFiltro] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -171,18 +213,15 @@ export default function FinanceiroAdminPage() {
         // 1. Validar Permissões
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError || !authData?.user) {
-          router.push("/login");
+          router.push("/");
           return;
         }
-
-        const email = authData.user.email || null;
-        if (isMounted) setUserEmail(email);
 
         const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', authData.user.id).single();
         const cargo = perfil?.cargo || "";
         if (isMounted) setUserCargo(cargo);
 
-        if (cargo !== 'Admin' && cargo !== 'Direção') {
+        if (!temPermissao(cargo, 'financeiro.visualizar')) {
           router.push("/dashboard");
           return;
         }
@@ -224,6 +263,27 @@ export default function FinanceiroAdminPage() {
     const { data: historicoCompletoDB } = await supabase.from('historico_pagamentos').select('*');
     const historicoCompleto = historicoCompletoDB || [];
 
+    // O balanço segue o livro imutável do caixa mensal. Assim, cada valor entra
+    // no mês em que foi efetivamente recebido, inclusive pagamentos parciais.
+    const { data: caixaMensalSelecionado } = await supabase
+      .from('sessoes_caixa')
+      .select('id')
+      .eq('caixa_mensal', true)
+      .eq('competencia', dataInicio)
+      .maybeSingle();
+
+    let movimentosRecebidosNoMes: any[] = [];
+    if (caixaMensalSelecionado?.id) {
+      const { data: movimentosMensaisDB } = await supabase
+        .from('recebimentos_caixa_mensal')
+        .select('*')
+        .eq('caixa_id', caixaMensalSelecionado.id)
+        .order('data_operacao', { ascending: true });
+
+      movimentosRecebidosNoMes = (movimentosMensaisDB || [])
+        .map(normalizarMovimentoMensalComoReceita);
+    }
+
     // --- NOVA REGRA DE DEDUPLICAÇÃO DE ACORDOS ---
     const acordosSeguros = historicoCompleto.filter((p: any) => normalizarTextoFinanceiro(p.tipo) === 'acordo');
 
@@ -264,11 +324,6 @@ export default function FinanceiroAdminPage() {
       return !chave || !mensalidadesQuitadas.has(chave);
     });
 
-    const transacoesEntrada = pgtosMes.filter(p => {
-      const detalhes = getDetalhes(p);
-      return p.tipo !== 'evento_saida' && detalhes.sub_tipo !== 'saida' && !(p.descricao && p.descricao.includes('[SAÍDA]'));
-    });
-    
     const transacoesSaidaDeHistorico = pgtosMes.filter(p => {
       const detalhes = getDetalhes(p);
       return p.tipo === 'evento_saida' || detalhes.sub_tipo === 'saida' || (p.descricao && p.descricao.includes('[SAÍDA]'));
@@ -290,11 +345,6 @@ export default function FinanceiroAdminPage() {
       return competencia.mes === parseInt(mes, 10) && competencia.ano === ano;
     });
 
-    const mapaPgtos = new Map();
-    transacoesEntrada.forEach((p: any) => mapaPgtos.set(p.id, p));
-    pgtosPendentes.forEach((p: any) => mapaPgtos.set(p.id, p));
-    const pgtosFiltrados = Array.from(mapaPgtos.values());
-
     const normalizeDespesa = (item: any, tabelaOrigem: string) => ({
       id: item.id,
       descricao: item.descricao || "Gasto Operacional",
@@ -309,12 +359,6 @@ export default function FinanceiroAdminPage() {
       if (data) deDB_gastos = data.map(i => normalizeDespesa(i, 'gastos'));
     } catch (e) {}
 
-    let deDB_saidas: any[] = [];
-    try {
-      const { data } = await supabase.from('saidas').select('*').gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
-      if (data) deDB_saidas = data.map(i => normalizeDespesa(i, 'saidas'));
-    } catch (e) {}
-
     const { data: contasPagasMes = [] } = await supabase.from('contas_a_pagar').select('id, descricao, valor, data_pagamento').eq('pago', true).gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
     const contasFormatadas = (contasPagasMes || []).map((account: any) => ({
       id: account.id,
@@ -324,7 +368,7 @@ export default function FinanceiroAdminPage() {
       tabela_origem: 'contas_a_pagar'
     }));
 
-    const todasAsDespesas = [...deDB_gastos, ...deDB_saidas, ...transacoesSaidaDeHistorico, ...contasFormatadas];
+    const todasAsDespesas = [...deDB_gastos, ...transacoesSaidaDeHistorico, ...contasFormatadas];
     setListaGastosDetalhada(todasAsDespesas);
 
     let vGastos = 0;
@@ -347,21 +391,15 @@ export default function FinanceiroAdminPage() {
       pctVariaveis: Math.round((vVariaveis / totalGastosMestre) * 100) || 0
     });
 
-    const pgtosEfetuadosEsteMes = pgtosFiltrados.filter((p: any) => {
-      const status = normalizarTextoFinanceiro(p.status);
-      const possuiValorRecebido = clean(p.valor_pago) > 0;
-      const statusRecebido = status === 'pago' || status === 'parcial' || (status === 'renegociado' && possuiValorRecebido);
-
-      return p.data_pagamento &&
-        p.data_pagamento >= dataInicio &&
-        p.data_pagamento <= dataFim &&
-        statusRecebido;
-    });
-    const vPago = pgtosEfetuadosEsteMes.reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+    const pgtosEfetuadosEsteMes = movimentosRecebidosNoMes;
+    const vPago = pgtosEfetuadosEsteMes.reduce(
+      (acc, curr) => acc + clean(curr.valor_pago),
+      0
+    );
 
     const vMensalidadesPagos = pgtosEfetuadosEsteMes
       .filter((p: any) => p.tipo === 'mensalidade')
-      .reduce((acc, curr) => acc + (parseFloat(curr.valor_pago || curr.valor_total) || 0), 0);
+      .reduce((acc, curr) => acc + clean(curr.valor_pago), 0);
       
     const vExtrasPagos = vPago - vMensalidadesPagos;
     const totalReceitasCalc = vPago || 1;
@@ -585,29 +623,7 @@ export default function FinanceiroAdminPage() {
   }
 
   async function handleZerarMes() {
-    if (userEmail !== 'carlamonaliza9@gmail.com') {
-      return alert("Acesso negado. Apenas a administradora principal pode executar esta ação.");
-    }
-    const senha = prompt("⚠️ AÇÃO DESTRUTIVA ⚠️\nIsso apagará TODOS os pagamentos registrados no mês selecionado.\n\nDigite a senha de segurança para continuar:");
-    if (senha !== "123456") return alert("Senha incorreta. Operação cancelada.");
-    if (!confirm(`Tem certeza ABSOLUTA que deseja zerar os registros de ${mesFiltro}? Esta ação não pode ser desfeita.`)) return;
-
-    setCarregando(true);
-    try {
-      const [ano, mes] = mesFiltro.split('-');
-      const dataInicio = `${ano}-${mes}-01`;
-      const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-      const dataFim = `${ano}-${mes}-${String(ultimoDia).padStart(2, '0')}`;
-
-      const { error } = await supabase.from('historico_pagamentos').delete().gte('data_pagamento', dataInicio).lte('data_pagamento', dataFim);
-      if (error) throw error;
-      alert("Registros do mês zerados com sucesso!");
-      
-      setMesFiltro(prev => prev);
-    } catch (err: any) {
-      alert("Erro ao zerar mês: " + err.message);
-      setCarregando(false);
-    }
+    alert("A V3 desativou a exclusão total do mês. Use estornos individuais para preservar o histórico financeiro e a auditoria.");
   }
 
   function gerarRelatorioTesouraria() {
@@ -645,7 +661,7 @@ export default function FinanceiroAdminPage() {
     doc.text("1. RELAÇÃO DE ENTRADAS (DETALHADO)", 15, finalY);
 
     const rowsEntradas = pgtosEfetuadosEsteMes.map((r: any) => {
-      const nomeAluno = alunos.find((a: any) => a.id === r.aluno_id)?.nome || 'OUTRO';
+      const nomeAluno = alunos.find((a: any) => String(a.id) === String(r.aluno_id))?.nome || 'OUTRO';
       const dataFormated = r.data_pagamento ? new Date(r.data_pagamento + "T12:00:00").toLocaleDateString('pt-BR') : '--';
       const valorFormated = `R$ ${parseFloat(r.valor_pago || r.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
       return [dataFormated, nomeAluno.toUpperCase(), r.descricao?.toUpperCase() || '', valorFormated];
@@ -693,19 +709,10 @@ export default function FinanceiroAdminPage() {
   }
 
   async function handleExcluirGasto(id: string) {
-    if (userCargo !== 'Admin') return alert("Operação não autorizada.");
+    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Excluir despesa', descricao: 'Remover permanentemente este lançamento de despesa.' }))) return;
     const tabelaOrigem = listaGastosDetalhada.find(g => g.id === id)?.tabela_origem || 'gastos';
     if (confirm("Remover esta despesa permanentemente?")) {
       const { error } = await supabase.from(tabelaOrigem).delete().eq('id', id);
-      if (error) return alert("Erro ao excluir.");
-      setMesFiltro(prev => prev);
-    }
-  }
-
-  async function handleExcluirReceita(id: string) {
-    if (userCargo !== 'Admin') return alert("Operação não autorizada.");
-    if (confirm("Remover este registo de receita?")) {
-      const { error } = await supabase.from('historico_pagamentos').delete().eq('id', id);
       if (error) return alert("Erro ao excluir.");
       setMesFiltro(prev => prev);
     }
@@ -736,7 +743,7 @@ export default function FinanceiroAdminPage() {
           </div>
           
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 pt-1">
-            {userEmail === 'carlamonaliza9@gmail.com' && (
+            {temPermissao(userCargo, 'financeiro.excluir') && (
               <button onClick={handleZerarMes} className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs md:text-sm rounded-xl border border-slate-200 active:scale-95 transition-all">
                 <RefreshCcw size={16} strokeWidth={2.5} /> Zerar Mês
               </button>
@@ -969,12 +976,11 @@ export default function FinanceiroAdminPage() {
 
           return { 
             ...r, 
-            descricao: `[${etiquetaCategoria}] ${alunos.find((a: any) => a.id === r.aluno_id)?.nome || 'Outro'} - ${r.descricao}`, 
+            descricao: `[${etiquetaCategoria}] ${alunos.find((a: any) => String(a.id) === String(r.aluno_id))?.nome || 'Outro'} - ${r.descricao}`,
             data_gasto: r.data_pagamento, 
-            valor: r.valor_pago || r.valor_total 
+            valor: r.valor_pago
           };
         })}
-        onExcluir={handleExcluirReceita}
       />
 
       <style dangerouslySetInnerHTML={{__html: `

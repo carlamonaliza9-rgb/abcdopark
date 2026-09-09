@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { temPermissao } from "@/lib/auth/permissions";
 
 export default function TurmasRedirector() {
   const router = useRouter();
@@ -9,11 +10,10 @@ export default function TurmasRedirector() {
   useEffect(() => {
     async function verificar() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
+      if (!user) return router.push("/");
 
-      const email = user.email || "";
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
-      const ehAdmin = email === 'carlamonaliza9@gmail.com' || email === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
+      const ehAdmin = temPermissao(perfil?.cargo, 'painel.admin');
 
       if (ehAdmin) {
         router.push("/admin/turmas");
