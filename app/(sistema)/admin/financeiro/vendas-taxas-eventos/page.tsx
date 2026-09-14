@@ -39,8 +39,6 @@ import { ModalSetupEvento } from "./_components/ModalSetupEvento";
 import { ModalLancamentoCaixa } from "./_components/ModalLancamentoCaixa";
 import { ModalDetalhesExtrato } from "./_components/ModalDetalhesExtrato";
 import { ModalRelatorioEvento } from "./_components/ModalRelatorioEvento";
-import { confirmarAcaoCritica } from "@/lib/auth/client";
-import { temPermissao } from "@/lib/auth/permissions";
 
 // FUNÇÃO BLINDADA DE CONVERSÃO FINANCEIRA
 function parseCurrency(val: any) {
@@ -69,6 +67,7 @@ export default function DashboardFinanceiroPage() {
   
   // --- ESTADOS DE CONTROLE DE ACESSO E CONTEXTO ---
   const [verificandoAcesso, setVerificandoAcesso] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userCargo, setUserCargo] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState<"eventos" | "vendas_taxas">("eventos");
@@ -132,15 +131,23 @@ export default function DashboardFinanceiroPage() {
   const [alunoVinculado, setAlunoVinculado] = useState("");
   const [equipeSelecionada, setEquipeSelecionada] = useState("");
 
+  const SENHA_MESTRA = "1234";
+
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/");
+      if (!user) return router.push("/login");
 
+      const emailAtual = user.email || "";
+      setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       setUserCargo(perfil?.cargo || null);
 
-      const ehAutorizado = temPermissao(perfil?.cargo, 'financeiro.visualizar');
+      const ehAutorizado = 
+        emailAtual === 'carlamonaliza9@gmail.com' || 
+        emailAtual === 'diretoria@abcdopark.com' || 
+        perfil?.cargo === 'Admin' ||
+        perfil?.cargo === 'Direção';
 
       if (!ehAutorizado) return router.push("/dashboard");
       setVerificandoAcesso(false);
@@ -229,7 +236,7 @@ export default function DashboardFinanceiroPage() {
   };
 
   async function salvarSetupEvento() {
-    if (!temPermissao(userCargo, 'financeiro.gerenciar')) return alert("Acesso restrito.");
+    if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Acesso restrito.");
     if (!nomeEvento) return alert("O nome do evento é obrigatório.");
 
     const payload = {
@@ -252,7 +259,7 @@ export default function DashboardFinanceiroPage() {
   }
 
   async function encerrarEventoDefinitivamente(id: string) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.gerenciar', titulo: 'Encerrar evento', descricao: 'Travar novos lançamentos neste evento.' }))) return;
+    if (prompt(`Para encerrar o evento e travar os lançamentos, digite a Senha Mestra:`) !== SENHA_MESTRA) return alert("Senha incorreta.");
     if (confirm("Confirmar o fechamento deste evento? Todos os botões de controle e lançamentos serão desativados.")) {
       try {
         const { error } = await supabase.from('eventos_controle').update({ encerrado: true }).eq('id', id);
@@ -264,7 +271,7 @@ export default function DashboardFinanceiroPage() {
   }
 
   async function reabrirEvento(id: string) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.gerenciar', titulo: 'Reabrir evento', descricao: 'Liberar novamente os lançamentos deste evento.' }))) return;
+    if (prompt(`Para REABRIR este evento, digite a Senha Mestra:`) !== SENHA_MESTRA) return alert("Senha incorreta.");
     if (confirm("Confirmar a reabertura deste evento? Os lançamentos poderão ser feitos novamente.")) {
       try {
         const { error } = await supabase.from('eventos_controle').update({ encerrado: false }).eq('id', id);
@@ -355,9 +362,10 @@ export default function DashboardFinanceiroPage() {
   }
 
   async function excluirTransacaoEvento(id: string) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Excluir transação do evento', descricao: 'Remover permanentemente este lançamento.' }))) return;
-    await supabase.from('historico_pagamentos').delete().eq('id', id);
-    carregarDados();
+    if (prompt("Digite a Senha Mestra para EXCLUIR transação:") === SENHA_MESTRA) {
+      await supabase.from('historico_pagamentos').delete().eq('id', id);
+      carregarDados();
+    } else { alert("Senha incorreta."); }
   }
 
   function abrirDetalhesTransacoes(eventoId: string, tipo: 'entrada' | 'saida') {
@@ -391,35 +399,42 @@ export default function DashboardFinanceiroPage() {
   function handleIniciarEdicao(pgto: any) { router.push(`/admin/pdv?alunoId=${pgto.aluno_id}`); }
 
   async function handleExcluirRegistro(id: string) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Remover faturamento', descricao: 'Excluir definitivamente este lançamento do histórico.' }))) return;
-    if (confirm("Confirmar exclusão definitiva deste lançamento do histórico? Os saldos correntes serão recalculados.")) {
-      await supabase.from('historico_pagamentos').delete().eq('id', id);
-      alert("Lançamento removido!"); carregarDados();
-    }
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para remover faturamentos.");
+    if (prompt("Senha Mestra para REMOVER REGISTRO:") === SENHA_MESTRA) {
+      if (confirm("Confirmar exclusão definitiva deste lançamento do histórico? Os saldos correntes serão recalculados.")) {
+        await supabase.from('historico_pagamentos').delete().eq('id', id);
+        alert("Lançamento removido!"); carregarDados();
+      }
+    } else { alert("Senha incorreta."); }
   }
 
   async function handleExcluirLoteCompleto(item: any) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Excluir lote financeiro', descricao: `Excluir a cobrança “${item.descricao}” de todos os alunos vinculados.` }))) return;
-    if (confirm(`Confirmar exclusão definitiva do lote: "${item.descricao}"?`)) {
-      try {
-        await supabase.from('historico_pagamentos').delete().eq('tipo', item.tipo).eq('mes_referencia', item.mes_referencia).eq('descricao', item.descricao);
-        alert("Todo o lote foi removido com sucesso!"); carregarDados();
-      } catch (e: any) { alert("Erro ao remover o lote: " + e.message); }
-    }
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para remover lotes inteiros.");
+    if (prompt(`ATENÇÃO: Você vai deletar essa cobrança de TODOS os alunos que a receberam juntos.\n\nDigite a Senha Mestra:`) === SENHA_MESTRA) {
+      if (confirm(`Confirmar exclusão definitiva do lote: "${item.descricao}"?`)) {
+        try {
+          await supabase.from('historico_pagamentos').delete().eq('tipo', item.tipo).eq('mes_referencia', item.mes_referencia).eq('descricao', item.descricao);
+          alert("Todo o lote foi removido com sucesso!"); carregarDados();
+        } catch (e: any) { alert("Erro ao remover o lote: " + e.message); }
+      }
+    } else { alert("Senha incorreta."); }
   }
 
   async function handleExcluirLoteSelecionado() {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Excluir cobranças selecionadas', descricao: `Excluir permanentemente ${taxasSelecionadas.length} cobrança(s).` }))) return;
-    if (confirm(`Tem certeza que deseja excluir as ${taxasSelecionadas.length} cobranças marcadas?`)) {
-      try {
-        await supabase.from('historico_pagamentos').delete().in('id', taxasSelecionadas);
-        alert("Itens selecionados excluídos!"); carregarDados();
-      } catch (e: any) { alert("Erro ao excluir lote: " + e.message); }
-    }
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para exclusão in lote.");
+    if (prompt("Senha Mestra para EXCLUIR SELECIONADOS:") === SENHA_MESTRA) {
+      if (confirm(`Tem certeza que deseja excluir as ${taxasSelecionadas.length} cobranças marcadas?`)) {
+        try {
+          await supabase.from('historico_pagamentos').delete().in('id', taxasSelecionadas);
+          alert("Itens selecionados excluídos!"); carregarDados();
+        } catch (e: any) { alert("Erro ao excluir lote: " + e.message); }
+      }
+    } else { alert("Senha incorreta."); }
   }
 
   async function handleEditarLote() {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.gerenciar', titulo: 'Editar cobranças em lote', descricao: `Alterar ${taxasSelecionadas.length} cobrança(s) selecionada(s).` }))) return;
+    if (userEmail !== 'carlamonaliza9@gmail.com') return alert("Apenas a Carla possui permissão para edição em lote.");
+    if (prompt("Senha Mestra para EDITAR LOTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
     
     const updates: any = {};
     if (dadosEdicaoLote.valor_total) updates.valor_total = parseCurrency(dadosEdicaoLote.valor_total);
@@ -1335,4 +1350,4 @@ export default function DashboardFinanceiroPage() {
       `}} />
     </div>
   );
-}
+} 

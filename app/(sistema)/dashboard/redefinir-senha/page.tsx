@@ -18,15 +18,15 @@ export default function RedefinirSenha() {
       return setMensagem("As senhas não coincidem.");
     }
 
-    if (novaSenha.length < 8 || !/[A-Za-z]/.test(novaSenha) || !/[0-9]/.test(novaSenha)) {
-      return setMensagem("Use pelo menos 8 caracteres, incluindo letras e números.");
+    if (novaSenha.length < 6) {
+      return setMensagem("A senha deve ter pelo menos 6 caracteres.");
     }
 
     setCarregando(true);
     setMensagem("");
 
     // O Supabase identifica o usuário pelo token que veio no link do e-mail
-    const { data: authData, error } = await supabase.auth.updateUser({
+    const { error } = await supabase.auth.updateUser({
       password: novaSenha
     });
 
@@ -34,12 +34,9 @@ export default function RedefinirSenha() {
       setMensagem(`Erro ao atualizar: ${error.message}`);
       setCarregando(false);
     } else {
-      if (authData.user) {
-        await supabase.rpc('concluir_troca_senha');
-      }
       setMensagem("Senha atualizada com sucesso! Redirecionando...");
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/"); // Corrigido de /login para / para evitar erro de página não encontrada
       }, 2000);
     }
   }

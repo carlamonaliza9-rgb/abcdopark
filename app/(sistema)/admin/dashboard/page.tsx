@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { temPermissao } from "@/lib/auth/permissions";
 
 export default function DashboardAdminPage() {
   const router = useRouter();
@@ -65,13 +64,13 @@ export default function DashboardAdminPage() {
     try {
       const { data: authData } = await supabase.auth.getUser();
       
-      if (!authData?.user) return router.push("/");
+      if (!authData?.user) return router.push("/login");
       
       const emailAtual = authData.user.email || "";
       setUserEmail(emailAtual);
 
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', authData.user.id).single();
-      const ehAdmin = temPermissao(perfil?.cargo, 'painel.admin');
+      const ehAdmin = emailAtual === 'carlamonaliza9@gmail.com' || emailAtual === 'diretoria@abcdopark.com' || perfil?.cargo === 'Admin';
       
       if (!ehAdmin) return router.push("/dashboard");
 

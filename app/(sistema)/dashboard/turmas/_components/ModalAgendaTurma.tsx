@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 interface ModalAgendaTurmaProps {
   turma: any;
@@ -140,11 +139,9 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
   }
 
   async function handleExcluir() {
-    if (await confirmarAcaoCritica({
-      permissao: "academico.gerenciar",
-      titulo: "Excluir registro da agenda",
-      descricao: "A agenda deste dia será removida e a alteração ficará registrada.",
-    })) {
+    const senha = prompt("🔒 Digite a senha para EXCLUIR este registro:");
+    
+    if (senha === "1123") {
       const confirmou = confirm("Tem certeza que deseja apagar permanentemente a agenda deste dia?");
       if (confirmou) {
         const dataFormatada = new Date(dataSelecionada + "T12:00:00").toLocaleDateString('pt-BR');
@@ -170,6 +167,8 @@ export function ModalAgendaTurma({ turma, onClose, userEmail, modo, ehAdmin }: M
           setEstaEditando(false);
         }
       }
+    } else if (senha !== null) {
+      alert("⚠️ Senha incorreta.");
     }
   }
 

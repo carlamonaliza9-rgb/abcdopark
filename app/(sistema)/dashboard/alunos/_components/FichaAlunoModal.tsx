@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ModalPagamento } from "@/app/(sistema)/dashboard/financeiro/_components/ModalPagamento";
 import { VisaoPrincipal, VisaoDividas, VisaoCredito, VisaoBoletim, VisaoHistorico } from "./FichaAlunoViews"; 
-import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 const valorVazio = (valor: any) =>
   valor === null ||
@@ -109,6 +108,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   const [tipoPagamentoPDV, setTipoPagamentoPDV] = useState("pdv");
   const [pagamentosMetodosPDV, setPagamentosMetodosPDV] = useState({ pix: "", dinheiro: "", credito: "", debito: "", boleto: "", multa: "", desconto: "", credito_aluno: "" });
   
+  const SENHA_MESTRA = "1234";
   const mesesAno = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   const clean = (val: any) => {
@@ -349,14 +349,10 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
   }
 
   async function handleZerarCredito() {
-    if (await confirmarAcaoCritica({
-      permissao: "financeiro.gerenciar",
-      titulo: "Zerar crédito do aluno",
-      descricao: "O saldo de crédito será alterado para zero e a operação ficará registrada.",
-    })) {
+    if (prompt("Digite a Senha Mestra para ZERAR o crédito:") === SENHA_MESTRA) {
       const { error } = await supabase.from('alunos').update({ saldo_credito: 0 }).eq('id', aluno.id);
       if (!error) { setSaldoCreditoVisivel(0); setVerCreditoGlobal(false); }
-    }
+    } else alert("Senha incorreta.");
   }
 
   // 🛡️ O EXCLUIR PERMANENTE com proteção de registros sagrados
@@ -369,11 +365,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
 
     // 2. Fluxo normal para taxas avulsas
-    if (!(await confirmarAcaoCritica({
-      permissao: "financeiro.excluir",
-      titulo: "Excluir lançamento avulso",
-      descricao: "O lançamento será removido e permanecerá registrado na auditoria V3.",
-    }))) return;
+    if (prompt("Digite a Senha Mestra para EXCLUIR REGISTRO AVULSO PERMANENTEMENTE:") !== SENHA_MESTRA) return alert("Senha incorreta.");
     
     if(confirm("Deseja realmente deletar esta taxa avulsa para sempre da base do Supabase? Essa ação não pode ser desfeita.")) {
       const { error } = await supabase.from('historico_pagamentos').delete().eq('id', pgto.id);
@@ -386,13 +378,11 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
     }
   };
 
-  const editarPagamentoHandler = async (pgto: any) => {
-    if (await confirmarAcaoCritica({
-      permissao: "financeiro.gerenciar",
-      titulo: "Editar lançamento financeiro",
-      descricao: "Confirme sua identidade antes de alterar o lançamento.",
-    })) {
+  const editarPagamentoHandler = (pgto: any) => {
+    if (prompt("Digite a Senha Mestra para EDITAR:") === SENHA_MESTRA) { 
       if (onEditarPagamento) onEditarPagamento(pgto); 
+    } else {
+      alert("Senha incorreta.");
     }
   };
 
@@ -495,7 +485,7 @@ export function FichaAlunoModal(props: FichaAlunoModalProps) {
               
               // 🛡️ PONTE DE RECARREGAMENTO PARA O ESTORNO CIRÚRGICO ATUALIZAR A TELA
               onRecarregar={buscarDadosAdicionais}
-              podeGerenciar={!ehVisitante}
+              senhaMestra={SENHA_MESTRA}
             />
           )}
 

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import SidebarAdmin from "@/app/(sistema)/dashboard/_components/SidebarAdmin"; 
 import { SidebarProfessor } from "@/app/(sistema)/dashboard/_components/SidebarProfessor";
-import { ehCargoAdministrativo, normalizarCargo } from "@/lib/auth/permissions";
 
 export default function SistemaLayout({
   children,
@@ -19,13 +18,21 @@ export default function SistemaLayout({
       const { data: authData } = await supabase.auth.getUser();
       
       if (authData?.user) {
+        const email = authData.user.email;
+
+        // Busca o cargo na tabela de perfis
         const { data: perfil } = await supabase
           .from("perfis")
           .select("cargo")
           .eq("id", authData.user.id)
           .single();
 
-        setCargo(normalizarCargo(perfil?.cargo));
+        // Define se é Admin por e-mail ou pelo banco
+        if (email === "carlamonaliza9@gmail.com" || email === "diretoria@abcdopark.com" || perfil?.cargo === "Admin") {
+          setCargo("Admin");
+        } else if (perfil?.cargo === "Professor") {
+          setCargo("Professor");
+        }
       }
       setCarregando(false);
     }
@@ -46,8 +53,8 @@ export default function SistemaLayout({
     <div className="flex min-h-screen bg-[#fafafc]">
       
       {/* ORQUESTRADOR DE BARRAS LATERAIS */}
-      {ehCargoAdministrativo(cargo) && <SidebarAdmin cargoInicial={cargo} />}
-      {(cargo === "Professor" || cargo === "Auxiliar") && <SidebarProfessor />}
+      {cargo === "Admin" && <SidebarAdmin />}
+      {cargo === "Professor" && <SidebarProfessor />}
 
       {/* CONTEÚDO PRINCIPAL DA PÁGINA */}
       <main className="flex-1 overflow-y-auto">

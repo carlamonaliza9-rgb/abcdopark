@@ -12,8 +12,6 @@ import { AlertTriangle, Info, BarChart2, Wallet, Banknote, CreditCard, RefreshCc
 import { FinanceiroHeader } from "@/app/(sistema)/dashboard/financeiro/_components/FinanceiroHeader";
 import { MetricasCard } from "@/app/(sistema)/dashboard/financeiro/_components/MetricasCard";
 import { ModalListaGastos } from "@/app/(sistema)/dashboard/financeiro/_components/ModalListaGastos";
-import { confirmarAcaoCritica } from "@/lib/auth/client";
-import { temPermissao } from "@/lib/auth/permissions";
 
 // Ícone Customizado para o PIX
 const PixIcon = () => (
@@ -221,7 +219,7 @@ export default function FinanceiroAdminPage() {
         const cargo = perfil?.cargo || "";
         if (isMounted) setUserCargo(cargo);
 
-        if (!temPermissao(cargo, 'financeiro.visualizar')) {
+        if (cargo !== 'Admin' && cargo !== 'Direção') {
           router.push("/dashboard");
           return;
         }
@@ -709,7 +707,7 @@ export default function FinanceiroAdminPage() {
   }
 
   async function handleExcluirGasto(id: string) {
-    if (!(await confirmarAcaoCritica({ permissao: 'financeiro.excluir', titulo: 'Excluir despesa', descricao: 'Remover permanentemente este lançamento de despesa.' }))) return;
+    if (userCargo !== 'Admin') return alert("Operação não autorizada.");
     const tabelaOrigem = listaGastosDetalhada.find(g => g.id === id)?.tabela_origem || 'gastos';
     if (confirm("Remover esta despesa permanentemente?")) {
       const { error } = await supabase.from(tabelaOrigem).delete().eq('id', id);
@@ -743,7 +741,7 @@ export default function FinanceiroAdminPage() {
           </div>
           
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto shrink-0 pt-1">
-            {temPermissao(userCargo, 'financeiro.excluir') && (
+            {userCargo === 'Admin' && (
               <button onClick={handleZerarMes} className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-3.5 bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs md:text-sm rounded-xl border border-slate-200 active:scale-95 transition-all">
                 <RefreshCcw size={16} strokeWidth={2.5} /> Zerar Mês
               </button>

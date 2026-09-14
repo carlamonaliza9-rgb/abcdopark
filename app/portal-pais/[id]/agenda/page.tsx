@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Calendar, FileText, AlertCircle } from "lucide-react";
 
 export default function AgendaPortalPaisPage() {
   const router = useRouter();
-  const params = useParams();
-  const idRota = Array.isArray(params.id) ? params.id[0] : params.id;
   const [carregando, setCarregando] = useState(true);
   const [carregandoAgenda, setCarregandoAgenda] = useState(false);
   
@@ -44,7 +42,7 @@ export default function AgendaPortalPaisPage() {
     async function inicializarPortalPais() {
       setCarregando(true);
       const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) return router.push("/");
+      if (!authData?.user) return router.push("/login");
 
       const emailResponsavel = authData.user.email || "";
 
@@ -58,13 +56,12 @@ export default function AgendaPortalPaisPage() {
         console.error("Erro ao buscar dependentes:", error.message);
       } else if (filhosData && filhosData.length > 0) {
         setMeusFilhos(filhosData);
-        const filhoDaRota = filhosData.find((filho) => String(filho.id) === String(idRota));
-        setAlunoSelecionado(filhoDaRota || filhosData[0]);
+        setAlunoSelecionado(filhosData[0]); // Seleciona o primeiro filho por padrão
       }
       setCarregando(false);
     }
     inicializarPortalPais();
-  }, [idRota, router]);
+  }, [router]);
 
   // 2. Busca o conteúdo da agenda sempre que mudar o filho selecionado ou a data
   useEffect(() => {
@@ -136,11 +133,7 @@ export default function AgendaPortalPaisPage() {
                 {meusFilhos.length > 1 ? (
                   <select
                     value={alunoSelecionado?.id || ""}
-                    onChange={(e) => {
-                      const novoId = Number(e.target.value);
-                      const filho = meusFilhos.find((item) => item.id === novoId);
-                      if (filho) router.push(`/portal-pais/${filho.id}/agenda`);
-                    }}
+                    onChange={(e) => setAlunoSelecionado(meusFilhos.find(f => f.id === Number(e.target.value)))}
                     className="w-full bg-transparent border-0 text-sm md:text-xs font-bold text-slate-700 uppercase p-0 focus:outline-none focus:ring-0 cursor-pointer mt-0.5"
                   >
                     {meusFilhos.map(filho => (

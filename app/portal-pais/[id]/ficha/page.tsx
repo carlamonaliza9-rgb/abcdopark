@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { abrirArquivoPrivado } from "@/lib/storage";
 import { useParams } from "next/navigation";
 import { 
   User, ShieldCheck, Heart, Phone, FileText, MapPin, 
@@ -57,15 +56,9 @@ export default function FichaAlunoPage() {
     if (!file) return;
 
     setEnviando(tipo);
-    const tamanhoMaximo = 10 * 1024 * 1024;
-    if (file.size > tamanhoMaximo) {
-      alert("O arquivo deve ter no máximo 10 MB.");
-      return;
-    }
-
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || "bin";
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const filePath = `solicitacoes/${id}/${fileName}`;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${id}-${Date.now()}.${fileExt}`;
+    const filePath = `solicitacoes/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('escola_arquivos')
@@ -77,24 +70,14 @@ export default function FichaAlunoPage() {
       return;
     }
 
-    const documentoExistente = documentosEnviados.find(
-      (documento) => documento.tipo_documento === tipo
-    );
-
-    const payload = {
-      aluno_id: Number(id),
+    const { data: { publicUrl } } = supabase.storage.from('escola_arquivos').getPublicUrl(filePath);
+    
+    const { error: dbError } = await supabase.from("solicitacoes_documentos").upsert({
+      aluno_id: id,
       tipo_documento: tipo,
-      arquivo_url: filePath,
+      arquivo_url: publicUrl,
       status: 'pendente'
-    };
-
-    const { error: dbError } = documentoExistente
-      ? await supabase
-          .from("solicitacoes_documentos")
-          .update(payload)
-          .eq("aluno_id", Number(id))
-          .eq("tipo_documento", tipo)
-      : await supabase.from("solicitacoes_documentos").insert(payload);
+    }, { onConflict: 'aluno_id, tipo_documento' });
 
     if (dbError) {
       alert("Erro ao registrar documento no banco de dados.");
@@ -102,13 +85,6 @@ export default function FichaAlunoPage() {
 
     await buscarSolicitacoes();
     setEnviando(null);
-  };
-
-  const abrirDocumento = async (caminho: string) => {
-    const abriu = await abrirArquivoPrivado("escola_arquivos", caminho);
-    if (!abriu) {
-      alert("Não foi possível abrir o documento.");
-    }
   };
 
   const formatarCEP = (cep: any) => {
@@ -183,13 +159,13 @@ export default function FichaAlunoPage() {
                     
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
                       {docExistente && (
-                        <button type="button" onClick={() => abrirDocumento(docExistente.arquivo_url)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs md:text-[9px] uppercase tracking-wider bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
+                        <a href={docExistente.arquivo_url} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs md:text-[9px] uppercase tracking-wider bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
                           <Eye size={14} /> Visualizar
-                        </button>
+                        </a>
                       )}
 
                       <label className="cursor-pointer flex-1 sm:flex-none">
-                        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => handleUpload(doc, e)} disabled={enviando === doc} />
+                        <input type="file" className="hidden" onChange={(e) => handleUpload(doc, e)} disabled={enviando === doc} />
                         <div className={`flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs md:text-[9px] uppercase tracking-wider transition-all ${enviando === doc ? 'bg-slate-200 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-100'}`}>
                           {enviando === doc ? <Clock size={14} className="animate-spin" /> : <Upload size={14} />}
                           {enviando === doc ? 'Enviando...' : (docExistente ? 'Substituir' : 'Upload')}
@@ -226,8 +202,8 @@ export default function FichaAlunoPage() {
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-slate-50">
             <h2 className="text-sm md:text-[11px] font-black text-rose-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><Stethoscope size={16} /> Informações de Saúde</h2>
             <div className="flex flex-col">
-              <LinhaInfo icone={Heart} label="Alergias Detectadas" value={aluno.tem_alergia ? aluno.alergia_descricao : "Não informado"} />
-              <LinhaInfo icone={AlertCircle} label="Observações" value={aluno.observacoes} />
+              <LinhaInfo icone={Heart} label="Alergias Detectadas" value={aluno.alergias} />
+              <LinhaInfo icone={AlertCircle} label="Restrições Alimentares" value={aluno.restricoes_alimentares} />
             </div>
           </div>
 
@@ -236,7 +212,7 @@ export default function FichaAlunoPage() {
             <h2 className="text-sm md:text-[11px] font-black text-indigo-600 uppercase tracking-wider sm:tracking-[0.3em] mb-6 flex items-center gap-2"><MapPin size={16} /> Localização de Residência</h2>
             <div className="flex flex-col">
               <LinhaInfo icone={MapPin} label="Logradouro" value={aluno.endereco} />
-              <LinhaInfo icone={MapPin} label="Número / Complemento" value={aluno.numero} />
+              <LinhaInfo icone={MapPin} label="Número / Complemento" value={aluno.numero_endereco} />
               <LinhaInfo icone={MapPin} label="Bairro" value={aluno.bairro} />
               <LinhaInfo icone={MapPin} label="CEP" value={formatarCEP(aluno.cep)} />
             </div>
@@ -248,8 +224,8 @@ export default function FichaAlunoPage() {
             <div className="flex flex-col">
               <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel} />
               <LinhaInfo icone={CreditCard} label="CPF" value={aluno.cpf_responsavel} />
-              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.profissao_responsavel} />
-              <LinhaInfo icone={Phone} label="Telefone" value={aluno.whatsapp} />
+              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_profissao} />
+              <LinhaInfo icone={Phone} label="Telefone" value={aluno.telefone} />
               <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel} />
 
               <div className="my-6 border-t border-slate-100 relative">
@@ -257,9 +233,9 @@ export default function FichaAlunoPage() {
               </div>
 
               <LinhaInfo icone={User} label="Responsável" value={aluno.responsavel_2_nome} />
-              <LinhaInfo icone={CreditCard} label="CPF" value={aluno.cpf_responsavel_2} />
-              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.profissao_responsavel_2} />
-              <LinhaInfo icone={Phone} label="Telefone" value={aluno.responsavel_2_contato} />
+              <LinhaInfo icone={CreditCard} label="CPF" value={aluno.responsavel_2_cpf} />
+              <LinhaInfo icone={Briefcase} label="Profissão" value={aluno.responsavel_2_profissao} />
+              <LinhaInfo icone={Phone} label="Telefone" value={aluno.responsavel_2_telefone} />
               <LinhaInfo icone={Mail} label="E-mail" value={aluno.email_responsavel_2} />
             </div>
           </div>

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { confirmarAcaoCritica } from "@/lib/auth/client";
 
 // Dicionário de abreviações das disciplinas
 const mapaAbreviacoes: Record<string, string> = {
@@ -141,11 +140,8 @@ export default function FechamentoLetivo() {
   }
 
   async function promoverAprovados() {
-    if (!(await confirmarAcaoCritica({
-      permissao: "fechamento.executar",
-      titulo: "Promover alunos aprovados",
-      descricao: "As turmas serão alteradas e os boletins atuais serão preservados no histórico.",
-    }))) return;
+    const senha = prompt("Digite a senha mestre para confirmar a promoção de turmas:");
+    if (senha !== "1234") return alert("Senha incorreta!");
 
     if (!confirm("Isso moverá os alunos 'APROVADOS' para a próxima série. Os boletins atuais SERÃO MANTIDOS no histórico do aluno. Continuar?")) return;
 

@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { temPermissao } from "@/lib/auth/permissions";
-import { abrirArquivoPrivado } from "@/lib/storage";
 
 import { FormularioConta } from "@/app/(sistema)/dashboard/financeiro/contas-a-pagar/_components/FormularioConta";
 import { ModalEdicaoConta } from "@/app/(sistema)/dashboard/financeiro/contas-a-pagar/_components/ModalEdicaoConta";
@@ -74,18 +72,7 @@ function VisaoContasAPagar({ userEmail, userCargo }: any) {
                         )}
                         <div className="flex gap-3 items-center">
                           <button onClick={() => fx.setContaParaPagar(conta)} className="text-xs text-indigo-600 font-bold hover:underline">Ajustar ⚙️</button>
-                          {conta.comprovante_url && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const abriu = await abrirArquivoPrivado('comprovantes', conta.comprovante_url);
-                                if (!abriu) alert('Não foi possível abrir o comprovante.');
-                              }}
-                              className="text-xs text-emerald-600 font-bold hover:underline"
-                            >
-                              Recibo 📄
-                            </button>
-                          )}
+                          <a href={conta.comprovante_url} target="_blank" rel="noreferrer" className="text-xs text-emerald-600 font-bold hover:underline">Recibo 📄</a>
                         </div>
                         <button onClick={() => fx.desfazerPagamento(conta.id)} className="text-[10px] text-slate-400 hover:text-rose-600 underline mt-0.5">Estornar quitação</button>
                       </div>
@@ -150,7 +137,7 @@ function VisaoDespesasVariaveis({ userEmail, userCargo }: any) {
           />
           <button
             onClick={() => {
-              if (!temPermissao(userCargo, 'financeiro.gerenciar')) return alert("Ação restrita ao setor financeiro.");
+              if (userEmail !== 'carlamonaliza9@gmail.com' && userCargo !== 'Admin') return alert("Ação restrita ao perfil de Administrador.");
               vr.setModalGastoAberto(true);
             }}
             className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors whitespace-nowrap"
@@ -238,14 +225,18 @@ export default function UnificadoContasDespesasPage() {
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/");
+      if (!user) return router.push("/login");
 
       const emailAtual = user.email || "";
       setUserEmail(emailAtual);
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
       setUserCargo(perfil?.cargo || null);
 
-      const ehAutorizado = temPermissao(perfil?.cargo, 'financeiro.visualizar');
+      const ehAutorizado = 
+        emailAtual === 'carlamonaliza9@gmail.com' || 
+        emailAtual === 'diretoria@abcdopark.com' || 
+        perfil?.cargo === 'Admin' ||
+        perfil?.cargo === 'Direção';
 
       if (!ehAutorizado) {
         return router.push("/dashboard");

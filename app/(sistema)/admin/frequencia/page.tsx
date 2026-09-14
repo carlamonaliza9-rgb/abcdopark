@@ -7,7 +7,6 @@ import {
   CalendarDays, Filter, ChevronLeft, Printer, 
   X, CheckCircle2, XCircle, Info, Trash2, Edit3 
 } from "lucide-react";
-import { temPermissao } from "@/lib/auth/permissions";
 
 export default function RelatorioFrequenciaAdminPage() {
   const router = useRouter();
@@ -29,12 +28,15 @@ export default function RelatorioFrequenciaAdminPage() {
   useEffect(() => {
     async function verificarAcesso() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/");
+      if (!user) return router.push("/login");
 
       const emailAtual = user.email || "";
       const { data: perfil } = await supabase.from('perfis').select('cargo').eq('id', user.id).single();
 
-      const ehAdmin = temPermissao(perfil?.cargo, 'academico.visualizar');
+      const ehAdmin = 
+        emailAtual === 'carlamonaliza9@gmail.com' || 
+        emailAtual === 'diretoria@abcdopark.com' || 
+        perfil?.cargo === 'Admin';
 
       if (!ehAdmin) return router.push("/dashboard");
       

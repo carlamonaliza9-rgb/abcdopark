@@ -107,7 +107,7 @@ export default function TurmasProfessorPage() {
   async function carregarDados() {
     setCarregando(true);
     const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) return router.push("/");
+    if (!authData?.user) return router.push("/login");
 
     const email = authData.user.email || "";
     setUserEmail(email);

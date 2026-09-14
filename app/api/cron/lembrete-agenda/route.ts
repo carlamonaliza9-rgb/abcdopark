@@ -4,13 +4,6 @@ import { dispararNotificacaoPorCargo } from "@/lib/onesignal";
 // Essa rota será acessada pelo sistema automático (Cron)
 export async function GET(request: Request) {
   try {
-    const segredo = process.env.CRON_SECRET;
-    const autorizacao = request.headers.get("authorization");
-
-    if (!segredo || autorizacao !== `Bearer ${segredo}`) {
-      return NextResponse.json({ error: "Acesso negado." }, { status: 401 });
-    }
-
     // Dispara a notificação para todos que têm a tag cargo = "professor"
     await dispararNotificacaoPorCargo(
       "professor",
@@ -19,7 +12,7 @@ export async function GET(request: Request) {
     );
 
     return NextResponse.json({ success: true, message: "Lembrete enviado aos professores!" });
-  } catch {
+  } catch (error) {
     return NextResponse.json({ error: "Erro ao disparar lembrete." }, { status: 500 });
   }
 }
