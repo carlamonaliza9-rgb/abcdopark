@@ -128,7 +128,7 @@ function PDVContent() {
                       </svg>
                     </div>
                     <h4 className="font-black text-slate-800 mb-1">Caixa mensal indisponível</h4>
-                    <p className="text-xs text-slate-500">Atualize a página. O sistema abrirá automaticamente o caixa do mês atual com saldo inicial zerado.</p>
+                    <p className="text-xs text-slate-500">Não foi possível carregar o caixa automático. Aguarde alguns instantes e tente acessar o PDV novamente.</p>
                   </div>
                 )}
               </div>

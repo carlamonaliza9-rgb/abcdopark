@@ -127,12 +127,55 @@ export function usePDV() {
 
   const temLivroNoCarrinho = carrinho.some(item => item.tipo === 'livro' || (item.descricao || '').toLowerCase().includes('livro'));
 
+  const obterCompetenciaAtualCaixa = () => {
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit'
+    }).formatToParts(new Date());
+    const ano = partes.find((parte) => parte.type === 'year')?.value;
+    const mes = partes.find((parte) => parte.type === 'month')?.value;
+    return `${ano}-${mes}-01`;
+  };
+
+  const obterCaixaMensalAtual = async () => {
+    // Garante que o token do usuário esteja disponível antes de chamar a RPC.
+    await supabase.auth.getUser();
+
+    const competenciaAtual = obterCompetenciaAtualCaixa();
+    let ultimoErro: any = null;
+
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      // A migração já cria o caixa do mês. Consultá-lo primeiro evita que uma
+      // falha momentânea da RPC deixe o PDV bloqueado.
+      const { data: caixaExistente, error: erroConsulta } = await supabase
+        .from('sessoes_caixa')
+        .select('*')
+        .eq('caixa_mensal', true)
+        .eq('competencia', competenciaAtual)
+        .maybeSingle();
+
+      if (caixaExistente) return { caixa: caixaExistente, erro: null };
+
+      const { data: caixaCriado, error: erroCriacao } = await supabase
+        .rpc('obter_ou_criar_caixa_mensal')
+        .maybeSingle();
+
+      if (caixaCriado) return { caixa: caixaCriado, erro: null };
+
+      ultimoErro = erroCriacao || erroConsulta;
+      if (tentativa < 2) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+      }
+    }
+
+    return { caixa: null, erro: ultimoErro };
+  };
+
   const carregarDadosBase = async () => {
     setCarregando(true);
 
-    const { data: caixaMensal, error: erroCaixa } = await supabase
-      .rpc('obter_ou_criar_caixa_mensal')
-      .single();
+    const { caixa: caixaMensal, erro: erroCaixa } = await obterCaixaMensalAtual();
     const sessaoAberta: any = caixaMensal;
 
     if (erroCaixa) {
