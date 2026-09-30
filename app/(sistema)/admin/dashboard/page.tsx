@@ -86,7 +86,7 @@ export default function DashboardAdminPage() {
         setNovoNomeInput(nome);
       }
 
-      const { data: alunos } = await supabase.from('alunos').select('*');
+      const { data: alunos } = await supabase.from('alunos').select('*').is('data_transferencia', null);
       const { data: funcionarios } = await supabase.from('funcionarios').select('*');
       const { data: listaEventos } = await supabase.from('eventos_calendario').select('*').order('data', { ascending: true });
 
