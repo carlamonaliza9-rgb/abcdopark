@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useRouter } from "next/navigation";
-import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle, Lock } from "lucide-react";
+import { Save, BrainCircuit, Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
 
 const ORDEM_TURMAS = [
   "Maternal",
@@ -254,11 +254,6 @@ async function salvarFichaIndividual(alunoId: string) {
       return;
     }
 
-    if (registrosExistentes[alunoId]) {
-      alert(`O seu parecer do ${trimestreSelecionado} deste aluno já foi registrado e está bloqueado para novas alterações.`);
-      return;
-    }
-
     if (!dadosFicha.avancos.trim() && !dadosFicha.dificuldades.trim()) {
       alert("Preencha pelo menos um dos campos antes de salvar o parecer.");
       return;
@@ -274,25 +269,57 @@ async function salvarFichaIndividual(alunoId: string) {
 
       console.log("A tentar gravar com o userId:", userId);
 
-      const { data: novoRegistro, error } = await supabase
-        .from('avancos_dificuldades')
-        .insert({
-          aluno_id: parseInt(alunoId),
-          semestre: semestreDeterminado, 
-          trimestre: trimestreSelecionado,
-          ano: "2026",
-          avancos: dadosFicha.avancos,
-          dificuldades: dadosFicha.dificuldades,
-          professor_id: userId, // ID do professor logado
-          professor_nome: nomeLogado || "Professor",
-          data_registro: new Date().toISOString()
-        })
-        .select('id, data_registro, professor_nome')
-        .single();
+      const registroExistente = registrosExistentes[alunoId];
+      let novoRegistro;
+      let error;
 
-      if (error) {
+      if (registroExistente?.id) {
+        // Se já existe, atualiza
+        const res = await supabase
+          .from('avancos_dificuldades')
+          .update({
+            avancos: dadosFicha.avancos,
+            dificuldades: dadosFicha.dificuldades,
+            data_registro: new Date().toISOString()
+          })
+          .eq('id', registroExistente.id)
+          .select('id, data_registro, professor_nome')
+          .single();
+        
+        novoRegistro = res.data;
+        error = res.error;
+      } else {
+        // Se não existe, insere
+        const res = await supabase
+          .from('avancos_dificuldades')
+          .insert({
+            aluno_id: parseInt(alunoId),
+            semestre: semestreDeterminado, 
+            trimestre: trimestreSelecionado,
+            ano: "2026",
+            avancos: dadosFicha.avancos,
+            dificuldades: dadosFicha.dificuldades,
+            professor_id: userId, // ID do professor logado
+            professor_nome: nomeLogado || "Professor",
+            data_registro: new Date().toISOString()
+          })
+          .select('id, data_registro, professor_nome')
+          .single();
+        
+        novoRegistro = res.data;
+        error = res.error;
+      }
+
+if (error) {
         console.log("Erro detalhado do Supabase:", error);
         alert(`O Supabase recusou a gravação:\nCódigo: ${error.code}\nMensagem: ${error.message}\nDetalhes: ${error.details || 'Nenhum'}`);
+        setSalvandoId(null);
+        return;
+      }
+
+      // NOVA TRAVA PARA ACALMAR O TYPESCRIPT:
+      if (!novoRegistro) {
+        alert("Erro: O banco de dados não devolveu o registo.");
         setSalvandoId(null);
         return;
       }
@@ -314,12 +341,12 @@ async function salvarFichaIndividual(alunoId: string) {
       const nomeAluno = alunos.find(a => String(a.id) === String(alunoId))?.nome || alunoId;
       await supabase.from('logs_sistema').insert([{
         usuario_email: userEmail,
-        acao: "GRAVAÇÃO PARECER TRIMESTRAL",
+        acao: registroExistente ? "ATUALIZAÇÃO PARECER TRIMESTRAL" : "GRAVAÇÃO PARECER TRIMESTRAL",
         tabela: "avancos_dificuldades",
-        detalhes: `Registrou parecer do ${trimestreSelecionado}/2026 do aluno(a) ${nomeAluno} na turma ${turmaSelecionada}.`
+        detalhes: `${registroExistente ? 'Atualizou' : 'Registrou'} parecer do ${trimestreSelecionado}/2026 do aluno(a) ${nomeAluno} na turma ${turmaSelecionada}.`
       }]);
       
-      alert("Parecer salvo com sucesso!");
+      alert(registroExistente ? "Parecer atualizado com sucesso!" : "Parecer salvo com sucesso!");
 
     } catch (err: any) {
       console.log("Erro interno JS:", err);
@@ -440,16 +467,16 @@ async function salvarFichaIndividual(alunoId: string) {
               const foiAlterado = local.avancos !== original.avancos || local.dificuldades !== original.dificuldades;
               const estaPreenchido = local.avancos.trim().length > 3 || local.dificuldades.trim().length > 3;
               const isSaving = salvandoId === String(aluno.id);
-              const estaBloqueado = Boolean(registro);
+              const temRegistro = Boolean(registro);
 
               return (
                 <div key={aluno.id} className="bg-white md:rounded-[2rem] border-b-[8px] md:border border-slate-50 md:border-slate-100 md:shadow-sm p-4 md:p-6 flex flex-col justify-between md:hover:shadow-md transition-all gap-4 md:gap-5 relative overflow-hidden group">
                   
                   <div className="absolute top-0 right-0 m-4 md:m-5 flex flex-col items-end gap-1.5">
-                    {estaBloqueado ? (
+                    {temRegistro ? (
                       <>
-                        <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-2.5 py-1 rounded-md flex items-center gap-1">
-                          <Lock size={10} strokeWidth={3}/> Parecer registrado
+                        <span className="text-[9px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-1 rounded-md flex items-center gap-1">
+                          <CheckCircle2 size={10} strokeWidth={3}/> Registrado
                         </span>
                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">
                           {formatarDataRegistro(registro?.data_registro || null)}
@@ -495,10 +522,9 @@ async function salvarFichaIndividual(alunoId: string) {
                       <textarea
                         value={local.avancos}
                         onChange={(e) => handleTextoChange(String(aluno.id), "avancos", e.target.value)}
-                        readOnly={estaBloqueado}
                         placeholder="Quais foram as conquistas pedagógicas, evolução na leitura, escrita, raciocínio ou socialização neste semestre?"
                         rows={5}
-                        className={`w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed ${estaBloqueado ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-emerald-100 md:focus:border-emerald-400 focus:bg-white'}`}
+                        className="w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-emerald-100 md:focus:border-emerald-400 focus:bg-white"
                       />
                     </div>
 
@@ -509,10 +535,9 @@ async function salvarFichaIndividual(alunoId: string) {
                       <textarea
                         value={local.dificuldades}
                         onChange={(e) => handleTextoChange(String(aluno.id), "dificuldades", e.target.value)}
-                        readOnly={estaBloqueado}
                         placeholder="Quais conteúdos exigem maior fixação? Há alguma barreira comportamental, de concentração ou faltas que prejudicaram o rendimento?"
                         rows={5}
-                        className={`w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed ${estaBloqueado ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-rose-100 md:focus:border-rose-400 focus:bg-white'}`}
+                        className="w-full p-3.5 text-xs font-semibold text-slate-600 placeholder-slate-300 md:placeholder-slate-400 rounded-xl border border-slate-200 outline-none transition-all resize-none leading-relaxed bg-slate-50 md:bg-slate-50/50 focus:ring-2 focus:ring-rose-100 md:focus:border-rose-400 focus:bg-white"
                       />
                     </div>
 
@@ -521,7 +546,7 @@ async function salvarFichaIndividual(alunoId: string) {
                   <div className="flex justify-end pt-3 mt-1 md:border-t md:border-slate-50">
                     <button
                       onClick={() => salvarFichaIndividual(String(aluno.id))}
-                      disabled={isSaving || estaBloqueado || !foiAlterado}
+                      disabled={isSaving || !foiAlterado}
                       className={`w-full md:w-auto px-5 py-3 md:py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center md:justify-start gap-2 transition-all ${
                         isSaving 
                           ? 'bg-indigo-300 text-indigo-50 cursor-not-allowed' 
@@ -530,8 +555,8 @@ async function salvarFichaIndividual(alunoId: string) {
                             : 'bg-slate-100 md:bg-slate-100 text-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : estaBloqueado ? <Lock size={14} /> : <Save size={14} />}
-                      {isSaving ? "Gravando..." : estaBloqueado ? "Parecer Bloqueado" : "Salvar Parecer"}
+                      {isSaving ? <Loader2 size={14} className="animate-spin" /> : temRegistro ? <RefreshCw size={14} /> : <Save size={14} />}
+                      {isSaving ? "Salvando..." : temRegistro ? "Atualizar Parecer" : "Salvar Parecer"}
                     </button>
                   </div>
 
