@@ -126,6 +126,10 @@ export default function SidebarAdmin({ children }: { children?: React.ReactNode 
               📒 Diário de Classe
             </Link>
           )}
+
+          <Link href="/admin/relatorios" onClick={fecharMenuMobile} className="block p-2.5 rounded-lg text-blue-900 hover:bg-blue-600/20 hover:text-blue-700 text-sm md:text-xl font-bold transition-all shrink-0">
+  📈 Relatórios Pedagógicos
+</Link>
           
           {ehAdmin && (
             <>

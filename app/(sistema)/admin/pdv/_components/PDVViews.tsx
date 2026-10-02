@@ -121,8 +121,8 @@ export function RegistrosRecentesPDV({ registrosRecentes, clean, abrirModalEdita
           </div>
         </div>
 
-        <button
-          onClick={carregarRegistrosRecentes}
+<button
+          onClick={carregarRegistrosRecentes ? carregarRegistrosRecentes : () => window.location.reload()}
           disabled={processando}
           className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
         >
@@ -457,8 +457,46 @@ export function AreaDeVendasComAbas({ alunoSelecionado, dividasAluno, carrinho, 
                 <div key={div.id} className={`p-4 rounded-xl border flex justify-between items-center transition-all duration-200 ${noCarrinho ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                   <div>
                     <span className="block text-sm font-bold text-slate-800">{div.descricao}</span>
-                    <span className="text-xs text-slate-500 mt-1 flex items-center gap-1">Vencimento: {new Date(div.data_pagamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                  </div>
+<span className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+  Vencimento: {(() => {
+    // 1. Pega o dia de vencimento exato da ficha do aluno (se não houver na ficha, usa '10' como segurança)
+    const diaVencimento = alunoSelecionado?.vencimento ? String(alunoSelecionado.vencimento).padStart(2, '0') : '10';
+
+    // 2. Tenta usar a data exata do banco primeiro, mas só se for um ano válido (> 1970)
+    if (div.data_pagamento) {
+      const d = new Date(div.data_pagamento);
+      if (!isNaN(d.getTime()) && d.getFullYear() > 1970) {
+         return d.toLocaleDateString('pt-BR', {timeZone: 'UTC'});
+      }
+    }
+    
+    // 3. Se deu erro de 1970, extrai o mês e ano diretamente do nome (Ex: "Mensalidade Escolar - Abril/2026")
+    if (div.descricao) {
+       const match = div.descricao.match(/(?:- |de )([A-Za-zçÇ]+)\/(\d{4})/i);
+       if (match) {
+           const mesNome = match[1].toLowerCase();
+           const ano = match[2];
+           const mesMap: any = { "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4, "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12 };
+           const mesNum = mesMap[mesNome];
+           
+           if (mesNum) {
+               return `${diaVencimento}/${String(mesNum).padStart(2, '0')}/${ano}`;
+           }
+       }
+    }
+
+    // 4. Última tentativa de segurança
+    const ano = div.ano_referencia || new Date().getFullYear();
+    const mesMap: any = { "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4, "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12 };
+    const mes = div.mes_referencia ? mesMap[div.mes_referencia.toLowerCase()] : (div.competencia ? div.competencia.split('-')[1] : null);
+    
+    if (ano && mes) {
+       return `${diaVencimento}/${String(mes).padStart(2, '0')}/${ano}`;
+    }
+    
+    return "Data não definida";
+  })()}
+</span>                  </div>
                   <div className="flex items-center gap-4">
                     <span className="font-bold text-rose-600">R$ {devedor.toFixed(2)}</span>
                     <button onClick={() => noCarrinho ? removerDoCarrinho(div.id) : adicionarAoCarrinho(div)} className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium transition-all ${noCarrinho ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
