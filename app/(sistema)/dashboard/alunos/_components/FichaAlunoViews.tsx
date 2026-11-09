@@ -317,6 +317,19 @@ export function VisaoBoletim({
   anoSelecionado, setAnoSelecionado, onVerBoletim, aluno, onGerarPDFBoletim, ehVisitante, 
   onAdicionarDisciplina, onVoltarParaFicha, notas, onSalvarNota, onExcluirDisciplina 
 }: any) {
+  const ehEducacaoInfantil = ["Maternal", "Jardim I", "Jardim II"].includes(
+    String(aluno?.turma || "").trim()
+  );
+
+  const camposBimestre = [
+    'bimestre1',
+    'bimestre2',
+    'recuperacao1',
+    'bimestre3',
+    'bimestre4',
+    'recuperacao2'
+  ];
+
   return (
     <div style={{ width: '100%', marginTop: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
@@ -342,49 +355,83 @@ export function VisaoBoletim({
           </div>
       </div>
       <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+          <table style={{ width: '100%', minWidth: ehEducacaoInfantil ? '760px' : undefined, borderCollapse: 'collapse', fontSize: '10px' }}>
               <thead>
                   <tr style={{ backgroundColor: '#f1f5f9' }}>
                       <th style={{ padding: '8px', textAlign: 'left' }}>DISCIPLINA</th>
-                      <th>1ºB</th><th>2ºB</th><th style={{ color: '#ef4444' }}>R1</th>
-                      <th>3ºB</th><th>4ºB</th><th style={{ color: '#ef4444' }}>R2</th>
-                      <th style={{ color: '#2563eb' }}>MÉD</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center' } : undefined}>1ºB</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center' } : undefined}>2ºB</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center', color: '#ef4444' } : { color: '#ef4444' }}>R1</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center' } : undefined}>3ºB</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center' } : undefined}>4ºB</th>
+                      <th style={ehEducacaoInfantil ? { padding: '8px', minWidth: '105px', textAlign: 'center', color: '#ef4444' } : { color: '#ef4444' }}>R2</th>
+                      {!ehEducacaoInfantil && <th style={{ color: '#2563eb' }}>MÉD</th>}
                       {!ehVisitante && <th style={{ padding: '8px' }}></th>}
                   </tr>
               </thead>
               <tbody>
                   {notas.length > 0 ? notas.map((n: any) => {
-                      const media = obterMediaFinal(n);
+                      const media = ehEducacaoInfantil ? null : obterMediaFinal(n);
                       return (
                         <tr key={n.id} style={{ borderBottom: '1px solid #eee' }}>
                             <td style={{ padding: '8px', fontWeight: 'bold' }}>{n.disciplina}</td>
-                            {['bimestre1', 'bimestre2', 'recuperacao1', 'bimestre3', 'bimestre4', 'recuperacao2'].map((b) => (
-                                <td key={b} style={{ padding: '4px', textAlign: 'center' }}>
-                                    <input 
-                                      type="text" 
-                                      defaultValue={n[b] || ""} 
-                                      onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} 
-                                      disabled={ehVisitante} 
-                                      style={{ 
-                                        width: '30px', 
-                                        textAlign: 'center', 
-                                        border: '1px solid #e2e8f0', 
-                                        borderRadius: '4px', 
-                                        padding: '2px', 
-                                        backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white',
-                                        color: parseFloat(n[b]) < 7 ? '#ef4444' : '#1e293b',
-                                        fontWeight: 'bold'
-                                      }} 
-                                    />
+                            {camposBimestre.map((b) => (
+                                <td key={b} style={{ padding: ehEducacaoInfantil ? '6px' : '4px', textAlign: 'center' }}>
+                                    {ehEducacaoInfantil ? (
+                                      <div
+                                        title={n[b] || ''}
+                                        style={{
+                                          boxSizing: 'border-box',
+                                          width: '100%',
+                                          minWidth: '95px',
+                                          minHeight: '30px',
+                                          padding: '5px 6px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          textAlign: 'center',
+                                          whiteSpace: 'normal',
+                                          overflowWrap: 'anywhere',
+                                          border: '1px solid #e2e8f0',
+                                          borderRadius: '4px',
+                                          backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white',
+                                          color: n[b] ? '#1e293b' : '#94a3b8',
+                                          fontWeight: 'bold'
+                                        }}
+                                      >
+                                        {n[b] || '—'}
+                                      </div>
+                                    ) : (
+                                      <input 
+                                        type="text" 
+                                        defaultValue={n[b] || ""} 
+                                        onBlur={(e) => onSalvarNota(n.id, b, e.target.value)} 
+                                        disabled={ehVisitante} 
+                                        style={{ 
+                                          width: '30px', 
+                                          textAlign: 'center', 
+                                          border: '1px solid #e2e8f0', 
+                                          borderRadius: '4px', 
+                                          padding: '2px', 
+                                          backgroundColor: b.includes('recuperacao') ? '#fff5f5' : 'white',
+                                          color: parseFloat(n[b]) < 7 ? '#ef4444' : '#1e293b',
+                                          fontWeight: 'bold'
+                                        }} 
+                                      />
+                                    )}
                                 </td>
                             ))}
-                            <td style={{ textAlign: 'center', fontWeight: '900', color: parseFloat(media) < 7 ? '#ef4444' : '#2563eb' }}>{media}</td>
+                            {!ehEducacaoInfantil && (
+                              <td style={{ textAlign: 'center', fontWeight: '900', color: parseFloat(String(media)) < 7 ? '#ef4444' : '#2563eb' }}>
+                                {media}
+                              </td>
+                            )}
                             {!ehVisitante && <td style={{ textAlign: 'center' }}><button onClick={() => onExcluirDisciplina(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button></td>}
                         </tr>
                       );
                   }) : (
                     <tr>
-                      <td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Nenhum dado encontrado para o ano {anoSelecionado}.</td>
+                      <td colSpan={7 + (ehEducacaoInfantil ? 0 : 1) + (ehVisitante ? 0 : 1)} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Nenhum dado encontrado para o ano {anoSelecionado}.</td>
                     </tr>
                   )}
               </tbody>

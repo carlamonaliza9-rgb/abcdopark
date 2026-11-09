@@ -709,7 +709,12 @@ export function usePDV() {
     if (processando) return; 
     if (!caixaAtual) return alert("Atenção: o caixa mensal não pôde ser inicializado. Atualize a página e tente novamente.");
     if (carrinho.length === 0) return alert("O carrinho está vazio.");
-    if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo)) return alert("Insira os valores recebidos para dar baixa.");
+    
+    // CORREÇÃO 1: Permite finalizar se o desconto zerar a conta
+    if (totalPagoRodada <= 0 && clean(acrescimos.desconto) <= 0 && carrinho.every(i => !i.isNovo) && totalComAcrescimos > 0) {
+      return alert("Insira os valores recebidos ou um desconto de 100% para dar baixa.");
+    }
+    
     if (creditoUtilizado > saldoAtualAluno) return alert("Crédito do aluno insuficiente.");
 
     let gerarAcordo = false;
@@ -738,20 +743,32 @@ export function usePDV() {
         trocoDevolvidoFisico = trocoGerado; 
       }
 
+      // CORREÇÃO 2: Distribuir o desconto global proporcionalmente ou sequencialmente pelos itens
+      let descontoGlobalRestante = clean(acrescimos.desconto);
       let idsProcessados: string[] = [];
 
       for (const item of carrinho) {
         const idString = String(item.id || "");
         const restanteDestaDivida = clean(item.valor_total) - clean(item.valor_pago);
-        const valorAbatido = Math.max(0, Math.min(restanteDestaDivida, saldoParaDistribuir));
+        
+        // CORREÇÃO 3: Calcula quanto de desconto entra neste item específico
+        const descontoNesteItem = Math.min(restanteDestaDivida, descontoGlobalRestante);
+        descontoGlobalRestante = Number((descontoGlobalRestante - descontoNesteItem).toFixed(2));
+        
+        // CORREÇÃO 4: O valor a abater agora é calculado COM o desconto (seja desconto em dinheiro ou desconto literal)
+        const valorAbatido = Math.max(0, Math.min(restanteDestaDivida - descontoNesteItem, saldoParaDistribuir));
         saldoParaDistribuir = Number((saldoParaDistribuir - valorAbatido).toFixed(2));
 
+        // Novo valor pago inclui o desconto porque para o sistema a dívida foi "paga" ou abatida.
+        // Ou, em alternativa mais correta: atualizar o valor_total da dívida!
+        const novoValorTotalDaDivida = clean(item.valor_total) - descontoNesteItem;
         const novoValorPago = clean(item.valor_pago) + valorAbatido;
+        
         let novoStatus = 'pendente';
-        if (novoValorPago >= clean(item.valor_total) - 0.01) novoStatus = 'pago';
+        if (novoValorPago >= novoValorTotalDaDivida - 0.01) novoStatus = 'pago';
         else if (novoValorPago > 0) novoStatus = 'parcial';
 
-        if (valorAbatido === 0 && !item.isNovo && !item.isTemp && !idString.startsWith('temp_') && clean(acrescimos.desconto) === 0 && clean(acrescimos.multa) === 0 && clean(acrescimos.juros_cartao) === 0 && !gerarAcordo) {
+        if (valorAbatido === 0 && descontoNesteItem === 0 && !item.isNovo && !item.isTemp && !idString.startsWith('temp_') && clean(acrescimos.multa) === 0 && clean(acrescimos.juros_cartao) === 0 && !gerarAcordo) {
             continue; 
         }
 
@@ -766,7 +783,7 @@ export function usePDV() {
         if (clean(pagamentos.debito_editora) > 0) formasStrArray.push("Cartão Débito (Editora)");
         if (creditoUtilizado > 0) formasStrArray.push("Saldo Virtual");
         
-        const registroParcial = { data_recebimento: dataPagamentoPDV, data_operacao: new Date().toISOString(), valor_pago_rodada: valorAbatido, formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste", desconto: acrescimos.desconto, multa: acrescimos.multa, juros_cartao: acrescimos.juros_cartao };
+        const registroParcial = { data_recebimento: dataPagamentoPDV, data_operacao: new Date().toISOString(), valor_pago_rodada: valorAbatido, desconto_aplicado: descontoNesteItem, formas: formasStrArray.length > 0 ? formasStrArray.join(" + ") : "Ajuste", desconto: acrescimos.desconto, multa: acrescimos.multa, juros_cartao: acrescimos.juros_cartao };
         const detalhesItem = parseDetalhesMetodos(item.detalhes_metodos);
         const historicoAntigo = Array.isArray(detalhesItem?.historico_parciais) ? detalhesItem.historico_parciais : [];
 
@@ -801,7 +818,7 @@ export function usePDV() {
           },
           ...(competenciaItem ? { competencia: competenciaItem } : {}),
           historico_parciais:
-            valorAbatido > 0 || clean(acrescimos.desconto) > 0
+            valorAbatido > 0 || descontoNesteItem > 0 || clean(acrescimos.desconto) > 0
               ? [...historicoAntigo, registroParcial]
               : historicoAntigo
         };
@@ -810,10 +827,12 @@ export function usePDV() {
         
         if (item.isNovo || item.isTemp || idString.startsWith('temp_')) {
           const dataVencimento = String(item.data_vencimento || item.data_pagamento || dataPagamentoPDV).split('T')[0];
-          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Avulso', valor_total: item.valor_total, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: dataVencimento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
+          // CORREÇÃO 5: Gravar o novoValorTotalDaDivida (já com desconto abatido)
+          const { data } = await supabase.from('historico_pagamentos').insert({ aluno_id: alunoSelecionado.id, tipo: item.tipo || 'mensalidade', descricao: item.descricao, mes_referencia: mesCompetenciaItem || item.mes_referencia || 'Avulso', valor_total: novoValorTotalDaDivida, valor_pago: novoValorPago, status: novoStatus, data_pagamento: dataPagamentoPDV, data_vencimento: dataVencimento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).select('id').single();
           if (data) savedId = data.id;
         } else {
-          await supabase.from('historico_pagamentos').update({ status: novoStatus, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).eq('id', item.id);
+          // CORREÇÃO 6: Atualizar o valor_total da dívida original abatendo o desconto concedido
+          await supabase.from('historico_pagamentos').update({ status: novoStatus, valor_total: novoValorTotalDaDivida, valor_pago: novoValorPago, data_pagamento: novoStatus === 'pago' ? dataPagamentoPDV : item.data_pagamento, detalhes_metodos: payloadMetodos, caixa_id: caixaAtual.id }).eq('id', item.id);
         }
         if (savedId) idsProcessados.push(String(savedId));
       }

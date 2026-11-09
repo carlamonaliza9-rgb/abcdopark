@@ -19,6 +19,15 @@ const ORDEM_TURMAS = [
   "5º Ano"
 ];
 
+const TURMAS_COM_CONCEITO = ["Maternal", "Jardim I", "Jardim II"];
+const CONCEITOS_PADRAO = ["Bom", "Muito Bom", "Excelente"];
+const PREFIXO_PERSONALIZADO = "__PERSONALIZADO__:";
+
+const removerPrefixoPersonalizado = (valor: string) =>
+  valor.startsWith(PREFIXO_PERSONALIZADO)
+    ? valor.slice(PREFIXO_PERSONALIZADO.length)
+    : valor;
+
 const ordenarTurmas = (turmas: string[]) => {
   return [...turmas].sort((a, b) => {
     const indiceA = ORDEM_TURMAS.indexOf(a);
@@ -203,11 +212,15 @@ export default function AvaliacoesProfessorPage() {
   }, [turmaSelecionada, todasDisciplinas, bimestreSelecionado]);
 
   const handleNotaChange = (alunoId: string, disciplina: string, valor: string) => {
+    const valorFinal = TURMAS_COM_CONCEITO.includes(turmaSelecionada)
+      ? valor
+      : valor.replace(',', '.');
+
     setNotasLocais(prev => ({
       ...prev,
       [alunoId]: {
         ...prev[alunoId],
-        [disciplina]: valor.replace(',', '.')
+        [disciplina]: valorFinal
       }
     }));
   };
@@ -233,8 +246,8 @@ export default function AvaliacoesProfessorPage() {
           
           if (!minhasDisciplinasPermitidas.includes(disciplina)) continue;
 
-          const valorNotaStr = notasLocais[alunoId][disciplina];
-          const valorNotaNum = valorNotaStr === "" ? null : parseFloat(valorNotaStr);
+          const valorNotaBruto = notasLocais[alunoId][disciplina];
+          const valorNotaStr = removerPrefixoPersonalizado(valorNotaBruto);
           const valorAntigo = notasOriginais[alunoId]?.[disciplina] || "";
 
           if (valorAntigo !== valorNotaStr) {
@@ -249,7 +262,7 @@ export default function AvaliacoesProfessorPage() {
               aluno_id: parseInt(alunoId),
               disciplina: disciplina,
               ano: "2026",
-              [bimestreSelecionado]: valorNotaNum
+              [bimestreSelecionado]: valorNotaStr === "" ? null : valorNotaStr
             });
           }
         }
@@ -265,7 +278,19 @@ export default function AvaliacoesProfessorPage() {
         await registrarLog("EDIÇÃO", `📊 Alterou Pauta Matriz - Turma ${turmaSelecionada} (${bLabel}):\n` + mudancasOcorridas.join('\n'));
       }
 
-      setNotasOriginais(JSON.parse(JSON.stringify(notasLocais)));
+      const notasNormalizadas = Object.fromEntries(
+        Object.entries(notasLocais).map(([alunoId, disciplinas]) => [
+          alunoId,
+          Object.fromEntries(
+            Object.entries(disciplinas).map(([disciplina, valor]) => [
+              disciplina,
+              removerPrefixoPersonalizado(valor)
+            ])
+          )
+        ])
+      );
+      setNotasLocais(notasNormalizadas);
+      setNotasOriginais(JSON.parse(JSON.stringify(notasNormalizadas)));
       alert("Pauta salva com sucesso!");
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
@@ -300,7 +325,8 @@ export default function AvaliacoesProfessorPage() {
     const linhasTabela = alunos.map(aluno => {
       const linha = [aluno.nome];
       todasDisciplinas.forEach(disc => {
-        const nota = notasLocais[String(aluno.id)]?.[disc.disciplina] || "--";
+        const notaBruta = notasLocais[String(aluno.id)]?.[disc.disciplina] || "";
+        const nota = removerPrefixoPersonalizado(notaBruta) || "--";
         linha.push(nota);
       });
       return linha;
@@ -592,29 +618,83 @@ export default function AvaliacoesProfessorPage() {
                         const permiteEdicao = minhasDisciplinasPermitidas.includes(disc.disciplina);
                         const notaAtualStr = notasLocais[String(aluno.id)]?.[disc.disciplina] || "";
                         const notaOriginalStr = notasOriginais[String(aluno.id)]?.[disc.disciplina] || "";
-                        const foiAlterada = notaAtualStr !== notaOriginalStr;
+                        const foiAlterada = removerPrefixoPersonalizado(notaAtualStr) !== notaOriginalStr;
                         const isVermelha = notaAtualStr !== "" && parseFloat(notaAtualStr) < 7;
+                        const usaConceitos = TURMAS_COM_CONCEITO.includes(turmaSelecionada);
+                        const valorPersonalizado = notaAtualStr.startsWith(PREFIXO_PERSONALIZADO)
+                          ? notaAtualStr.slice(PREFIXO_PERSONALIZADO.length)
+                          : (!CONCEITOS_PADRAO.includes(notaAtualStr) && notaAtualStr !== "" ? notaAtualStr : "");
+                        const valorSeletorConceito = CONCEITOS_PADRAO.includes(notaAtualStr)
+                          ? notaAtualStr
+                          : (valorPersonalizado !== "" || notaAtualStr.startsWith(PREFIXO_PERSONALIZADO) ? "__custom__" : "");
 
                         return (
                           <td key={disc.disciplina} className="p-2 md:p-3 text-center relative">
                             {foiAlterada && <div className="absolute top-1 md:top-2 right-2 md:right-4 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" title="Nota não salva"></div>}
                             
-                            <input 
-                              type="text"
-                              inputMode="decimal"
-                              disabled={!permiteEdicao}
-                              value={notaAtualStr}
-                              onChange={(e) => handleNotaChange(String(aluno.id), disc.disciplina, e.target.value)}
-                              placeholder="--"
-                              className={`w-14 h-9 md:w-16 md:h-10 text-center rounded-xl font-black text-xs md:text-sm outline-none transition-all ${
-                                !permiteEdicao 
-                                  ? 'bg-slate-100/50 border border-transparent text-slate-400 cursor-not-allowed' 
-                                  : isVermelha 
-                                    ? 'border-2 border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 md:shadow-inner' 
-                                    : 'border-2 border-slate-200 bg-white text-blue-700 focus:border-blue-400 md:shadow-inner' 
-                              }`}
-                              title={!permiteEdicao ? `Apenas o professor de ${disc.disciplina} pode editar` : "Digite a nota"}
-                            />
+                            {usaConceitos ? (
+                              <div className="flex min-w-[150px] flex-col items-center gap-1.5">
+                                <select
+                                  disabled={!permiteEdicao}
+                                  value={valorSeletorConceito}
+                                  onChange={(e) => {
+                                    const valor = e.target.value;
+                                    handleNotaChange(
+                                      String(aluno.id),
+                                      disc.disciplina,
+                                      valor === "__custom__" ? PREFIXO_PERSONALIZADO : valor
+                                    );
+                                  }}
+                                  className={`w-full max-w-[170px] h-9 rounded-xl border-2 px-2 text-center font-bold text-xs outline-none transition-all ${
+                                    !permiteEdicao
+                                      ? 'bg-slate-100/50 border-transparent text-slate-400 cursor-not-allowed'
+                                      : 'border-slate-200 bg-white text-blue-700 focus:border-blue-400'
+                                  }`}
+                                  title={!permiteEdicao ? `Apenas o professor de ${disc.disciplina} pode editar` : "Selecione o conceito"}
+                                >
+                                  <option value="">-- Selecione --</option>
+                                  {CONCEITOS_PADRAO.map(conceito => (
+                                    <option key={conceito} value={conceito}>{conceito}</option>
+                                  ))}
+                                  <option value="__custom__">Personalizado</option>
+                                </select>
+                                {valorSeletorConceito === "__custom__" && (
+                                  <input
+                                    type="text"
+                                    disabled={!permiteEdicao}
+                                    value={valorPersonalizado}
+                                    onChange={(e) => handleNotaChange(
+                                      String(aluno.id),
+                                      disc.disciplina,
+                                      PREFIXO_PERSONALIZADO + e.target.value
+                                    )}
+                                    placeholder="Digite o conceito"
+                                    className={`w-full max-w-[170px] h-8 rounded-lg border px-2 text-center text-xs font-semibold outline-none ${
+                                      !permiteEdicao
+                                        ? 'bg-slate-100/50 border-transparent text-slate-400 cursor-not-allowed'
+                                        : 'border-slate-200 bg-white text-slate-700 focus:border-blue-400'
+                                    }`}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <input 
+                                type="text"
+                                inputMode="decimal"
+                                disabled={!permiteEdicao}
+                                value={notaAtualStr}
+                                onChange={(e) => handleNotaChange(String(aluno.id), disc.disciplina, e.target.value)}
+                                placeholder="--"
+                                className={`w-14 h-9 md:w-16 md:h-10 text-center rounded-xl font-black text-xs md:text-sm outline-none transition-all ${
+                                  !permiteEdicao 
+                                    ? 'bg-slate-100/50 border border-transparent text-slate-400 cursor-not-allowed' 
+                                    : isVermelha 
+                                      ? 'border-2 border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400 md:shadow-inner' 
+                                      : 'border-2 border-slate-200 bg-white text-blue-700 focus:border-blue-400 md:shadow-inner' 
+                                }`}
+                                title={!permiteEdicao ? `Apenas o professor de ${disc.disciplina} pode editar` : "Digite a nota"}
+                              />
+                            )}
                           </td>
                         );
                       })}

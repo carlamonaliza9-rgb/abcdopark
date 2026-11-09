@@ -819,6 +819,10 @@ export function CreditoAluno({ historicoLocal, saldoCreditoVisivel, setVerCredit
 }
 
 export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, setVerBoletim }: any) {
+  const ehTurmaDeConceitos = ["Maternal", "Jardim I", "Jardim II"].includes(
+    String(aluno?.turma || "").trim()
+  );
+
   function gerarPDFBoletim() {
     const doc = new jsPDF();
     const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -856,19 +860,25 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
 
     autoTable(doc, {
       startY: 105,
-      head: [['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
-      body: notas.map((n: any) => [
-        n.disciplina.toUpperCase(),
-        n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
-        n.bimestre3 ?? '-', n.bimestre4 ?? '-', n.recuperacao2 ?? '-',
-        n.media || '0.0'
-      ]),
+      head: [ehTurmaDeConceitos
+        ? ['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2']
+        : ['DISCIPLINA', '1ºB', '2ºB', 'R1', '3ºB', '4ºB', 'R2', 'MÉD']],
+      body: notas.map((n: any) => {
+        const linha = [
+          n.disciplina.toUpperCase(),
+          n.bimestre1 ?? '-', n.bimestre2 ?? '-', n.recuperacao1 ?? '-',
+          n.bimestre3 ?? '-', n.bimestre4 ?? '-', n.recuperacao2 ?? '-'
+        ];
+
+        if (!ehTurmaDeConceitos) linha.push(n.media || '0.0');
+        return linha;
+      }),
       theme: 'grid',
       headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', halign: 'center' },
       styles: { fontSize: 8, halign: 'center' },
       columnStyles: { 0: { halign: 'left', fontStyle: 'bold', cellWidth: 50 } },
       didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index > 0) {
+        if (!ehTurmaDeConceitos && data.section === 'body' && data.column.index > 0) {
           const valorNota = parseFloat(data.cell.raw as string);
           if (!isNaN(valorNota) && valorNota < 7) data.cell.styles.textColor = [220, 38, 38]; 
         }
@@ -913,25 +923,33 @@ export function BoletimAluno({ aluno, anoSelecionado, setAnoSelecionado, notas, 
               <th className="p-4 text-center">3ºB</th>
               <th className="p-4 text-center">4ºB</th>
               <th className="p-4 text-center text-rose-500">R2</th>
-              <th className="p-4 text-center text-indigo-600">MÉDIA</th>
+              {!ehTurmaDeConceitos && <th className="p-4 text-center text-indigo-600">MÉDIA</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {notas.length > 0 ? notas.map((n: any) => {
-              const media = obterMediaFinal(n);
+              const media = ehTurmaDeConceitos ? null : obterMediaFinal(n);
               return (
                 <tr key={n.id} className="hover:bg-slate-50/50 transition-colors bg-white">
                   <td className="p-4 font-bold text-slate-800 text-sm">{n.disciplina}</td>
                   {['bimestre1', 'bimestre2', 'recuperacao1', 'bimestre3', 'bimestre4', 'recuperacao2'].map((b) => (
                     <td key={b} className="p-2 text-center">
-                      <input type="text" defaultValue={n[b] || ""} disabled={true} className={`w-12 text-center p-2 rounded-lg border border-slate-200 outline-none font-bold text-sm ${b.includes('recuperacao') ? 'bg-rose-50 border-rose-100' : 'bg-slate-50'} ${parseFloat(n[b]) < 7 ? 'text-rose-600' : 'text-slate-700'}`} />
+                      {ehTurmaDeConceitos ? (
+                        <span className="inline-block min-w-[100px] max-w-[180px] px-2 py-2 rounded-lg border border-slate-200 bg-slate-50 font-bold text-sm text-slate-700 break-words">
+                          {n[b] || ""}
+                        </span>
+                      ) : (
+                        <input type="text" value={n[b] === null || n[b] === undefined ? "" : String(n[b])} readOnly disabled={true} className={`w-12 text-center p-2 rounded-lg border border-slate-200 outline-none font-bold text-sm ${b.includes('recuperacao') ? 'bg-rose-50 border-rose-100' : 'bg-slate-50'} ${parseFloat(String(n[b] ?? "").replace(",", ".")) < 7 ? 'text-rose-600' : 'text-slate-700'}`} />
+                      )}
                     </td>
                   ))}
-                  <td className={`p-4 text-center font-black text-base ${parseFloat(media) < 7 ? 'text-rose-600' : 'text-indigo-600'}`}>{media}</td>
+                  {!ehTurmaDeConceitos && (
+                    <td className={`p-4 text-center font-black text-base ${parseFloat(media ?? '') < 7 ? 'text-rose-600' : 'text-indigo-600'}`}>{media}</td>
+                  )}
                 </tr>
               );
             }) : (
-              <tr><td colSpan={8} className="p-10 text-center text-slate-400 font-bold bg-slate-50">Nenhum registro acadêmico encontrado para {anoSelecionado}.</td></tr>
+              <tr><td colSpan={ehTurmaDeConceitos ? 7 : 8} className="p-10 text-center text-slate-400 font-bold bg-slate-50">Nenhum registro acadêmico encontrado para {anoSelecionado}.</td></tr>
             )}
           </tbody>
         </table>
